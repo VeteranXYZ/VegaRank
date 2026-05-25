@@ -9,6 +9,7 @@ export const cacheKeys = {
     `candles:binance:${symbol}:${timeframe}:${limit}`,
   scan: (timeframe: Timeframe, limit: number) =>
     `scan:binance:${timeframe}:${limit}`,
+  mtfScan: (preset: string, limit: number) => `scan:binance:mtf:${preset}:${limit}`,
 };
 
 export const cacheTtls = {
@@ -28,4 +29,5 @@ export const cacheTtls = {
     "7d": 60 * minute,
     "1m": 6 * 60 * minute,
   } satisfies Record<Timeframe, number>,
+  mtfScan: 15 * minute,
 };

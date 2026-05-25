@@ -25,6 +25,23 @@ export type ScannerSignal = {
   summary: string;
 };
 
+export type MultiTimeframeAlignment =
+  | "STRONG_ALIGNMENT"
+  | "EARLY_4H_SIGNAL"
+  | "DAILY_CONFIRMATION"
+  | "CONFLICTING"
+  | "HIGH_RISK";
+
+export type MultiTimeframeScanSummary = {
+  alignment: MultiTimeframeAlignment;
+  label: string;
+  summary: string;
+  constructiveCount: number;
+  riskCount: number;
+  rankScore: number;
+  timeframes: Timeframe[];
+};
+
 export type ScanResult = {
   exchange: "binance";
   symbol: string;
@@ -32,6 +49,7 @@ export type ScanResult = {
   price: number;
   phase: MarketPhase;
   signal: ScannerSignal;
+  multiTimeframe?: MultiTimeframeScanSummary;
   opportunityScore: number;
   confirmationScore: number;
   riskScore: number;

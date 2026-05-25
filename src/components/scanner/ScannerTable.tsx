@@ -79,6 +79,18 @@ export function ScannerTable({
         cell: ({ row }) => <SignalBadge signal={row.original.signal} />,
       },
       {
+        id: "multiTimeframe",
+        header: "Alignment",
+        cell: ({ row }) =>
+          row.original.multiTimeframe ? (
+            <span className="inline-flex rounded-md border border-[var(--border)] bg-[#0b0f14] px-2 py-1 text-xs font-semibold text-[var(--foreground)]">
+              {row.original.multiTimeframe.label}
+            </span>
+          ) : (
+            <span className="text-[var(--muted)]">Single</span>
+          ),
+      },
+      {
         accessorKey: "opportunityScore",
         header: "Opportunity",
         cell: ({ row }) => (
@@ -197,7 +209,7 @@ export function ScannerTable({
         />
       ) : (
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[1260px] border-collapse text-left text-sm">
+          <table className="w-full min-w-[1360px] border-collapse text-left text-sm">
             <thead className="bg-[#0d131a] text-xs uppercase text-[var(--muted)]">
               {table.getHeaderGroups().map((headerGroup) => (
                 <tr key={headerGroup.id}>

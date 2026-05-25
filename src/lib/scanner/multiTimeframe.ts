@@ -1,19 +1,30 @@
 import type { Timeframe } from "@/lib/exchanges/types";
-import type { ScanResult, ScannerSignalState } from "./types";
+import { clampScore } from "./scoring";
+import type {
+  MultiTimeframeScanSummary,
+  ScanResult,
+  ScannerSignalState,
+} from "./types";
 
-export type MultiTimeframeAlignment =
-  | "STRONG_ALIGNMENT"
-  | "EARLY_4H_SIGNAL"
-  | "DAILY_CONFIRMATION"
-  | "CONFLICTING"
-  | "HIGH_RISK";
+export type MultiTimeframeSummary = Omit<
+  MultiTimeframeScanSummary,
+  "rankScore" | "timeframes"
+>;
 
-export type MultiTimeframeSummary = {
-  alignment: MultiTimeframeAlignment;
-  label: string;
-  summary: string;
-  constructiveCount: number;
-  riskCount: number;
+export const mtfPresetLabels: Record<MtfPreset, string> = {
+  short: "1H / 4H / 1D",
+  swing: "4H / 1D / 7D",
+  position: "1D / 7D / 1M",
+  full: "1H / 4H / 1D / 7D / 1M",
+};
+
+export type MtfPreset = "short" | "swing" | "position" | "full";
+
+export const mtfPresetTimeframes: Record<MtfPreset, Timeframe[]> = {
+  short: ["1h", "4h", "1d"],
+  swing: ["4h", "1d", "7d"],
+  position: ["1d", "7d", "1m"],
+  full: ["1h", "4h", "1d", "7d", "1m"],
 };
 
 const constructiveSignals = new Set<ScannerSignalState>([
@@ -93,6 +104,35 @@ export function summarizeMultiTimeframe(
     constructiveCount,
     riskCount,
   };
+}
+
+export function calculateMultiTimeframeRankScore(
+  results: ScanResult[],
+  summary: MultiTimeframeSummary,
+) {
+  const averageRank =
+    results.reduce((total, result) => total + result.rankScore, 0) /
+    Math.max(results.length, 1);
+  const alignmentBonus = getAlignmentBonus(summary.alignment);
+  const structureBonus = summary.constructiveCount * 4 - summary.riskCount * 8;
+
+  return clampScore(averageRank + alignmentBonus + structureBonus);
+}
+
+function getAlignmentBonus(alignment: MultiTimeframeSummary["alignment"]) {
+  switch (alignment) {
+    case "STRONG_ALIGNMENT":
+      return 25;
+    case "DAILY_CONFIRMATION":
+      return 15;
+    case "EARLY_4H_SIGNAL":
+      return 10;
+    case "HIGH_RISK":
+      return -30;
+    case "CONFLICTING":
+    default:
+      return -10;
+  }
 }
 
 function isConstructive(signal: ScannerSignalState) {

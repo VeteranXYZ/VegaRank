@@ -31,6 +31,11 @@ export function SelectedSymbolPanel({ result }: SelectedSymbolPanelProps) {
           <div className="mt-2 flex flex-wrap gap-2">
             <PhaseBadge phase={result.phase} />
             <SignalBadge signal={result.signal} />
+            {result.multiTimeframe && (
+              <span className="inline-flex rounded-md border border-[var(--border)] bg-[#0b0f14] px-2 py-1 text-xs font-semibold text-[var(--foreground)]">
+                {result.multiTimeframe.label}
+              </span>
+            )}
           </div>
         </div>
         <Link
@@ -50,6 +55,26 @@ export function SelectedSymbolPanel({ result }: SelectedSymbolPanelProps) {
       <p className="mb-4 rounded-md border border-[var(--border)] bg-[#0b0f14] p-3 text-sm leading-6 text-[var(--muted)]">
         {result.signal.summary}
       </p>
+
+      {result.multiTimeframe && (
+        <div className="mb-4 rounded-md border border-[var(--border)] bg-[#0b0f14] p-3 text-sm leading-6 text-[var(--muted)]">
+          <div className="font-semibold text-[var(--foreground)]">
+            {result.multiTimeframe.label}
+          </div>
+          <p className="mt-1">{result.multiTimeframe.summary}</p>
+          <div className="mt-3 grid grid-cols-3 gap-2 text-xs">
+            <Metric
+              label="MTF Rank"
+              value={result.multiTimeframe.rankScore.toFixed(1)}
+            />
+            <Metric
+              label="Constructive"
+              value={String(result.multiTimeframe.constructiveCount)}
+            />
+            <Metric label="Risk" value={String(result.multiTimeframe.riskCount)} />
+          </div>
+        </div>
+      )}
 
       <div className="mb-4 grid grid-cols-2 gap-2 text-sm">
         <Metric label="Price" value={formatPrice(result.price)} />

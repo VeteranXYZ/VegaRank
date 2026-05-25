@@ -6,6 +6,7 @@ import { ScannerFilters, type ScannerSortKey } from "./ScannerFilters";
 import { ScannerTable } from "./ScannerTable";
 import { SelectedSymbolPanel } from "./SelectedSymbolPanel";
 import type { Timeframe } from "@/lib/exchanges/types";
+import type { MtfPreset } from "@/lib/scanner/multiTimeframe";
 import { scannerSignalOrder } from "@/lib/scanner/signal";
 import type {
   MarketPhase,
@@ -15,7 +16,9 @@ import type {
 
 type ScanApiResponse = {
   exchange: "binance";
-  timeframe: Timeframe;
+  mode?: "mtf";
+  timeframe?: Timeframe;
+  preset?: MtfPreset;
   results: ScanResult[];
   itemCount: number;
   errors?: { symbol: string; message: string }[];
@@ -23,8 +26,12 @@ type ScanApiResponse = {
   updatedAt: string;
 };
 
+export type ScannerMode = "single" | "mtf";
+
 export type ScannerFiltersState = {
+  mode: ScannerMode;
   timeframe: Timeframe;
+  mtfPreset: MtfPreset;
   signal: ScannerSignalState | "ALL";
   phase: MarketPhase | "ALL";
   minOpportunityScore: number;
@@ -34,7 +41,9 @@ export type ScannerFiltersState = {
 };
 
 const initialFilters: ScannerFiltersState = {
+  mode: "single",
   timeframe: "4h",
+  mtfPreset: "swing",
   signal: "ALL",
   phase: "ALL",
   minOpportunityScore: 0,
@@ -47,8 +56,14 @@ export function ScannerPageClient() {
   const [filters, setFilters] = useState<ScannerFiltersState>(initialFilters);
   const [selectedSymbol, setSelectedSymbol] = useState<string | null>(null);
   const scanQuery = useQuery({
-    queryKey: ["scan", filters.timeframe, filters.limit],
-    queryFn: () => fetchScan(filters.timeframe, filters.limit),
+    queryKey: [
+      "scan",
+      filters.mode,
+      filters.timeframe,
+      filters.mtfPreset,
+      getEffectiveLimit(filters),
+    ],
+    queryFn: () => fetchScan(filters),
   });
   const rows = useMemo(
     () => filterAndSortResults(scanQuery.data?.results ?? [], filters),
@@ -62,7 +77,7 @@ export function ScannerPageClient() {
     rows.find((row) => row.symbol === selectedSymbol) ?? rows[0] ?? null;
 
   function updateFilters(nextFilters: ScannerFiltersState) {
-    setFilters(nextFilters);
+    setFilters(normalizeFilters(nextFilters));
     setSelectedSymbol(null);
   }
 
@@ -99,7 +114,15 @@ export function ScannerPageClient() {
   );
 }
 
-async function fetchScan(timeframe: Timeframe, limit: number) {
+async function fetchScan(filters: ScannerFiltersState) {
+  if (filters.mode === "mtf") {
+    return fetchMtfScan(filters.mtfPreset, getEffectiveLimit(filters));
+  }
+
+  return fetchSingleTimeframeScan(filters.timeframe, filters.limit);
+}
+
+async function fetchSingleTimeframeScan(timeframe: Timeframe, limit: number) {
   const params = new URLSearchParams({
     timeframe,
     limit: String(limit),
@@ -116,6 +139,37 @@ async function fetchScan(timeframe: Timeframe, limit: number) {
   }
 
   return (await response.json()) as ScanApiResponse;
+}
+
+async function fetchMtfScan(preset: MtfPreset, limit: number) {
+  const params = new URLSearchParams({
+    preset,
+    limit: String(limit),
+  });
+  const response = await fetch(`/api/scan/mtf?${params.toString()}`);
+
+  if (!response.ok) {
+    const errorBody = (await response.json().catch(() => null)) as
+      | { error?: string; message?: string }
+      | null;
+    throw new Error(
+      errorBody?.message ?? errorBody?.error ?? "MTF scanner request failed.",
+    );
+  }
+
+  return (await response.json()) as ScanApiResponse;
+}
+
+function normalizeFilters(filters: ScannerFiltersState): ScannerFiltersState {
+  if (filters.mode === "mtf" && filters.limit === 200) {
+    return { ...filters, limit: 100 };
+  }
+
+  return filters;
+}
+
+function getEffectiveLimit(filters: ScannerFiltersState) {
+  return filters.mode === "mtf" && filters.limit === 200 ? 100 : filters.limit;
 }
 
 export function getSignalSummary(results: ScanResult[]) {

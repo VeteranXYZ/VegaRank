@@ -82,6 +82,28 @@ describe("scanner result filtering", () => {
 
     expect(rows.map((row) => row.symbol)).toEqual(["AAAUSDT"]);
   });
+
+  it("sorts MTF rows by their confluence rank score", () => {
+    const rows = filterAndSortResults(
+      [
+        makeResult({
+          symbol: "AAAUSDT",
+          signalState: "NEUTRAL",
+          phase: "BASE_BUILDING",
+          rankScore: 20,
+        }),
+        makeResult({
+          symbol: "BBBUSDT",
+          signalState: "TREND_CONTINUATION",
+          phase: "TRENDING",
+          rankScore: 80,
+        }),
+      ],
+      makeFilters({ mode: "mtf", mtfPreset: "swing" }),
+    );
+
+    expect(rows.map((row) => row.symbol)).toEqual(["BBBUSDT", "AAAUSDT"]);
+  });
 });
 
 describe("scanner signal summary", () => {
@@ -120,7 +142,9 @@ function makeFilters(
   overrides: Partial<ScannerFiltersState> = {},
 ): ScannerFiltersState {
   return {
+    mode: "single",
     timeframe: "4h",
+    mtfPreset: "swing",
     signal: "ALL",
     phase: "ALL",
     minOpportunityScore: 0,

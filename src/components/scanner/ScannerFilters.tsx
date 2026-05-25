@@ -2,6 +2,10 @@ import type { MarketPhase, ScannerSignalState } from "@/lib/scanner/types";
 import { scannerSignalLabels, scannerSignalOrder } from "@/lib/scanner/signal";
 import type { ScannerFiltersState } from "./ScannerPageClient";
 import { TIMEFRAMES, timeframeLabels } from "@/lib/exchanges/types";
+import {
+  mtfPresetLabels,
+  type MtfPreset,
+} from "@/lib/scanner/multiTimeframe";
 
 export type ScannerSortKey =
   | "rankScore"
@@ -45,13 +49,28 @@ export function ScannerFilters({ filters, onChange }: ScannerFiltersProps) {
       <h2 className="mb-4 text-lg font-semibold">Filters</h2>
       <div className="space-y-4 text-sm text-[var(--muted)]">
         <label className="block">
+          <span className="mb-2 block">Mode</span>
+          <select
+            value={filters.mode}
+            onChange={(event) =>
+              update("mode", event.target.value as ScannerFiltersState["mode"])
+            }
+            className="w-full rounded-md border border-[var(--border)] bg-[#0b0f14] px-3 py-2 text-[var(--foreground)]"
+          >
+            <option value="single">Single timeframe</option>
+            <option value="mtf">MTF confluence</option>
+          </select>
+        </label>
+
+        <label className="block">
           <span className="mb-2 block">Timeframe</span>
           <select
             value={filters.timeframe}
+            disabled={filters.mode === "mtf"}
             onChange={(event) =>
               update("timeframe", event.target.value as ScannerFiltersState["timeframe"])
             }
-            className="w-full rounded-md border border-[var(--border)] bg-[#0b0f14] px-3 py-2 text-[var(--foreground)]"
+            className="w-full rounded-md border border-[var(--border)] bg-[#0b0f14] px-3 py-2 text-[var(--foreground)] disabled:cursor-not-allowed disabled:opacity-50"
           >
             {TIMEFRAMES.map((timeframe) => (
               <option key={timeframe} value={timeframe}>
@@ -60,6 +79,25 @@ export function ScannerFilters({ filters, onChange }: ScannerFiltersProps) {
             ))}
           </select>
         </label>
+
+        {filters.mode === "mtf" && (
+          <label className="block">
+            <span className="mb-2 block">MTF Preset</span>
+            <select
+              value={filters.mtfPreset}
+              onChange={(event) =>
+                update("mtfPreset", event.target.value as MtfPreset)
+              }
+              className="w-full rounded-md border border-[var(--border)] bg-[#0b0f14] px-3 py-2 text-[var(--foreground)]"
+            >
+              {(Object.keys(mtfPresetLabels) as MtfPreset[]).map((preset) => (
+                <option key={preset} value={preset}>
+                  {mtfPresetLabels[preset]}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
 
         <label className="block">
           <span className="mb-2 block">Signal</span>
@@ -152,7 +190,7 @@ export function ScannerFilters({ filters, onChange }: ScannerFiltersProps) {
           >
             <option value={50}>50</option>
             <option value={100}>100</option>
-            <option value={200}>200</option>
+            {filters.mode === "single" && <option value={200}>200</option>}
           </select>
         </label>
       </div>
