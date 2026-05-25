@@ -26,6 +26,13 @@ export type MarketDataSummary = {
   failedPairs: number;
 };
 
+export type MarketCandleStats = {
+  firstOpenTime: number | null;
+  lastOpenTime: number | null;
+  lastCloseTime: number | null;
+  candleCount: number;
+};
+
 export class MarketDataStore {
   private readonly db: DatabaseSync;
 
@@ -217,6 +224,44 @@ export class MarketDataStore {
       | undefined;
 
     return row?.latestOpenTime ?? null;
+  }
+
+  getCandleStats({
+    exchange = "binance",
+    symbol,
+    timeframe,
+  }: {
+    exchange?: Exchange;
+    symbol: string;
+    timeframe: Timeframe;
+  }): MarketCandleStats {
+    const row = this.db
+      .prepare(
+        `
+        SELECT
+          MIN(open_time) AS firstOpenTime,
+          MAX(open_time) AS lastOpenTime,
+          MAX(close_time) AS lastCloseTime,
+          COUNT(*) AS candleCount
+        FROM candles
+        WHERE exchange = ? AND symbol = ? AND timeframe = ?
+      `,
+      )
+      .get(exchange, symbol.toUpperCase(), timeframe) as
+      | {
+          firstOpenTime: number | null;
+          lastOpenTime: number | null;
+          lastCloseTime: number | null;
+          candleCount: number;
+        }
+      | undefined;
+
+    return {
+      firstOpenTime: row?.firstOpenTime ?? null,
+      lastOpenTime: row?.lastOpenTime ?? null,
+      lastCloseTime: row?.lastCloseTime ?? null,
+      candleCount: row?.candleCount ?? 0,
+    };
   }
 
   upsertSyncState(state: MarketDataSyncState) {

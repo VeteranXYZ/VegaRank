@@ -58,6 +58,12 @@ type BinanceKline = [
   string,
 ];
 
+export type GetCandlesOptions = {
+  limit?: number;
+  startTime?: number;
+  endTime?: number;
+};
+
 const timeframeToBinanceInterval = {
   "1h": "1h",
   "4h": "4h",
@@ -141,35 +147,47 @@ export async function getTopUsdtMarkets(limit = 100): Promise<Market[]> {
 export async function getCandles(
   symbol: string,
   timeframe: Timeframe,
-  limit = 300,
+  limitOrOptions: number | GetCandlesOptions = 300,
 ): Promise<Candle[]> {
   const normalizedSymbol = symbol.toUpperCase();
+  const options =
+    typeof limitOrOptions === "number" ? { limit: limitOrOptions } : limitOrOptions;
+  const limit = options.limit ?? 300;
   const { entry } = await getOrSetCached(
     cacheKeys.candles(normalizedSymbol, timeframe, limit),
     cacheTtls.candles[timeframe],
     async () => {
-      const params = new URLSearchParams({
-        symbol: normalizedSymbol,
-        interval: timeframeToBinanceInterval[timeframe],
-        limit: String(limit),
-      });
-      const klines = await fetchBinance<BinanceKline[]>(
-        `/api/v3/klines?${params.toString()}`,
-      );
-
-      return klines.map((kline) => ({
-        openTime: Number(kline[0]),
-        open: Number(kline[1]),
-        high: Number(kline[2]),
-        low: Number(kline[3]),
-        close: Number(kline[4]),
-        volume: Number(kline[5]),
-        closeTime: Number(kline[6]),
-      }));
+      return fetchCandlesFromBinance(normalizedSymbol, timeframe, options);
     },
   );
 
   return entry.value;
+}
+
+export async function fetchCandlesFromBinance(
+  symbol: string,
+  timeframe: Timeframe,
+  options: GetCandlesOptions = {},
+): Promise<Candle[]> {
+  const params = new URLSearchParams({
+    symbol: symbol.toUpperCase(),
+    interval: timeframeToBinanceInterval[timeframe],
+    limit: String(options.limit ?? 300),
+  });
+
+  if (options.startTime !== undefined) {
+    params.set("startTime", String(options.startTime));
+  }
+
+  if (options.endTime !== undefined) {
+    params.set("endTime", String(options.endTime));
+  }
+
+  const klines = await fetchBinance<BinanceKline[]>(
+    `/api/v3/klines?${params.toString()}`,
+  );
+
+  return klines.map(toCandle);
 }
 
 function isExcludedBaseAsset(baseAsset: string) {
@@ -200,4 +218,16 @@ async function fetchBinance<T>(path: string): Promise<T> {
   }
 
   return response.json() as Promise<T>;
+}
+
+function toCandle(kline: BinanceKline): Candle {
+  return {
+    openTime: Number(kline[0]),
+    open: Number(kline[1]),
+    high: Number(kline[2]),
+    low: Number(kline[3]),
+    close: Number(kline[4]),
+    volume: Number(kline[5]),
+    closeTime: Number(kline[6]),
+  };
 }

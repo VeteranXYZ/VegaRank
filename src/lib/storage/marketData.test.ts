@@ -46,6 +46,14 @@ describe("market data store", () => {
       expect(
         store.getLatestCandleOpenTime({ symbol: "BTCUSDT", timeframe: "4h" }),
       ).toBe(3);
+      expect(store.getCandleStats({ symbol: "BTCUSDT", timeframe: "4h" })).toEqual(
+        {
+          firstOpenTime: 1,
+          lastOpenTime: 3,
+          lastCloseTime: 1_002,
+          candleCount: 3,
+        },
+      );
       expect(
         store.getSyncState({ symbol: "BTCUSDT", timeframe: "4h" }),
       ).toMatchObject({
