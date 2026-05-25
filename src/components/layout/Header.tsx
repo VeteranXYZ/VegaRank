@@ -9,6 +9,7 @@ export function Header() {
         </Link>
         <nav className="flex items-center gap-4 text-sm text-[var(--muted)]">
           <Link href="/scanner">Scanner</Link>
+          <Link href="/history">History</Link>
           <Link href="/symbol/binance/BTCUSDT">BTCUSDT</Link>
         </nav>
       </div>
