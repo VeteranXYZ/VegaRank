@@ -6,7 +6,7 @@ import { useLanguage } from "@/components/providers/LanguageProvider";
 import { ScannerFilters, type ScannerSortKey } from "./ScannerFilters";
 import { ScannerTable } from "./ScannerTable";
 import { SelectedSymbolPanel } from "./SelectedSymbolPanel";
-import type { Timeframe } from "@/lib/exchanges/types";
+import { TIMEFRAMES, type Timeframe } from "@/lib/exchanges/types";
 import type { MtfPreset } from "@/lib/scanner/multiTimeframe";
 import { scannerSignalOrder } from "@/lib/scanner/signal";
 import type {
@@ -52,6 +52,12 @@ type MarketDataSyncResponse = {
   errors: Array<{ symbol: string; timeframe: Timeframe; message: string }>;
 };
 
+type DataSyncControlsState = {
+  mode: "recent" | "incremental";
+  marketLimit: 50 | 100 | 200 | 500;
+  timeframes: Timeframe[];
+};
+
 export type ScannerMode = "single" | "mtf";
 
 export type ScannerFiltersState = {
@@ -82,6 +88,11 @@ export function ScannerPageClient() {
   const { dictionary: t } = useLanguage();
   const queryClient = useQueryClient();
   const [filters, setFilters] = useState<ScannerFiltersState>(initialFilters);
+  const [syncControls, setSyncControls] = useState<DataSyncControlsState>({
+    mode: "incremental",
+    marketLimit: 200,
+    timeframes: ["4h"],
+  });
   const [selectedSymbol, setSelectedSymbol] = useState<string | null>(null);
   const scanQuery = useQuery({
     queryKey: [
@@ -100,9 +111,9 @@ export function ScannerPageClient() {
   const syncMutation = useMutation({
     mutationFn: () =>
       syncMarketData({
-        mode: "incremental",
-        marketLimit: 200,
-        timeframes: getSyncTimeframes(filters),
+        mode: syncControls.mode,
+        marketLimit: syncControls.marketLimit,
+        timeframes: syncControls.timeframes,
       }),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["market-data-summary"] });
@@ -183,9 +194,23 @@ export function ScannerPageClient() {
         summary={dataSummaryQuery.data?.summary ?? null}
         isLoading={dataSummaryQuery.isLoading}
         isSyncing={syncMutation.isPending}
+        controls={syncControls}
         syncResult={syncMutation.data ?? null}
         errorMessage={
           syncMutation.error instanceof Error ? syncMutation.error.message : null
+        }
+        onControlsChange={setSyncControls}
+        onUseCurrentView={() =>
+          setSyncControls((current) => ({
+            ...current,
+            timeframes: getSyncTimeframes(filters),
+          }))
+        }
+        onUseAllTimeframes={() =>
+          setSyncControls((current) => ({
+            ...current,
+            timeframes: [...TIMEFRAMES],
+          }))
         }
         onSync={() => syncMutation.mutate()}
       />
@@ -230,18 +255,40 @@ function LocalDataPanel({
   summary,
   isLoading,
   isSyncing,
+  controls,
   syncResult,
   errorMessage,
+  onControlsChange,
+  onUseCurrentView,
+  onUseAllTimeframes,
   onSync,
 }: {
   summary: MarketDataSummaryResponse["summary"] | null;
   isLoading: boolean;
   isSyncing: boolean;
+  controls: DataSyncControlsState;
   syncResult: MarketDataSyncResponse | null;
   errorMessage: string | null;
+  onControlsChange: (controls: DataSyncControlsState) => void;
+  onUseCurrentView: () => void;
+  onUseAllTimeframes: () => void;
   onSync: () => void;
 }) {
   const { dictionary: t } = useLanguage();
+
+  function updateControls(nextControls: Partial<DataSyncControlsState>) {
+    onControlsChange({ ...controls, ...nextControls });
+  }
+
+  function toggleTimeframe(timeframe: Timeframe) {
+    const nextTimeframes = controls.timeframes.includes(timeframe)
+      ? controls.timeframes.filter((item) => item !== timeframe)
+      : [...controls.timeframes, timeframe];
+
+    updateControls({
+      timeframes: nextTimeframes.length > 0 ? nextTimeframes : [timeframe],
+    });
+  }
 
   return (
     <section className="mb-5 rounded-md border border-[var(--border)] bg-[var(--panel)] px-4 py-3">
@@ -258,14 +305,6 @@ function LocalDataPanel({
                 : t.scanner.noLocalData}
           </p>
         </div>
-        <button
-          type="button"
-          onClick={onSync}
-          disabled={isSyncing}
-          className="rounded-md border border-[var(--border)] bg-[#0b0f14] px-3 py-2 text-sm font-semibold text-[var(--foreground)] disabled:cursor-not-allowed disabled:opacity-60"
-        >
-          {isSyncing ? t.scanner.updatingData : t.scanner.updateLatestData}
-        </button>
       </div>
 
       <div className="mt-3 grid gap-2 sm:grid-cols-4">
@@ -285,6 +324,93 @@ function LocalDataPanel({
           label={t.scanner.syncErrors}
           value={formatInteger(summary?.failedPairs)}
         />
+      </div>
+
+      <div className="mt-4 grid gap-3 lg:grid-cols-[180px_180px_minmax(0,1fr)_auto] lg:items-end">
+        <label className="text-sm text-[var(--muted)]">
+          <span className="mb-2 block">{t.scanner.syncMode}</span>
+          <select
+            value={controls.mode}
+            onChange={(event) =>
+              updateControls({
+                mode: event.target.value as DataSyncControlsState["mode"],
+              })
+            }
+            className="w-full rounded-md border border-[var(--border)] bg-[#0b0f14] px-3 py-2 text-[var(--foreground)]"
+          >
+            <option value="incremental">{t.scanner.incrementalSync}</option>
+            <option value="recent">{t.scanner.recentSync}</option>
+          </select>
+        </label>
+
+        <label className="text-sm text-[var(--muted)]">
+          <span className="mb-2 block">{t.scanner.marketLimit}</span>
+          <select
+            value={controls.marketLimit}
+            onChange={(event) =>
+              updateControls({
+                marketLimit: Number(
+                  event.target.value,
+                ) as DataSyncControlsState["marketLimit"],
+              })
+            }
+            className="w-full rounded-md border border-[var(--border)] bg-[#0b0f14] px-3 py-2 text-[var(--foreground)]"
+          >
+            <option value={50}>50</option>
+            <option value={100}>100</option>
+            <option value={200}>200</option>
+            <option value={500}>500</option>
+          </select>
+        </label>
+
+        <div>
+          <div className="mb-2 flex flex-wrap items-center gap-2 text-sm text-[var(--muted)]">
+            <span>{t.scanner.syncScope}</span>
+            <button
+              type="button"
+              onClick={onUseCurrentView}
+              className="rounded-md border border-[var(--border)] bg-[#0b0f14] px-2 py-1 text-xs font-semibold text-[var(--foreground)]"
+            >
+              {t.scanner.currentViewScope}
+            </button>
+            <button
+              type="button"
+              onClick={onUseAllTimeframes}
+              className="rounded-md border border-[var(--border)] bg-[#0b0f14] px-2 py-1 text-xs font-semibold text-[var(--foreground)]"
+            >
+              {t.scanner.allTimeframesScope}
+            </button>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {TIMEFRAMES.map((timeframe) => {
+              const isActive = controls.timeframes.includes(timeframe);
+
+              return (
+                <button
+                  key={timeframe}
+                  type="button"
+                  onClick={() => toggleTimeframe(timeframe)}
+                  className={`rounded-md border px-3 py-2 text-xs font-semibold ${
+                    isActive
+                      ? "border-[var(--foreground)] bg-[#101923] text-[var(--foreground)]"
+                      : "border-[var(--border)] bg-[#0b0f14] text-[var(--muted)]"
+                  }`}
+                >
+                  {t.timeframe[timeframe]}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        <button
+          type="button"
+          onClick={onSync}
+          disabled={isSyncing || controls.timeframes.length === 0}
+          className="rounded-md border border-[var(--border)] bg-[#0b0f14] px-3 py-2 text-sm font-semibold text-[var(--foreground)] disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          {isSyncing ? t.scanner.updatingData : t.scanner.updateLatestData}
+        </button>
       </div>
 
       {syncResult && (
