@@ -112,6 +112,33 @@ describe("scanner scoring", () => {
     expect(scores.riskScore).toBe(0);
     expect(scores.rankScore).toBeCloseTo(62.5, 6);
   });
+
+  it("demotes high-risk phases in risk and rank scores", () => {
+    const baseSnapshot = makeSnapshot({
+      close: 120,
+      ma20: 108,
+      ma50: 100,
+      ma200: 90,
+      bbMiddle: 100,
+      bbUpper: 115,
+      widthPercentile: 80,
+      rsi14: 65,
+      volumeRatio: 2,
+      priceExtensionFromMA20: 0.11,
+    });
+    const neutralScores = calculateScannerScores({
+      snapshot: baseSnapshot,
+      sufficientHistory: true,
+    });
+    const overextendedScores = calculateScannerScores({
+      snapshot: baseSnapshot,
+      sufficientHistory: true,
+      phase: "OVEREXTENDED",
+    });
+
+    expect(overextendedScores.riskScore).toBeGreaterThan(neutralScores.riskScore);
+    expect(overextendedScores.rankScore).toBeLessThan(neutralScores.rankScore);
+  });
 });
 
 describe("scanner signal labels", () => {
@@ -146,6 +173,17 @@ describe("scanner signal labels", () => {
         riskScore: 10,
       }).state,
     ).toBe("WATCHLIST");
+  });
+
+  it("labels breakdowns as weak even when risk score is high", () => {
+    expect(
+      deriveScannerSignal({
+        phase: "BREAKDOWN",
+        opportunityScore: 5,
+        confirmationScore: 0,
+        riskScore: 80,
+      }).state,
+    ).toBe("WEAK");
   });
 });
 

@@ -1,8 +1,10 @@
 import type { IndicatorSnapshot } from "@/lib/indicators";
+import type { MarketPhase } from "./types";
 
 type ScoreInput = {
   snapshot: IndicatorSnapshot;
   sufficientHistory: boolean;
+  phase?: MarketPhase;
 };
 
 export type ScannerScores = {
@@ -15,14 +17,18 @@ export type ScannerScores = {
 export function calculateScannerScores({
   snapshot,
   sufficientHistory,
+  phase,
 }: ScoreInput): ScannerScores {
   const opportunityScore = calculateOpportunityScore(snapshot, sufficientHistory);
   const confirmationScore = calculateConfirmationScore(snapshot);
-  const riskScore = calculateRiskScore(snapshot, sufficientHistory);
+  const riskScore = calculateRiskScore(snapshot, sufficientHistory, phase);
 
   // Rank score is only a sorting aid; the UI still exposes the component scores.
   const rankScore = clampScore(
-    opportunityScore * 0.45 + confirmationScore * 0.35 - riskScore * 0.2,
+    opportunityScore * 0.45 +
+      confirmationScore * 0.35 -
+      riskScore * 0.25 -
+      getPhaseRankPenalty(phase),
   );
 
   return {
@@ -110,6 +116,7 @@ function calculateConfirmationScore(snapshot: IndicatorSnapshot) {
 function calculateRiskScore(
   snapshot: IndicatorSnapshot,
   sufficientHistory: boolean,
+  phase?: MarketPhase,
 ) {
   let score = 0;
 
@@ -144,7 +151,32 @@ function calculateRiskScore(
     score += 10;
   }
 
+  if (phase === "OVEREXTENDED") {
+    score += 20;
+  }
+
+  if (phase === "DISTRIBUTION") {
+    score += 35;
+  }
+
+  if (phase === "BREAKDOWN") {
+    score += 25;
+  }
+
   return clampScore(score);
+}
+
+function getPhaseRankPenalty(phase?: MarketPhase) {
+  switch (phase) {
+    case "OVEREXTENDED":
+      return 15;
+    case "DISTRIBUTION":
+      return 20;
+    case "BREAKDOWN":
+      return 18;
+    default:
+      return 0;
+  }
 }
 
 function isBetween(value: number | null, min: number, max: number) {

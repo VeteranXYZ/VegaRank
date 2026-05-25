@@ -16,7 +16,7 @@ export function scanCandles(
   const missingIndicators = getMissingIndicators(snapshot);
   const sufficientHistory = candles.length >= 200;
   const phase = determineMarketPhase(snapshot, candles);
-  const scores = calculateScannerScores({ snapshot, sufficientHistory });
+  const scores = calculateScannerScores({ snapshot, sufficientHistory, phase });
   const signal = deriveScannerSignal({ phase, ...scores });
 
   return {

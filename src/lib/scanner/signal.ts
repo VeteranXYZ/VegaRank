@@ -13,19 +13,19 @@ export function deriveScannerSignal({
   confirmationScore,
   riskScore,
 }: SignalInput): ScannerSignal {
-  if (riskScore >= 55 || phase === "OVEREXTENDED" || phase === "DISTRIBUTION") {
-    return {
-      state: "HIGH_RISK",
-      label: "High Risk",
-      summary: "Risk conditions dominate this setup.",
-    };
-  }
-
   if (phase === "BREAKDOWN") {
     return {
       state: "WEAK",
       label: "Weak",
       summary: "Price and momentum are below key trend levels.",
+    };
+  }
+
+  if (riskScore >= 55 || phase === "OVEREXTENDED" || phase === "DISTRIBUTION") {
+    return {
+      state: "HIGH_RISK",
+      label: "High Risk",
+      summary: "Risk conditions dominate this setup.",
     };
   }
 
