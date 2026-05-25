@@ -7,8 +7,10 @@ import {
   mtfPresetTimeframes,
   type MtfPreset,
 } from "@/lib/scanner/multiTimeframe";
+import { scanLocalMarketMultiTimeframe } from "@/lib/scanner/scanLocalMarket";
 import { scanMarketMultiTimeframe } from "@/lib/scanner/scanMarketMtf";
 import type { ScanResult } from "@/lib/scanner/types";
+import { MarketDataStore } from "@/lib/storage/marketData";
 import { safePersistScanSnapshot } from "@/lib/storage/scanSnapshots";
 
 const DEFAULT_MTF_SCAN_LIMIT = 50;
@@ -26,6 +28,7 @@ type MtfScanPayload = {
   mode: "mtf";
   preset: MtfPreset;
   timeframes: typeof mtfPresetTimeframes[MtfPreset];
+  source: "local" | "remote";
   results: ScanResult[];
   itemCount: number;
   errors?: { symbol: string; message: string }[];
@@ -63,28 +66,7 @@ export async function GET(request: Request) {
       });
     }
 
-    const markets = await getTopUsdtMarkets(limit.value);
-    const gate = pLimit(MTF_SCAN_CONCURRENCY);
-    const settled = await Promise.all(
-      markets.map((market) =>
-        gate(async () => {
-          try {
-            return {
-              result: await scanMarketMultiTimeframe(market.symbol, preset),
-              error: null,
-            };
-          } catch (error) {
-            return {
-              result: null,
-              error: {
-                symbol: market.symbol,
-                message: error instanceof Error ? error.message : "Unknown error",
-              },
-            };
-          }
-        }),
-      ),
-    );
+    const { settled, useLocal } = await scanMtfMarkets(preset, limit.value);
     const results = settled
       .flatMap((item) => (item.result ? [item.result] : []))
       .sort((left, right) => right.rankScore - left.rankScore);
@@ -94,6 +76,7 @@ export async function GET(request: Request) {
       mode: "mtf",
       preset,
       timeframes: mtfPresetTimeframes[preset],
+      source: useLocal ? "local" : "remote",
       results,
       itemCount: results.length,
       errors: errors.length > 0 ? errors : undefined,
@@ -146,6 +129,47 @@ export async function GET(request: Request) {
       },
       { status: 502 },
     );
+  }
+}
+
+async function scanMtfMarkets(preset: MtfPreset, limit: number) {
+  const store = new MarketDataStore();
+
+  try {
+    const localMarkets = store.getMarkets();
+    const useLocal = localMarkets.length > 0;
+    const markets = useLocal ? localMarkets : await getTopUsdtMarkets(limit);
+    const gate = pLimit(MTF_SCAN_CONCURRENCY);
+    const settled = await Promise.all(
+      markets.map((market) =>
+        gate(async () => {
+          try {
+            return {
+              result: useLocal
+                ? scanLocalMarketMultiTimeframe({
+                    store,
+                    symbol: market.symbol,
+                    preset,
+                  })
+                : await scanMarketMultiTimeframe(market.symbol, preset),
+              error: null,
+            };
+          } catch (error) {
+            return {
+              result: null,
+              error: {
+                symbol: market.symbol,
+                message: error instanceof Error ? error.message : "Unknown error",
+              },
+            };
+          }
+        }),
+      ),
+    );
+
+    return { settled, useLocal };
+  } finally {
+    store.close();
   }
 }
 

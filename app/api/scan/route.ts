@@ -4,8 +4,10 @@ import { cacheKeys, cacheTtls } from "@/lib/cache/keys";
 import { getCached, setCached } from "@/lib/cache/memory";
 import { getTopUsdtMarkets } from "@/lib/exchanges/binance";
 import { TIMEFRAMES, type Timeframe } from "@/lib/exchanges/types";
+import { scanLocalMarket } from "@/lib/scanner/scanLocalMarket";
 import { scanMarket } from "@/lib/scanner/scanMarket";
 import type { ScanResult } from "@/lib/scanner/types";
+import { MarketDataStore } from "@/lib/storage/marketData";
 import { safePersistScanSnapshot } from "@/lib/storage/scanSnapshots";
 
 const DEFAULT_SCAN_LIMIT = 100;
@@ -16,6 +18,7 @@ const SUPPORTED_TIMEFRAMES = new Set<ScanTimeframe>(TIMEFRAMES);
 type ScanPayload = {
   exchange: "binance";
   timeframe: ScanTimeframe;
+  source: "local" | "remote";
   results: ScanResult[];
   itemCount: number;
   errors?: { symbol: string; message: string }[];
@@ -49,28 +52,7 @@ export async function GET(request: Request) {
       });
     }
 
-    const markets = await getTopUsdtMarkets(limit.value);
-    const gate = pLimit(SCAN_CONCURRENCY);
-    const settled = await Promise.all(
-      markets.map((market) =>
-        gate(async () => {
-          try {
-            return {
-              result: await scanMarket(market.symbol, timeframe),
-              error: null,
-            };
-          } catch (error) {
-            return {
-              result: null,
-              error: {
-                symbol: market.symbol,
-                message: error instanceof Error ? error.message : "Unknown error",
-              },
-            };
-          }
-        }),
-      ),
-    );
+    const { settled, useLocal } = await scanMarkets(timeframe, limit.value);
     const results = settled
       .flatMap((item) => (item.result ? [item.result] : []))
       .sort((left, right) => right.rankScore - left.rankScore);
@@ -78,6 +60,7 @@ export async function GET(request: Request) {
     const payload: ScanPayload = {
       exchange: "binance",
       timeframe,
+      source: useLocal ? "local" : "remote",
       results,
       itemCount: results.length,
       errors: errors.length > 0 ? errors : undefined,
@@ -128,6 +111,43 @@ export async function GET(request: Request) {
       },
       { status: 502 },
     );
+  }
+}
+
+async function scanMarkets(timeframe: ScanTimeframe, limit: number) {
+  const store = new MarketDataStore();
+
+  try {
+    const localMarkets = store.getMarkets();
+    const useLocal = localMarkets.length > 0;
+    const markets = useLocal ? localMarkets : await getTopUsdtMarkets(limit);
+    const gate = pLimit(SCAN_CONCURRENCY);
+    const settled = await Promise.all(
+      markets.map((market) =>
+        gate(async () => {
+          try {
+            return {
+              result: useLocal
+                ? scanLocalMarket({ store, symbol: market.symbol, timeframe })
+                : await scanMarket(market.symbol, timeframe),
+              error: null,
+            };
+          } catch (error) {
+            return {
+              result: null,
+              error: {
+                symbol: market.symbol,
+                message: error instanceof Error ? error.message : "Unknown error",
+              },
+            };
+          }
+        }),
+      ),
+    );
+
+    return { settled, useLocal };
+  } finally {
+    store.close();
   }
 }
 

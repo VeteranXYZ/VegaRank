@@ -21,6 +21,7 @@ type ScanApiResponse = {
   mode?: "mtf";
   timeframe?: Timeframe;
   preset?: MtfPreset;
+  source?: "local" | "remote";
   results: ScanResult[];
   itemCount: number;
   errors?: { symbol: string; message: string }[];
@@ -161,6 +162,14 @@ export function ScannerPageClient() {
               filters.mode === "mtf"
                 ? t.mtfPreset[filters.mtfPreset]
                 : t.timeframe[filters.timeframe]
+            }
+          />
+          <HeaderMetric
+            label={t.scanner.source}
+            value={
+              scanQuery.data?.source === "local"
+                ? t.scanner.localSource
+                : t.scanner.remoteSource
             }
           />
           <HeaderMetric
