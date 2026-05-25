@@ -7,6 +7,7 @@ import {
   type ColumnDef,
 } from "@tanstack/react-table";
 import { useMemo } from "react";
+import { useLanguage } from "@/components/providers/LanguageProvider";
 import { PhaseBadge } from "./PhaseBadge";
 import { RiskBadge } from "./RiskBadge";
 import { ScoreBadge } from "./ScoreBadge";
@@ -52,16 +53,17 @@ export function ScannerTable({
   onSignalSelect,
   onSelect,
 }: ScannerTableProps) {
+  const { dictionary: t } = useLanguage();
   const columns = useMemo<ColumnDef<ScanResult>[]>(
     () => [
       {
         id: "rank",
-        header: "Rank",
+        header: t.common.rank,
         cell: ({ row }) => row.index + 1,
       },
       {
         accessorKey: "symbol",
-        header: "Symbol",
+        header: t.scanner.columns.symbol,
         cell: ({ row }) => (
           <span className="font-semibold text-[var(--foreground)]">
             {row.original.symbol}
@@ -70,87 +72,96 @@ export function ScannerTable({
       },
       {
         accessorKey: "phase",
-        header: "Phase",
+        header: t.common.phase,
         cell: ({ row }) => <PhaseBadge phase={row.original.phase} />,
       },
       {
         accessorKey: "signal.state",
-        header: "Signal",
+        header: t.common.signal,
         cell: ({ row }) => <SignalBadge signal={row.original.signal} />,
       },
       {
         id: "multiTimeframe",
-        header: "Alignment",
+        header: t.common.alignment,
         cell: ({ row }) =>
           row.original.multiTimeframe ? (
             <span className="inline-flex rounded-md border border-[var(--border)] bg-[#0b0f14] px-2 py-1 text-xs font-semibold text-[var(--foreground)]">
-              {row.original.multiTimeframe.label}
+              {t.alignment[row.original.multiTimeframe.alignment]}
             </span>
           ) : (
-            <span className="text-[var(--muted)]">Single</span>
+            <span className="text-[var(--muted)]">{t.common.single}</span>
           ),
       },
       {
         accessorKey: "opportunityScore",
-        header: "Opportunity",
+        header: t.scanner.columns.opportunity,
         cell: ({ row }) => (
-          <ScoreBadge label="Opportunity" value={row.original.opportunityScore} />
+          <ScoreBadge
+            label={t.scanner.columns.opportunity}
+            value={row.original.opportunityScore}
+          />
         ),
       },
       {
         accessorKey: "confirmationScore",
-        header: "Confirmation",
+        header: t.scanner.columns.confirmation,
         cell: ({ row }) => (
           <ScoreBadge
-            label="Confirmation"
+            label={t.scanner.columns.confirmation}
             value={row.original.confirmationScore}
           />
         ),
       },
       {
         accessorKey: "riskScore",
-        header: "Risk",
+        header: t.common.risk,
         cell: ({ row }) => (
-          <ScoreBadge label="Risk" value={row.original.riskScore} tone="risk" />
+          <ScoreBadge
+            label={t.common.risk}
+            value={row.original.riskScore}
+            tone="risk"
+          />
         ),
       },
       {
         accessorKey: "rankScore",
-        header: "Rank Score",
+        header: t.scanner.columns.score,
         cell: ({ row }) => formatNumber(row.original.rankScore, 1),
       },
       {
         accessorKey: "rsi14",
-        header: "RSI",
+        header: t.scanner.columns.rsi,
         cell: ({ row }) => formatNullable(row.original.rsi14, 1),
       },
       {
         accessorKey: "bbWidthPercentile",
-        header: "BB Width %",
+        header: t.scanner.columns.bbWidth,
         cell: ({ row }) => formatNullable(row.original.bbWidthPercentile, 0),
       },
       {
         accessorKey: "volumeRatio",
-        header: "Volume Ratio",
+        header: t.scanner.columns.volumeRatio,
         cell: ({ row }) => formatNullable(row.original.volumeRatio, 2),
       },
       {
         id: "maStatus",
-        header: "MA Status",
+        header: t.scanner.columns.maStatus,
         cell: ({ row }) => <MaStatus result={row.original} />,
       },
       {
         id: "warnings",
-        header: "Warnings",
+        header: t.scanner.columns.warnings,
         cell: ({ row }) =>
           row.original.warnings.length > 0 ? (
-            <RiskBadge label={`${row.original.warnings.length} warning`} />
+            <RiskBadge
+              label={`${row.original.warnings.length} ${t.scanner.warnings}`}
+            />
           ) : (
-            <span className="text-[var(--muted)]">None</span>
+            <span className="text-[var(--muted)]">{t.common.none}</span>
           ),
       },
     ],
-    [],
+    [t],
   );
   // TanStack Table intentionally returns callable table helpers from this hook.
   // eslint-disable-next-line react-hooks/incompatible-library
@@ -164,13 +175,15 @@ export function ScannerTable({
     <section className="min-w-0 overflow-hidden rounded-md border border-[var(--border)] bg-[var(--panel)]">
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--border)] px-4 py-3">
         <div>
-          <h2 className="text-lg font-semibold">Scanner Results</h2>
+          <h2 className="text-lg font-semibold">{t.scanner.results}</h2>
           <p className="mt-1 text-xs text-[var(--muted)]">
             {updatedAt
-              ? `${sourceItemCount} scanned · ${cached ? "cached" : "fresh"} · ${new Date(
+              ? `${sourceItemCount} ${t.scanner.scanned} · ${
+                  cached ? t.common.cached : t.common.fresh
+                } · ${new Date(
                   updatedAt,
                 ).toLocaleTimeString()}`
-              : "Waiting for scan data"}
+              : t.scanner.waiting}
           </p>
         </div>
         <button
@@ -179,7 +192,7 @@ export function ScannerTable({
           disabled={isFetching}
           className="rounded-md border border-[var(--border)] px-3 py-2 text-sm font-semibold text-[var(--foreground)] disabled:cursor-not-allowed disabled:opacity-60"
         >
-          {isFetching ? "Refreshing" : "Refresh Scan"}
+          {isFetching ? t.common.refreshing : t.common.refresh}
         </button>
       </div>
 
@@ -191,25 +204,25 @@ export function ScannerTable({
 
       {partialErrors.length > 0 && (
         <div className="border-b border-[var(--border)] bg-[#2b2111] px-4 py-3 text-sm text-[var(--warning)]">
-          {partialErrors.length} symbol scan failed; partial results are shown.
+          {partialErrors.length} {t.scanner.partialErrors}
         </div>
       )}
 
       {isError ? (
-        <StateMessage title="Scan Error" message={errorMessage} />
+        <StateMessage title={t.scanner.errorTitle} message={errorMessage} />
       ) : isLoading ? (
         <StateMessage
-          title="Loading Scan"
-          message="Fetching public Binance market data and calculating scanner results."
+          title={t.scanner.loadingTitle}
+          message={t.scanner.loadingMessage}
         />
       ) : rows.length === 0 ? (
         <StateMessage
-          title="No Matches"
-          message="Adjust filters to widen the current scanner result set."
+          title={t.scanner.noMatchesTitle}
+          message={t.scanner.noMatchesMessage}
         />
       ) : (
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[1360px] border-collapse text-left text-sm">
+          <table className="w-full min-w-[1160px] border-collapse text-left text-sm">
             <thead className="bg-[#0d131a] text-xs uppercase text-[var(--muted)]">
               {table.getHeaderGroups().map((headerGroup) => (
                 <tr key={headerGroup.id}>

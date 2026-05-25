@@ -4,6 +4,7 @@ import { useQueries } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { CandleChart } from "@/components/chart/CandleChart";
 import { IndicatorLegend } from "@/components/chart/IndicatorLegend";
+import { useLanguage } from "@/components/providers/LanguageProvider";
 import { PhaseBadge } from "@/components/scanner/PhaseBadge";
 import { ReasonList } from "@/components/scanner/ReasonList";
 import { RiskBadge } from "@/components/scanner/RiskBadge";
@@ -11,7 +12,6 @@ import { ScoreBadge } from "@/components/scanner/ScoreBadge";
 import { SignalBadge } from "@/components/scanner/SignalBadge";
 import {
   TIMEFRAMES,
-  timeframeLabels,
   type Candle,
   type Exchange,
   type Timeframe,
@@ -42,6 +42,7 @@ type CandlesApiResponse = {
 };
 
 export function SymbolPageClient({ exchange, symbol }: SymbolPageClientProps) {
+  const { dictionary: t } = useLanguage();
   const [timeframe, setTimeframe] = useState<Timeframe>("4h");
   const timeframeQueries = useQueries({
     queries: TIMEFRAMES.map((option) => ({
@@ -85,7 +86,7 @@ export function SymbolPageClient({ exchange, symbol }: SymbolPageClientProps) {
 
         <div className="flex flex-wrap items-end gap-2">
           <label className="text-sm text-[var(--muted)]">
-            <span className="mb-2 block">Timeframe</span>
+            <span className="mb-2 block">{t.symbol.timeframe}</span>
             <select
               value={timeframe}
               onChange={(event) => setTimeframe(event.target.value as Timeframe)}
@@ -93,7 +94,7 @@ export function SymbolPageClient({ exchange, symbol }: SymbolPageClientProps) {
             >
               {TIMEFRAMES.map((option) => (
                 <option key={option} value={option}>
-                  {timeframeLabels[option]}
+                  {t.timeframe[option]}
                 </option>
               ))}
             </select>
@@ -106,24 +107,24 @@ export function SymbolPageClient({ exchange, symbol }: SymbolPageClientProps) {
             disabled={isAnyTimeframeFetching}
             className="rounded-md border border-[var(--border)] px-3 py-2 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-60"
           >
-            {isAnyTimeframeFetching ? "Refreshing" : "Refresh"}
+            {isAnyTimeframeFetching ? t.common.refreshing : t.common.refresh}
           </button>
         </div>
       </div>
 
       {candlesQuery.isError ? (
         <StatePanel
-          title="Unable To Load Symbol"
+          title={t.symbol.errorTitle}
           message={
             candlesQuery.error instanceof Error
               ? candlesQuery.error.message
-              : "Candle request failed."
+              : t.symbol.candleError
           }
         />
       ) : candlesQuery.isLoading ? (
         <StatePanel
-          title="Loading Symbol"
-          message="Fetching public Binance candles and calculating indicators."
+          title={t.symbol.loadingTitle}
+          message={t.symbol.loadingMessage}
         />
       ) : (
         <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_380px]">
@@ -143,20 +144,22 @@ export function SymbolPageClient({ exchange, symbol }: SymbolPageClientProps) {
             {scanResult && (
               <>
                 <div className="rounded-md border border-[var(--border)] bg-[var(--panel)] p-4">
-                  <h2 className="mb-4 text-lg font-semibold">Current Structure</h2>
+                  <h2 className="mb-4 text-lg font-semibold">
+                    {t.symbol.currentStructure}
+                  </h2>
                   <div className="mb-4 grid grid-cols-3 gap-2">
                     <ScoreBadge
-                      label="Opp"
+                      label={t.scanner.columns.opportunity}
                       value={scanResult.opportunityScore}
                       compact
                     />
                     <ScoreBadge
-                      label="Conf"
+                      label={t.scanner.columns.confirmation}
                       value={scanResult.confirmationScore}
                       compact
                     />
                     <ScoreBadge
-                      label="Risk"
+                      label={t.common.risk}
                       value={scanResult.riskScore}
                       tone="risk"
                       compact
@@ -164,18 +167,18 @@ export function SymbolPageClient({ exchange, symbol }: SymbolPageClientProps) {
                   </div>
                   <IndicatorSummary snapshot={snapshot} scanResult={scanResult} />
                   <p className="mt-4 rounded-md border border-[var(--border)] bg-[#0b0f14] p-3 text-sm leading-6 text-[var(--muted)]">
-                    {scanResult.signal.summary}
+                    {t.signalSummary[scanResult.signal.state]}
                   </p>
                 </div>
 
                 <div className="rounded-md border border-[var(--border)] bg-[var(--panel)] p-4">
-                  <ReasonList title="Reasons" items={scanResult.reasons} />
+                  <ReasonList title={t.scanner.reasons} items={scanResult.reasons} />
                 </div>
 
                 {scanResult.warnings.length > 0 && (
                   <div className="rounded-md border border-[var(--border)] bg-[var(--panel)] p-4">
                     <h3 className="mb-2 text-sm font-semibold uppercase tracking-wide text-[var(--muted)]">
-                      Warnings
+                      {t.scanner.warnings}
                     </h3>
                     <div className="space-y-2">
                       {scanResult.warnings.map((warning) => (
@@ -187,13 +190,16 @@ export function SymbolPageClient({ exchange, symbol }: SymbolPageClientProps) {
 
                 <div className="rounded-md border border-[var(--border)] bg-[var(--panel)] p-4">
                   <ReasonList
-                    title="Next Confirmation"
+                    title={t.scanner.nextConfirmation}
                     items={scanResult.nextConfirmation}
                   />
                 </div>
 
                 <div className="rounded-md border border-[var(--border)] bg-[var(--panel)] p-4">
-                  <ReasonList title="Invalidation" items={scanResult.invalidation} />
+                  <ReasonList
+                    title={t.scanner.invalidation}
+                    items={scanResult.invalidation}
+                  />
                 </div>
               </>
             )}
@@ -215,22 +221,23 @@ function MultiTimeframePanel({
   summary: MultiTimeframeSummary | null;
   onSelect: (timeframe: Timeframe) => void;
 }) {
+  const { dictionary: t } = useLanguage();
   const resultByTimeframe = new Map(results.map((result) => [result.timeframe, result]));
 
   return (
     <div className="rounded-md border border-[var(--border)] bg-[var(--panel)] p-4">
       <div className="mb-4">
-        <h2 className="text-lg font-semibold">Timeframe Alignment</h2>
+        <h2 className="text-lg font-semibold">{t.symbol.timeframeAlignment}</h2>
         {summary ? (
           <p className="mt-2 text-sm leading-6 text-[var(--muted)]">
             <span className="font-semibold text-[var(--foreground)]">
-              {summary.label}
+              {t.alignment[summary.alignment]}
             </span>{" "}
-            · {summary.summary}
+            · {t.alignmentSummary[summary.alignment]}
           </p>
         ) : (
           <p className="mt-2 text-sm leading-6 text-[var(--muted)]">
-            Loading multi-timeframe structure.
+            {t.symbol.loadingAlignment}
           </p>
         )}
       </div>
@@ -253,10 +260,12 @@ function MultiTimeframePanel({
             >
               <div className="flex items-center justify-between gap-3">
                 <span className="text-sm font-semibold">
-                  {timeframeLabels[option]}
+                  {t.timeframe[option]}
                 </span>
                 <span className="text-xs text-[var(--muted)]">
-                  {result ? `Rank ${result.rankScore.toFixed(1)}` : "Loading"}
+                  {result
+                    ? `${t.common.rank} ${result.rankScore.toFixed(1)}`
+                    : t.common.loading}
                 </span>
               </div>
               {result ? (
@@ -273,10 +282,10 @@ function MultiTimeframePanel({
       {summary ? (
         <div className="mt-4 grid grid-cols-2 gap-2 text-sm">
           <Metric
-            label="Constructive"
+            label={t.scanner.constructive}
             value={String(summary.constructiveCount)}
           />
-          <Metric label="Risk" value={String(summary.riskCount)} />
+          <Metric label={t.common.risk} value={String(summary.riskCount)} />
         </div>
       ) : null}
     </div>
@@ -290,15 +299,16 @@ function IndicatorSummary({
   snapshot: ReturnType<typeof calculateIndicatorSnapshot>;
   scanResult: ReturnType<typeof scanCandles>;
 }) {
+  const { dictionary: t } = useLanguage();
   const rows = [
-    ["Price", formatPrice(snapshot.close)],
+    [t.common.price, formatPrice(snapshot.close)],
     ["RSI14", formatNullable(snapshot.rsi14, 1)],
-    ["BB Width %", formatNullable(snapshot.bollinger.widthPercentile, 0)],
-    ["Volume Ratio", formatNullable(snapshot.volume.ratio, 2)],
+    [t.symbol.bbWidth, formatNullable(snapshot.bollinger.widthPercentile, 0)],
+    [t.symbol.volumeRatio, formatNullable(snapshot.volume.ratio, 2)],
     ["MA20", formatNullable(snapshot.ma20, 4)],
     ["MA50", formatNullable(snapshot.ma50, 4)],
     ["MA200", formatNullable(snapshot.ma200, 4)],
-    ["Rank Score", scanResult.rankScore.toFixed(1)],
+    [t.symbol.rankScore, scanResult.rankScore.toFixed(1)],
   ];
 
   return (

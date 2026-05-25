@@ -1,4 +1,4 @@
-import { scannerSignalLabels } from "@/lib/scanner/signal";
+import { useLanguage } from "@/components/providers/LanguageProvider";
 import type { ScannerSignalState } from "@/lib/scanner/types";
 import { signalToneClass } from "./SignalBadge";
 
@@ -18,6 +18,8 @@ export function SignalSummaryBar({
   activeSignal,
   onSelect,
 }: SignalSummaryBarProps) {
+  const { dictionary: t } = useLanguage();
+
   if (items.length === 0) {
     return null;
   }
@@ -27,8 +29,7 @@ export function SignalSummaryBar({
       <div className="flex flex-wrap gap-2">
         {items.map((item) => {
           const isActive = item.signal === activeSignal;
-          const label =
-            item.signal === "ALL" ? "All" : scannerSignalLabels[item.signal];
+          const label = item.signal === "ALL" ? t.common.all : t.signal[item.signal];
           const tone =
             item.signal === "ALL"
               ? "border-[var(--border)] bg-[#0b0f14] text-[var(--foreground)]"

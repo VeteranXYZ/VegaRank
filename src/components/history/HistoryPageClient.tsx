@@ -1,9 +1,11 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { timeframeLabels } from "@/lib/exchanges/types";
+import { useLanguage } from "@/components/providers/LanguageProvider";
 import type { EvaluationSummaryBucket } from "@/lib/storage/scanEvaluation";
 import type { StoredScanSnapshot } from "@/lib/storage/scanSnapshots";
+
+type Dictionary = ReturnType<typeof useLanguage>["dictionary"];
 
 type HistoryApiResponse = {
   snapshots: StoredScanSnapshot[];
@@ -33,6 +35,7 @@ type HistoryEvaluationApiResponse = {
 };
 
 export function HistoryPageClient() {
+  const { dictionary: t } = useLanguage();
   const historyQuery = useQuery({
     queryKey: ["scan-history", 50],
     queryFn: () => fetchHistory(50),
@@ -49,9 +52,12 @@ export function HistoryPageClient() {
       <div className="mb-5 flex flex-wrap items-end justify-between gap-4">
         <div>
           <p className="text-sm uppercase tracking-wide text-[var(--muted)]">
-            Research
+            {t.history.research}
           </p>
-          <h1 className="mt-1 text-3xl font-semibold">Scan History</h1>
+          <h1 className="mt-1 text-3xl font-semibold">{t.history.title}</h1>
+          <p className="mt-2 max-w-2xl text-sm leading-6 text-[var(--muted)]">
+            {t.history.subtitle}
+          </p>
         </div>
         <button
           type="button"
@@ -59,13 +65,13 @@ export function HistoryPageClient() {
           disabled={historyQuery.isFetching}
           className="rounded-md border border-[var(--border)] px-3 py-2 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-60"
         >
-          {historyQuery.isFetching ? "Refreshing" : "Refresh"}
+          {historyQuery.isFetching ? t.common.refreshing : t.common.refresh}
         </button>
       </div>
 
       {historyQuery.isError ? (
         <StatePanel
-          title="Unable To Load History"
+          title={t.history.errorTitle}
           message={
             historyQuery.error instanceof Error
               ? historyQuery.error.message
@@ -74,13 +80,13 @@ export function HistoryPageClient() {
         />
       ) : historyQuery.isLoading ? (
         <StatePanel
-          title="Loading History"
-          message="Reading locally stored scan snapshots."
+          title={t.history.loadingTitle}
+          message={t.history.loadingMessage}
         />
       ) : !data || data.snapshots.length === 0 ? (
         <StatePanel
-          title="No Snapshots Yet"
-          message="Run a scanner request to start collecting local scan history."
+          title={t.history.emptyTitle}
+          message={t.history.emptyMessage}
         />
       ) : (
         <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_360px]">
@@ -97,16 +103,25 @@ export function HistoryPageClient() {
               }
               onRefresh={() => void evaluationQuery.refetch()}
             />
-            <DistributionSection title="Signal Distribution" items={data.summary.bySignal} />
-            <DistributionSection title="Phase Distribution" items={data.summary.byPhase} />
+            <DistributionSection
+              title={t.history.signalDistribution}
+              items={data.summary.bySignal}
+            />
+            <DistributionSection
+              title={t.history.phaseDistribution}
+              items={data.summary.byPhase}
+            />
             <SnapshotTable snapshots={data.snapshots} />
           </div>
           <aside className="space-y-5">
             <DistributionSection
-              title="Alignment Distribution"
+              title={t.history.alignmentDistribution}
               items={data.summary.byAlignment}
             />
-            <DistributionSection title="Mode Distribution" items={data.summary.byMode} />
+            <DistributionSection
+              title={t.history.modeDistribution}
+              items={data.summary.byMode}
+            />
             <LatestSnapshot snapshot={data.snapshots[0]} />
           </aside>
         </div>
@@ -128,6 +143,7 @@ function EvaluationSection({
   errorMessage: string;
   onRefresh: () => void;
 }) {
+  const { dictionary: t } = useLanguage();
   const signalRows = data
     ? Object.entries(data.summary.bySignal).sort(
         (left, right) => right[1].completedCount - left[1].completedCount,
@@ -138,9 +154,9 @@ function EvaluationSection({
     <section className="rounded-md border border-[var(--border)] bg-[var(--panel)] p-4">
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h2 className="text-lg font-semibold">Forward Evaluation</h2>
+          <h2 className="text-lg font-semibold">{t.history.forwardEvaluation}</h2>
           <p className="mt-1 text-xs text-[var(--muted)]">
-            Future 3-candle performance for recent stored snapshots.
+            {t.history.forwardEvaluationHelp}
           </p>
         </div>
         <button
@@ -149,43 +165,49 @@ function EvaluationSection({
           disabled={isLoading}
           className="rounded-md border border-[var(--border)] px-3 py-2 text-xs font-semibold disabled:cursor-not-allowed disabled:opacity-60"
         >
-          {isLoading ? "Evaluating" : "Evaluate"}
+          {isLoading ? t.history.evaluating : t.history.evaluate}
         </button>
       </div>
 
       {isError ? (
         <p className="text-sm text-[var(--danger)]">{errorMessage}</p>
       ) : isLoading && !data ? (
-        <p className="text-sm text-[var(--muted)]">Evaluating snapshots.</p>
+        <p className="text-sm text-[var(--muted)]">{t.history.evaluating}.</p>
       ) : !data || data.itemCount === 0 ? (
-        <p className="text-sm text-[var(--muted)]">No evaluations available.</p>
+        <p className="text-sm text-[var(--muted)]">{t.history.noEvaluations}</p>
       ) : (
         <div className="space-y-4">
           <div className="grid gap-2 md:grid-cols-3">
-            <Metric label="Evaluated" value={String(data.summary.evaluationCount)} />
-            <Metric label="Completed" value={String(data.summary.completedCount)} />
-            <Metric label="Pending" value={String(data.summary.pendingCount)} />
+            <Metric label={t.history.evaluated} value={String(data.summary.evaluationCount)} />
+            <Metric label={t.history.completed} value={String(data.summary.completedCount)} />
+            <Metric label={t.history.pending} value={String(data.summary.pendingCount)} />
           </div>
           {signalRows.length === 0 ? (
-            <p className="text-sm text-[var(--muted)]">No signal buckets yet.</p>
+            <p className="text-sm text-[var(--muted)]">
+              {t.history.noSignalBuckets}
+            </p>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full min-w-[720px] border-collapse text-left text-sm">
                 <thead className="bg-[#0d131a] text-xs uppercase text-[var(--muted)]">
                   <tr>
-                    <th className="px-3 py-3 font-semibold">Signal</th>
-                    <th className="px-3 py-3 font-semibold">Done</th>
-                    <th className="px-3 py-3 font-semibold">Pending</th>
-                    <th className="px-3 py-3 font-semibold">Hit Rate</th>
-                    <th className="px-3 py-3 font-semibold">Avg Return</th>
-                    <th className="px-3 py-3 font-semibold">Avg Max Up</th>
-                    <th className="px-3 py-3 font-semibold">Avg Max Down</th>
+                    <th className="px-3 py-3 font-semibold">{t.common.signal}</th>
+                    <th className="px-3 py-3 font-semibold">{t.history.completed}</th>
+                    <th className="px-3 py-3 font-semibold">{t.history.pending}</th>
+                    <th className="px-3 py-3 font-semibold">{t.history.hitRate}</th>
+                    <th className="px-3 py-3 font-semibold">{t.history.avgReturn}</th>
+                    <th className="px-3 py-3 font-semibold">{t.history.avgMaxUp}</th>
+                    <th className="px-3 py-3 font-semibold">{t.history.avgMaxDown}</th>
                   </tr>
                 </thead>
                 <tbody>
                   {signalRows.map(([signal, bucket]) => (
                     <tr key={signal} className="border-t border-[var(--border)]">
-                      <td className="px-3 py-3">{formatEnum(signal)}</td>
+                      <td className="px-3 py-3">
+                        {signal in t.signal
+                          ? t.signal[signal as keyof typeof t.signal]
+                          : formatEnum(signal)}
+                      </td>
                       <td className="px-3 py-3 tabular-nums">
                         {bucket.completedCount}
                       </td>
@@ -217,10 +239,14 @@ function EvaluationSection({
 }
 
 function SummaryCards({ data }: { data: HistoryApiResponse }) {
+  const { dictionary: t } = useLanguage();
   const cards = [
-    ["Snapshots", String(data.summary.snapshotCount)],
-    ["Results", String(data.summary.resultCount)],
-    ["Latest", data.summary.latestAt ? formatDateTime(data.summary.latestAt) : "n/a"],
+    [t.history.snapshots, String(data.summary.snapshotCount)],
+    [t.history.results, String(data.summary.resultCount)],
+    [
+      t.history.latest,
+      data.summary.latestAt ? formatDateTime(data.summary.latestAt) : t.common.notAvailable,
+    ],
   ];
 
   return (
@@ -256,6 +282,7 @@ function DistributionSection({
   title: string;
   items: Record<string, number>;
 }) {
+  const { dictionary: t } = useLanguage();
   const rows = Object.entries(items).sort((left, right) => right[1] - left[1]);
   const total = rows.reduce((sum, [, count]) => sum + count, 0);
 
@@ -263,13 +290,13 @@ function DistributionSection({
     <section className="rounded-md border border-[var(--border)] bg-[var(--panel)] p-4">
       <h2 className="mb-4 text-lg font-semibold">{title}</h2>
       {rows.length === 0 ? (
-        <p className="text-sm text-[var(--muted)]">No data yet.</p>
+        <p className="text-sm text-[var(--muted)]">{t.history.noData}</p>
       ) : (
         <div className="space-y-3">
           {rows.map(([label, count]) => (
             <div key={label}>
               <div className="mb-1 flex items-center justify-between gap-3 text-sm">
-                <span>{formatEnum(label)}</span>
+                <span>{formatTranslatedEnum(label, t)}</span>
                 <span className="tabular-nums text-[var(--muted)]">{count}</span>
               </div>
               <div className="h-2 overflow-hidden rounded-full bg-[#0b0f14]">
@@ -287,30 +314,32 @@ function DistributionSection({
 }
 
 function SnapshotTable({ snapshots }: { snapshots: StoredScanSnapshot[] }) {
+  const { dictionary: t } = useLanguage();
+
   return (
     <section className="overflow-hidden rounded-md border border-[var(--border)] bg-[var(--panel)]">
       <div className="border-b border-[var(--border)] px-4 py-3">
-        <h2 className="text-lg font-semibold">Recent Snapshots</h2>
+        <h2 className="text-lg font-semibold">{t.history.recentSnapshots}</h2>
       </div>
       <div className="overflow-x-auto">
         <table className="w-full min-w-[820px] border-collapse text-left text-sm">
           <thead className="bg-[#0d131a] text-xs uppercase text-[var(--muted)]">
             <tr>
-              <th className="px-3 py-3 font-semibold">Created</th>
-              <th className="px-3 py-3 font-semibold">Mode</th>
-              <th className="px-3 py-3 font-semibold">Scope</th>
-              <th className="px-3 py-3 font-semibold">Limit</th>
-              <th className="px-3 py-3 font-semibold">Results</th>
-              <th className="px-3 py-3 font-semibold">Errors</th>
-              <th className="px-3 py-3 font-semibold">Top Symbols</th>
+              <th className="px-3 py-3 font-semibold">{t.history.created}</th>
+              <th className="px-3 py-3 font-semibold">{t.scanner.mode}</th>
+              <th className="px-3 py-3 font-semibold">{t.history.scope}</th>
+              <th className="px-3 py-3 font-semibold">{t.scanner.limit}</th>
+              <th className="px-3 py-3 font-semibold">{t.history.results}</th>
+              <th className="px-3 py-3 font-semibold">{t.history.errors}</th>
+              <th className="px-3 py-3 font-semibold">{t.history.topSymbols}</th>
             </tr>
           </thead>
           <tbody>
             {snapshots.map((snapshot) => (
               <tr key={snapshot.id} className="border-t border-[var(--border)]">
                 <td className="px-3 py-3">{formatDateTime(snapshot.createdAt)}</td>
-                <td className="px-3 py-3 uppercase">{snapshot.mode}</td>
-                <td className="px-3 py-3">{formatScope(snapshot)}</td>
+                <td className="px-3 py-3">{formatMode(snapshot.mode, t)}</td>
+                <td className="px-3 py-3">{formatScope(snapshot, t)}</td>
                 <td className="px-3 py-3 tabular-nums">{snapshot.limit}</td>
                 <td className="px-3 py-3 tabular-nums">{snapshot.itemCount}</td>
                 <td className="px-3 py-3 tabular-nums">{snapshot.errorsCount}</td>
@@ -330,9 +359,11 @@ function SnapshotTable({ snapshots }: { snapshots: StoredScanSnapshot[] }) {
 }
 
 function LatestSnapshot({ snapshot }: { snapshot: StoredScanSnapshot }) {
+  const { dictionary: t } = useLanguage();
+
   return (
     <section className="rounded-md border border-[var(--border)] bg-[var(--panel)] p-4">
-      <h2 className="mb-4 text-lg font-semibold">Latest Leaders</h2>
+      <h2 className="mb-4 text-lg font-semibold">{t.history.latestLeaders}</h2>
       <div className="space-y-2">
         {snapshot.results.slice(0, 8).map((result) => (
           <div
@@ -346,7 +377,7 @@ function LatestSnapshot({ snapshot }: { snapshot: StoredScanSnapshot }) {
               </span>
             </div>
             <div className="mt-1 text-xs text-[var(--muted)]">
-              {result.signalLabel} · {formatEnum(result.phase)}
+              {t.signal[result.signalState]} · {t.phase[result.phase]}
             </div>
           </div>
         ))}
@@ -407,12 +438,36 @@ async function fetchEvaluation({
   return (await response.json()) as HistoryEvaluationApiResponse;
 }
 
-function formatScope(snapshot: StoredScanSnapshot) {
+function formatScope(snapshot: StoredScanSnapshot, t: Dictionary) {
   if (snapshot.mode === "mtf") {
-    return snapshot.timeframes?.map((timeframe) => timeframeLabels[timeframe]).join(" / ");
+    return snapshot.timeframes?.map((timeframe) => t.timeframe[timeframe]).join(" / ");
   }
 
-  return snapshot.timeframe ? timeframeLabels[snapshot.timeframe] : "n/a";
+  return snapshot.timeframe ? t.timeframe[snapshot.timeframe] : t.common.notAvailable;
+}
+
+function formatMode(mode: StoredScanSnapshot["mode"], t: Dictionary) {
+  return mode === "mtf" ? t.scanner.mtfMode : t.scanner.singleMode;
+}
+
+function formatTranslatedEnum(value: string, t: Dictionary) {
+  if (value in t.signal) {
+    return t.signal[value as keyof typeof t.signal];
+  }
+
+  if (value in t.phase) {
+    return t.phase[value as keyof typeof t.phase];
+  }
+
+  if (value in t.alignment) {
+    return t.alignment[value as keyof typeof t.alignment];
+  }
+
+  if (value === "single" || value === "mtf") {
+    return formatMode(value, t);
+  }
+
+  return formatEnum(value);
 }
 
 function formatDateTime(value: string) {

@@ -1,11 +1,9 @@
 import type { MarketPhase, ScannerSignalState } from "@/lib/scanner/types";
-import { scannerSignalLabels, scannerSignalOrder } from "@/lib/scanner/signal";
+import { scannerSignalOrder } from "@/lib/scanner/signal";
 import type { ScannerFiltersState } from "./ScannerPageClient";
-import { TIMEFRAMES, timeframeLabels } from "@/lib/exchanges/types";
-import {
-  mtfPresetLabels,
-  type MtfPreset,
-} from "@/lib/scanner/multiTimeframe";
+import { TIMEFRAMES } from "@/lib/exchanges/types";
+import { mtfPresetTimeframes, type MtfPreset } from "@/lib/scanner/multiTimeframe";
+import { useLanguage } from "@/components/providers/LanguageProvider";
 
 export type ScannerSortKey =
   | "rankScore"
@@ -37,6 +35,8 @@ const signalOptions: Array<ScannerSignalState | "ALL"> = [
 ];
 
 export function ScannerFilters({ filters, onChange }: ScannerFiltersProps) {
+  const { dictionary: t } = useLanguage();
+
   function update<K extends keyof ScannerFiltersState>(
     key: K,
     value: ScannerFiltersState[K],
@@ -45,11 +45,11 @@ export function ScannerFilters({ filters, onChange }: ScannerFiltersProps) {
   }
 
   return (
-    <aside className="rounded-md border border-[var(--border)] bg-[var(--panel)] p-4">
-      <h2 className="mb-4 text-lg font-semibold">Filters</h2>
+    <aside className="rounded-md border border-[var(--border)] bg-[var(--panel)] p-4 xl:sticky xl:top-24 xl:self-start">
+      <h2 className="mb-4 text-lg font-semibold">{t.scanner.filters}</h2>
       <div className="space-y-4 text-sm text-[var(--muted)]">
         <label className="block">
-          <span className="mb-2 block">Mode</span>
+          <span className="mb-2 block">{t.scanner.mode}</span>
           <select
             value={filters.mode}
             onChange={(event) =>
@@ -57,13 +57,13 @@ export function ScannerFilters({ filters, onChange }: ScannerFiltersProps) {
             }
             className="w-full rounded-md border border-[var(--border)] bg-[#0b0f14] px-3 py-2 text-[var(--foreground)]"
           >
-            <option value="single">Single timeframe</option>
-            <option value="mtf">MTF confluence</option>
+            <option value="single">{t.scanner.singleMode}</option>
+            <option value="mtf">{t.scanner.mtfMode}</option>
           </select>
         </label>
 
         <label className="block">
-          <span className="mb-2 block">Timeframe</span>
+          <span className="mb-2 block">{t.scanner.timeframe}</span>
           <select
             value={filters.timeframe}
             disabled={filters.mode === "mtf"}
@@ -74,7 +74,7 @@ export function ScannerFilters({ filters, onChange }: ScannerFiltersProps) {
           >
             {TIMEFRAMES.map((timeframe) => (
               <option key={timeframe} value={timeframe}>
-                {timeframeLabels[timeframe]}
+                {t.timeframe[timeframe]}
               </option>
             ))}
           </select>
@@ -82,7 +82,7 @@ export function ScannerFilters({ filters, onChange }: ScannerFiltersProps) {
 
         {filters.mode === "mtf" && (
           <label className="block">
-            <span className="mb-2 block">MTF Preset</span>
+            <span className="mb-2 block">{t.scanner.mtfPreset}</span>
             <select
               value={filters.mtfPreset}
               onChange={(event) =>
@@ -90,9 +90,9 @@ export function ScannerFilters({ filters, onChange }: ScannerFiltersProps) {
               }
               className="w-full rounded-md border border-[var(--border)] bg-[#0b0f14] px-3 py-2 text-[var(--foreground)]"
             >
-              {(Object.keys(mtfPresetLabels) as MtfPreset[]).map((preset) => (
+              {(Object.keys(mtfPresetTimeframes) as MtfPreset[]).map((preset) => (
                 <option key={preset} value={preset}>
-                  {mtfPresetLabels[preset]}
+                  {t.mtfPreset[preset]}
                 </option>
               ))}
             </select>
@@ -100,7 +100,7 @@ export function ScannerFilters({ filters, onChange }: ScannerFiltersProps) {
         )}
 
         <label className="block">
-          <span className="mb-2 block">Signal</span>
+          <span className="mb-2 block">{t.common.signal}</span>
           <select
             value={filters.signal}
             onChange={(event) =>
@@ -110,14 +110,14 @@ export function ScannerFilters({ filters, onChange }: ScannerFiltersProps) {
           >
             {signalOptions.map((signal) => (
               <option key={signal} value={signal}>
-                {signal === "ALL" ? "All signals" : scannerSignalLabels[signal]}
+                {signal === "ALL" ? t.scanner.allSignals : t.signal[signal]}
               </option>
             ))}
           </select>
         </label>
 
         <label className="block">
-          <span className="mb-2 block">Phase</span>
+          <span className="mb-2 block">{t.common.phase}</span>
           <select
             value={filters.phase}
             onChange={(event) =>
@@ -127,7 +127,7 @@ export function ScannerFilters({ filters, onChange }: ScannerFiltersProps) {
           >
             {phaseOptions.map((phase) => (
               <option key={phase} value={phase}>
-                {phase === "ALL" ? "All phases" : formatPhase(phase)}
+                {phase === "ALL" ? t.scanner.allPhases : t.phase[phase]}
               </option>
             ))}
           </select>
@@ -135,7 +135,7 @@ export function ScannerFilters({ filters, onChange }: ScannerFiltersProps) {
 
         <label className="block">
           <span className="mb-2 block">
-            Min Opportunity: {filters.minOpportunityScore}
+            {t.scanner.minOpportunity}: {filters.minOpportunityScore}
           </span>
           <input
             type="range"
@@ -151,7 +151,9 @@ export function ScannerFilters({ filters, onChange }: ScannerFiltersProps) {
         </label>
 
         <label className="block">
-          <span className="mb-2 block">Max Risk: {filters.maxRiskScore}</span>
+          <span className="mb-2 block">
+            {t.scanner.maxRisk}: {filters.maxRiskScore}
+          </span>
           <input
             type="range"
             min="0"
@@ -164,7 +166,7 @@ export function ScannerFilters({ filters, onChange }: ScannerFiltersProps) {
         </label>
 
         <label className="block">
-          <span className="mb-2 block">Sort By</span>
+          <span className="mb-2 block">{t.scanner.sortBy}</span>
           <select
             value={filters.sortBy}
             onChange={(event) =>
@@ -172,15 +174,15 @@ export function ScannerFilters({ filters, onChange }: ScannerFiltersProps) {
             }
             className="w-full rounded-md border border-[var(--border)] bg-[#0b0f14] px-3 py-2 text-[var(--foreground)]"
           >
-            <option value="rankScore">Rank Score</option>
-            <option value="opportunityScore">Opportunity</option>
-            <option value="confirmationScore">Confirmation</option>
-            <option value="lowestRiskScore">Lowest Risk</option>
+            <option value="rankScore">{t.sort.rankScore}</option>
+            <option value="opportunityScore">{t.sort.opportunityScore}</option>
+            <option value="confirmationScore">{t.sort.confirmationScore}</option>
+            <option value="lowestRiskScore">{t.sort.lowestRiskScore}</option>
           </select>
         </label>
 
         <label className="block">
-          <span className="mb-2 block">Limit</span>
+          <span className="mb-2 block">{t.scanner.limit}</span>
           <select
             value={filters.limit}
             onChange={(event) =>
@@ -196,12 +198,4 @@ export function ScannerFilters({ filters, onChange }: ScannerFiltersProps) {
       </div>
     </aside>
   );
-}
-
-function formatPhase(phase: MarketPhase) {
-  return phase
-    .toLowerCase()
-    .split("_")
-    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
-    .join(" ");
 }

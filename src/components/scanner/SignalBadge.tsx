@@ -1,3 +1,4 @@
+import { useLanguage } from "@/components/providers/LanguageProvider";
 import type { ScannerSignal } from "@/lib/scanner/types";
 
 type SignalBadgeProps = {
@@ -14,12 +15,14 @@ export const signalToneClass: Record<ScannerSignal["state"], string> = {
 };
 
 export function SignalBadge({ signal }: SignalBadgeProps) {
+  const { dictionary: t } = useLanguage();
+
   return (
     <span
       className={`inline-flex rounded-md border px-2 py-1 text-xs font-semibold ${signalToneClass[signal.state]}`}
-      title={signal.summary}
+      title={t.signalSummary[signal.state]}
     >
-      {signal.label}
+      {t.signal[signal.state]}
     </span>
   );
 }
