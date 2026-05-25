@@ -1,6 +1,6 @@
 "use client";
 
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { useLanguage } from "@/components/providers/LanguageProvider";
 import { ScannerFilters, type ScannerSortKey } from "./ScannerFilters";
@@ -26,6 +26,29 @@ type ScanApiResponse = {
   errors?: { symbol: string; message: string }[];
   cached: boolean;
   updatedAt: string;
+};
+
+type MarketDataSummaryResponse = {
+  summary: {
+    marketCount: number;
+    candleCount: number;
+    syncedPairs: number;
+    latestSyncedAt: string | null;
+    failedPairs: number;
+  };
+};
+
+type MarketDataSyncResponse = {
+  mode: "recent" | "incremental";
+  requestedMarkets: number;
+  requestedPairs: number;
+  syncedPairs: number;
+  failedPairs: number;
+  candlesFetched: number;
+  startedAt: string;
+  completedAt: string;
+  summary: MarketDataSummaryResponse["summary"];
+  errors: Array<{ symbol: string; timeframe: Timeframe; message: string }>;
 };
 
 export type ScannerMode = "single" | "mtf";
@@ -56,6 +79,7 @@ const initialFilters: ScannerFiltersState = {
 
 export function ScannerPageClient() {
   const { dictionary: t } = useLanguage();
+  const queryClient = useQueryClient();
   const [filters, setFilters] = useState<ScannerFiltersState>(initialFilters);
   const [selectedSymbol, setSelectedSymbol] = useState<string | null>(null);
   const scanQuery = useQuery({
@@ -67,6 +91,22 @@ export function ScannerPageClient() {
       getEffectiveLimit(filters),
     ],
     queryFn: () => fetchScan(filters),
+  });
+  const dataSummaryQuery = useQuery({
+    queryKey: ["market-data-summary"],
+    queryFn: fetchMarketDataSummary,
+  });
+  const syncMutation = useMutation({
+    mutationFn: () =>
+      syncMarketData({
+        mode: "incremental",
+        marketLimit: 200,
+        timeframes: getSyncTimeframes(filters),
+      }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["market-data-summary"] });
+      void scanQuery.refetch();
+    },
   });
   const rows = useMemo(
     () => filterAndSortResults(scanQuery.data?.results ?? [], filters),
@@ -130,6 +170,17 @@ export function ScannerPageClient() {
         </div>
       </div>
 
+      <LocalDataPanel
+        summary={dataSummaryQuery.data?.summary ?? null}
+        isLoading={dataSummaryQuery.isLoading}
+        isSyncing={syncMutation.isPending}
+        syncResult={syncMutation.data ?? null}
+        errorMessage={
+          syncMutation.error instanceof Error ? syncMutation.error.message : null
+        }
+        onSync={() => syncMutation.mutate()}
+      />
+
       <div className="grid gap-5 xl:grid-cols-[280px_minmax(0,1fr)_380px]">
         <ScannerFilters filters={filters} onChange={updateFilters} />
         <div className="min-w-0 space-y-4">
@@ -162,6 +213,81 @@ export function ScannerPageClient() {
         </div>
         <SelectedSymbolPanel result={selectedResult} />
       </div>
+    </section>
+  );
+}
+
+function LocalDataPanel({
+  summary,
+  isLoading,
+  isSyncing,
+  syncResult,
+  errorMessage,
+  onSync,
+}: {
+  summary: MarketDataSummaryResponse["summary"] | null;
+  isLoading: boolean;
+  isSyncing: boolean;
+  syncResult: MarketDataSyncResponse | null;
+  errorMessage: string | null;
+  onSync: () => void;
+}) {
+  const { dictionary: t } = useLanguage();
+
+  return (
+    <section className="mb-5 rounded-md border border-[var(--border)] bg-[var(--panel)] px-4 py-3">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h2 className="text-sm font-semibold">{t.scanner.localData}</h2>
+          <p className="mt-1 text-xs text-[var(--muted)]">
+            {summary?.latestSyncedAt
+              ? `${t.scanner.latestSync}: ${new Date(
+                  summary.latestSyncedAt,
+                ).toLocaleString()}`
+              : isLoading
+                ? t.common.loading
+                : t.scanner.noLocalData}
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={onSync}
+          disabled={isSyncing}
+          className="rounded-md border border-[var(--border)] bg-[#0b0f14] px-3 py-2 text-sm font-semibold text-[var(--foreground)] disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          {isSyncing ? t.scanner.updatingData : t.scanner.updateLatestData}
+        </button>
+      </div>
+
+      <div className="mt-3 grid gap-2 sm:grid-cols-4">
+        <HeaderMetric
+          label={t.scanner.marketsSynced}
+          value={formatInteger(summary?.marketCount)}
+        />
+        <HeaderMetric
+          label={t.scanner.candlesStored}
+          value={formatInteger(summary?.candleCount)}
+        />
+        <HeaderMetric
+          label={t.scanner.syncedPairs}
+          value={formatInteger(summary?.syncedPairs)}
+        />
+        <HeaderMetric
+          label={t.scanner.syncErrors}
+          value={formatInteger(summary?.failedPairs)}
+        />
+      </div>
+
+      {syncResult && (
+        <p className="mt-3 text-xs text-[var(--muted)]">
+          {t.scanner.syncComplete}: {syncResult.candlesFetched}{" "}
+          {t.scanner.candlesStored}, {syncResult.failedPairs}{" "}
+          {t.scanner.syncErrors}
+        </p>
+      )}
+      {errorMessage && (
+        <p className="mt-3 text-xs text-[var(--danger)]">{errorMessage}</p>
+      )}
     </section>
   );
 }
@@ -300,6 +426,50 @@ async function fetchScan(filters: ScannerFiltersState) {
   return fetchSingleTimeframeScan(filters.timeframe, filters.limit);
 }
 
+async function fetchMarketDataSummary() {
+  const response = await fetch("/api/data/sync");
+
+  if (!response.ok) {
+    const errorBody = (await response.json().catch(() => null)) as
+      | { error?: string; message?: string }
+      | null;
+    throw new Error(
+      errorBody?.message ?? errorBody?.error ?? "Market data request failed.",
+    );
+  }
+
+  return (await response.json()) as MarketDataSummaryResponse;
+}
+
+async function syncMarketData({
+  mode,
+  marketLimit,
+  timeframes,
+}: {
+  mode: "recent" | "incremental";
+  marketLimit: number;
+  timeframes: Timeframe[];
+}) {
+  const response = await fetch("/api/data/sync", {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+    },
+    body: JSON.stringify({ mode, marketLimit, timeframes }),
+  });
+
+  if (!response.ok) {
+    const errorBody = (await response.json().catch(() => null)) as
+      | { error?: string; message?: string }
+      | null;
+    throw new Error(
+      errorBody?.message ?? errorBody?.error ?? "Market data sync failed.",
+    );
+  }
+
+  return (await response.json()) as MarketDataSyncResponse;
+}
+
 async function fetchSingleTimeframeScan(timeframe: Timeframe, limit: number) {
   const params = new URLSearchParams({
     timeframe,
@@ -348,6 +518,28 @@ function normalizeFilters(filters: ScannerFiltersState): ScannerFiltersState {
 
 function getEffectiveLimit(filters: ScannerFiltersState) {
   return filters.mode === "mtf" && filters.limit === 200 ? 100 : filters.limit;
+}
+
+function getSyncTimeframes(filters: ScannerFiltersState): Timeframe[] {
+  if (filters.mode === "mtf") {
+    switch (filters.mtfPreset) {
+      case "short":
+        return ["1h", "4h", "1d"];
+      case "position":
+        return ["1d", "7d", "1m"];
+      case "full":
+        return ["1h", "4h", "1d", "7d", "1m"];
+      case "swing":
+      default:
+        return ["4h", "1d", "7d"];
+    }
+  }
+
+  return [filters.timeframe];
+}
+
+function formatInteger(value: number | undefined) {
+  return value === undefined ? "0" : new Intl.NumberFormat().format(value);
 }
 
 export function getSignalSummary(results: ScanResult[]) {

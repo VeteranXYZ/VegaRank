@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { TIMEFRAMES, type Timeframe } from "@/lib/exchanges/types";
+import { MarketDataStore } from "@/lib/storage/marketData";
 import {
   syncMarketData,
   type MarketDataSyncMode,
@@ -15,6 +16,18 @@ type SyncRequestBody = {
   marketLimit?: number;
   timeframes?: string[];
 };
+
+export async function GET() {
+  const store = new MarketDataStore();
+
+  try {
+    return NextResponse.json({
+      summary: store.getSummary(),
+    });
+  } finally {
+    store.close();
+  }
+}
 
 export async function POST(request: Request) {
   const body = (await request.json().catch(() => ({}))) as SyncRequestBody;
