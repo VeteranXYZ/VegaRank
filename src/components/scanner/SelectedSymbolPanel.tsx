@@ -4,6 +4,7 @@ import { ReasonList } from "./ReasonList";
 import { RiskBadge } from "./RiskBadge";
 import { ScoreBadge } from "./ScoreBadge";
 import { SignalBadge } from "./SignalBadge";
+import { timeframeLabels } from "@/lib/exchanges/types";
 import type { ScanResult } from "@/lib/scanner/types";
 
 type SelectedSymbolPanelProps = {
@@ -72,6 +73,27 @@ export function SelectedSymbolPanel({ result }: SelectedSymbolPanelProps) {
               value={String(result.multiTimeframe.constructiveCount)}
             />
             <Metric label="Risk" value={String(result.multiTimeframe.riskCount)} />
+          </div>
+          <div className="mt-3 space-y-2">
+            {result.multiTimeframe.timeframeResults.map((timeframeResult) => (
+              <div
+                key={timeframeResult.timeframe}
+                className="rounded-md border border-[var(--border)] bg-[var(--panel)] p-2"
+              >
+                <div className="mb-2 flex items-center justify-between gap-2">
+                  <span className="text-xs font-semibold text-[var(--foreground)]">
+                    {timeframeLabels[timeframeResult.timeframe]}
+                  </span>
+                  <span className="text-xs tabular-nums">
+                    {timeframeResult.rankScore.toFixed(1)}
+                  </span>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <SignalBadge signal={timeframeResult.signal} />
+                  <PhaseBadge phase={timeframeResult.phase} />
+                </div>
+              </div>
+            ))}
           </div>
         </div>
       )}

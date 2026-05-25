@@ -40,6 +40,17 @@ export type MultiTimeframeScanSummary = {
   riskCount: number;
   rankScore: number;
   timeframes: Timeframe[];
+  timeframeResults: MultiTimeframeResultSummary[];
+};
+
+export type MultiTimeframeResultSummary = {
+  timeframe: Timeframe;
+  phase: MarketPhase;
+  signal: ScannerSignal;
+  rankScore: number;
+  opportunityScore: number;
+  confirmationScore: number;
+  riskScore: number;
 };
 
 export type ScanResult = {

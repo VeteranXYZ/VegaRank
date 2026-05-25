@@ -31,6 +31,15 @@ export async function scanMarketMultiTimeframe(
       ...summary,
       rankScore,
       timeframes,
+      timeframeResults: results.map((result) => ({
+        timeframe: result.timeframe,
+        phase: result.phase,
+        signal: result.signal,
+        rankScore: result.rankScore,
+        opportunityScore: result.opportunityScore,
+        confirmationScore: result.confirmationScore,
+        riskScore: result.riskScore,
+      })),
     },
   };
 }

@@ -8,7 +8,7 @@ import type {
 
 export type MultiTimeframeSummary = Omit<
   MultiTimeframeScanSummary,
-  "rankScore" | "timeframes"
+  "rankScore" | "timeframes" | "timeframeResults"
 >;
 
 export const mtfPresetLabels: Record<MtfPreset, string> = {

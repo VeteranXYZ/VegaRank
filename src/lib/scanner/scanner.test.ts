@@ -2,7 +2,10 @@ import { describe, expect, it } from "vitest";
 import type { Candle, Timeframe } from "@/lib/exchanges/types";
 import type { IndicatorSnapshot } from "@/lib/indicators";
 import { determineMarketPhase } from "./marketPhase";
-import { summarizeMultiTimeframe } from "./multiTimeframe";
+import {
+  calculateMultiTimeframeRankScore,
+  summarizeMultiTimeframe,
+} from "./multiTimeframe";
 import { calculateScannerScores, clampScore } from "./scoring";
 import { deriveScannerSignal } from "./signal";
 import type { MarketPhase, ScannerSignalState, ScanResult } from "./types";
@@ -215,6 +218,31 @@ describe("multi-timeframe alignment", () => {
 
     expect(summary.alignment).toBe("HIGH_RISK");
     expect(summary.riskCount).toBe(2);
+  });
+
+  it("scores strong multi-timeframe alignment above mixed structures", () => {
+    const strongResults = [
+      makeScanResult("4h", "TREND_CONTINUATION", "TRENDING"),
+      makeScanResult("1d", "TREND_CONTINUATION", "TRENDING"),
+      makeScanResult("7d", "NEUTRAL", "BASE_BUILDING"),
+    ];
+    const mixedResults = [
+      makeScanResult("4h", "NEUTRAL", "BASE_BUILDING"),
+      makeScanResult("1d", "NEUTRAL", "BASE_BUILDING"),
+      makeScanResult("7d", "NEUTRAL", "BASE_BUILDING"),
+    ];
+
+    expect(
+      calculateMultiTimeframeRankScore(
+        strongResults,
+        summarizeMultiTimeframe(strongResults),
+      ),
+    ).toBeGreaterThan(
+      calculateMultiTimeframeRankScore(
+        mixedResults,
+        summarizeMultiTimeframe(mixedResults),
+      ),
+    );
   });
 });
 
