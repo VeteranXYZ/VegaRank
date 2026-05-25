@@ -6,6 +6,7 @@ import { getTopUsdtMarkets } from "@/lib/exchanges/binance";
 import { TIMEFRAMES, type Timeframe } from "@/lib/exchanges/types";
 import { scanMarket } from "@/lib/scanner/scanMarket";
 import type { ScanResult } from "@/lib/scanner/types";
+import { safePersistScanSnapshot } from "@/lib/storage/scanSnapshots";
 
 const DEFAULT_SCAN_LIMIT = 100;
 const MAX_SCAN_LIMIT = 200;
@@ -83,14 +84,36 @@ export async function GET(request: Request) {
     };
 
     if (errors.length > 0) {
+      const updatedAt = new Date().toISOString();
+      await safePersistScanSnapshot({
+        createdAt: updatedAt,
+        exchange: "binance",
+        mode: "single",
+        timeframe,
+        limit: limit.value,
+        itemCount: results.length,
+        errorsCount: errors.length,
+        results,
+      });
+
       return NextResponse.json({
         ...payload,
         cached: false,
-        updatedAt: new Date().toISOString(),
+        updatedAt,
       });
     }
 
     const entry = setCached(cacheKey, payload, cacheTtls.scan[timeframe]);
+    await safePersistScanSnapshot({
+      createdAt: entry.updatedAt,
+      exchange: "binance",
+      mode: "single",
+      timeframe,
+      limit: limit.value,
+      itemCount: results.length,
+      errorsCount: 0,
+      results,
+    });
 
     return NextResponse.json({
       ...entry.value,

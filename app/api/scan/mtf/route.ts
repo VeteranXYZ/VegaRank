@@ -9,6 +9,7 @@ import {
 } from "@/lib/scanner/multiTimeframe";
 import { scanMarketMultiTimeframe } from "@/lib/scanner/scanMarketMtf";
 import type { ScanResult } from "@/lib/scanner/types";
+import { safePersistScanSnapshot } from "@/lib/storage/scanSnapshots";
 
 const DEFAULT_MTF_SCAN_LIMIT = 50;
 const MAX_MTF_SCAN_LIMIT = 100;
@@ -99,14 +100,38 @@ export async function GET(request: Request) {
     };
 
     if (errors.length > 0) {
+      const updatedAt = new Date().toISOString();
+      await safePersistScanSnapshot({
+        createdAt: updatedAt,
+        exchange: "binance",
+        mode: "mtf",
+        preset,
+        timeframes: mtfPresetTimeframes[preset],
+        limit: limit.value,
+        itemCount: results.length,
+        errorsCount: errors.length,
+        results,
+      });
+
       return NextResponse.json({
         ...payload,
         cached: false,
-        updatedAt: new Date().toISOString(),
+        updatedAt,
       });
     }
 
     const entry = setCached(cacheKey, payload, cacheTtls.mtfScan);
+    await safePersistScanSnapshot({
+      createdAt: entry.updatedAt,
+      exchange: "binance",
+      mode: "mtf",
+      preset,
+      timeframes: mtfPresetTimeframes[preset],
+      limit: limit.value,
+      itemCount: results.length,
+      errorsCount: 0,
+      results,
+    });
 
     return NextResponse.json({
       ...entry.value,
