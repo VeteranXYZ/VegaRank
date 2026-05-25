@@ -3,6 +3,7 @@ import { PhaseBadge } from "./PhaseBadge";
 import { ReasonList } from "./ReasonList";
 import { RiskBadge } from "./RiskBadge";
 import { ScoreBadge } from "./ScoreBadge";
+import { SignalBadge } from "./SignalBadge";
 import type { ScanResult } from "@/lib/scanner/types";
 
 type SelectedSymbolPanelProps = {
@@ -27,8 +28,9 @@ export function SelectedSymbolPanel({ result }: SelectedSymbolPanelProps) {
       <div className="mb-4 flex items-start justify-between gap-3">
         <div>
           <h2 className="text-xl font-semibold">{result.symbol}</h2>
-          <div className="mt-2">
+          <div className="mt-2 flex flex-wrap gap-2">
             <PhaseBadge phase={result.phase} />
+            <SignalBadge signal={result.signal} />
           </div>
         </div>
         <Link
@@ -44,6 +46,10 @@ export function SelectedSymbolPanel({ result }: SelectedSymbolPanelProps) {
         <ScoreBadge label="Conf" value={result.confirmationScore} compact />
         <ScoreBadge label="Risk" value={result.riskScore} tone="risk" compact />
       </div>
+
+      <p className="mb-4 rounded-md border border-[var(--border)] bg-[#0b0f14] p-3 text-sm leading-6 text-[var(--muted)]">
+        {result.signal.summary}
+      </p>
 
       <div className="mb-4 grid grid-cols-2 gap-2 text-sm">
         <Metric label="Price" value={formatPrice(result.price)} />

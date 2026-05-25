@@ -8,6 +8,7 @@ import { PhaseBadge } from "@/components/scanner/PhaseBadge";
 import { ReasonList } from "@/components/scanner/ReasonList";
 import { RiskBadge } from "@/components/scanner/RiskBadge";
 import { ScoreBadge } from "@/components/scanner/ScoreBadge";
+import { SignalBadge } from "@/components/scanner/SignalBadge";
 import type { Candle, Exchange, Timeframe } from "@/lib/exchanges/types";
 import { calculateIndicatorSnapshot } from "@/lib/indicators";
 import { scanCandles } from "@/lib/scanner/scanCandles";
@@ -54,6 +55,7 @@ export function SymbolPageClient({ exchange, symbol }: SymbolPageClientProps) {
           <div className="mt-1 flex flex-wrap items-center gap-3">
             <h1 className="text-3xl font-semibold">{symbol}</h1>
             {scanResult && <PhaseBadge phase={scanResult.phase} />}
+            {scanResult && <SignalBadge signal={scanResult.signal} />}
           </div>
         </div>
 
@@ -127,6 +129,9 @@ export function SymbolPageClient({ exchange, symbol }: SymbolPageClientProps) {
                     />
                   </div>
                   <IndicatorSummary snapshot={snapshot} scanResult={scanResult} />
+                  <p className="mt-4 rounded-md border border-[var(--border)] bg-[#0b0f14] p-3 text-sm leading-6 text-[var(--muted)]">
+                    {scanResult.signal.summary}
+                  </p>
                 </div>
 
                 <div className="rounded-md border border-[var(--border)] bg-[var(--panel)] p-4">

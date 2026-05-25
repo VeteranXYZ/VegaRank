@@ -1,11 +1,25 @@
+import type { ScannerSignal } from "@/lib/scanner/types";
+
 type SignalBadgeProps = {
-  label: string;
+  signal: ScannerSignal;
 };
 
-export function SignalBadge({ label }: SignalBadgeProps) {
+const toneClass: Record<ScannerSignal["state"], string> = {
+  WATCHLIST: "border-[#8f7a31] bg-[#221d0d] text-[var(--warning)]",
+  CONFIRMED: "border-[#2f7d46] bg-[#132119] text-[var(--accent)]",
+  TREND_CONTINUATION: "border-[#2d5b89] bg-[#101b29] text-[#86b7ef]",
+  HIGH_RISK: "border-[#8f3a3a] bg-[#2a1414] text-[var(--danger)]",
+  WEAK: "border-[#6d4a2f] bg-[#23180f] text-[#d8a16b]",
+  NEUTRAL: "border-[var(--border)] bg-[#0b0f14] text-[var(--muted)]",
+};
+
+export function SignalBadge({ signal }: SignalBadgeProps) {
   return (
-    <span className="inline-flex rounded-md border border-[var(--border)] px-2 py-1 text-xs font-semibold text-[var(--muted)]">
-      {label}
+    <span
+      className={`inline-flex rounded-md border px-2 py-1 text-xs font-semibold ${toneClass[signal.state]}`}
+      title={signal.summary}
+    >
+      {signal.label}
     </span>
   );
 }

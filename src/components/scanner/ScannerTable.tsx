@@ -10,6 +10,7 @@ import { useMemo } from "react";
 import { PhaseBadge } from "./PhaseBadge";
 import { RiskBadge } from "./RiskBadge";
 import { ScoreBadge } from "./ScoreBadge";
+import { SignalBadge } from "./SignalBadge";
 import type { ScanResult } from "@/lib/scanner/types";
 
 type ScannerTableProps = {
@@ -61,6 +62,11 @@ export function ScannerTable({
         accessorKey: "phase",
         header: "Phase",
         cell: ({ row }) => <PhaseBadge phase={row.original.phase} />,
+      },
+      {
+        accessorKey: "signal.state",
+        header: "Signal",
+        cell: ({ row }) => <SignalBadge signal={row.original.signal} />,
       },
       {
         accessorKey: "opportunityScore",
@@ -175,7 +181,7 @@ export function ScannerTable({
         />
       ) : (
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[1180px] border-collapse text-left text-sm">
+          <table className="w-full min-w-[1260px] border-collapse text-left text-sm">
             <thead className="bg-[#0d131a] text-xs uppercase text-[var(--muted)]">
               {table.getHeaderGroups().map((headerGroup) => (
                 <tr key={headerGroup.id}>

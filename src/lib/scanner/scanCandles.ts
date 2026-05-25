@@ -4,6 +4,7 @@ import { getReasons, getInvalidation, getNextConfirmation } from "./explanations
 import { determineMarketPhase } from "./marketPhase";
 import { getRiskWarnings } from "./riskFilters";
 import { calculateScannerScores } from "./scoring";
+import { deriveScannerSignal } from "./signal";
 import type { ScanResult } from "./types";
 
 export function scanCandles(
@@ -16,6 +17,7 @@ export function scanCandles(
   const sufficientHistory = candles.length >= 200;
   const phase = determineMarketPhase(snapshot, candles);
   const scores = calculateScannerScores({ snapshot, sufficientHistory });
+  const signal = deriveScannerSignal({ phase, ...scores });
 
   return {
     exchange: "binance",
@@ -23,6 +25,7 @@ export function scanCandles(
     timeframe,
     price: snapshot.close,
     phase,
+    signal,
     ...scores,
     rsi14: snapshot.rsi14,
     bbWidthPercentile: snapshot.bollinger.widthPercentile,

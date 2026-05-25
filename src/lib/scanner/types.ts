@@ -11,12 +11,27 @@ export type MarketPhase =
   | "DISTRIBUTION"
   | "BREAKDOWN";
 
+export type ScannerSignalState =
+  | "WATCHLIST"
+  | "CONFIRMED"
+  | "TREND_CONTINUATION"
+  | "HIGH_RISK"
+  | "WEAK"
+  | "NEUTRAL";
+
+export type ScannerSignal = {
+  state: ScannerSignalState;
+  label: string;
+  summary: string;
+};
+
 export type ScanResult = {
   exchange: "binance";
   symbol: string;
   timeframe: Timeframe;
   price: number;
   phase: MarketPhase;
+  signal: ScannerSignal;
   opportunityScore: number;
   confirmationScore: number;
   riskScore: number;

@@ -3,6 +3,7 @@ import type { Candle } from "@/lib/exchanges/types";
 import type { IndicatorSnapshot } from "@/lib/indicators";
 import { determineMarketPhase } from "./marketPhase";
 import { calculateScannerScores, clampScore } from "./scoring";
+import { deriveScannerSignal } from "./signal";
 
 describe("scanner phase classification", () => {
   it("classifies squeeze when width is low and averages converge", () => {
@@ -110,6 +111,41 @@ describe("scanner scoring", () => {
     expect(scores.confirmationScore).toBe(50);
     expect(scores.riskScore).toBe(0);
     expect(scores.rankScore).toBeCloseTo(62.5, 6);
+  });
+});
+
+describe("scanner signal labels", () => {
+  it("prioritizes high-risk states", () => {
+    expect(
+      deriveScannerSignal({
+        phase: "OVEREXTENDED",
+        opportunityScore: 90,
+        confirmationScore: 90,
+        riskScore: 40,
+      }).state,
+    ).toBe("HIGH_RISK");
+  });
+
+  it("labels confirmed breakouts when confirmation is strong and risk is contained", () => {
+    expect(
+      deriveScannerSignal({
+        phase: "BREAKOUT_CONFIRMED",
+        opportunityScore: 35,
+        confirmationScore: 95,
+        riskScore: 20,
+      }).state,
+    ).toBe("CONFIRMED");
+  });
+
+  it("labels compression setups as watchlist items before confirmation", () => {
+    expect(
+      deriveScannerSignal({
+        phase: "SQUEEZE",
+        opportunityScore: 85,
+        confirmationScore: 20,
+        riskScore: 10,
+      }).state,
+    ).toBe("WATCHLIST");
   });
 });
 
