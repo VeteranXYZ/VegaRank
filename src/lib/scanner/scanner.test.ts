@@ -1,0 +1,177 @@
+import { describe, expect, it } from "vitest";
+import type { Candle } from "@/lib/exchanges/types";
+import type { IndicatorSnapshot } from "@/lib/indicators";
+import { determineMarketPhase } from "./marketPhase";
+import { calculateScannerScores, clampScore } from "./scoring";
+
+describe("scanner phase classification", () => {
+  it("classifies squeeze when width is low and averages converge", () => {
+    expect(
+      determineMarketPhase(
+        makeSnapshot({
+          close: 100,
+          ma20: 100,
+          ma50: 101,
+          ma200: 95,
+          bbMiddle: 100,
+          bbUpper: 105,
+          widthPercentile: 10,
+          rsi14: 50,
+          volumeRatio: 0.9,
+        }),
+        [makeCandle()],
+      ),
+    ).toBe("SQUEEZE");
+  });
+
+  it("classifies confirmed breakout before trending", () => {
+    expect(
+      determineMarketPhase(
+        makeSnapshot({
+          close: 112,
+          ma20: 105,
+          ma50: 100,
+          ma200: 90,
+          bbMiddle: 100,
+          bbUpper: 110,
+          widthPercentile: 40,
+          rsi14: 64,
+          volumeRatio: 1.8,
+        }),
+        [makeCandle()],
+      ),
+    ).toBe("BREAKOUT_CONFIRMED");
+  });
+
+  it("classifies overextended before confirmed breakout when RSI is high", () => {
+    expect(
+      determineMarketPhase(
+        makeSnapshot({
+          close: 120,
+          ma20: 108,
+          ma50: 100,
+          ma200: 90,
+          bbMiddle: 100,
+          bbUpper: 115,
+          widthPercentile: 80,
+          rsi14: 78,
+          volumeRatio: 2,
+          priceExtensionFromMA20: 0.11,
+        }),
+        [makeCandle()],
+      ),
+    ).toBe("OVEREXTENDED");
+  });
+
+  it("classifies breakdown when price is below trend averages with weak RSI", () => {
+    expect(
+      determineMarketPhase(
+        makeSnapshot({
+          close: 80,
+          ma20: 85,
+          ma50: 90,
+          ma200: 100,
+          bbMiddle: 88,
+          bbUpper: 95,
+          widthPercentile: 70,
+          rsi14: 38,
+          volumeRatio: 1.4,
+        }),
+        [makeCandle()],
+      ),
+    ).toBe("BREAKDOWN");
+  });
+});
+
+describe("scanner scoring", () => {
+  it("clamps scores to the 0-100 range", () => {
+    expect(clampScore(-20)).toBe(0);
+    expect(clampScore(120)).toBe(100);
+    expect(clampScore(55)).toBe(55);
+  });
+
+  it("calculates component and rank scores from scanner inputs", () => {
+    const scores = calculateScannerScores({
+      snapshot: makeSnapshot({
+        close: 100,
+        ma20: 100,
+        ma50: 99,
+        ma200: 90,
+        bbMiddle: 100,
+        bbUpper: 110,
+        widthPercentile: 10,
+        rsi14: 55,
+        volumeRatio: 0.9,
+      }),
+      sufficientHistory: true,
+    });
+
+    expect(scores.opportunityScore).toBe(100);
+    expect(scores.confirmationScore).toBe(50);
+    expect(scores.riskScore).toBe(0);
+    expect(scores.rankScore).toBeCloseTo(62.5, 6);
+  });
+});
+
+function makeSnapshot({
+  close,
+  ma20,
+  ma50,
+  ma200,
+  bbMiddle,
+  bbUpper,
+  widthPercentile,
+  rsi14,
+  volumeRatio,
+  priceExtensionFromMA20 = ma20 ? (close - ma20) / ma20 : null,
+}: {
+  close: number;
+  ma20: number | null;
+  ma50: number | null;
+  ma200: number | null;
+  bbMiddle: number | null;
+  bbUpper: number | null;
+  widthPercentile: number | null;
+  rsi14: number | null;
+  volumeRatio: number | null;
+  priceExtensionFromMA20?: number | null;
+}): IndicatorSnapshot {
+  return {
+    close,
+    ma20,
+    ma50,
+    ma200,
+    bollinger: {
+      upper: bbUpper,
+      middle: bbMiddle,
+      lower:
+        bbMiddle !== null && bbUpper !== null
+          ? bbMiddle - (bbUpper - bbMiddle)
+          : null,
+      width:
+        bbMiddle !== null && bbUpper !== null
+          ? ((bbUpper - bbMiddle) * 2) / bbMiddle
+          : null,
+      widthPercentile,
+    },
+    rsi14,
+    volume: {
+      current: 1000,
+      ma20: volumeRatio === null ? null : 1000 / volumeRatio,
+      ratio: volumeRatio,
+    },
+    priceExtensionFromMA20,
+  };
+}
+
+function makeCandle(): Candle {
+  return {
+    openTime: 0,
+    open: 100,
+    high: 105,
+    low: 95,
+    close: 100,
+    volume: 1000,
+    closeTime: 59_999,
+  };
+}
