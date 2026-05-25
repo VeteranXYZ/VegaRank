@@ -24,6 +24,8 @@ type ScanApiResponse = {
   source?: "local" | "remote";
   results: ScanResult[];
   itemCount: number;
+  scannedMarketCount?: number;
+  displayLimit?: number;
   errors?: { symbol: string; message: string }[];
   cached: boolean;
   updatedAt: string;
@@ -69,7 +71,7 @@ export type ScannerFiltersState = {
   minOpportunityScore: number;
   maxRiskScore: number;
   sortBy: ScannerSortKey;
-  limit: 50 | 100 | 200;
+  limit: 50 | 100 | 200 | "ALL";
 };
 
 const initialFilters: ScannerFiltersState = {
@@ -100,7 +102,7 @@ export function ScannerPageClient() {
       filters.mode,
       filters.timeframe,
       filters.mtfPreset,
-      getEffectiveLimit(filters),
+      getApiLimit(filters),
     ],
     queryFn: () => fetchScan(filters),
   });
@@ -120,9 +122,13 @@ export function ScannerPageClient() {
       void scanQuery.refetch();
     },
   });
-  const rows = useMemo(
+  const filteredRows = useMemo(
     () => filterAndSortResults(scanQuery.data?.results ?? [], filters),
     [scanQuery.data?.results, filters],
+  );
+  const rows = useMemo(
+    () => limitDisplayRows(filteredRows, filters.limit),
+    [filteredRows, filters.limit],
   );
   const signalSummary = useMemo(
     () => getSignalSummary(scanQuery.data?.results ?? []),
@@ -185,7 +191,10 @@ export function ScannerPageClient() {
           />
           <HeaderMetric
             label={t.scanner.results}
-            value={String(scanQuery.data?.itemCount ?? rows.length)}
+            value={formatDisplayCount(
+              rows.length,
+              scanQuery.data?.itemCount ?? rows.length,
+            )}
           />
         </div>
       </div>
@@ -238,7 +247,9 @@ export function ScannerPageClient() {
             }
             cached={scanQuery.data?.cached ?? false}
             updatedAt={scanQuery.data?.updatedAt ?? null}
-            sourceItemCount={scanQuery.data?.itemCount ?? 0}
+            sourceItemCount={
+              scanQuery.data?.scannedMarketCount ?? scanQuery.data?.itemCount ?? 0
+            }
             partialErrors={scanQuery.data?.errors ?? []}
             onRefresh={() => void scanQuery.refetch()}
             onSignalSelect={selectSignal}
@@ -555,10 +566,10 @@ function HeaderMetric({ label, value }: { label: string; value: string }) {
 
 async function fetchScan(filters: ScannerFiltersState) {
   if (filters.mode === "mtf") {
-    return fetchMtfScan(filters.mtfPreset, getEffectiveLimit(filters));
+    return fetchMtfScan(filters.mtfPreset, getApiLimit(filters));
   }
 
-  return fetchSingleTimeframeScan(filters.timeframe, filters.limit);
+  return fetchSingleTimeframeScan(filters.timeframe, getApiLimit(filters));
 }
 
 async function fetchMarketDataSummary() {
@@ -644,15 +655,28 @@ async function fetchMtfScan(preset: MtfPreset, limit: number) {
 }
 
 function normalizeFilters(filters: ScannerFiltersState): ScannerFiltersState {
-  if (filters.mode === "mtf" && filters.limit === 200) {
-    return { ...filters, limit: 100 };
-  }
-
   return filters;
 }
 
-function getEffectiveLimit(filters: ScannerFiltersState) {
-  return filters.mode === "mtf" && filters.limit === 200 ? 100 : filters.limit;
+function getApiLimit(filters: ScannerFiltersState) {
+  const maxRemoteLimit = filters.mode === "mtf" ? 100 : 200;
+
+  if (filters.limit === "ALL") {
+    return maxRemoteLimit;
+  }
+
+  return Math.min(filters.limit, maxRemoteLimit);
+}
+
+function limitDisplayRows(
+  rows: ScanResult[],
+  displayLimit: ScannerFiltersState["limit"],
+) {
+  if (displayLimit === "ALL") {
+    return rows;
+  }
+
+  return rows.slice(0, displayLimit);
 }
 
 function getSyncTimeframes(filters: ScannerFiltersState): Timeframe[] {
@@ -675,6 +699,16 @@ function getSyncTimeframes(filters: ScannerFiltersState): Timeframe[] {
 
 function formatInteger(value: number | undefined) {
   return value === undefined ? "0" : new Intl.NumberFormat().format(value);
+}
+
+function formatDisplayCount(displayed: number, total: number) {
+  const formatter = new Intl.NumberFormat();
+
+  if (displayed === total) {
+    return formatter.format(total);
+  }
+
+  return `${formatter.format(displayed)} / ${formatter.format(total)}`;
 }
 
 export function getSignalSummary(results: ScanResult[]) {

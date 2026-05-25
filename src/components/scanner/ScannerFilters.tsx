@@ -182,17 +182,23 @@ export function ScannerFilters({ filters, onChange }: ScannerFiltersProps) {
         </label>
 
         <label className="block">
-          <span className="mb-2 block">{t.scanner.limit}</span>
+          <span className="mb-2 block">{t.scanner.displayLimit}</span>
           <select
             value={filters.limit}
-            onChange={(event) =>
-              update("limit", Number(event.target.value) as ScannerFiltersState["limit"])
-            }
+            onChange={(event) => {
+              const nextLimit =
+                event.target.value === "ALL"
+                  ? "ALL"
+                  : (Number(event.target.value) as ScannerFiltersState["limit"]);
+
+              update("limit", nextLimit);
+            }}
             className="w-full rounded-md border border-[var(--border)] bg-[#0b0f14] px-3 py-2 text-[var(--foreground)]"
           >
             <option value={50}>50</option>
             <option value={100}>100</option>
-            {filters.mode === "single" && <option value={200}>200</option>}
+            <option value={200}>200</option>
+            <option value="ALL">{t.scanner.showAll}</option>
           </select>
         </label>
       </div>

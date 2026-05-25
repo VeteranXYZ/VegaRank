@@ -21,6 +21,8 @@ type ScanPayload = {
   source: "local" | "remote";
   results: ScanResult[];
   itemCount: number;
+  scannedMarketCount: number;
+  displayLimit: number;
   errors?: { symbol: string; message: string }[];
 };
 
@@ -41,8 +43,9 @@ export async function GET(request: Request) {
   }
 
   try {
+    const hasLocalData = hasLocalMarkets();
     const cacheKey = cacheKeys.scan(timeframe, limit.value);
-    const cachedEntry = getCached<ScanPayload>(cacheKey);
+    const cachedEntry = hasLocalData ? null : getCached<ScanPayload>(cacheKey);
 
     if (cachedEntry) {
       return NextResponse.json({
@@ -52,7 +55,10 @@ export async function GET(request: Request) {
       });
     }
 
-    const { settled, useLocal } = await scanMarkets(timeframe, limit.value);
+    const { settled, useLocal, scannedMarketCount } = await scanMarkets(
+      timeframe,
+      limit.value,
+    );
     const results = settled
       .flatMap((item) => (item.result ? [item.result] : []))
       .sort((left, right) => right.rankScore - left.rankScore);
@@ -63,17 +69,19 @@ export async function GET(request: Request) {
       source: useLocal ? "local" : "remote",
       results,
       itemCount: results.length,
+      scannedMarketCount,
+      displayLimit: limit.value,
       errors: errors.length > 0 ? errors : undefined,
     };
 
-    if (errors.length > 0) {
+    if (errors.length > 0 || useLocal) {
       const updatedAt = new Date().toISOString();
       await safePersistScanSnapshot({
         createdAt: updatedAt,
         exchange: "binance",
         mode: "single",
         timeframe,
-        limit: limit.value,
+        limit: useLocal ? scannedMarketCount : limit.value,
         itemCount: results.length,
         errorsCount: errors.length,
         results,
@@ -92,7 +100,7 @@ export async function GET(request: Request) {
       exchange: "binance",
       mode: "single",
       timeframe,
-      limit: limit.value,
+      limit: scannedMarketCount,
       itemCount: results.length,
       errorsCount: 0,
       results,
@@ -121,6 +129,7 @@ async function scanMarkets(timeframe: ScanTimeframe, limit: number) {
     const localMarkets = store.getMarkets();
     const useLocal = localMarkets.length > 0;
     const markets = useLocal ? localMarkets : await getTopUsdtMarkets(limit);
+    const scannedMarketCount = markets.length;
     const gate = pLimit(SCAN_CONCURRENCY);
     const settled = await Promise.all(
       markets.map((market) =>
@@ -145,7 +154,17 @@ async function scanMarkets(timeframe: ScanTimeframe, limit: number) {
       ),
     );
 
-    return { settled, useLocal };
+    return { settled, useLocal, scannedMarketCount };
+  } finally {
+    store.close();
+  }
+}
+
+function hasLocalMarkets() {
+  const store = new MarketDataStore();
+
+  try {
+    return store.getMarkets().length > 0;
   } finally {
     store.close();
   }

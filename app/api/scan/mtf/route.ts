@@ -31,6 +31,8 @@ type MtfScanPayload = {
   source: "local" | "remote";
   results: ScanResult[];
   itemCount: number;
+  scannedMarketCount: number;
+  displayLimit: number;
   errors?: { symbol: string; message: string }[];
 };
 
@@ -55,8 +57,9 @@ export async function GET(request: Request) {
   }
 
   try {
+    const hasLocalData = hasLocalMarkets();
     const cacheKey = cacheKeys.mtfScan(preset, limit.value);
-    const cachedEntry = getCached<MtfScanPayload>(cacheKey);
+    const cachedEntry = hasLocalData ? null : getCached<MtfScanPayload>(cacheKey);
 
     if (cachedEntry) {
       return NextResponse.json({
@@ -66,7 +69,10 @@ export async function GET(request: Request) {
       });
     }
 
-    const { settled, useLocal } = await scanMtfMarkets(preset, limit.value);
+    const { settled, useLocal, scannedMarketCount } = await scanMtfMarkets(
+      preset,
+      limit.value,
+    );
     const results = settled
       .flatMap((item) => (item.result ? [item.result] : []))
       .sort((left, right) => right.rankScore - left.rankScore);
@@ -79,10 +85,12 @@ export async function GET(request: Request) {
       source: useLocal ? "local" : "remote",
       results,
       itemCount: results.length,
+      scannedMarketCount,
+      displayLimit: limit.value,
       errors: errors.length > 0 ? errors : undefined,
     };
 
-    if (errors.length > 0) {
+    if (errors.length > 0 || useLocal) {
       const updatedAt = new Date().toISOString();
       await safePersistScanSnapshot({
         createdAt: updatedAt,
@@ -90,7 +98,7 @@ export async function GET(request: Request) {
         mode: "mtf",
         preset,
         timeframes: mtfPresetTimeframes[preset],
-        limit: limit.value,
+        limit: useLocal ? scannedMarketCount : limit.value,
         itemCount: results.length,
         errorsCount: errors.length,
         results,
@@ -110,7 +118,7 @@ export async function GET(request: Request) {
       mode: "mtf",
       preset,
       timeframes: mtfPresetTimeframes[preset],
-      limit: limit.value,
+      limit: scannedMarketCount,
       itemCount: results.length,
       errorsCount: 0,
       results,
@@ -139,6 +147,7 @@ async function scanMtfMarkets(preset: MtfPreset, limit: number) {
     const localMarkets = store.getMarkets();
     const useLocal = localMarkets.length > 0;
     const markets = useLocal ? localMarkets : await getTopUsdtMarkets(limit);
+    const scannedMarketCount = markets.length;
     const gate = pLimit(MTF_SCAN_CONCURRENCY);
     const settled = await Promise.all(
       markets.map((market) =>
@@ -167,7 +176,17 @@ async function scanMtfMarkets(preset: MtfPreset, limit: number) {
       ),
     );
 
-    return { settled, useLocal };
+    return { settled, useLocal, scannedMarketCount };
+  } finally {
+    store.close();
+  }
+}
+
+function hasLocalMarkets() {
+  const store = new MarketDataStore();
+
+  try {
+    return store.getMarkets().length > 0;
   } finally {
     store.close();
   }
