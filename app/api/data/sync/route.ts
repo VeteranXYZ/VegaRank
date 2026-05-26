@@ -1,15 +1,18 @@
 import { NextResponse } from "next/server";
 import { TIMEFRAMES, type Timeframe } from "@/lib/exchanges/types";
-import { MarketDataStore } from "@/lib/storage/marketData";
 import {
-  syncMarketData,
-  type MarketDataSyncMode,
-} from "@/lib/storage/marketDataSync";
+  isLocalPersistenceDisabled,
+  localPersistenceUnavailableMessage,
+} from "@/lib/runtime/localPersistence";
+
+export const runtime = "nodejs";
 
 const MAX_MARKET_LIMIT = 500;
 const DEFAULT_MARKET_LIMIT = 200;
 const SUPPORTED_MODES = new Set<MarketDataSyncMode>(["recent", "incremental"]);
 const SUPPORTED_TIMEFRAMES = new Set<Timeframe>(TIMEFRAMES);
+
+type MarketDataSyncMode = "recent" | "incremental";
 
 type SyncRequestBody = {
   mode?: string;
@@ -18,6 +21,11 @@ type SyncRequestBody = {
 };
 
 export async function GET() {
+  if (isLocalPersistenceDisabled()) {
+    return localPersistenceUnavailableResponse();
+  }
+
+  const { MarketDataStore } = await import("@/lib/storage/marketData");
   const store = new MarketDataStore();
 
   try {
@@ -30,6 +38,10 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
+  if (isLocalPersistenceDisabled()) {
+    return localPersistenceUnavailableResponse();
+  }
+
   const body = (await request.json().catch(() => ({}))) as SyncRequestBody;
   const mode = parseMode(body.mode);
   const marketLimit = parseMarketLimit(body.marketLimit);
@@ -48,6 +60,7 @@ export async function POST(request: Request) {
   }
 
   try {
+    const { syncMarketData } = await import("@/lib/storage/marketDataSync");
     const result = await syncMarketData({
       mode: mode.value,
       marketLimit: marketLimit.value,
@@ -64,6 +77,13 @@ export async function POST(request: Request) {
       { status: 502 },
     );
   }
+}
+
+function localPersistenceUnavailableResponse() {
+  return NextResponse.json(
+    { error: localPersistenceUnavailableMessage },
+    { status: 501 },
+  );
 }
 
 function parseMode(value: string | undefined) {
@@ -106,7 +126,7 @@ function parseTimeframes(value: string[] | undefined) {
   ) {
     return {
       valid: false as const,
-      error: "timeframes must be a non-empty array of 1h, 4h, 1d, 7d, or 1m.",
+      error: "timeframes must be a non-empty array of 1h, 4h, 1d, 7d, or 1M.",
     };
   }
 

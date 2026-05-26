@@ -63,6 +63,20 @@ export function ScannerFilters({ filters, onChange }: ScannerFiltersProps) {
         </label>
 
         <label className="block">
+          <span className="mb-2 block">{t.scanner.dataSource}</span>
+          <select
+            value={filters.source}
+            onChange={(event) =>
+              update("source", event.target.value as ScannerFiltersState["source"])
+            }
+            className="w-full rounded-md border border-[var(--border)] bg-[#0b0f14] px-3 py-2 text-[var(--foreground)]"
+          >
+            <option value="remote">{t.scanner.remoteBinanceSource}</option>
+            <option value="local">{t.scanner.localSyncedSource}</option>
+          </select>
+        </label>
+
+        <label className="block">
           <span className="mb-2 block">{t.scanner.timeframe}</span>
           <select
             value={filters.timeframe}

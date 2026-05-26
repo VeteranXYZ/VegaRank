@@ -69,7 +69,7 @@ const timeframeToBinanceInterval = {
   "4h": "4h",
   "1d": "1d",
   "7d": "1w",
-  "1m": "1M",
+  "1M": "1M",
 } satisfies Record<Timeframe, string>;
 
 export async function getSpotMarkets(): Promise<Market[]> {
@@ -154,7 +154,13 @@ export async function getCandles(
     typeof limitOrOptions === "number" ? { limit: limitOrOptions } : limitOrOptions;
   const limit = options.limit ?? 300;
   const { entry } = await getOrSetCached(
-    cacheKeys.candles(normalizedSymbol, timeframe, limit),
+    cacheKeys.candlesWithRange(
+      normalizedSymbol,
+      timeframe,
+      limit,
+      options.startTime,
+      options.endTime,
+    ),
     cacheTtls.candles[timeframe],
     async () => {
       return fetchCandlesFromBinance(normalizedSymbol, timeframe, options);

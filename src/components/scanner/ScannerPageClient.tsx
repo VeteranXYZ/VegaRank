@@ -61,9 +61,11 @@ type DataSyncControlsState = {
 };
 
 export type ScannerMode = "single" | "mtf";
+export type ScannerDataSource = "remote" | "local";
 
 export type ScannerFiltersState = {
   mode: ScannerMode;
+  source: ScannerDataSource;
   timeframe: Timeframe;
   mtfPreset: MtfPreset;
   signal: ScannerSignalState | "ALL";
@@ -76,6 +78,7 @@ export type ScannerFiltersState = {
 
 const initialFilters: ScannerFiltersState = {
   mode: "single",
+  source: "remote",
   timeframe: "4h",
   mtfPreset: "swing",
   signal: "ALL",
@@ -100,6 +103,7 @@ export function ScannerPageClient() {
     queryKey: [
       "scan",
       filters.mode,
+      filters.source,
       filters.timeframe,
       filters.mtfPreset,
       getApiLimit(filters),
@@ -184,7 +188,7 @@ export function ScannerPageClient() {
           <HeaderMetric
             label={t.scanner.source}
             value={
-              scanQuery.data?.source === "local"
+              (scanQuery.data?.source ?? filters.source) === "local"
                 ? t.scanner.localSource
                 : t.scanner.remoteSource
             }
@@ -566,10 +570,14 @@ function HeaderMetric({ label, value }: { label: string; value: string }) {
 
 async function fetchScan(filters: ScannerFiltersState) {
   if (filters.mode === "mtf") {
-    return fetchMtfScan(filters.mtfPreset, getApiLimit(filters));
+    return fetchMtfScan(filters.mtfPreset, getApiLimit(filters), filters.source);
   }
 
-  return fetchSingleTimeframeScan(filters.timeframe, getApiLimit(filters));
+  return fetchSingleTimeframeScan(
+    filters.timeframe,
+    getApiLimit(filters),
+    filters.source,
+  );
 }
 
 async function fetchMarketDataSummary() {
@@ -616,10 +624,15 @@ async function syncMarketData({
   return (await response.json()) as MarketDataSyncResponse;
 }
 
-async function fetchSingleTimeframeScan(timeframe: Timeframe, limit: number) {
+async function fetchSingleTimeframeScan(
+  timeframe: Timeframe,
+  limit: number,
+  source: ScannerDataSource,
+) {
   const params = new URLSearchParams({
     timeframe,
     limit: String(limit),
+    source,
   });
   const response = await fetch(`/api/scan?${params.toString()}`);
 
@@ -635,10 +648,15 @@ async function fetchSingleTimeframeScan(timeframe: Timeframe, limit: number) {
   return (await response.json()) as ScanApiResponse;
 }
 
-async function fetchMtfScan(preset: MtfPreset, limit: number) {
+async function fetchMtfScan(
+  preset: MtfPreset,
+  limit: number,
+  source: ScannerDataSource,
+) {
   const params = new URLSearchParams({
     preset,
     limit: String(limit),
+    source,
   });
   const response = await fetch(`/api/scan/mtf?${params.toString()}`);
 
@@ -685,9 +703,9 @@ function getSyncTimeframes(filters: ScannerFiltersState): Timeframe[] {
       case "short":
         return ["1h", "4h", "1d"];
       case "position":
-        return ["1d", "7d", "1m"];
+        return ["1d", "7d", "1M"];
       case "full":
-        return ["1h", "4h", "1d", "7d", "1m"];
+        return ["1h", "4h", "1d", "7d", "1M"];
       case "swing":
       default:
         return ["4h", "1d", "7d"];

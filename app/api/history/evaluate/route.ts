@@ -2,10 +2,11 @@ import { NextResponse } from "next/server";
 import pLimit from "p-limit";
 import { getCandles } from "@/lib/exchanges/binance";
 import {
-  evaluateForwardPerformance,
-  summarizeForwardEvaluations,
-} from "@/lib/storage/scanEvaluation";
-import { getRecentScanSnapshots } from "@/lib/storage/scanSnapshots";
+  isLocalPersistenceDisabled,
+  localPersistenceUnavailableMessage,
+} from "@/lib/runtime/localPersistence";
+
+export const runtime = "nodejs";
 
 const DEFAULT_SNAPSHOT_LIMIT = 10;
 const MAX_SNAPSHOT_LIMIT = 50;
@@ -16,6 +17,10 @@ const MAX_RESULT_LIMIT = 200;
 const EVALUATION_CONCURRENCY = 5;
 
 export async function GET(request: Request) {
+  if (isLocalPersistenceDisabled()) {
+    return localPersistenceUnavailableResponse();
+  }
+
   const { searchParams } = new URL(request.url);
   const snapshotLimit = parseLimit(
     searchParams.get("limit"),
@@ -52,6 +57,11 @@ export async function GET(request: Request) {
     const snapshotLimitValue = snapshotLimit.value;
     const horizonCandlesValue = horizonCandles.value;
     const resultLimitValue = resultLimit.value;
+    const { getRecentScanSnapshots } = await import(
+      "@/lib/storage/scanSnapshots"
+    );
+    const { evaluateForwardPerformance, summarizeForwardEvaluations } =
+      await import("@/lib/storage/scanEvaluation");
     const snapshots = await getRecentScanSnapshots(snapshotLimitValue);
     const work = snapshots.flatMap((snapshot) =>
       snapshot.results.map((result) => ({ snapshot, result })),
@@ -87,6 +97,13 @@ export async function GET(request: Request) {
       { status: 500 },
     );
   }
+}
+
+function localPersistenceUnavailableResponse() {
+  return NextResponse.json(
+    { error: localPersistenceUnavailableMessage },
+    { status: 501 },
+  );
 }
 
 function parseLimit(

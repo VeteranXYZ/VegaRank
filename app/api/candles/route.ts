@@ -27,7 +27,7 @@ export async function GET(request: Request) {
 
   if (!isTimeframe(timeframe)) {
     return NextResponse.json(
-      { error: "timeframe must be one of 1h, 4h, 1d, 7d, or 1m." },
+      { error: "timeframe must be one of 1h, 4h, 1d, 7d, or 1M." },
       { status: 400 },
     );
   }
@@ -37,7 +37,7 @@ export async function GET(request: Request) {
   }
 
   try {
-    const cacheKey = cacheKeys.candles(symbol, timeframe, limit.value);
+    const cacheKey = cacheKeys.candlesWithRange(symbol, timeframe, limit.value);
     const cachedEntry = getCached<Candle[]>(cacheKey);
 
     if (cachedEntry) {

@@ -34,7 +34,7 @@ const defaultCandlesPerTimeframe = {
   "4h": 1000,
   "1d": 1000,
   "7d": 500,
-  "1m": 300,
+  "1M": 300,
 } satisfies Record<Timeframe, number>;
 
 const MAX_BINANCE_KLINES_LIMIT = 1000;

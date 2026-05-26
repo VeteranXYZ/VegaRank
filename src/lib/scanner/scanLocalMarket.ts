@@ -1,5 +1,5 @@
 import type { Timeframe } from "@/lib/exchanges/types";
-import { MarketDataStore } from "@/lib/storage/marketData";
+import type { MarketDataStore } from "@/lib/storage/marketData";
 import {
   calculateMultiTimeframeRankScore,
   mtfPresetTimeframes,
@@ -74,7 +74,7 @@ export function scanLocalMarketMultiTimeframe({
 }
 
 function pickPrimaryResult(results: ScanResult[], timeframes: Timeframe[]) {
-  const preferredTimeframes: Timeframe[] = ["4h", "1d", "1h", "7d", "1m"];
+  const preferredTimeframes: Timeframe[] = ["4h", "1d", "1h", "7d", "1M"];
 
   for (const timeframe of preferredTimeframes) {
     if (timeframes.includes(timeframe)) {

@@ -7,6 +7,14 @@ export const cacheKeys = {
   tickers: "tickers:binance:24h",
   candles: (symbol: string, timeframe: Timeframe, limit: number) =>
     `candles:binance:${symbol}:${timeframe}:${limit}`,
+  candlesWithRange: (
+    symbol: string,
+    timeframe: Timeframe,
+    limit: number,
+    startTime?: number,
+    endTime?: number,
+  ) =>
+    `candles:binance:${symbol}:${timeframe}:${limit}:start:${startTime ?? "latest"}:end:${endTime ?? "latest"}`,
   scan: (timeframe: Timeframe, limit: number) =>
     `scan:binance:${timeframe}:${limit}`,
   mtfScan: (preset: string, limit: number) => `scan:binance:mtf:${preset}:${limit}`,
@@ -20,14 +28,14 @@ export const cacheTtls = {
     "4h": 5 * minute,
     "1d": 15 * minute,
     "7d": 60 * minute,
-    "1m": 6 * 60 * minute,
+    "1M": 6 * 60 * minute,
   } satisfies Record<Timeframe, number>,
   scan: {
     "1h": 2 * minute,
     "4h": 5 * minute,
     "1d": 15 * minute,
     "7d": 60 * minute,
-    "1m": 6 * 60 * minute,
+    "1M": 6 * 60 * minute,
   } satisfies Record<Timeframe, number>,
   mtfScan: 15 * minute,
 };

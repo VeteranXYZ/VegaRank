@@ -143,6 +143,7 @@ function makeFilters(
 ): ScannerFiltersState {
   return {
     mode: "single",
+    source: "remote",
     timeframe: "4h",
     mtfPreset: "swing",
     signal: "ALL",

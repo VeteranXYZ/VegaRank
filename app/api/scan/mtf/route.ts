@@ -7,11 +7,14 @@ import {
   mtfPresetTimeframes,
   type MtfPreset,
 } from "@/lib/scanner/multiTimeframe";
-import { scanLocalMarketMultiTimeframe } from "@/lib/scanner/scanLocalMarket";
+import {
+  isLocalPersistenceDisabled,
+  localPersistenceUnavailableMessage,
+} from "@/lib/runtime/localPersistence";
 import { scanMarketMultiTimeframe } from "@/lib/scanner/scanMarketMtf";
 import type { ScanResult } from "@/lib/scanner/types";
-import { MarketDataStore } from "@/lib/storage/marketData";
-import { safePersistScanSnapshot } from "@/lib/storage/scanSnapshots";
+
+export const runtime = "nodejs";
 
 const DEFAULT_MTF_SCAN_LIMIT = 50;
 const MAX_MTF_SCAN_LIMIT = 100;
@@ -22,13 +25,16 @@ const SUPPORTED_PRESETS = new Set<MtfPreset>([
   "position",
   "full",
 ]);
+const SUPPORTED_SOURCES = new Set<ScanSource>(["remote", "local"]);
+
+type ScanSource = "remote" | "local";
 
 type MtfScanPayload = {
   exchange: "binance";
   mode: "mtf";
   preset: MtfPreset;
   timeframes: typeof mtfPresetTimeframes[MtfPreset];
-  source: "local" | "remote";
+  source: ScanSource;
   results: ScanResult[];
   itemCount: number;
   scannedMarketCount: number;
@@ -39,6 +45,7 @@ type MtfScanPayload = {
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const preset = searchParams.get("preset") ?? "swing";
+  const source = parseSource(searchParams.get("source"));
   const limit = parseLimit(
     searchParams.get("limit"),
     DEFAULT_MTF_SCAN_LIMIT,
@@ -52,14 +59,22 @@ export async function GET(request: Request) {
     );
   }
 
+  if (!source.valid) {
+    return NextResponse.json({ error: source.error }, { status: 400 });
+  }
+
   if (!limit.valid) {
     return NextResponse.json({ error: limit.error }, { status: 400 });
   }
 
+  if (source.value === "local" && isLocalPersistenceDisabled()) {
+    return localPersistenceUnavailableResponse();
+  }
+
   try {
-    const hasLocalData = hasLocalMarkets();
     const cacheKey = cacheKeys.mtfScan(preset, limit.value);
-    const cachedEntry = hasLocalData ? null : getCached<MtfScanPayload>(cacheKey);
+    const cachedEntry =
+      source.value === "remote" ? getCached<MtfScanPayload>(cacheKey) : null;
 
     if (cachedEntry) {
       return NextResponse.json({
@@ -72,6 +87,7 @@ export async function GET(request: Request) {
     const { settled, useLocal, scannedMarketCount } = await scanMtfMarkets(
       preset,
       limit.value,
+      source.value,
     );
     const results = settled
       .flatMap((item) => (item.result ? [item.result] : []))
@@ -92,13 +108,13 @@ export async function GET(request: Request) {
 
     if (errors.length > 0 || useLocal) {
       const updatedAt = new Date().toISOString();
-      await safePersistScanSnapshot({
+      await safePersistScanSnapshotIfAvailable({
         createdAt: updatedAt,
         exchange: "binance",
         mode: "mtf",
         preset,
         timeframes: mtfPresetTimeframes[preset],
-        limit: useLocal ? scannedMarketCount : limit.value,
+        limit: limit.value,
         itemCount: results.length,
         errorsCount: errors.length,
         results,
@@ -112,13 +128,13 @@ export async function GET(request: Request) {
     }
 
     const entry = setCached(cacheKey, payload, cacheTtls.mtfScan);
-    await safePersistScanSnapshot({
+    await safePersistScanSnapshotIfAvailable({
       createdAt: entry.updatedAt,
       exchange: "binance",
       mode: "mtf",
       preset,
       timeframes: mtfPresetTimeframes[preset],
-      limit: scannedMarketCount,
+      limit: limit.value,
       itemCount: results.length,
       errorsCount: 0,
       results,
@@ -140,60 +156,123 @@ export async function GET(request: Request) {
   }
 }
 
-async function scanMtfMarkets(preset: MtfPreset, limit: number) {
+async function scanMtfMarkets(
+  preset: MtfPreset,
+  limit: number,
+  source: ScanSource,
+) {
+  if (source === "remote") {
+    const markets = await getTopUsdtMarkets(limit);
+    const settled = await scanMtfMarketBatch({
+      markets,
+      getResult: (symbol) => scanMarketMultiTimeframe(symbol, preset),
+    });
+
+    return {
+      settled,
+      useLocal: false,
+      scannedMarketCount: markets.length,
+    };
+  }
+
+  const [{ MarketDataStore }, { scanLocalMarketMultiTimeframe }] = await Promise.all([
+    import("@/lib/storage/marketData"),
+    import("@/lib/scanner/scanLocalMarket"),
+  ]);
   const store = new MarketDataStore();
 
   try {
-    const localMarkets = store.getMarkets();
-    const useLocal = localMarkets.length > 0;
-    const markets = useLocal ? localMarkets : await getTopUsdtMarkets(limit);
-    const scannedMarketCount = markets.length;
-    const gate = pLimit(MTF_SCAN_CONCURRENCY);
-    const settled = await Promise.all(
-      markets.map((market) =>
-        gate(async () => {
-          try {
-            return {
-              result: useLocal
-                ? scanLocalMarketMultiTimeframe({
-                    store,
-                    symbol: market.symbol,
-                    preset,
-                  })
-                : await scanMarketMultiTimeframe(market.symbol, preset),
-              error: null,
-            };
-          } catch (error) {
-            return {
-              result: null,
-              error: {
-                symbol: market.symbol,
-                message: error instanceof Error ? error.message : "Unknown error",
-              },
-            };
-          }
+    const markets = store.getMarkets().slice(0, limit);
+    const settled = await scanMtfMarketBatch({
+      markets,
+      getResult: (symbol) =>
+        scanLocalMarketMultiTimeframe({
+          store,
+          symbol,
+          preset,
         }),
-      ),
-    );
+    });
 
-    return { settled, useLocal, scannedMarketCount };
+    return { settled, useLocal: true, scannedMarketCount: markets.length };
   } finally {
     store.close();
   }
 }
 
-function hasLocalMarkets() {
-  const store = new MarketDataStore();
+type MtfScanSnapshotInput = {
+  createdAt: string;
+  exchange: "binance";
+  mode: "mtf";
+  preset: MtfPreset;
+  timeframes: typeof mtfPresetTimeframes[MtfPreset];
+  limit: number;
+  itemCount: number;
+  errorsCount: number;
+  results: ScanResult[];
+};
 
-  try {
-    return store.getMarkets().length > 0;
-  } finally {
-    store.close();
+async function safePersistScanSnapshotIfAvailable(input: MtfScanSnapshotInput) {
+  if (isLocalPersistenceDisabled()) {
+    return null;
   }
+
+  const { safePersistScanSnapshot } = await import("@/lib/storage/scanSnapshots");
+  return safePersistScanSnapshot(input);
+}
+
+function localPersistenceUnavailableResponse() {
+  return NextResponse.json(
+    { error: localPersistenceUnavailableMessage },
+    { status: 501 },
+  );
+}
+
+async function scanMtfMarketBatch({
+  markets,
+  getResult,
+}: {
+  markets: Array<{ symbol: string }>;
+  getResult: (symbol: string) => ScanResult | Promise<ScanResult>;
+}) {
+  const gate = pLimit(MTF_SCAN_CONCURRENCY);
+
+  return Promise.all(
+    markets.map((market) =>
+      gate(async () => {
+        try {
+          return {
+            result: await getResult(market.symbol),
+            error: null,
+          };
+        } catch (error) {
+          return {
+            result: null,
+            error: {
+              symbol: market.symbol,
+              message: error instanceof Error ? error.message : "Unknown error",
+            },
+          };
+        }
+      }),
+    ),
+  );
 }
 
 function isPreset(value: string): value is MtfPreset {
   return SUPPORTED_PRESETS.has(value as MtfPreset);
+}
+
+function parseSource(value: string | null) {
+  const source = value ?? "remote";
+
+  if (!SUPPORTED_SOURCES.has(source as ScanSource)) {
+    return {
+      valid: false as const,
+      error: "source must be remote or local.",
+    };
+  }
+
+  return { valid: true as const, value: source as ScanSource };
 }
 
 function parseLimit(value: string | null, fallback: number, max: number) {

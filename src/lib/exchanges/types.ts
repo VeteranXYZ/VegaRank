@@ -1,6 +1,6 @@
 export type Exchange = "binance";
 
-export const TIMEFRAMES = ["1h", "4h", "1d", "7d", "1m"] as const;
+export const TIMEFRAMES = ["1h", "4h", "1d", "7d", "1M"] as const;
 
 export type Timeframe = (typeof TIMEFRAMES)[number];
 
@@ -9,7 +9,7 @@ export const timeframeLabels: Record<Timeframe, string> = {
   "4h": "4H",
   "1d": "1D",
   "7d": "7D",
-  "1m": "1M",
+  "1M": "1M",
 };
 
 export type Market = {

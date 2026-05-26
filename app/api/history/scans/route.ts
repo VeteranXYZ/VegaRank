@@ -1,13 +1,19 @@
 import { NextResponse } from "next/server";
 import {
-  getRecentScanSnapshots,
-  summarizeScanSnapshots,
-} from "@/lib/storage/scanSnapshots";
+  isLocalPersistenceDisabled,
+  localPersistenceUnavailableMessage,
+} from "@/lib/runtime/localPersistence";
+
+export const runtime = "nodejs";
 
 const DEFAULT_HISTORY_LIMIT = 20;
 const MAX_HISTORY_LIMIT = 100;
 
 export async function GET(request: Request) {
+  if (isLocalPersistenceDisabled()) {
+    return localPersistenceUnavailableResponse();
+  }
+
   const { searchParams } = new URL(request.url);
   const limit = parseLimit(
     searchParams.get("limit"),
@@ -20,6 +26,9 @@ export async function GET(request: Request) {
   }
 
   try {
+    const { getRecentScanSnapshots, summarizeScanSnapshots } = await import(
+      "@/lib/storage/scanSnapshots"
+    );
     const snapshots = await getRecentScanSnapshots(limit.value);
 
     return NextResponse.json({
@@ -36,6 +45,13 @@ export async function GET(request: Request) {
       { status: 500 },
     );
   }
+}
+
+function localPersistenceUnavailableResponse() {
+  return NextResponse.json(
+    { error: localPersistenceUnavailableMessage },
+    { status: 501 },
+  );
 }
 
 function parseLimit(value: string | null, fallback: number, max: number) {

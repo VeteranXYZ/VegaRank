@@ -23,8 +23,8 @@ export type MtfPreset = "short" | "swing" | "position" | "full";
 export const mtfPresetTimeframes: Record<MtfPreset, Timeframe[]> = {
   short: ["1h", "4h", "1d"],
   swing: ["4h", "1d", "7d"],
-  position: ["1d", "7d", "1m"],
-  full: ["1h", "4h", "1d", "7d", "1m"],
+  position: ["1d", "7d", "1M"],
+  full: ["1h", "4h", "1d", "7d", "1M"],
 };
 
 const constructiveSignals = new Set<ScannerSignalState>([
@@ -33,7 +33,7 @@ const constructiveSignals = new Set<ScannerSignalState>([
   "TREND_CONTINUATION",
 ]);
 const riskSignals = new Set<ScannerSignalState>(["HIGH_RISK", "WEAK"]);
-const higherTimeframes = new Set<Timeframe>(["1d", "7d", "1m"]);
+const higherTimeframes = new Set<Timeframe>(["1d", "7d", "1M"]);
 
 export function summarizeMultiTimeframe(
   results: ScanResult[],

@@ -52,10 +52,43 @@ Open:
 ```bash
 npm run lint
 npm run build
+npm run build:cloudflare
+npm run preview:cloudflare
+npm run deploy:cloudflare
 npm run start
 ```
 
 The build script uses `next build --webpack` because the current local environment blocks a Turbopack build operation that attempts to bind a local port during CSS processing.
+
+## Cloudflare Workers Deployment
+
+This app is prepared for Cloudflare Workers deployment via OpenNext for Cloudflare.
+
+Production mode on Cloudflare supports the remote Binance scanner:
+
+```txt
+/api/scan?source=remote
+/api/scan/mtf?source=remote
+```
+
+Remote Binance is the default scanner source. Local SQLite market-data sync and local JSONL scan history remain available only in local Node.js development. Cloudflare Workers should run with:
+
+```txt
+DISABLE_LOCAL_SQLITE=true
+NEXT_PUBLIC_DEPLOY_TARGET=cloudflare
+```
+
+These values are set in `wrangler.jsonc`. If a local-only route is called in Cloudflare production, it returns a clear `501` response instead of importing local SQLite or filesystem storage.
+
+Cloudflare commands:
+
+```bash
+npm run build:cloudflare
+npm run preview:cloudflare
+npm run deploy:cloudflare
+```
+
+Persistent Cloudflare history should later use D1 or another Workers-native store. D1 is intentionally not part of the current MVP hardening task.
 
 ## Data Source
 
@@ -151,7 +184,8 @@ Market phases:
 ```txt
 GET /api/markets?limit=100
 GET /api/candles?symbol=BTCUSDT&timeframe=4h&limit=300
-GET /api/scan?timeframe=4h&limit=100
+GET /api/scan?source=remote&timeframe=4h&limit=100
+GET /api/scan/mtf?source=remote&preset=swing&limit=50
 ```
 
 Responses include:

@@ -226,7 +226,7 @@ describe("multi-timeframe alignment", () => {
       makeScanResult("4h", "TREND_CONTINUATION", "TRENDING"),
       makeScanResult("1d", "TREND_CONTINUATION", "TRENDING"),
       makeScanResult("7d", "NEUTRAL", "BASE_BUILDING"),
-      makeScanResult("1m", "NEUTRAL", "BASE_BUILDING"),
+      makeScanResult("1M", "NEUTRAL", "BASE_BUILDING"),
     ]);
 
     expect(summary.alignment).toBe("STRONG_ALIGNMENT");
@@ -240,7 +240,7 @@ describe("multi-timeframe alignment", () => {
       makeScanResult("4h", "TREND_CONTINUATION", "TRENDING"),
       makeScanResult("1d", "WEAK", "BREAKDOWN"),
       makeScanResult("7d", "HIGH_RISK", "OVEREXTENDED"),
-      makeScanResult("1m", "NEUTRAL", "BASE_BUILDING"),
+      makeScanResult("1M", "NEUTRAL", "BASE_BUILDING"),
     ]);
 
     expect(summary.alignment).toBe("HIGH_RISK");

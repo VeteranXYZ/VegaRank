@@ -4,21 +4,28 @@ import { cacheKeys, cacheTtls } from "@/lib/cache/keys";
 import { getCached, setCached } from "@/lib/cache/memory";
 import { getTopUsdtMarkets } from "@/lib/exchanges/binance";
 import { TIMEFRAMES, type Timeframe } from "@/lib/exchanges/types";
-import { scanLocalMarket } from "@/lib/scanner/scanLocalMarket";
+import {
+  isLocalPersistenceDisabled,
+  localPersistenceUnavailableMessage,
+} from "@/lib/runtime/localPersistence";
 import { scanMarket } from "@/lib/scanner/scanMarket";
 import type { ScanResult } from "@/lib/scanner/types";
-import { MarketDataStore } from "@/lib/storage/marketData";
-import { safePersistScanSnapshot } from "@/lib/storage/scanSnapshots";
+
+export const runtime = "nodejs";
 
 const DEFAULT_SCAN_LIMIT = 100;
 const MAX_SCAN_LIMIT = 200;
 const SCAN_CONCURRENCY = 5;
 type ScanTimeframe = Timeframe;
 const SUPPORTED_TIMEFRAMES = new Set<ScanTimeframe>(TIMEFRAMES);
+const SUPPORTED_SOURCES = new Set<ScanSource>(["remote", "local"]);
+
+type ScanSource = "remote" | "local";
+
 type ScanPayload = {
   exchange: "binance";
   timeframe: ScanTimeframe;
-  source: "local" | "remote";
+  source: ScanSource;
   results: ScanResult[];
   itemCount: number;
   scannedMarketCount: number;
@@ -29,23 +36,32 @@ type ScanPayload = {
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const timeframe = searchParams.get("timeframe") ?? "4h";
+  const source = parseSource(searchParams.get("source"));
   const limit = parseLimit(searchParams.get("limit"), DEFAULT_SCAN_LIMIT, MAX_SCAN_LIMIT);
 
   if (!isTimeframe(timeframe)) {
     return NextResponse.json(
-      { error: "timeframe must be one of 1h, 4h, 1d, 7d, or 1m." },
+      { error: "timeframe must be one of 1h, 4h, 1d, 7d, or 1M." },
       { status: 400 },
     );
+  }
+
+  if (!source.valid) {
+    return NextResponse.json({ error: source.error }, { status: 400 });
   }
 
   if (!limit.valid) {
     return NextResponse.json({ error: limit.error }, { status: 400 });
   }
 
+  if (source.value === "local" && isLocalPersistenceDisabled()) {
+    return localPersistenceUnavailableResponse();
+  }
+
   try {
-    const hasLocalData = hasLocalMarkets();
     const cacheKey = cacheKeys.scan(timeframe, limit.value);
-    const cachedEntry = hasLocalData ? null : getCached<ScanPayload>(cacheKey);
+    const cachedEntry =
+      source.value === "remote" ? getCached<ScanPayload>(cacheKey) : null;
 
     if (cachedEntry) {
       return NextResponse.json({
@@ -58,6 +74,7 @@ export async function GET(request: Request) {
     const { settled, useLocal, scannedMarketCount } = await scanMarkets(
       timeframe,
       limit.value,
+      source.value,
     );
     const results = settled
       .flatMap((item) => (item.result ? [item.result] : []))
@@ -76,12 +93,12 @@ export async function GET(request: Request) {
 
     if (errors.length > 0 || useLocal) {
       const updatedAt = new Date().toISOString();
-      await safePersistScanSnapshot({
+      await safePersistScanSnapshotIfAvailable({
         createdAt: updatedAt,
         exchange: "binance",
         mode: "single",
         timeframe,
-        limit: useLocal ? scannedMarketCount : limit.value,
+        limit: limit.value,
         itemCount: results.length,
         errorsCount: errors.length,
         results,
@@ -95,12 +112,12 @@ export async function GET(request: Request) {
     }
 
     const entry = setCached(cacheKey, payload, cacheTtls.scan[timeframe]);
-    await safePersistScanSnapshot({
+    await safePersistScanSnapshotIfAvailable({
       createdAt: entry.updatedAt,
       exchange: "binance",
       mode: "single",
       timeframe,
-      limit: scannedMarketCount,
+      limit: limit.value,
       itemCount: results.length,
       errorsCount: 0,
       results,
@@ -122,56 +139,117 @@ export async function GET(request: Request) {
   }
 }
 
-async function scanMarkets(timeframe: ScanTimeframe, limit: number) {
+async function scanMarkets(
+  timeframe: ScanTimeframe,
+  limit: number,
+  source: ScanSource,
+) {
+  if (source === "remote") {
+    const markets = await getTopUsdtMarkets(limit);
+    const settled = await scanMarketBatch({
+      markets,
+      getResult: (symbol) => scanMarket(symbol, timeframe),
+    });
+
+    return {
+      settled,
+      useLocal: false,
+      scannedMarketCount: markets.length,
+    };
+  }
+
+  const [{ MarketDataStore }, { scanLocalMarket }] = await Promise.all([
+    import("@/lib/storage/marketData"),
+    import("@/lib/scanner/scanLocalMarket"),
+  ]);
   const store = new MarketDataStore();
 
   try {
-    const localMarkets = store.getMarkets();
-    const useLocal = localMarkets.length > 0;
-    const markets = useLocal ? localMarkets : await getTopUsdtMarkets(limit);
-    const scannedMarketCount = markets.length;
-    const gate = pLimit(SCAN_CONCURRENCY);
-    const settled = await Promise.all(
-      markets.map((market) =>
-        gate(async () => {
-          try {
-            return {
-              result: useLocal
-                ? scanLocalMarket({ store, symbol: market.symbol, timeframe })
-                : await scanMarket(market.symbol, timeframe),
-              error: null,
-            };
-          } catch (error) {
-            return {
-              result: null,
-              error: {
-                symbol: market.symbol,
-                message: error instanceof Error ? error.message : "Unknown error",
-              },
-            };
-          }
-        }),
-      ),
-    );
+    const markets = store.getMarkets().slice(0, limit);
+    const settled = await scanMarketBatch({
+      markets,
+      getResult: (symbol) => scanLocalMarket({ store, symbol, timeframe }),
+    });
 
-    return { settled, useLocal, scannedMarketCount };
+    return { settled, useLocal: true, scannedMarketCount: markets.length };
   } finally {
     store.close();
   }
 }
 
-function hasLocalMarkets() {
-  const store = new MarketDataStore();
+type ScanSnapshotInput = {
+  createdAt: string;
+  exchange: "binance";
+  mode: "single";
+  timeframe: Timeframe;
+  limit: number;
+  itemCount: number;
+  errorsCount: number;
+  results: ScanResult[];
+};
 
-  try {
-    return store.getMarkets().length > 0;
-  } finally {
-    store.close();
+async function safePersistScanSnapshotIfAvailable(input: ScanSnapshotInput) {
+  if (isLocalPersistenceDisabled()) {
+    return null;
   }
+
+  const { safePersistScanSnapshot } = await import("@/lib/storage/scanSnapshots");
+  return safePersistScanSnapshot(input);
+}
+
+function localPersistenceUnavailableResponse() {
+  return NextResponse.json(
+    { error: localPersistenceUnavailableMessage },
+    { status: 501 },
+  );
+}
+
+async function scanMarketBatch({
+  markets,
+  getResult,
+}: {
+  markets: Array<{ symbol: string }>;
+  getResult: (symbol: string) => ScanResult | Promise<ScanResult>;
+}) {
+  const gate = pLimit(SCAN_CONCURRENCY);
+
+  return Promise.all(
+    markets.map((market) =>
+      gate(async () => {
+        try {
+          return {
+            result: await getResult(market.symbol),
+            error: null,
+          };
+        } catch (error) {
+          return {
+            result: null,
+            error: {
+              symbol: market.symbol,
+              message: error instanceof Error ? error.message : "Unknown error",
+            },
+          };
+        }
+      }),
+    ),
+  );
 }
 
 function isTimeframe(value: string): value is ScanTimeframe {
   return SUPPORTED_TIMEFRAMES.has(value as ScanTimeframe);
+}
+
+function parseSource(value: string | null) {
+  const source = value ?? "remote";
+
+  if (!SUPPORTED_SOURCES.has(source as ScanSource)) {
+    return {
+      valid: false as const,
+      error: "source must be remote or local.",
+    };
+  }
+
+  return { valid: true as const, value: source as ScanSource };
 }
 
 function parseLimit(value: string | null, fallback: number, max: number) {
