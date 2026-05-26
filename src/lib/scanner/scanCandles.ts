@@ -12,12 +12,14 @@ export function scanCandles(
   timeframe: Timeframe,
   candles: Candle[],
 ): ScanResult {
-  const snapshot = calculateIndicatorSnapshot(candles);
+  const closedCandles = getClosedCandles(candles);
+  const snapshot = calculateIndicatorSnapshot(closedCandles);
   const missingIndicators = getMissingIndicators(snapshot);
-  const sufficientHistory = candles.length >= 200;
-  const phase = determineMarketPhase(snapshot, candles);
+  const sufficientHistory = closedCandles.length >= 200;
+  const phase = determineMarketPhase(snapshot, closedCandles);
   const scores = calculateScannerScores({ snapshot, sufficientHistory, phase });
   const signal = deriveScannerSignal({ phase, ...scores });
+  const lastClosedCandle = closedCandles.at(-1);
 
   return {
     exchange: "binance",
@@ -32,7 +34,7 @@ export function scanCandles(
     volumeRatio: snapshot.volume.ratio,
     maStatus: getMaStatus(snapshot),
     reasons: getReasons({ phase, snapshot, sufficientHistory, timeframe }),
-    warnings: getRiskWarnings({ snapshot, candles, sufficientHistory }),
+    warnings: getRiskWarnings({ snapshot, candles: closedCandles, sufficientHistory }),
     nextConfirmation: getNextConfirmation({
       phase,
       snapshot,
@@ -41,11 +43,23 @@ export function scanCandles(
     }),
     invalidation: getInvalidation({ phase, snapshot, sufficientHistory, timeframe }),
     dataQuality: {
-      candleCount: candles.length,
+      candleCount: closedCandles.length,
       sufficientHistory,
       missingIndicators,
+      usesClosedCandles: true,
+      lastClosedCandleTime: lastClosedCandle?.closeTime ?? null,
     },
   };
+}
+
+export function getClosedCandles(candles: Candle[], now = Date.now()) {
+  const latestCandle = candles.at(-1);
+
+  if (!latestCandle || latestCandle.closeTime <= now) {
+    return candles;
+  }
+
+  return candles.slice(0, -1);
 }
 
 function getMaStatus(snapshot: ReturnType<typeof calculateIndicatorSnapshot>) {

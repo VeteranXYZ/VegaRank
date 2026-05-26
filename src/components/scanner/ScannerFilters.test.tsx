@@ -18,6 +18,8 @@ describe("scanner timeframe filters", () => {
     expect(html).toContain('value="1M"');
     expect(html).not.toContain('value="1h"');
     expect(html).not.toContain(">1H<");
+    expect(html).toContain("Max Symbols Scanned");
+    expect(html).toContain("Caps the eligible scan universe");
   });
 });
 

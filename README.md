@@ -127,9 +127,11 @@ This avoids regional restrictions that can affect `https://api.binance.com` in s
 Market filtering:
 
 - Includes `TRADING` spot markets quoted in `USDT`.
-- Excludes common stablecoin bases.
+- Excludes stablecoin, fiat-like, and unsuitable bases such as `USDC`, `FDUSD`, `TUSD`, `BUSD`, `DAI`, `USDP`, `USDD`, `RLUSD`, `USD1`, `USDE`, `SUSDE`, `EUR`, `EURI`, `AEUR`, `BRL`, `TRY`, `UAH`, `ZAR`, `IDRT`, `BIDR`, and `U`.
 - Excludes leveraged token suffixes such as `UP`, `DOWN`, `BULL`, `BEAR`, `3L`, `3S`, `5L`, and `5S`, with explicit exceptions for legitimate symbols where needed.
 - Sorts by 24h quote volume.
+
+Scanner calculations use only fully closed candles. If Binance returns a currently forming latest candle, the scanner removes it before calculating indicators, scores, and rankings. Chart views may still request recent candles for display.
 
 ## Architecture
 
@@ -184,10 +186,11 @@ The rank score is only used for sorting:
 rankScore =
   opportunityScore * 0.45 +
   confirmationScore * 0.35 -
-  riskScore * 0.20
+  riskScore * 0.25 -
+  phase/risk penalties
 ```
 
-All component scores remain visible in the UI.
+All component scores remain visible in the UI. Compression remains visible as a reason, but weak structures are capped so breakdowns or prices below both MA50 and MA200 are not ranked as high-opportunity solely because volatility is compressed.
 
 Market phases:
 
@@ -208,6 +211,7 @@ GET /api/markets?limit=100
 GET /api/candles?source=remote&symbol=BTCUSDT&timeframe=4h&limit=300
 GET /api/scan?source=remote&timeframe=4h
 GET /api/scan?source=remote&timeframe=4h&maxSymbols=200&minQuoteVolume=10000000
+GET /api/scan?source=remote&timeframe=4h&maxSymbols=all
 GET /api/scan/mtf?source=remote&preset=short
 ```
 
@@ -222,8 +226,11 @@ Responses include:
 - `eligibleCount`
 - `scannedCount`
 - `failedCount`
+- `usesClosedCandles`
+- `lastClosedCandleTime`
+- `failureSummary`
 
-The scan route defaults to the full eligible Binance Spot USDT universe with a hard safety cap of 600 symbols. `maxSymbols` is optional and only narrows the scan when explicitly provided. The scan route uses `p-limit` with concurrency `5`. If one symbol fails, the route returns partial results and an `errors` array.
+The scan route defaults to the full eligible Binance Spot USDT universe with a hard safety cap of 600 symbols. `maxSymbols` is optional and only narrows the scan universe when explicitly provided. It is not the number of displayed result rows. Leave it empty, set it to `ALL` in the UI, or pass `maxSymbols=all` for full-market selection. The scan route uses `p-limit` with concurrency `5`. If one symbol fails, the route returns partial results and a small sampled `errors` array.
 
 ## Cache
 

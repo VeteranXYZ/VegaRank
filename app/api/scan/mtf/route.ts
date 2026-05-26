@@ -54,6 +54,8 @@ type MtfScanPayload = {
   durationMs: number;
   cacheTtlSeconds: number;
   cacheExpiresAt: string;
+  usesClosedCandles: true;
+  lastClosedCandleTime: string | null;
   failureSummary: ScanFailureSummary;
   results: ScanResult[];
   itemCount: number;
@@ -157,6 +159,8 @@ export async function GET(request: Request) {
       durationMs,
       cacheTtlSeconds,
       cacheExpiresAt: new Date(Date.now() + ttlMs).toISOString(),
+      usesClosedCandles: true,
+      lastClosedCandleTime: getLatestClosedCandleTime(results),
       failureSummary,
       results,
       itemCount: results.length,
@@ -261,6 +265,16 @@ async function scanMtfMarkets(
   }
 }
 
+function getLatestClosedCandleTime(results: ScanResult[]) {
+  const latest = Math.max(
+    ...results
+      .map((result) => result.dataQuality.lastClosedCandleTime)
+      .filter((value): value is number => typeof value === "number"),
+  );
+
+  return Number.isFinite(latest) ? new Date(latest).toISOString() : null;
+}
+
 function logMtfScanDiagnostics(
   payload: MtfScanPayload,
   cached: boolean,
@@ -347,7 +361,7 @@ function getMtfCacheTtl(preset: MtfPreset) {
 }
 
 function parseOptionalMaxSymbols(value: string | null) {
-  if (value === null || value === "" || value === "ALL") {
+  if (value === null || value === "" || value.toLowerCase() === "all") {
     return { valid: true as const, value: null };
   }
 

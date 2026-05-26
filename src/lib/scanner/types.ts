@@ -60,6 +60,7 @@ export type ScannerExplanationKey =
   | "warning.belowMa200"
   | "warning.rsiBelow45"
   | "warning.longUpperWick"
+  | "warning.weakCompressionBelowTrend"
   | "warning.insufficientHistory";
 
 export type ScannerExplanation = {
@@ -128,5 +129,7 @@ export type ScanResult = {
     candleCount: number;
     sufficientHistory: boolean;
     missingIndicators: string[];
+    usesClosedCandles?: boolean;
+    lastClosedCandleTime?: number | null;
   };
 };

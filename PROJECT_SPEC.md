@@ -93,6 +93,7 @@ MVP scope:
 - Exchange: Binance Spot only
 - Quote asset: USDT only
 - Market universe: all eligible Binance Spot USDT pairs by default
+- Market filtering: exclude stablecoin, fiat-like, and unsuitable bases including USDC, FDUSD, TUSD, BUSD, DAI, USDP, USDD, RLUSD, USD1, USDE, SUSDE, EUR, EURI, AEUR, BRL, TRY, UAH, ZAR, IDRT, BIDR, and U
 - Timeframes: 4h, 1d, 1w, and 1M
 - Minimum timeframe: 4h
 - Core workflow: scan 4h, confirm with 1d, optionally inspect 1w and 1M
@@ -241,6 +242,8 @@ Unsupported lower intervals must return `400` from public scanner/candle APIs:
 - `1m`
 
 The default single scan timeframe is `4h`. The default multi-timeframe scan uses `4h` as the primary structure and `1d` as confirmation. `1w` and `1M` are optional higher-timeframe context. Lower intervals were intentionally removed to reduce short-term noise and reduce API/database load.
+
+Scanner calculations must use fully closed candles by default. If Binance returns a latest candle whose `closeTime` is greater than the current server time, remove that candle before indicator calculation, scoring, warnings, and ranking. Responses may expose `usesClosedCandles` and `lastClosedCandleTime` for production diagnostics.
 
 ---
 
@@ -443,6 +446,8 @@ export type ScanResult = {
     candleCount: number;
     sufficientHistory: boolean;
     missingIndicators: string[];
+    usesClosedCandles: true;
+    lastClosedCandleTime: number | null;
   };
 };
 ```
@@ -819,6 +824,12 @@ Example logic:
 +15 if trend context is not broken
 ```
 
+Cap weak structures so compression alone does not create a high opportunity score:
+
+- `BREAKDOWN` phase caps `opportunityScore` at 40.
+- Price below both MA50 and MA200 caps `opportunityScore` at 50 unless recovery confirmation is present.
+- Keep compression reasons visible, but add a weak-compression warning when price remains below key trend levels.
+
 ### 9.3 Confirmation score
 
 Confirmation score measures whether the setup is already being confirmed.
@@ -875,7 +886,8 @@ Initial formula:
 rankScore =
   opportunityScore * 0.45 +
   confirmationScore * 0.35 -
-  riskScore * 0.20
+  riskScore * 0.25 -
+  phase/risk penalties
 ```
 
 Clamp the final value between 0 and 100.
@@ -1050,21 +1062,47 @@ Response:
 
 Purpose:
 
-- Scan top USDT markets and return ranked results.
+- Scan the eligible Binance Spot USDT market universe and return ranked results.
 
 Query params:
 
 ```txt
+source=remote
 timeframe=4h
-limit=100
+maxSymbols=all
+minQuoteVolume=0
 ```
+
+`maxSymbols` is a scan-universe cap, not a display row limit. Leave it empty or pass `maxSymbols=all` for full-market selection. Numeric values such as `100` or `200` narrow how many eligible markets are scanned.
 
 Response:
 
 ```ts
 {
   exchange: "binance";
+  source: "remote" | "local";
   timeframe: Timeframe;
+  universe: "all-eligible-usdt";
+  totalUsdtPairs: number;
+  eligibleCount: number;
+  scannedCount: number;
+  skippedCount: number;
+  failedCount: number;
+  cacheTtlSeconds: number;
+  cacheExpiresAt: string;
+  durationMs: number;
+  concurrency: number;
+  capped: boolean;
+  minQuoteVolume: number;
+  usesClosedCandles: true;
+  lastClosedCandleTime: string | null;
+  failureSummary: {
+    insufficientHistory: number;
+    fetchFailed: number;
+    indicatorFailed: number;
+    filteredLowVolume: number;
+    excludedStableOrLeveraged: number;
+  };
   results: ScanResult[];
   itemCount: number;
   errors?: {
@@ -1504,7 +1542,7 @@ Goal:
 
 Acceptance:
 
-- `/api/scan?timeframe=4h&limit=100` returns ranked ScanResult[].
+- `/api/scan?source=remote&timeframe=4h&maxSymbols=all` returns ranked ScanResult[].
 - Results include reasons, warnings, nextConfirmation, invalidation.
 - One failed symbol does not fail the whole scan.
 
@@ -1516,7 +1554,7 @@ Goal:
 
 Acceptance:
 
-- User can select timeframe and limit.
+- User can select timeframe, display row limit, and optional scan-universe cap.
 - User can click Refresh Scan.
 - Results appear in sortable table.
 - Clicking a row shows details in side panel.

@@ -45,6 +45,8 @@ type ScanPayload = {
   durationMs: number;
   cacheTtlSeconds: number;
   cacheExpiresAt: string;
+  usesClosedCandles: true;
+  lastClosedCandleTime: string | null;
   failureSummary: ScanFailureSummary;
   results: ScanResult[];
   itemCount: number;
@@ -146,6 +148,8 @@ export async function GET(request: Request) {
       durationMs,
       cacheTtlSeconds,
       cacheExpiresAt: new Date(Date.now() + ttlMs).toISOString(),
+      usesClosedCandles: true,
+      lastClosedCandleTime: getLatestClosedCandleTime(results),
       failureSummary,
       results,
       itemCount: results.length,
@@ -245,6 +249,16 @@ async function scanMarkets(
   }
 }
 
+function getLatestClosedCandleTime(results: ScanResult[]) {
+  const latest = Math.max(
+    ...results
+      .map((result) => result.dataQuality.lastClosedCandleTime)
+      .filter((value): value is number => typeof value === "number"),
+  );
+
+  return Number.isFinite(latest) ? new Date(latest).toISOString() : null;
+}
+
 function logScanDiagnostics(
   payload: ScanPayload,
   cached: boolean,
@@ -325,7 +339,7 @@ function parseSource(value: string | null) {
 }
 
 function parseOptionalMaxSymbols(value: string | null) {
-  if (value === null || value === "" || value === "ALL") {
+  if (value === null || value === "" || value.toLowerCase() === "all") {
     return { valid: true as const, value: null };
   }
 

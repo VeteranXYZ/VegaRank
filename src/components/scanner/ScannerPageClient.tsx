@@ -34,6 +34,8 @@ type ScanApiResponse = {
   durationMs?: number;
   cacheTtlSeconds?: number;
   cacheExpiresAt?: string;
+  usesClosedCandles?: boolean;
+  lastClosedCandleTime?: string | null;
   failureSummary?: {
     insufficientHistory: number;
     fetchFailed: number;

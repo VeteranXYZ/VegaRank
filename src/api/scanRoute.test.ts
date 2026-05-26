@@ -73,6 +73,16 @@ describe("scan API remote market universe", () => {
     );
   });
 
+  it("treats maxSymbols=all as the full eligible universe", async () => {
+    await GET(
+      new Request("http://localhost/api/scan?timeframe=4h&maxSymbols=all"),
+    );
+
+    expect(getEligibleUsdtMarketsMock).toHaveBeenCalledWith(
+      expect.objectContaining({ maxSymbols: null }),
+    );
+  });
+
   it("passes minQuoteVolume into the remote universe filter", async () => {
     await GET(
       new Request(
@@ -134,6 +144,8 @@ describe("scan API remote market universe", () => {
     expect(body.cached).toBe(false);
     expect(body.cacheTtlSeconds).toBeGreaterThanOrEqual(60 * 60);
     expect(body.cacheExpiresAt).toEqual(expect.any(String));
+    expect(body.usesClosedCandles).toBe(true);
+    expect(body.lastClosedCandleTime).toBe(null);
     expect(body.durationMs).toEqual(expect.any(Number));
   });
 
@@ -184,6 +196,8 @@ describe("scan API remote market universe", () => {
       concurrency: 5,
       capped: true,
       minQuoteVolume: 0,
+      usesClosedCandles: true,
+      lastClosedCandleTime: "2026-05-25T00:00:00.000Z",
       failureSummary: {
         insufficientHistory: 1,
         fetchFailed: 1,
@@ -241,6 +255,8 @@ function makeResult({
       candleCount: sufficientHistory ? 300 : 20,
       sufficientHistory,
       missingIndicators: sufficientHistory ? [] : ["sma200"],
+      usesClosedCandles: true,
+      lastClosedCandleTime: Date.parse("2026-05-25T00:00:00.000Z"),
     },
   };
 }

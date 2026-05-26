@@ -63,7 +63,9 @@ export const dictionaries = {
       limit: "Limit",
       displayLimit: "Display",
       showAll: "All",
-      maxSymbols: "Max Symbols",
+      maxSymbols: "Max Symbols Scanned",
+      maxSymbolsHelp:
+        "Caps the eligible scan universe, not the number of rows displayed. Use All Eligible for full-market selection.",
       allEligible: "All Eligible",
       minQuoteVolume: "Min Quote Volume",
       results: "Scanner Results",
@@ -365,6 +367,8 @@ export const dictionaries = {
       "warning.rsiBelow45": "RSI is below 45, indicating weak momentum.",
       "warning.longUpperWick":
         "The latest candle has a long upper wick, showing supply overhead.",
+      "warning.weakCompressionBelowTrend":
+        "Compression exists, but price remains below key trend levels.",
       "warning.insufficientHistory":
         "Candle history is insufficient for the full indicator set.",
     } satisfies Record<ScannerExplanationKey, string>,
@@ -429,7 +433,9 @@ export const dictionaries = {
       limit: "扫描数量",
       displayLimit: "显示数量",
       showAll: "全部",
-      maxSymbols: "最大扫描数",
+      maxSymbols: "最大扫描标的数",
+      maxSymbolsHelp:
+        "限制参与扫描的合格标的范围，不是结果显示行数。全市场选币请使用全部合格标的。",
       allEligible: "全部合格标的",
       minQuoteVolume: "最低成交额",
       results: "扫描结果",
@@ -687,6 +693,8 @@ export const dictionaries = {
       "warning.belowMa200": "价格低于 MA200，长期趋势仍偏弱。",
       "warning.rsiBelow45": "RSI 低于 45，动能偏弱。",
       "warning.longUpperWick": "最新 K 线有较长上影线，上方抛压明显。",
+      "warning.weakCompressionBelowTrend":
+        "存在压缩结构，但价格仍低于关键趋势位置。",
       "warning.insufficientHistory": "K 线历史不足，无法完整计算所有指标。",
     } satisfies Record<ScannerExplanationKey, string>,
     timeframe: {

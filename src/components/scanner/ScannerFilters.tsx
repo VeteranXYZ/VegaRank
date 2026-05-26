@@ -100,6 +100,9 @@ export function ScannerFilters({ filters, onChange }: ScannerFiltersProps) {
             <option value={400}>400</option>
             <option value={600}>600</option>
           </select>
+          <span className="mt-1 block text-xs leading-5 text-[var(--muted)]">
+            {t.scanner.maxSymbolsHelp}
+          </span>
         </label>
 
         <label className="block">

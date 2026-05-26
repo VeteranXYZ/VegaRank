@@ -43,6 +43,8 @@ describe("MTF scan API timeframe defaults", () => {
     expect(body.timeframes).toEqual(["4h", "1d"]);
     expect(body.timeframes).not.toContain("1h");
     expect(body.cacheTtlSeconds).toBeGreaterThanOrEqual(60 * 60);
+    expect(body.usesClosedCandles).toBe(true);
+    expect(body.lastClosedCandleTime).toBe(null);
     expect(body.failureSummary).toEqual({
       insufficientHistory: 0,
       fetchFailed: 0,

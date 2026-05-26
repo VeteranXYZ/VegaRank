@@ -19,16 +19,24 @@ export function calculateScannerScores({
   sufficientHistory,
   phase,
 }: ScoreInput): ScannerScores {
-  const opportunityScore = calculateOpportunityScore(snapshot, sufficientHistory);
   const confirmationScore = calculateConfirmationScore(snapshot);
   const riskScore = calculateRiskScore(snapshot, sufficientHistory, phase);
+  const opportunityScore = capOpportunityScore({
+    opportunityScore: calculateOpportunityScore(snapshot, sufficientHistory),
+    confirmationScore,
+    snapshot,
+    phase,
+  });
+  const riskConfirmationPenalty =
+    riskScore >= 55 && confirmationScore === 0 ? 20 : 0;
 
   // Rank score is only a sorting aid; the UI still exposes the component scores.
   const rankScore = clampScore(
     opportunityScore * 0.45 +
       confirmationScore * 0.35 -
       riskScore * 0.25 -
-      getPhaseRankPenalty(phase),
+      getPhaseRankPenalty(phase) -
+      riskConfirmationPenalty,
   );
 
   return {
@@ -37,6 +45,36 @@ export function calculateScannerScores({
     riskScore,
     rankScore,
   };
+}
+
+function capOpportunityScore({
+  opportunityScore,
+  confirmationScore,
+  snapshot,
+  phase,
+}: {
+  opportunityScore: number;
+  confirmationScore: number;
+  snapshot: IndicatorSnapshot;
+  phase?: MarketPhase;
+}) {
+  let cap = 100;
+
+  if (phase === "BREAKDOWN") {
+    cap = Math.min(cap, 40);
+  }
+
+  if (
+    snapshot.ma50 !== null &&
+    snapshot.ma200 !== null &&
+    snapshot.close < snapshot.ma50 &&
+    snapshot.close < snapshot.ma200 &&
+    confirmationScore < 45
+  ) {
+    cap = Math.min(cap, 50);
+  }
+
+  return Math.min(opportunityScore, cap);
 }
 
 export function clampScore(value: number) {

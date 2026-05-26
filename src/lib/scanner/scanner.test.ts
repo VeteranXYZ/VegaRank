@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import type { Candle, Timeframe } from "@/lib/exchanges/types";
 import type { IndicatorSnapshot } from "@/lib/indicators";
 import { determineMarketPhase } from "./marketPhase";
@@ -7,6 +7,7 @@ import {
   calculateMultiTimeframeRankScore,
   summarizeMultiTimeframe,
 } from "./multiTimeframe";
+import { scanCandles } from "./scanCandles";
 import { calculateScannerScores, clampScore } from "./scoring";
 import { deriveScannerSignal } from "./signal";
 import type { MarketPhase, ScannerSignalState, ScanResult } from "./types";
@@ -144,6 +145,79 @@ describe("scanner scoring", () => {
 
     expect(overextendedScores.riskScore).toBeGreaterThan(neutralScores.riskScore);
     expect(overextendedScores.rankScore).toBeLessThan(neutralScores.rankScore);
+  });
+
+  it("caps opportunity score for breakdown compression structures", () => {
+    const scores = calculateScannerScores({
+      snapshot: makeSnapshot({
+        close: 80,
+        ma20: 82,
+        ma50: 90,
+        ma200: 100,
+        bbMiddle: 80,
+        bbUpper: 84,
+        widthPercentile: 10,
+        rsi14: 42,
+        volumeRatio: 0.9,
+      }),
+      sufficientHistory: true,
+      phase: "BREAKDOWN",
+    });
+
+    expect(scores.opportunityScore).toBeLessThanOrEqual(40);
+    expect(scores.rankScore).toBeLessThan(20);
+  });
+
+  it("caps opportunity score below both MA50 and MA200 without recovery confirmation", () => {
+    const scores = calculateScannerScores({
+      snapshot: makeSnapshot({
+        close: 80,
+        ma20: 80,
+        ma50: 90,
+        ma200: 100,
+        bbMiddle: 80,
+        bbUpper: 84,
+        widthPercentile: 10,
+        rsi14: 50,
+        volumeRatio: 0.9,
+      }),
+      sufficientHistory: true,
+      phase: "SQUEEZE",
+    });
+
+    expect(scores.opportunityScore).toBeLessThanOrEqual(50);
+  });
+});
+
+describe("scanner candle quality", () => {
+  it("removes the currently open candle before scanner calculations", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(200_000);
+
+    try {
+      const candles = [
+        ...Array.from({ length: 200 }, (_, index) =>
+          makeCandle({
+            openTime: index * 1000,
+            closeTime: index * 1000 + 999,
+            close: 100,
+          }),
+        ),
+        makeCandle({
+          openTime: 200_000,
+          closeTime: 300_000,
+          close: 250,
+        }),
+      ];
+      const result = scanCandles("BTCUSDT", "4h", candles);
+
+      expect(result.price).toBe(100);
+      expect(result.dataQuality.candleCount).toBe(200);
+      expect(result.dataQuality.usesClosedCandles).toBe(true);
+      expect(result.dataQuality.lastClosedCandleTime).toBe(199_999);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
 
@@ -322,7 +396,7 @@ function makeSnapshot({
   };
 }
 
-function makeCandle(): Candle {
+function makeCandle(overrides: Partial<Candle> = {}): Candle {
   return {
     openTime: 0,
     open: 100,
@@ -331,6 +405,7 @@ function makeCandle(): Candle {
     close: 100,
     volume: 1000,
     closeTime: 59_999,
+    ...overrides,
   };
 }
 

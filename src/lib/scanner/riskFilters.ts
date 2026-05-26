@@ -47,6 +47,15 @@ export function getRiskWarnings({
     warnings.push({ key: "warning.rsiBelow45" });
   }
 
+  if (
+    snapshot.bollinger.widthPercentile !== null &&
+    snapshot.bollinger.widthPercentile < 20 &&
+    ((snapshot.ma50 !== null && snapshot.close < snapshot.ma50) ||
+      (snapshot.ma200 !== null && snapshot.close < snapshot.ma200))
+  ) {
+    warnings.push({ key: "warning.weakCompressionBelowTrend" });
+  }
+
   if (latestCandle && hasLongUpperWick(latestCandle)) {
     warnings.push({ key: "warning.longUpperWick" });
   }
