@@ -4,7 +4,7 @@ import type {
   MultiTimeframeAlignment,
   ScannerSignalState,
 } from "@/lib/scanner/types";
-import type { StoredScanResult, StoredScanSnapshot } from "./scanSnapshots";
+import type { StoredScanResult, StoredScanSnapshot } from "./scanSnapshotModel";
 
 export type ForwardEvaluationStatus = "completed" | "pending";
 

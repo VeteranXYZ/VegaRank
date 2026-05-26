@@ -5,6 +5,7 @@ import { getCached, setCached } from "@/lib/cache/memory";
 import { getTopUsdtMarkets } from "@/lib/exchanges/binance";
 import { TIMEFRAMES, type Timeframe } from "@/lib/exchanges/types";
 import {
+  isCloudflareDeployTarget,
   isLocalPersistenceDisabled,
   localPersistenceUnavailableMessage,
 } from "@/lib/runtime/localPersistence";
@@ -189,6 +190,13 @@ type ScanSnapshotInput = {
 };
 
 async function safePersistScanSnapshotIfAvailable(input: ScanSnapshotInput) {
+  if (isCloudflareDeployTarget()) {
+    const { safePersistScanSnapshotToD1 } = await import(
+      "@/lib/storage/d1ScanSnapshots"
+    );
+    return safePersistScanSnapshotToD1(input);
+  }
+
   if (isLocalPersistenceDisabled()) {
     return null;
   }

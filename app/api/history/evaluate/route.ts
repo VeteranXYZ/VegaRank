@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import pLimit from "p-limit";
 import { getCandles } from "@/lib/exchanges/binance";
 import {
+  isCloudflareDeployTarget,
   isLocalPersistenceDisabled,
   localPersistenceUnavailableMessage,
 } from "@/lib/runtime/localPersistence";
@@ -17,10 +18,6 @@ const MAX_RESULT_LIMIT = 200;
 const EVALUATION_CONCURRENCY = 5;
 
 export async function GET(request: Request) {
-  if (isLocalPersistenceDisabled()) {
-    return localPersistenceUnavailableResponse();
-  }
-
   const { searchParams } = new URL(request.url);
   const snapshotLimit = parseLimit(
     searchParams.get("limit"),
@@ -53,16 +50,19 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: resultLimit.error }, { status: 400 });
   }
 
+  if (!isCloudflareDeployTarget() && isLocalPersistenceDisabled()) {
+    return localPersistenceUnavailableResponse();
+  }
+
   try {
     const snapshotLimitValue = snapshotLimit.value;
     const horizonCandlesValue = horizonCandles.value;
     const resultLimitValue = resultLimit.value;
-    const { getRecentScanSnapshots } = await import(
-      "@/lib/storage/scanSnapshots"
-    );
+    const snapshots = isCloudflareDeployTarget()
+      ? await getD1Snapshots(snapshotLimitValue)
+      : await getLocalSnapshots(snapshotLimitValue);
     const { evaluateForwardPerformance, summarizeForwardEvaluations } =
       await import("@/lib/storage/scanEvaluation");
-    const snapshots = await getRecentScanSnapshots(snapshotLimitValue);
     const work = snapshots.flatMap((snapshot) =>
       snapshot.results.map((result) => ({ snapshot, result })),
     );
@@ -97,6 +97,18 @@ export async function GET(request: Request) {
       { status: 500 },
     );
   }
+}
+
+async function getD1Snapshots(limit: number) {
+  const { getRecentScanSnapshotsFromD1 } = await import(
+    "@/lib/storage/d1ScanSnapshots"
+  );
+  return getRecentScanSnapshotsFromD1(limit);
+}
+
+async function getLocalSnapshots(limit: number) {
+  const { getRecentScanSnapshots } = await import("@/lib/storage/scanSnapshots");
+  return getRecentScanSnapshots(limit);
 }
 
 function localPersistenceUnavailableResponse() {

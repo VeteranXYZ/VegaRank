@@ -8,6 +8,14 @@
     "directory": ".open-next/assets",
     "binding": "ASSETS"
   },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "trade-scanner",
+      "database_id": "be9a6c46-e603-4ccd-900b-643321c5343f",
+      "migrations_dir": "migrations"
+    }
+  ],
   "vars": {
     "DISABLE_LOCAL_SQLITE": "true",
     "NEXT_PUBLIC_DEPLOY_TARGET": "cloudflare"

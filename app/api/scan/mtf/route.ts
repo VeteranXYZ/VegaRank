@@ -8,6 +8,7 @@ import {
   type MtfPreset,
 } from "@/lib/scanner/multiTimeframe";
 import {
+  isCloudflareDeployTarget,
   isLocalPersistenceDisabled,
   localPersistenceUnavailableMessage,
 } from "@/lib/runtime/localPersistence";
@@ -212,6 +213,13 @@ type MtfScanSnapshotInput = {
 };
 
 async function safePersistScanSnapshotIfAvailable(input: MtfScanSnapshotInput) {
+  if (isCloudflareDeployTarget()) {
+    const { safePersistScanSnapshotToD1 } = await import(
+      "@/lib/storage/d1ScanSnapshots"
+    );
+    return safePersistScanSnapshotToD1(input);
+  }
+
   if (isLocalPersistenceDisabled()) {
     return null;
   }

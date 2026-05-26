@@ -210,14 +210,14 @@ Cloudflare production supports the remote Binance scanner only:
 - `/api/scan?source=remote`
 - `/api/scan/mtf?source=remote`
 
-Remote Binance is the default scan source. Local SQLite market-data sync and local JSONL scan history are local Node.js development features only. Cloudflare production should set:
+Remote Binance is the default scan source. Scan snapshots are persisted to Cloudflare D1 through the `DB` binding. Local SQLite market-data sync remains a local Node.js development feature only. Cloudflare production should set:
 
 ```txt
 DISABLE_LOCAL_SQLITE=true
 NEXT_PUBLIC_DEPLOY_TARGET=cloudflare
 ```
 
-When those flags are active, local-only routes return a clear `501` response instead of importing local SQLite or filesystem persistence. Persistent scan history on Cloudflare should later use D1 or another Workers-native persistence layer, but D1 is intentionally out of scope for the current MVP hardening task.
+When those flags are active, local-only SQLite routes return a clear `501` response instead of importing local SQLite. D1 currently stores scan snapshots for the History page; candle persistence and local synced market-data analysis remain out of scope for Cloudflare production.
 
 ---
 

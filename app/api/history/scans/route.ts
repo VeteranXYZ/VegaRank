@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import {
+  isCloudflareDeployTarget,
   isLocalPersistenceDisabled,
   localPersistenceUnavailableMessage,
 } from "@/lib/runtime/localPersistence";
@@ -10,10 +11,6 @@ const DEFAULT_HISTORY_LIMIT = 20;
 const MAX_HISTORY_LIMIT = 100;
 
 export async function GET(request: Request) {
-  if (isLocalPersistenceDisabled()) {
-    return localPersistenceUnavailableResponse();
-  }
-
   const { searchParams } = new URL(request.url);
   const limit = parseLimit(
     searchParams.get("limit"),
@@ -25,7 +22,18 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: limit.error }, { status: 400 });
   }
 
+  if (!isCloudflareDeployTarget() && isLocalPersistenceDisabled()) {
+    return localPersistenceUnavailableResponse();
+  }
+
   try {
+    if (isCloudflareDeployTarget()) {
+      const { getScanHistoryFromD1 } = await import(
+        "@/lib/storage/d1ScanSnapshots"
+      );
+      return NextResponse.json(await getScanHistoryFromD1(limit.value));
+    }
+
     const { getRecentScanSnapshots, summarizeScanSnapshots } = await import(
       "@/lib/storage/scanSnapshots"
     );

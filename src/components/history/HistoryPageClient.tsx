@@ -3,7 +3,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { useLanguage } from "@/components/providers/LanguageProvider";
 import type { EvaluationSummaryBucket } from "@/lib/storage/scanEvaluation";
-import type { StoredScanSnapshot } from "@/lib/storage/scanSnapshots";
+import type { StoredScanSnapshot } from "@/lib/storage/scanSnapshotModel";
 
 type Dictionary = ReturnType<typeof useLanguage>["dictionary"];
 
