@@ -208,6 +208,84 @@ export const dictionaries = {
         warnCompact: "W",
       },
     },
+    backtest: {
+      title: "Historical Performance",
+      reviewSetup: "Review setup",
+      matchMode: "Match",
+      broad: "Broad",
+      standard: "Standard",
+      similar: "Similar",
+      matchModeMeta: {
+        broad: "Broad",
+        standard: "Standard",
+        similar: "Similar",
+      },
+      matchModeHelpTitle: "Match mode help",
+      matchModeHelp: {
+        broad: "Broad: matches setup only; more samples, lower similarity.",
+        standard: "Standard: matches setup and signal; default.",
+        similar:
+          "Similar: also compares RSI, BB, volume, MACD, and MA state; fewer samples.",
+      },
+      sampleCount: "Samples",
+      sampleUnit: "samples",
+      sampleQuality: "Quality",
+      sampleQualityHelpTitle: "Sample quality help",
+      sampleQualityHelp:
+        "Fewer than 10 samples should be treated cautiously. This is not statistical certainty, and Similar mode may reduce the sample count.",
+      falseBreakout: "False breakout",
+      fakeoutRate: "Fakeout rate",
+      fakeoutExplanation:
+        "simplified estimate using the next 3 candles losing key support",
+      noSamples:
+        "No enough similar historical setups. Try Broad mode for a larger sample.",
+      smallSampleWarning: "Small sample; do not treat as a strong conclusion.",
+      loading: "Reviewing recent Binance candles.",
+      error:
+        "Historical performance failed to load. Try again later or reduce candle limit.",
+      notes:
+        "Reviews similar historical structures for this symbol only. It uses recent Binance candles, saves nothing, and is research-only.",
+      forwardStats: "Forward behavior",
+      metricHelpTitle: "Metric help",
+      metricHelp: [
+        "Avg: average close-to-close return after N candles.",
+        "Median: less affected by extreme samples.",
+        "Win: share of samples with return above 0.",
+        "MFE: maximum favorable move reached after the setup.",
+        "MAE: maximum adverse move after the setup.",
+        "Best/Worst: extreme sample outcomes.",
+      ],
+      recentSamples: "Recent samples",
+      time: "Time",
+      close: "Close",
+      return5K: "5K return",
+      horizon: "Horizon",
+      average: "Avg",
+      median: "Median",
+      win: "Win",
+      best: "Best",
+      worst: "Worst",
+      quality: {
+        none: "No samples",
+        low: "Low sample",
+        medium: "Medium",
+        good: "Good",
+      },
+      summary: {
+        "backtest.summary.noSamples":
+          "No similar historical structures were found in the available candles.",
+        "backtest.summary.smallSample":
+          "Only a small number of similar structures were found.",
+        "backtest.summary.positiveShortTerm":
+          "Similar structures tended to show positive short-term follow-through.",
+        "backtest.summary.highFakeoutRisk":
+          "Similar breakout structures had elevated fakeout risk.",
+        "backtest.summary.highVolatility":
+          "Similar structures were followed by high two-sided volatility.",
+        "backtest.summary.noClearEdge":
+          "Similar structures did not show a clear historical tendency.",
+      },
+    },
     history: {
       title: "Scan History",
       subtitle: "Review stored scan snapshots and forward signal performance.",
@@ -460,6 +538,22 @@ export const dictionaries = {
         "Price is extended while MACD histogram is no longer improving.",
       "warning.insufficientHistory":
         "Candle history is insufficient for the full indicator set.",
+      "backtest.warning.noSamples":
+        "No similar historical setups were found for this symbol.",
+      "backtest.warning.smallSample":
+        "Sample size is small, so treat the result as weak evidence.",
+      "backtest.warning.insufficientHistory":
+        "Historical candle depth is not enough for a reliable structure review.",
+      "backtest.warning.falseBreakoutHigh":
+        "Similar breakout structures often failed quickly.",
+      "backtest.warning.volatileAfterSignal":
+        "Similar structures had wide follow-through and drawdown ranges.",
+      "backtest.warning.researchOnly":
+        "Historical behavior review is research-only and not a trading signal.",
+      "backtest.note.researchOnly":
+        "Research-only: this is not financial advice or a trading recommendation.",
+      "backtest.note.noDatabase":
+        "No database is used; results are calculated from recent Binance candles.",
     } satisfies Record<ScannerExplanationKey, string>,
     timeframe: {
       "4h": "4H",
@@ -663,6 +757,74 @@ export const dictionaries = {
         warnCompact: "警",
       },
     },
+    backtest: {
+      title: "历史表现",
+      reviewSetup: "回看此结构",
+      matchMode: "匹配",
+      broad: "宽松",
+      standard: "标准",
+      similar: "相似",
+      matchModeMeta: {
+        broad: "宽松匹配",
+        standard: "标准匹配",
+        similar: "相似匹配",
+      },
+      matchModeHelpTitle: "匹配模式说明",
+      matchModeHelp: {
+        broad: "宽松：只匹配结构，样本更多，相似度较低。",
+        standard: "标准：匹配结构和信号，默认模式。",
+        similar: "相似：进一步匹配 RSI、BB、量能、MACD、均线状态，样本可能较少。",
+      },
+      sampleCount: "样本",
+      sampleUnit: "样本",
+      sampleQuality: "质量",
+      sampleQualityHelpTitle: "样本质量说明",
+      sampleQualityHelp:
+        "少于 10 个样本应谨慎看待。这不是统计确定性；相似匹配可能会减少样本数量。",
+      falseBreakout: "假突破",
+      fakeoutRate: "假突破率",
+      fakeoutExplanation: "基于未来 3 根 K 线跌回关键均线/中轨的简化判断",
+      noSamples: "没有找到足够相似的历史结构。可以切换到“宽松”匹配查看更大样本。",
+      smallSampleWarning: "样本偏少，不能作为强结论。",
+      loading: "正在回看近期 Binance K 线。",
+      error: "历史表现加载失败。请稍后重试，或降低历史 K 线数量。",
+      notes:
+        "只回看当前标的的相似历史结构，使用近期 Binance K 线，不保存数据，仅用于研究。",
+      forwardStats: "后续表现",
+      metricHelpTitle: "指标说明",
+      metricHelp: [
+        "平均：信号后 N 根 K 线的平均收盘收益。",
+        "中位：更不容易被极端样本影响。",
+        "胜率：收益大于 0 的样本比例。",
+        "MFE：信号后曾经达到的最大有利波动。",
+        "MAE：信号后曾经出现的最大不利波动。",
+        "最好/最差：样本中的极端结果。",
+      ],
+      recentSamples: "最近样本",
+      time: "时间",
+      close: "收盘",
+      return5K: "5K收益",
+      horizon: "周期",
+      average: "平均",
+      median: "中位",
+      win: "胜率",
+      best: "最好",
+      worst: "最差",
+      quality: {
+        none: "无样本",
+        low: "样本偏少",
+        medium: "可参考",
+        good: "样本较充分",
+      },
+      summary: {
+        "backtest.summary.noSamples": "可用 K 线中没有找到相似历史结构。",
+        "backtest.summary.smallSample": "相似结构样本较少，只能作为参考。",
+        "backtest.summary.positiveShortTerm": "类似结构过去偏向短期正向延续。",
+        "backtest.summary.highFakeoutRisk": "类似突破结构过去假突破风险较高。",
+        "backtest.summary.highVolatility": "类似结构后续经常出现双向大波动。",
+        "backtest.summary.noClearEdge": "类似结构过去没有明显倾向。",
+      },
+    },
     history: {
       title: "扫描历史",
       subtitle: "查看已保存的扫描快照和信号后续表现。",
@@ -860,6 +1022,14 @@ export const dictionaries = {
       "warning.macdBearishCross": "MACD 线下穿信号线，当前结构确认转弱。",
       "warning.macdMomentumWeakening": "价格处于延伸状态，但 MACD 柱状图不再改善。",
       "warning.insufficientHistory": "K 线历史不足，无法完整计算所有指标。",
+      "backtest.warning.noSamples": "没有找到相似的历史结构样本。",
+      "backtest.warning.smallSample": "样本数量较少，只能作为弱证据参考。",
+      "backtest.warning.insufficientHistory": "历史 K 线深度不足，无法形成可靠回看。",
+      "backtest.warning.falseBreakoutHigh": "类似突破结构过去较容易快速失效。",
+      "backtest.warning.volatileAfterSignal": "类似结构后续波动和回撤范围都较大。",
+      "backtest.warning.researchOnly": "历史表现回看仅用于研究，不是交易信号。",
+      "backtest.note.researchOnly": "仅用于研究，不构成投资建议或交易建议。",
+      "backtest.note.noDatabase": "不使用数据库；结果由近期 Binance K 线即时计算。",
     } satisfies Record<ScannerExplanationKey, string>,
     timeframe: {
       "4h": "4小时",

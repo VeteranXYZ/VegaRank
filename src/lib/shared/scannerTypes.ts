@@ -75,7 +75,15 @@ export type ScannerExplanationKey =
   | "warning.weakCompressionBelowTrend"
   | "warning.macdBearishCross"
   | "warning.macdMomentumWeakening"
-  | "warning.insufficientHistory";
+  | "warning.insufficientHistory"
+  | "backtest.warning.noSamples"
+  | "backtest.warning.smallSample"
+  | "backtest.warning.insufficientHistory"
+  | "backtest.warning.falseBreakoutHigh"
+  | "backtest.warning.volatileAfterSignal"
+  | "backtest.warning.researchOnly"
+  | "backtest.note.researchOnly"
+  | "backtest.note.noDatabase";
 
 export type ScannerExplanation = {
   key: ScannerExplanationKey;

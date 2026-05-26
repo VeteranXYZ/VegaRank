@@ -5,6 +5,7 @@ import { ReasonList } from "./ReasonList";
 import { RiskBadge } from "./RiskBadge";
 import { SignalBadge } from "./SignalBadge";
 import { StrategyReadPanel } from "./StrategyReadPanel";
+import { HistoricalBehaviorPanel } from "./HistoricalBehaviorPanel";
 import type { ScanResult } from "@/lib/shared/scannerTypes";
 import { formatScannerExplanation } from "@/lib/i18n/formatScannerExplanation";
 import type { ReactNode } from "react";
@@ -166,6 +167,13 @@ export function SelectedSymbolPanel({ result }: SelectedSymbolPanelProps) {
             items={result.nextConfirmation}
           />
           <ReasonList title={t.scanner.invalidation} items={result.invalidation} />
+        </div>
+
+        <div className="mt-2">
+          <HistoricalBehaviorPanel
+            symbol={result.symbol}
+            timeframe={result.timeframe}
+          />
         </div>
 
         <details className="mt-2 border-t border-[var(--border)] pt-2">

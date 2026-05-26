@@ -241,7 +241,39 @@ MTF batches are smaller because each symbol requires candle requests for multipl
 
 Do not add D1, KV, R2, Queues, Durable Objects, or database persistence for this temporary batching solution. Workers Paid may remove the need for frontend batching later.
 
-### 2.4 Timeframe Boundary
+### 2.4 Phase 1 Historical Behavior Review
+
+Phase 1 includes a no-database per-symbol historical behavior review for the selected-symbol inspector.
+
+Purpose:
+
+- Answer how the same symbol behaved after similar historical technical structures.
+- Keep the feature research-only and symbol-specific.
+- Avoid full-market historical backfill, database persistence, and portfolio/PnL simulation.
+
+API:
+
+```txt
+GET /api/backtest/symbol?symbol=VANAUSDT&timeframe=4h&matchMode=standard
+```
+
+Rules:
+
+- Fetch one Binance symbol and one timeframe per request.
+- Use only closed candles.
+- Allow only `4h`, `1d`, `1w`, and `1M`.
+- Reject unsupported lower intervals such as `1h`, `15m`, `5m`, and `1m`.
+- Clamp `limit` to `300` through `1000`; default to `1000`.
+- Support match modes `broad`, `standard`, and `similar`.
+- Cache results in memory with timeframe-aware TTLs.
+- Do not store results in D1, KV, R2, SQLite, or any database.
+- Do not expose the feature as trading advice or a signal engine.
+- Do not simulate entries, exits, position sizing, fees, slippage, PnL curves, or portfolio outcomes.
+- Treat small samples as weak evidence; fewer than 10 samples must be visually cautioned in the UI.
+
+The inspector loads this manually through `Review setup` / `回看此结构`. It must not run automatically during full-market scanning, and it must not affect scanner scoring, ranking, Cloudflare Free batching, or market eligibility.
+
+### 2.5 Timeframe Boundary
 
 The product is designed for medium-to-large timeframe coin selection during larger market moves, not intraday scalping.
 
@@ -1573,9 +1605,11 @@ Do not add accounts in early versions.
 
 ## 19. Historical Signals and Backtesting
 
-This is v3.
+Full historical signal storage and database-backed backtesting are v3.
 
-Do not implement in MVP.
+Do not implement persistent historical signal storage, candle warehousing, portfolio simulation, PnL, or database-backed backtesting in Phase 1.
+
+Phase 1 has one deliberately limited exception: selected-symbol historical behavior review. That feature fetches recent Binance candles for one symbol/timeframe on demand, compares the current setup with similar historical setups for the same symbol, returns aggregate forward behavior metrics, and does not persist data. It does not simulate entries, exits, fees, slippage, position sizing, portfolio behavior, PnL curves, or execution.
 
 ### 19.1 Later database
 

@@ -109,6 +109,20 @@ Cloudflare Workers Free can hit the external subrequest limit if one invocation 
 
 MTF batches are smaller because each symbol needs candles for multiple timeframes. Numeric `maxSymbols` requests such as `maxSymbols=20` still use the normal single-call scan path. Workers Paid may remove the need for this batching later. D1, KV, R2, Queues, and Durable Objects are not required for this phase.
 
+### Historical Behavior Review
+
+Phase 1 includes a no-database per-symbol historical behavior review from the selected-symbol inspector.
+
+- UI entry: `Historical Performance` / `历史表现`, then `Review setup` / `回看此结构`.
+- API form: `/api/backtest/symbol?symbol=VANAUSDT&timeframe=4h&matchMode=standard`
+- One request reviews one symbol and one timeframe only.
+- Supported timeframes are the same medium-to-large scanner intervals: `4h`, `1d`, `1w`, and `1M`.
+- Default candle limit is `1000`; the API clamps requests to `300` through `1000`.
+- Match modes are `broad`, `standard`, and `similar`.
+- Results are lazy-loaded, cached in memory, and not persisted.
+
+This feature answers how the same symbol behaved after similar historical technical structures. It measures forward behavior after matched setups, but it does not simulate entries, exits, position sizing, fees, slippage, PnL curves, or portfolio outcomes. Small samples are weak evidence and should be treated cautiously. It is a research-only structure review, not a full backtesting system, trading simulator, portfolio engine, signal engine, or financial advice. It does not use D1, KV, R2, database persistence, full candle warehousing, or historical backfill.
+
 ## Timeframes
 
 The scanner is designed for medium-to-large timeframe coin selection, not intraday scalping.
@@ -298,7 +312,8 @@ This cache resets when the server process restarts.
 - Scoring rules are MVP heuristics and should be tuned with observation.
 - The scanner only supports Binance Spot USDT markets.
 - Symbol detail supports 4h and 1d in the UI.
-- There is no historical signal storage or backtesting.
+- There is no historical signal storage, database-backed backtesting, or portfolio/PnL simulation.
+- The selected-symbol historical behavior review is per-symbol, lazy-loaded, no-database, and research-only.
 - There are no user accounts or saved watchlists.
 - `npm audit` currently reports a moderate advisory from Next's transitive `postcss <8.5.10` dependency. `npm audit fix --force` would install a breaking downgrade, so it has not been applied.
 
