@@ -17,4 +17,17 @@ describe("scanner UI copy", () => {
     );
     expect(dictionaries.zh.strategy.volumeContext).toContain("不是独立交易信号");
   });
+
+  it("localizes compact MACD table labels", () => {
+    expect(dictionaries.en.scanner.macdTableImproving).toBe("Imp");
+    expect(dictionaries.en.scanner.macdTableCross).toBe("Cross");
+    expect(dictionaries.en.scanner.macdTableFade).toBe("Fade");
+    expect(dictionaries.en.scanner.macdTableWeak).toBe("Weak");
+    expect(dictionaries.en.scanner.macdTableFlat).toBe("Flat");
+    expect(dictionaries.zh.scanner.macdTableImproving).toBe("改善");
+    expect(dictionaries.zh.scanner.macdTableCross).toBe("金叉");
+    expect(dictionaries.zh.scanner.macdTableFade).toBe("转弱");
+    expect(dictionaries.zh.scanner.macdTableWeak).toBe("弱");
+    expect(dictionaries.zh.scanner.macdTableFlat).toBe("平");
+  });
 });

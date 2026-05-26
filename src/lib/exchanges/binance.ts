@@ -140,7 +140,8 @@ async function getSpotMarketUniverse(): Promise<SpotMarketUniverse> {
         return (
           market.status === "TRADING" &&
           market.quoteAsset === "USDT" &&
-          market.isSpotTradingAllowed !== false
+          market.isSpotTradingAllowed !== false &&
+          isSupportedUsdtSymbol(market.symbol)
         );
       });
       const markets = usdtSpotMarkets
@@ -301,6 +302,10 @@ function isExcludedBaseAsset(baseAsset: string) {
   }
 
   return LEVERAGED_SUFFIXES.some((suffix) => baseAsset.endsWith(suffix));
+}
+
+function isSupportedUsdtSymbol(symbol: string) {
+  return /^[A-Z0-9]+USDT$/.test(symbol);
 }
 
 async function fetchBinance<T>(path: string): Promise<T> {

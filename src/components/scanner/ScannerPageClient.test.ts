@@ -2,8 +2,10 @@ import { describe, expect, it } from "vitest";
 import {
   filterAndSortResults,
   getSignalSummary,
+  getNextColumnSort,
   initialScannerFilters,
   mergeBatchScanResponses,
+  sortResultsByColumn,
   shouldUseBatchedMtfScan,
   shouldUseBatchedScan,
   type ScannerFiltersState,
@@ -111,6 +113,100 @@ describe("scanner result filtering", () => {
     );
 
     expect(rows.map((row) => row.symbol)).toEqual(["BBBUSDT", "AAAUSDT"]);
+  });
+
+  it("sorts by score descending and ascending through column sort", () => {
+    const rows = [
+      makeResult({
+        symbol: "AAAUSDT",
+        signalState: "WATCHLIST",
+        phase: "SQUEEZE",
+        rankScore: 20,
+      }),
+      makeResult({
+        symbol: "BBBUSDT",
+        signalState: "WATCHLIST",
+        phase: "SQUEEZE",
+        rankScore: 80,
+      }),
+    ];
+
+    expect(
+      sortResultsByColumn(rows, { key: "score", direction: "desc" }).map(
+        (row) => row.symbol,
+      ),
+    ).toEqual(["BBBUSDT", "AAAUSDT"]);
+    expect(
+      sortResultsByColumn(rows, { key: "score", direction: "asc" }).map(
+        (row) => row.symbol,
+      ),
+    ).toEqual(["AAAUSDT", "BBBUSDT"]);
+  });
+
+  it("sorts symbol, RSI, volume, and warnings by column values", () => {
+    const rows = [
+      makeResult({
+        symbol: "CCCUSDT",
+        signalState: "WATCHLIST",
+        phase: "SQUEEZE",
+        rsi14: 40,
+        volumeRatio: 0.8,
+        warningCount: 2,
+      }),
+      makeResult({
+        symbol: "AAAUSDT",
+        signalState: "WATCHLIST",
+        phase: "SQUEEZE",
+        rsi14: 70,
+        volumeRatio: 2.1,
+        warningCount: 0,
+      }),
+      makeResult({
+        symbol: "BBBUSDT",
+        signalState: "WATCHLIST",
+        phase: "SQUEEZE",
+        rsi14: 55,
+        volumeRatio: 1.4,
+        warningCount: 1,
+      }),
+    ];
+
+    expect(
+      sortResultsByColumn(rows, { key: "symbol", direction: "asc" }).map(
+        (row) => row.symbol,
+      ),
+    ).toEqual(["AAAUSDT", "BBBUSDT", "CCCUSDT"]);
+    expect(
+      sortResultsByColumn(rows, { key: "rsi", direction: "desc" }).map(
+        (row) => row.symbol,
+      ),
+    ).toEqual(["AAAUSDT", "BBBUSDT", "CCCUSDT"]);
+    expect(
+      sortResultsByColumn(rows, { key: "vol", direction: "desc" }).map(
+        (row) => row.symbol,
+      ),
+    ).toEqual(["AAAUSDT", "BBBUSDT", "CCCUSDT"]);
+    expect(
+      sortResultsByColumn(rows, { key: "warnings", direction: "desc" }).map(
+        (row) => row.symbol,
+      ),
+    ).toEqual(["CCCUSDT", "BBBUSDT", "AAAUSDT"]);
+  });
+
+  it("cycles column sorting from default direction to opposite and back to preset sort", () => {
+    const scoreDesc = getNextColumnSort(null, "score");
+    expect(scoreDesc).toEqual({ key: "score", direction: "desc" });
+    expect(getNextColumnSort(scoreDesc, "score")).toEqual({
+      key: "score",
+      direction: "asc",
+    });
+    expect(
+      getNextColumnSort({ key: "score", direction: "asc" }, "score"),
+    ).toBeNull();
+    expect(getNextColumnSort(null, "symbol")).toEqual({
+      key: "symbol",
+      direction: "asc",
+    });
   });
 });
 
@@ -384,6 +480,9 @@ function makeResult({
   confirmationScore = 30,
   riskScore = 0,
   rankScore = 50,
+  rsi14 = 55,
+  volumeRatio = 1,
+  warningCount = 0,
 }: {
   symbol: string;
   signalState: ScannerSignalState;
@@ -392,6 +491,9 @@ function makeResult({
   confirmationScore?: number;
   riskScore?: number;
   rankScore?: number;
+  rsi14?: number;
+  volumeRatio?: number;
+  warningCount?: number;
 }): ScanResult {
   return {
     exchange: "binance",
@@ -404,10 +506,10 @@ function makeResult({
     confirmationScore,
     riskScore,
     rankScore,
-    rsi14: 55,
+    rsi14,
     bbWidthPercentile: 20,
-    volumeRatio: 1,
-    volume: makeVolume(),
+    volumeRatio,
+    volume: makeVolume(volumeRatio),
     maStatus: {
       aboveMA20: true,
       aboveMA50: true,
@@ -416,7 +518,9 @@ function makeResult({
       ma50AboveMA200: true,
     },
     reasons: [],
-    warnings: [],
+    warnings: Array.from({ length: warningCount }, () => ({
+      key: "warning.breakoutWithoutVolume" as const,
+    })),
     nextConfirmation: [],
     invalidation: [],
     dataQuality: {
@@ -427,12 +531,12 @@ function makeResult({
   };
 }
 
-function makeVolume() {
+function makeVolume(ratio20 = 1) {
   return {
     latest: 1000,
     ma20: 1000,
     ma50: 1000,
-    ratio20: 1,
+    ratio20,
     ratio50: 1,
     quoteVolumeLatest: 100_000,
     quoteVolumeMA20: 100_000,

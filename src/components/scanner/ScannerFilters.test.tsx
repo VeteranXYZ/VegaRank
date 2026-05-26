@@ -75,11 +75,12 @@ describe("scanner diagnostics panel", () => {
       </LanguageProvider>,
     );
 
-    expect(html).toContain("Market Universe");
+    expect(html).toContain("Scope");
     expect(html).toContain("All Eligible");
     expect(html).toContain("Scanner reached the safety cap");
-    expect(html).toContain("Insufficient history");
-    expect(html).toContain("Low volume filtered");
+    expect(html).toContain("History");
+    expect(html).toContain("Low volume");
+    expect(html).toContain("Notes ?");
     expect(html).toContain("Full-market scans are processed in small batches");
   });
 });

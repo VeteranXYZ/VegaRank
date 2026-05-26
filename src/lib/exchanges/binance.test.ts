@@ -17,7 +17,12 @@ describe("Binance market eligibility", () => {
     const result = await getEligibleUsdtMarkets();
     const symbols = result.markets.map((market) => market.symbol);
 
-    expect(symbols).toEqual(["BTCUSDT"]);
+    expect(symbols).toEqual([
+      "BTCUSDT",
+      "1000SATSUSDT",
+      "1INCHUSDT",
+      "1MBABYDOGEUSDT",
+    ]);
     expect(symbols).not.toEqual(
       expect.arrayContaining([
         "BFUSDUSDT",
@@ -39,10 +44,11 @@ describe("Binance market eligibility", () => {
         "JUVUSDT",
         "CITYUSDT",
         "ALPINEUSDT",
+        "测试USDT",
       ]),
     );
-    expect(result.totalUsdtPairs).toBe(32);
-    expect(result.eligibleCount).toBe(1);
+    expect(result.totalUsdtPairs).toBe(35);
+    expect(result.eligibleCount).toBe(4);
     expect(result.excludedStableOrLeveraged).toBe(31);
   });
 });
@@ -54,6 +60,10 @@ function mockBinanceFetch(input: RequestInfo | URL) {
     return jsonResponse({
       symbols: [
         makeSymbol("BTCUSDT", "BTC"),
+        makeSymbol("1000SATSUSDT", "1000SATS"),
+        makeSymbol("1INCHUSDT", "1INCH"),
+        makeSymbol("1MBABYDOGEUSDT", "1MBABYDOGE"),
+        makeSymbol("测试USDT", "测试"),
         makeSymbol("RLUSDUSDT", "RLUSD"),
         makeSymbol("BFUSDUSDT", "BFUSD"),
         makeSymbol("XUSDUSDT", "XUSD"),
@@ -92,6 +102,10 @@ function mockBinanceFetch(input: RequestInfo | URL) {
   if (url.includes("/api/v3/ticker/24hr")) {
     return jsonResponse([
       { symbol: "BTCUSDT", quoteVolume: "1000000", priceChangePercent: "1" },
+      { symbol: "1000SATSUSDT", quoteVolume: "900000", priceChangePercent: "1" },
+      { symbol: "1INCHUSDT", quoteVolume: "800000", priceChangePercent: "1" },
+      { symbol: "1MBABYDOGEUSDT", quoteVolume: "700000", priceChangePercent: "1" },
+      { symbol: "测试USDT", quoteVolume: "2000000", priceChangePercent: "1" },
       { symbol: "RLUSDUSDT", quoteVolume: "1000000", priceChangePercent: "0" },
       { symbol: "BFUSDUSDT", quoteVolume: "1000000", priceChangePercent: "0" },
       { symbol: "XUSDUSDT", quoteVolume: "1000000", priceChangePercent: "0" },

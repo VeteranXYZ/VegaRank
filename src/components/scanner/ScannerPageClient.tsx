@@ -79,6 +79,24 @@ type FetchScanOptions = {
 
 export type ScannerMode = "single" | "mtf";
 export type ScannerDataSource = "remote" | "local";
+export type TableSortKey =
+  | "rank"
+  | "symbol"
+  | "phase"
+  | "signal"
+  | "score"
+  | "ocr"
+  | "rsi"
+  | "bb"
+  | "vol"
+  | "macd"
+  | "ma"
+  | "warnings";
+export type TableSortDirection = "asc" | "desc";
+export type TableSortState = {
+  key: TableSortKey;
+  direction: TableSortDirection;
+};
 
 export type ScannerFiltersState = {
   mode: ScannerMode;
@@ -116,6 +134,7 @@ export function ScannerPageClient() {
     useState<ScannerFiltersState>(initialScannerFilters);
   const [selectedSymbol, setSelectedSymbol] = useState<string | null>(null);
   const [batchProgress, setBatchProgress] = useState<BatchProgress | null>(null);
+  const [tableSort, setTableSort] = useState<TableSortState | null>(null);
   const scanQuery = useQuery({
     queryKey: [
       "scan",
@@ -133,8 +152,8 @@ export function ScannerPageClient() {
       }),
   });
   const filteredRows = useMemo(
-    () => filterAndSortResults(scanQuery.data?.results ?? [], filters),
-    [scanQuery.data?.results, filters],
+    () => filterAndSortResults(scanQuery.data?.results ?? [], filters, tableSort),
+    [scanQuery.data?.results, filters, tableSort],
   );
   const rows = useMemo(
     () => limitDisplayRows(filteredRows, filters.limit),
@@ -155,10 +174,15 @@ export function ScannerPageClient() {
     setFilters(normalizeFilters(nextFilters));
     setSelectedSymbol(null);
     setBatchProgress(null);
+    setTableSort(null);
   }
 
   function selectSignal(signal: ScannerSignalState | "ALL") {
     updateFilters({ ...filters, signal });
+  }
+
+  function updateTableSort(key: TableSortKey) {
+    setTableSort((current) => getNextColumnSort(current, key));
   }
 
   return (
@@ -184,11 +208,11 @@ export function ScannerPageClient() {
           </span>
           <span>
             · {formatInteger(scanQuery.data?.scannedCount)} /{" "}
-            {formatInteger(scanQuery.data?.eligibleCount)} {t.scanner.scanned}
+            {formatInteger(scanQuery.data?.eligibleCount)}
           </span>
           <span>
             · {formatInteger(scanQuery.data?.itemCount ?? rows.length)}{" "}
-            {t.scanner.results}
+            {t.scanner.resultsCompact}
           </span>
           <span>
             · {formatInteger(scanQuery.data?.failedCount)}{" "}
@@ -198,7 +222,7 @@ export function ScannerPageClient() {
             · {scanQuery.data?.cached ? t.scanner.cached : t.scanner.live}
           </span>
           <span>· {formatDuration(scanQuery.data?.durationMs)}</span>
-          <span>· {t.scanner.nextRefresh} {formatTime(scanQuery.data?.cacheExpiresAt)}</span>
+          <span>· {t.scanner.nextCompact} {formatTime(scanQuery.data?.cacheExpiresAt)}</span>
           <span className="text-[var(--muted-2)]">· {SCANNER_BUILD_MARKER}</span>
         </div>
         <ScanScopePanel data={scanQuery.data ?? null} progress={batchProgress} />
@@ -227,9 +251,11 @@ export function ScannerPageClient() {
               scanQuery.data?.scannedMarketCount ?? scanQuery.data?.itemCount ?? 0
             }
             partialErrors={scanQuery.data?.errors ?? []}
+            tableSort={tableSort}
             onRefresh={() => void scanQuery.refetch()}
             onSignalSelect={selectSignal}
             onSelect={setSelectedSymbol}
+            onSortChange={updateTableSort}
           />
         </div>
         <SelectedSymbolPanel result={selectedResult} />
@@ -250,9 +276,38 @@ export function ScanScopePanel({
   return (
     <div className="mt-1 border-t border-[var(--border)] pt-1">
       <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-[10px] leading-4 text-[var(--muted-2)]">
-        <span>{t.scanner.marketUniverse}: {t.scanner.allEligible}</span>
-        <span>{t.scanner.cachePolicyNote}</span>
-        <span>{t.scanner.cloudflareBatchNote}</span>
+        <span>{t.scanner.scopeCompact} {t.scanner.allEligible}</span>
+        <span>
+          {t.scanner.historyCompact}{" "}
+          {formatInteger(data?.failureSummary?.insufficientHistory)}
+        </span>
+        <span>
+          {t.scanner.fetchCompact} {formatInteger(data?.failureSummary?.fetchFailed)}
+        </span>
+        <span>
+          {t.scanner.indicatorCompact}{" "}
+          {formatInteger(data?.failureSummary?.indicatorFailed)}
+        </span>
+        <span>
+          {t.scanner.subrequestCompact}{" "}
+          {formatInteger(data?.failureSummary?.subrequestLimitExceeded)}
+        </span>
+        <span>
+          {t.scanner.lowVolumeCompact}{" "}
+          {formatInteger(data?.failureSummary?.filteredLowVolume)}
+        </span>
+        <span>
+          {t.scanner.excludedCompact}{" "}
+          {formatInteger(data?.failureSummary?.excludedStableOrLeveraged)}
+        </span>
+        <details className="inline-block">
+          <summary className="cursor-pointer list-none text-[var(--info)]">
+            {t.scanner.notes}
+          </summary>
+          <div className="mt-1 max-w-3xl whitespace-normal text-[10px] leading-4 text-[var(--muted)]">
+            {t.scanner.cachePolicyNote} {t.scanner.cloudflareBatchNote}
+          </div>
+        </details>
       </div>
 
       {data?.capped && (
@@ -280,33 +335,6 @@ export function ScanScopePanel({
         </div>
       )}
 
-      {data?.failureSummary && (
-        <div className="mt-0.5 flex flex-wrap gap-x-3 gap-y-0.5 text-[10px] text-[var(--muted-2)]">
-          <span>
-            {t.scanner.insufficientHistory}:{" "}
-            {formatInteger(data.failureSummary.insufficientHistory)}
-          </span>
-          <span>
-            {t.scanner.fetchFailed}: {formatInteger(data.failureSummary.fetchFailed)}
-          </span>
-          <span>
-            {t.scanner.indicatorFailed}:{" "}
-            {formatInteger(data.failureSummary.indicatorFailed)}
-          </span>
-          <span>
-            {t.scanner.subrequestLimitExceeded}:{" "}
-            {formatInteger(data.failureSummary.subrequestLimitExceeded)}
-          </span>
-          <span>
-            {t.scanner.filteredLowVolume}:{" "}
-            {formatInteger(data.failureSummary.filteredLowVolume)}
-          </span>
-          <span>
-            {t.scanner.excludedStableOrLeveraged}:{" "}
-            {formatInteger(data.failureSummary.excludedStableOrLeveraged)}
-          </span>
-        </div>
-      )}
     </div>
   );
 }
@@ -786,6 +814,7 @@ export function getAlignmentSummary(results: ScanResult[]) {
 export function filterAndSortResults(
   results: ScanResult[],
   filters: ScannerFiltersState,
+  tableSort: TableSortState | null = null,
 ) {
   const filtered = results.filter((result) => {
     return (
@@ -795,6 +824,10 @@ export function filterAndSortResults(
       result.riskScore <= filters.maxRiskScore
     );
   });
+
+  if (tableSort) {
+    return sortResultsByColumn(filtered, tableSort);
+  }
 
   return filtered.sort((left, right) => {
     switch (filters.sortBy) {
@@ -809,4 +842,150 @@ export function filterAndSortResults(
         return right.rankScore - left.rankScore;
     }
   });
+}
+
+export function getNextColumnSort(
+  current: TableSortState | null,
+  key: TableSortKey,
+): TableSortState | null {
+  if (!current || current.key !== key) {
+    return { key, direction: getDefaultColumnSortDirection(key) };
+  }
+
+  if (current.direction === "desc") {
+    return { key, direction: "asc" };
+  }
+
+  return null;
+}
+
+export function sortResultsByColumn(
+  results: ScanResult[],
+  tableSort: TableSortState,
+) {
+  return [...results].sort((left, right) => {
+    const primary = compareColumnValue(left, right, tableSort);
+
+    if (primary !== 0) {
+      return primary;
+    }
+
+    return right.rankScore - left.rankScore;
+  });
+}
+
+function compareColumnValue(
+  left: ScanResult,
+  right: ScanResult,
+  tableSort: TableSortState,
+) {
+  const direction = tableSort.direction === "asc" ? 1 : -1;
+
+  switch (tableSort.key) {
+    case "symbol":
+      return direction * left.symbol.localeCompare(right.symbol);
+    case "phase":
+      return direction * (getPhaseSortValue(left.phase) - getPhaseSortValue(right.phase));
+    case "signal":
+      return (
+        direction *
+        (getSignalSortValue(left.signal.state) -
+          getSignalSortValue(right.signal.state))
+      );
+    case "score":
+    case "rank":
+      return direction * (left.rankScore - right.rankScore);
+    case "ocr":
+      return direction * (left.opportunityScore - right.opportunityScore);
+    case "rsi":
+      return direction * (nullableNumber(left.rsi14) - nullableNumber(right.rsi14));
+    case "bb":
+      return (
+        direction *
+        (nullableNumber(left.bbWidthPercentile) -
+          nullableNumber(right.bbWidthPercentile))
+      );
+    case "vol":
+      return (
+        direction *
+        (nullableNumber(left.volume.ratio20) - nullableNumber(right.volume.ratio20))
+      );
+    case "macd":
+      return direction * (getMacdSortValue(left) - getMacdSortValue(right));
+    case "ma":
+      return direction * (getMaSortValue(left) - getMaSortValue(right));
+    case "warnings":
+      return direction * (left.warnings.length - right.warnings.length);
+  }
+}
+
+function getDefaultColumnSortDirection(key: TableSortKey): TableSortDirection {
+  return key === "symbol" ? "asc" : "desc";
+}
+
+function getPhaseSortValue(phase: MarketPhase) {
+  const values: Record<MarketPhase, number> = {
+    BREAKOUT_CONFIRMED: 9,
+    BREAKOUT_ATTEMPT: 8,
+    TRENDING: 7,
+    PULLBACK_HEALTHY: 6,
+    SQUEEZE: 5,
+    BASE_BUILDING: 4,
+    DISTRIBUTION: 3,
+    OVEREXTENDED: 2,
+    BREAKDOWN: 1,
+  };
+
+  return values[phase] ?? 0;
+}
+
+function getSignalSortValue(signal: ScannerSignalState) {
+  const values: Record<ScannerSignalState, number> = {
+    CONFIRMED: 6,
+    TREND_CONTINUATION: 5,
+    WATCHLIST: 4,
+    NEUTRAL: 3,
+    HIGH_RISK: 2,
+    WEAK: 1,
+  };
+
+  return values[signal] ?? 0;
+}
+
+function getMacdSortValue(result: ScanResult) {
+  if (!result.macd) {
+    return 0;
+  }
+
+  if (result.macd.bearishCross) {
+    return 1;
+  }
+
+  if (!result.macd.histogramRising) {
+    return 2;
+  }
+
+  if (result.macd.bullishCross) {
+    return 5;
+  }
+
+  if (result.macd.aboveZero) {
+    return 3;
+  }
+
+  return 4;
+}
+
+function getMaSortValue(result: ScanResult) {
+  return [
+    result.maStatus.aboveMA20,
+    result.maStatus.aboveMA50,
+    result.maStatus.aboveMA200,
+    result.maStatus.ma20AboveMA50,
+    result.maStatus.ma50AboveMA200,
+  ].filter(Boolean).length;
+}
+
+function nullableNumber(value: number | null | undefined) {
+  return value ?? Number.NEGATIVE_INFINITY;
 }

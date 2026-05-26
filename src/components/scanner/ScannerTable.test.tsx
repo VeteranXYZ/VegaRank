@@ -21,9 +21,11 @@ describe("scanner compact table", () => {
           updatedAt="2026-05-25T10:00:00.000Z"
           sourceItemCount={1}
           partialErrors={[]}
+          tableSort={null}
           onRefresh={() => undefined}
           onSignalSelect={() => undefined}
           onSelect={() => undefined}
+          onSortChange={() => undefined}
         />
       </LanguageProvider>,
     );
@@ -33,10 +35,57 @@ describe("scanner compact table", () => {
     expect(html).toContain("R12");
     expect(html).toContain("W1");
     expect(html).toContain("MACD");
+    expect(html).toContain("20");
+    expect(html).toContain("50");
+    expect(html).toContain("200");
+  });
+
+  it("renders localized MACD table labels", () => {
+    const englishHtml = renderToStaticMarkup(
+      <LanguageProvider>
+        <ScannerTable
+          rows={[
+            makeResult(),
+            makeResult({
+              symbol: "ETHUSDT",
+              macd: {
+                line: 1,
+                signal: 0.8,
+                histogram: 0.2,
+                histogramRising: true,
+                bullishCross: false,
+                bearishCross: false,
+                aboveZero: true,
+              },
+            }),
+          ]}
+          signalSummary={[]}
+          activeSignal="ALL"
+          selectedSymbol="BTCUSDT"
+          isLoading={false}
+          isFetching={false}
+          isError={false}
+          errorMessage=""
+          cached={false}
+          updatedAt="2026-05-25T10:00:00.000Z"
+          sourceItemCount={1}
+          partialErrors={[]}
+          tableSort={null}
+          onRefresh={() => undefined}
+          onSignalSelect={() => undefined}
+          onSelect={() => undefined}
+          onSortChange={() => undefined}
+        />
+      </LanguageProvider>,
+    );
+
+    expect(englishHtml).toContain("Cross");
+    expect(englishHtml).toContain("Flat");
+    expect(englishHtml).not.toContain("+0");
   });
 });
 
-function makeResult(): ScanResult {
+function makeResult(overrides: Partial<ScanResult> = {}): ScanResult {
   return {
     exchange: "binance",
     symbol: "BTCUSDT",
@@ -94,5 +143,6 @@ function makeResult(): ScanResult {
       sufficientHistory: true,
       missingIndicators: [],
     },
+    ...overrides,
   };
 }

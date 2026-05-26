@@ -204,9 +204,9 @@ export function ScannerFilters({ filters, onChange }: ScannerFiltersProps) {
               <option value={400}>400</option>
               <option value={600}>600</option>
             </select>
-            <span className="mt-1 block text-[11px] leading-4 text-[var(--muted)]">
+            <HelpDisclosure label={t.scanner.helpLabel}>
               {t.scanner.maxSymbolsHelp}
-            </span>
+            </HelpDisclosure>
           </label>
 
           <label className="block">
@@ -223,6 +223,9 @@ export function ScannerFilters({ filters, onChange }: ScannerFiltersProps) {
               }
               className={controlClass}
             />
+            <HelpDisclosure label={t.scanner.helpLabel}>
+              {t.scanner.minQuoteVolumeHelp}
+            </HelpDisclosure>
           </label>
         </FilterSection>
 
@@ -338,6 +341,9 @@ export function ScannerFilters({ filters, onChange }: ScannerFiltersProps) {
             <option value={200}>200</option>
             <option value="ALL">{t.scanner.showAll}</option>
           </select>
+            <HelpDisclosure label={t.scanner.helpLabel}>
+              {t.scanner.displayLimitHelp}
+            </HelpDisclosure>
           </label>
         </FilterSection>
 
@@ -357,6 +363,23 @@ export function ScannerFilters({ filters, onChange }: ScannerFiltersProps) {
         </FilterSection>
       </div>
     </aside>
+  );
+}
+
+function HelpDisclosure({
+  label,
+  children,
+}: {
+  label: string;
+  children: ReactNode;
+}) {
+  return (
+    <details className="mt-1 text-[10px] leading-4 text-[var(--muted-2)]">
+      <summary className="cursor-pointer list-none text-[var(--info)]">
+        {label}
+      </summary>
+      <div className="mt-0.5">{children}</div>
+    </details>
   );
 }
 

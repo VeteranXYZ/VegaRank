@@ -168,9 +168,14 @@ export function SelectedSymbolPanel({ result }: SelectedSymbolPanelProps) {
           <ReasonList title={t.scanner.invalidation} items={result.invalidation} />
         </div>
 
-        <div className="mt-2">
-          <StrategyReadPanel result={result} />
-        </div>
+        <details className="mt-2 border-t border-[var(--border)] pt-2">
+          <summary className="cursor-pointer list-none text-[10px] font-semibold uppercase tracking-wide text-[var(--info)]">
+            {t.strategy.title}
+          </summary>
+          <div className="mt-2">
+            <StrategyReadPanel result={result} />
+          </div>
+        </details>
       </section>
     </aside>
   );

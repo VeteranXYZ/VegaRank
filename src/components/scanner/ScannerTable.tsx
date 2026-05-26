@@ -6,7 +6,7 @@ import {
   useReactTable,
   type ColumnDef,
 } from "@tanstack/react-table";
-import { useMemo } from "react";
+import { useMemo, type ReactNode } from "react";
 import { useLanguage } from "@/components/providers/LanguageProvider";
 import { PhaseBadge } from "./PhaseBadge";
 import { SignalBadge } from "./SignalBadge";
@@ -14,6 +14,7 @@ import {
   SignalSummaryBar,
   type SignalSummaryItem,
 } from "./SignalSummaryBar";
+import type { TableSortKey, TableSortState } from "./ScannerPageClient";
 import type { ScannerSignalState, ScanResult } from "@/lib/shared/scannerTypes";
 
 type ScannerTableProps = {
@@ -29,9 +30,11 @@ type ScannerTableProps = {
   updatedAt: string | null;
   sourceItemCount: number;
   partialErrors: { symbol: string; message: string }[];
+  tableSort: TableSortState | null;
   onRefresh: () => void;
   onSignalSelect: (signal: ScannerSignalState | "ALL") => void;
   onSelect: (symbol: string) => void;
+  onSortChange: (key: TableSortKey) => void;
 };
 
 export function ScannerTable({
@@ -47,9 +50,11 @@ export function ScannerTable({
   updatedAt,
   sourceItemCount,
   partialErrors,
+  tableSort,
   onRefresh,
   onSignalSelect,
   onSelect,
+  onSortChange,
 }: ScannerTableProps) {
   const { dictionary: t } = useLanguage();
   const columns = useMemo<ColumnDef<ScanResult>[]>(
@@ -77,7 +82,7 @@ export function ScannerTable({
       },
       {
         accessorKey: "signal.state",
-        header: t.common.signal,
+        header: t.scanner.columns.signalCompact,
         cell: ({ row }) => <SignalBadge signal={row.original.signal} />,
       },
       {
@@ -203,14 +208,26 @@ export function ScannerTable({
                   {headerGroup.headers.map((header) => (
                     <th
                       key={header.id}
+                      aria-sort={getAriaSort(header.id, tableSort)}
                       className={`whitespace-nowrap px-1.5 py-1 font-semibold ${getColumnClass(
                         header.id,
                       )}`}
                     >
-                      {flexRender(
-                        header.column.columnDef.header,
-                        header.getContext(),
-                      )}
+                      <SortableHeader
+                        columnId={header.id}
+                        tableSort={tableSort}
+                        onSortChange={onSortChange}
+                        title={
+                          header.id === "ocr"
+                            ? t.scanner.sortOpportunityHelp
+                            : undefined
+                        }
+                      >
+                        {flexRender(
+                          header.column.columnDef.header,
+                          header.getContext(),
+                        )}
+                      </SortableHeader>
                     </th>
                   ))}
                 </tr>
@@ -303,23 +320,29 @@ function CompactScores({ result }: { result: ScanResult }) {
 }
 
 function MacdCell({ result }: { result: ScanResult }) {
+  const { dictionary: t } = useLanguage();
+
   if (!result.macd) {
     return <span className="text-[var(--muted)]">-</span>;
   }
 
-  if (result.macd.bearishCross || !result.macd.histogramRising) {
-    return <span className="text-[var(--warning)]">Weak</span>;
+  if (result.macd.bearishCross) {
+    return <span className="text-[var(--warning)]">{t.scanner.macdTableWeak}</span>;
+  }
+
+  if (!result.macd.histogramRising) {
+    return <span className="text-[var(--warning)]">{t.scanner.macdTableFade}</span>;
   }
 
   if (result.macd.bullishCross) {
-    return <span className="text-[var(--accent)]">Cross</span>;
+    return <span className="text-[var(--accent)]">{t.scanner.macdTableCross}</span>;
   }
 
   if (result.macd.aboveZero) {
-    return <span className="text-[#60a5fa]">+0</span>;
+    return <span className="text-[#60a5fa]">{t.scanner.macdTableFlat}</span>;
   }
 
-  return <span className="text-[var(--muted)]">Imp</span>;
+  return <span className="text-[var(--muted)]">{t.scanner.macdTableImproving}</span>;
 }
 
 function getRiskTextClass(riskScore: number) {
@@ -381,4 +404,82 @@ function getColumnClass(columnId: string) {
     default:
       return "";
   }
+}
+
+function SortableHeader({
+  columnId,
+  tableSort,
+  title,
+  onSortChange,
+  children,
+}: {
+  columnId: string;
+  tableSort: TableSortState | null;
+  title?: string;
+  onSortChange: (key: TableSortKey) => void;
+  children: ReactNode;
+}) {
+  const sortKey = getSortKeyForColumn(columnId);
+  const isActive = sortKey !== null && tableSort?.key === sortKey;
+
+  if (!sortKey) {
+    return <span>{children}</span>;
+  }
+
+  return (
+    <button
+      type="button"
+      title={title}
+      onClick={() => onSortChange(sortKey)}
+      className={`inline-flex w-full items-center gap-1 text-left uppercase transition hover:text-[var(--foreground)] focus-visible:outline-offset-1 ${
+        isActive ? "text-[var(--foreground)]" : ""
+      }`}
+    >
+      <span>{children}</span>
+      <span className="w-2 text-[9px] text-[var(--info)]">
+        {isActive ? (tableSort.direction === "desc" ? "↓" : "↑") : ""}
+      </span>
+    </button>
+  );
+}
+
+function getSortKeyForColumn(columnId: string): TableSortKey | null {
+  switch (columnId) {
+    case "rank":
+      return "rank";
+    case "symbol":
+      return "symbol";
+    case "phase":
+      return "phase";
+    case "signal_state":
+      return "signal";
+    case "rankScore":
+      return "score";
+    case "ocr":
+      return "ocr";
+    case "rsi14":
+      return "rsi";
+    case "bbWidthPercentile":
+      return "bb";
+    case "volumeRatio":
+      return "vol";
+    case "macd":
+      return "macd";
+    case "maStatus":
+      return "ma";
+    case "warnings":
+      return "warnings";
+    default:
+      return null;
+  }
+}
+
+function getAriaSort(columnId: string, tableSort: TableSortState | null) {
+  const sortKey = getSortKeyForColumn(columnId);
+
+  if (!sortKey || tableSort?.key !== sortKey) {
+    return "none";
+  }
+
+  return tableSort.direction === "desc" ? "descending" : "ascending";
 }
