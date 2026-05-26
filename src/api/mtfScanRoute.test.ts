@@ -26,6 +26,8 @@ describe("MTF scan API timeframe defaults", () => {
       markets: [],
       totalUsdtPairs: 420,
       eligibleCount: 420,
+      filteredLowVolume: 0,
+      excludedStableOrLeveraged: 0,
       capped: false,
     });
   });
@@ -41,5 +43,12 @@ describe("MTF scan API timeframe defaults", () => {
     expect(body.timeframes).toEqual(["4h", "1d"]);
     expect(body.timeframes).not.toContain("1h");
     expect(body.cacheTtlSeconds).toBeGreaterThanOrEqual(60 * 60);
+    expect(body.failureSummary).toEqual({
+      insufficientHistory: 0,
+      fetchFailed: 0,
+      indicatorFailed: 0,
+      filteredLowVolume: 0,
+      excludedStableOrLeveraged: 0,
+    });
   });
 });

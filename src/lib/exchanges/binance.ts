@@ -74,6 +74,8 @@ export type EligibleMarketsResult = {
   markets: Market[];
   totalUsdtPairs: number;
   eligibleCount: number;
+  filteredLowVolume: number;
+  excludedStableOrLeveraged: number;
   capped: boolean;
 };
 
@@ -84,29 +86,46 @@ const timeframeToBinanceInterval = {
   "1M": "1M",
 } satisfies Record<Timeframe, string>;
 
+type SpotMarketUniverse = {
+  markets: Market[];
+  totalUsdtPairs: number;
+  excludedStableOrLeveraged: number;
+};
+
 export async function getSpotMarkets(): Promise<Market[]> {
+  const universe = await getSpotMarketUniverse();
+
+  return universe.markets;
+}
+
+async function getSpotMarketUniverse(): Promise<SpotMarketUniverse> {
   const { entry } = await getOrSetCached(
     cacheKeys.markets,
     cacheTtls.markets,
-    async (): Promise<Market[]> => {
+    async (): Promise<SpotMarketUniverse> => {
       const data = await fetchBinance<BinanceExchangeInfo>("/api/v3/exchangeInfo");
-
-      return data.symbols
-        .filter((market) => {
-          return (
-            market.status === "TRADING" &&
-            market.quoteAsset === "USDT" &&
-            market.isSpotTradingAllowed !== false &&
-            !isExcludedBaseAsset(market.baseAsset)
-          );
-        })
+      const usdtSpotMarkets = data.symbols.filter((market) => {
+        return (
+          market.status === "TRADING" &&
+          market.quoteAsset === "USDT" &&
+          market.isSpotTradingAllowed !== false
+        );
+      });
+      const markets = usdtSpotMarkets
+        .filter((market) => !isExcludedBaseAsset(market.baseAsset))
         .map((market) => ({
-          exchange: "binance",
+          exchange: "binance" as const,
           symbol: market.symbol,
           baseAsset: market.baseAsset,
           quoteAsset: market.quoteAsset,
           status: market.status,
         }));
+
+      return {
+        markets,
+        totalUsdtPairs: usdtSpotMarkets.length,
+        excludedStableOrLeveraged: usdtSpotMarkets.length - markets.length,
+      };
     },
   );
 
@@ -152,9 +171,12 @@ export async function getEligibleUsdtMarkets({
   minQuoteVolume = 0,
   safetyCap,
 }: EligibleMarketsOptions = {}): Promise<EligibleMarketsResult> {
-  const [markets, tickers] = await Promise.all([getSpotMarkets(), get24hTickers()]);
+  const [marketUniverse, tickers] = await Promise.all([
+    getSpotMarketUniverse(),
+    get24hTickers(),
+  ]);
 
-  const eligible = markets
+  const marketsWithTicker = marketUniverse.markets
     .map((market) => {
       const ticker = tickers[market.symbol];
 
@@ -164,16 +186,20 @@ export async function getEligibleUsdtMarkets({
         priceChangePercent: ticker?.priceChangePercent,
       };
     })
+    .sort((left, right) => (right.quoteVolume ?? 0) - (left.quoteVolume ?? 0));
+  const eligible = marketsWithTicker
     .filter((market) => market.quoteVolume > 0)
-    .filter((market) => (market.quoteVolume ?? 0) >= minQuoteVolume)
+    .filter((market) => market.quoteVolume >= minQuoteVolume)
     .sort((left, right) => (right.quoteVolume ?? 0) - (left.quoteVolume ?? 0));
   const cap = maxSymbols ?? safetyCap ?? eligible.length;
   const capped = eligible.length > cap;
 
   return {
     markets: eligible.slice(0, cap),
-    totalUsdtPairs: markets.length,
+    totalUsdtPairs: marketUniverse.totalUsdtPairs,
     eligibleCount: eligible.length,
+    filteredLowVolume: marketsWithTicker.length - eligible.length,
+    excludedStableOrLeveraged: marketUniverse.excludedStableOrLeveraged,
     capped,
   };
 }

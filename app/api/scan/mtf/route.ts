@@ -11,6 +11,11 @@ import {
   isLocalPersistenceDisabled,
   localPersistenceUnavailableMessage,
 } from "@/lib/runtime/localPersistence";
+import {
+  summarizeScanFailures,
+  type ScanErrorSample,
+  type ScanFailureSummary,
+} from "@/lib/scanner/diagnostics";
 import { scanMarketMultiTimeframe } from "@/lib/scanner/scanMarketMtf";
 import type { ScanResult } from "@/lib/scanner/types";
 
@@ -49,9 +54,10 @@ type MtfScanPayload = {
   durationMs: number;
   cacheTtlSeconds: number;
   cacheExpiresAt: string;
+  failureSummary: ScanFailureSummary;
   results: ScanResult[];
   itemCount: number;
-  errors?: { symbol: string; message: string }[];
+  errors?: ScanErrorSample[];
 };
 
 export async function GET(request: Request) {
@@ -102,6 +108,7 @@ export async function GET(request: Request) {
       source.value === "remote" ? getCached<MtfScanPayload>(cacheKey) : null;
 
     if (cachedEntry) {
+      logMtfScanDiagnostics(cachedEntry.value, true, Date.now() - startedAt);
       return NextResponse.json({
         ...cachedEntry.value,
         cached: true,
@@ -124,6 +131,12 @@ export async function GET(request: Request) {
     const errors = settled.flatMap((item) => (item.error ? [item.error] : []));
     const skippedCount = successful.length - results.length;
     const durationMs = Date.now() - startedAt;
+    const failureSummary = summarizeScanFailures({
+      scannedResults: successful,
+      errors,
+      filteredLowVolume: marketStats.filteredLowVolume,
+      excludedStableOrLeveraged: marketStats.excludedStableOrLeveraged,
+    });
     const payload: MtfScanPayload = {
       exchange: "binance",
       mode: "mtf",
@@ -144,13 +157,15 @@ export async function GET(request: Request) {
       durationMs,
       cacheTtlSeconds,
       cacheExpiresAt: new Date(Date.now() + ttlMs).toISOString(),
+      failureSummary,
       results,
       itemCount: results.length,
-      errors: errors.length > 0 ? errors : undefined,
+      errors: errors.length > 0 ? errors.slice(0, 10) : undefined,
     };
 
     if (errors.length > 0 || useLocal) {
       const updatedAt = new Date().toISOString();
+      logMtfScanDiagnostics(payload, false, durationMs);
       return NextResponse.json({
         ...payload,
         cached: false,
@@ -159,6 +174,7 @@ export async function GET(request: Request) {
     }
 
     const entry = setCached(cacheKey, payload, ttlMs);
+    logMtfScanDiagnostics(payload, false, durationMs);
 
     return NextResponse.json({
       ...entry.value,
@@ -201,6 +217,8 @@ async function scanMtfMarkets(
         totalUsdtPairs: marketResult.totalUsdtPairs,
         eligibleCount: marketResult.eligibleCount,
         scannedCount: marketResult.markets.length,
+        filteredLowVolume: marketResult.filteredLowVolume,
+        excludedStableOrLeveraged: marketResult.excludedStableOrLeveraged,
         capped: marketResult.capped,
       },
     };
@@ -233,12 +251,33 @@ async function scanMtfMarkets(
         totalUsdtPairs: markets.length,
         eligibleCount: markets.length,
         scannedCount: markets.length,
+        filteredLowVolume: 0,
+        excludedStableOrLeveraged: 0,
         capped: false,
       },
     };
   } finally {
     await store.close?.();
   }
+}
+
+function logMtfScanDiagnostics(
+  payload: MtfScanPayload,
+  cached: boolean,
+  durationMs: number,
+) {
+  if (process.env.NODE_ENV === "test") {
+    return;
+  }
+
+  console.info("mtf scan diagnostics", {
+    timeframe: payload.timeframes.join("+"),
+    eligibleCount: payload.eligibleCount,
+    scannedCount: payload.scannedCount,
+    failedCount: payload.failedCount,
+    durationMs,
+    cached,
+  });
 }
 
 async function createMarketDataStore() {

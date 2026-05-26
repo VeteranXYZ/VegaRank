@@ -34,6 +34,13 @@ type ScanApiResponse = {
   durationMs?: number;
   cacheTtlSeconds?: number;
   cacheExpiresAt?: string;
+  failureSummary?: {
+    insufficientHistory: number;
+    fetchFailed: number;
+    indicatorFailed: number;
+    filteredLowVolume: number;
+    excludedStableOrLeveraged: number;
+  };
   results: ScanResult[];
   itemCount: number;
   scannedMarketCount?: number;
@@ -209,7 +216,7 @@ export function ScannerPageClient() {
   );
 }
 
-function ScanScopePanel({ data }: { data: ScanApiResponse | null }) {
+export function ScanScopePanel({ data }: { data: ScanApiResponse | null }) {
   const { dictionary: t } = useLanguage();
 
   return (
@@ -219,7 +226,13 @@ function ScanScopePanel({ data }: { data: ScanApiResponse | null }) {
         {t.scanner.cachePolicyNote}
       </p>
 
-      <div className="mt-3 grid gap-2 sm:grid-cols-4">
+      {data?.capped && (
+        <div className="mt-3 rounded-md border border-[var(--warning)] bg-[#2b2111] px-3 py-2 text-xs font-semibold text-[var(--warning)]">
+          {t.scanner.cappedWarning}
+        </div>
+      )}
+
+      <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7">
         <HeaderMetric
           label={t.scanner.eligibleMarkets}
           value={formatInteger(data?.eligibleCount)}
@@ -236,12 +249,42 @@ function ScanScopePanel({ data }: { data: ScanApiResponse | null }) {
           label={t.scanner.cacheStatus}
           value={data?.cached ? t.scanner.cached : t.scanner.live}
         />
+        <HeaderMetric
+          label={t.scanner.duration}
+          value={formatDuration(data?.durationMs)}
+        />
+        <HeaderMetric
+          label={t.scanner.updatedAt}
+          value={formatDateTime(data?.updatedAt)}
+        />
+        <HeaderMetric
+          label={t.scanner.nextRefresh}
+          value={formatDateTime(data?.cacheExpiresAt)}
+        />
       </div>
 
-      {data?.cacheExpiresAt && (
-        <p className="mt-3 text-xs text-[var(--muted)]">
-          {t.scanner.nextRefresh}: {new Date(data.cacheExpiresAt).toLocaleString()}
-        </p>
+      {data?.failureSummary && (
+        <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs text-[var(--muted)]">
+          <span>
+            {t.scanner.insufficientHistory}:{" "}
+            {formatInteger(data.failureSummary.insufficientHistory)}
+          </span>
+          <span>
+            {t.scanner.fetchFailed}: {formatInteger(data.failureSummary.fetchFailed)}
+          </span>
+          <span>
+            {t.scanner.indicatorFailed}:{" "}
+            {formatInteger(data.failureSummary.indicatorFailed)}
+          </span>
+          <span>
+            {t.scanner.filteredLowVolume}:{" "}
+            {formatInteger(data.failureSummary.filteredLowVolume)}
+          </span>
+          <span>
+            {t.scanner.excludedStableOrLeveraged}:{" "}
+            {formatInteger(data.failureSummary.excludedStableOrLeveraged)}
+          </span>
+        </div>
       )}
     </section>
   );
@@ -368,7 +411,7 @@ function HeaderMetric({ label, value }: { label: string; value: string }) {
   return (
     <div className="min-w-0 rounded-md border border-[var(--border)] bg-[var(--panel)] px-3 py-2 sm:min-w-28">
       <div className="text-xs text-[var(--muted)]">{label}</div>
-      <div className="mt-1 max-w-36 truncate font-semibold">{value}</div>
+      <div className="mt-1 break-words text-sm font-semibold">{value}</div>
     </div>
   );
 }
@@ -454,6 +497,26 @@ function limitDisplayRows(
 
 function formatInteger(value: number | undefined) {
   return value === undefined ? "0" : new Intl.NumberFormat().format(value);
+}
+
+function formatDuration(value: number | undefined) {
+  if (value === undefined) {
+    return "0 ms";
+  }
+
+  if (value < 1000) {
+    return `${value} ms`;
+  }
+
+  return `${(value / 1000).toFixed(1)} s`;
+}
+
+function formatDateTime(value: string | undefined) {
+  if (!value) {
+    return "--";
+  }
+
+  return new Date(value).toLocaleString();
 }
 
 function formatDisplayCount(displayed: number, total: number) {
