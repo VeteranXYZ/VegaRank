@@ -2,38 +2,23 @@ import { mkdirSync } from "node:fs";
 import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import type { Candle, Exchange, Market, Timeframe } from "@/lib/exchanges/types";
+import type {
+  MarketCandleStats,
+  MarketDataStoreLike,
+  MarketDataSummary,
+  MarketDataSyncState,
+  MarketDataSyncStatus,
+} from "./marketDataModel";
 
-export type MarketDataSyncStatus = "idle" | "running" | "completed" | "failed";
+export type {
+  MarketCandleStats,
+  MarketDataStoreLike,
+  MarketDataSummary,
+  MarketDataSyncState,
+  MarketDataSyncStatus,
+} from "./marketDataModel";
 
-export type MarketDataSyncState = {
-  exchange: Exchange;
-  symbol: string;
-  timeframe: Timeframe;
-  status: MarketDataSyncStatus;
-  firstOpenTime: number | null;
-  lastOpenTime: number | null;
-  lastCloseTime: number | null;
-  candleCount: number;
-  lastSyncedAt: string | null;
-  errorMessage: string | null;
-};
-
-export type MarketDataSummary = {
-  marketCount: number;
-  candleCount: number;
-  syncedPairs: number;
-  latestSyncedAt: string | null;
-  failedPairs: number;
-};
-
-export type MarketCandleStats = {
-  firstOpenTime: number | null;
-  lastOpenTime: number | null;
-  lastCloseTime: number | null;
-  candleCount: number;
-};
-
-export class MarketDataStore {
+export class MarketDataStore implements MarketDataStoreLike {
   private readonly db: DatabaseSync;
 
   constructor(dbPath = getDefaultMarketDataDbPath()) {

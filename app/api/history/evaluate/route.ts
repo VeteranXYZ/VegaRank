@@ -71,7 +71,10 @@ export async function GET(request: Request) {
     const evaluations = await Promise.all(
       limitedWork.map(({ snapshot, result }) =>
         gate(async () => {
-          const candles = await getCandles(result.symbol, result.timeframe, 1000);
+          const candles = await getEvaluationCandles(
+            result.symbol,
+            result.timeframe,
+          );
           return evaluateForwardPerformance({
             snapshot,
             result,
@@ -97,6 +100,36 @@ export async function GET(request: Request) {
       { status: 500 },
     );
   }
+}
+
+async function getEvaluationCandles(
+  symbol: string,
+  timeframe: Parameters<typeof getCandles>[1],
+) {
+  if (!isCloudflareDeployTarget()) {
+    return getCandles(symbol, timeframe, 1000);
+  }
+
+  const store = await createD1MarketDataStore();
+
+  try {
+    const candles = await store.getCandles({ symbol, timeframe, limit: 1000 });
+
+    if (candles.length > 0) {
+      return candles;
+    }
+  } finally {
+    await store.close?.();
+  }
+
+  return getCandles(symbol, timeframe, 1000);
+}
+
+async function createD1MarketDataStore() {
+  const { createD1MarketDataStore: createStore } = await import(
+    "@/lib/storage/d1MarketData"
+  );
+  return createStore();
 }
 
 async function getD1Snapshots(limit: number) {

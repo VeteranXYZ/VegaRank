@@ -4,9 +4,12 @@ import {
   getTopUsdtMarkets,
 } from "@/lib/exchanges/binance";
 import { TIMEFRAMES, type Timeframe } from "@/lib/exchanges/types";
-import { MarketDataStore, type MarketDataSummary } from "./marketData";
+import type {
+  MarketDataStoreLike,
+  MarketDataSummary,
+} from "./marketDataModel";
 
-export type MarketDataSyncMode = "recent" | "incremental";
+export type MarketDataSyncMode = "recent" | "incremental" | "backfill";
 
 export type MarketDataSyncOptions = {
   mode?: MarketDataSyncMode;
@@ -14,6 +17,7 @@ export type MarketDataSyncOptions = {
   timeframes?: Timeframe[];
   candlesPerTimeframe?: Partial<Record<Timeframe, number>>;
   concurrency?: number;
+  store?: MarketDataStoreLike;
 };
 
 export type MarketDataSyncResult = {
@@ -47,11 +51,11 @@ export async function syncMarketData(options: MarketDataSyncOptions = {}) {
   const marketLimit = options.marketLimit ?? DEFAULT_MARKET_LIMIT;
   const concurrency = options.concurrency ?? DEFAULT_SYNC_CONCURRENCY;
   const startedAt = new Date().toISOString();
-  const store = new MarketDataStore();
+  const store = options.store ?? (await createLocalMarketDataStore());
 
   try {
     const markets = await getTopUsdtMarkets(marketLimit);
-    store.upsertMarkets(markets);
+    await store.upsertMarkets(markets);
 
     const gate = pLimit(concurrency);
     const jobs = markets.flatMap((market) =>
@@ -67,9 +71,9 @@ export async function syncMarketData(options: MarketDataSyncOptions = {}) {
               store,
               limit: getWindowLimit(timeframe, options.candlesPerTimeframe),
             });
-            store.upsertCandles({ symbol, timeframe, candles });
-            const stats = store.getCandleStats({ symbol, timeframe });
-            store.upsertSyncState({
+            await store.upsertCandles({ symbol, timeframe, candles });
+            const stats = await store.getCandleStats({ symbol, timeframe });
+            await store.upsertSyncState({
               exchange: "binance",
               symbol,
               timeframe,
@@ -90,8 +94,8 @@ export async function syncMarketData(options: MarketDataSyncOptions = {}) {
             };
           } catch (error) {
             const message = error instanceof Error ? error.message : "Unknown error";
-            const stats = store.getCandleStats({ symbol, timeframe });
-            store.upsertSyncState({
+            const stats = await store.getCandleStats({ symbol, timeframe });
+            await store.upsertSyncState({
               exchange: "binance",
               symbol,
               timeframe,
@@ -131,13 +135,13 @@ export async function syncMarketData(options: MarketDataSyncOptions = {}) {
       ),
       startedAt,
       completedAt: new Date().toISOString(),
-      summary: store.getSummary(),
+      summary: await store.getSummary(),
       errors,
     };
 
     return result;
   } finally {
-    store.close();
+    await store.close?.();
   }
 }
 
@@ -151,14 +155,18 @@ async function fetchCandlesForMode({
   mode: MarketDataSyncMode;
   symbol: string;
   timeframe: Timeframe;
-  store: MarketDataStore;
+  store: MarketDataStoreLike;
   limit: number;
 }) {
   if (mode === "recent") {
     return fetchRecentCandles(symbol, timeframe, limit);
   }
 
-  const latestOpenTime = store.getLatestCandleOpenTime({ symbol, timeframe });
+  if (mode === "backfill") {
+    return fetchOlderCandles(symbol, timeframe, store, limit);
+  }
+
+  const latestOpenTime = await store.getLatestCandleOpenTime({ symbol, timeframe });
 
   if (latestOpenTime === null) {
     return fetchRecentCandles(symbol, timeframe, limit);
@@ -167,6 +175,24 @@ async function fetchCandlesForMode({
   return fetchCandlesFromBinance(symbol, timeframe, {
     limit: MAX_BINANCE_KLINES_LIMIT,
     startTime: latestOpenTime + 1,
+  });
+}
+
+async function fetchOlderCandles(
+  symbol: string,
+  timeframe: Timeframe,
+  store: MarketDataStoreLike,
+  limit: number,
+) {
+  const stats = await store.getCandleStats({ symbol, timeframe });
+
+  if (stats.firstOpenTime === null) {
+    return fetchRecentCandles(symbol, timeframe, limit);
+  }
+
+  return fetchCandlesFromBinance(symbol, timeframe, {
+    limit: Math.min(MAX_BINANCE_KLINES_LIMIT, limit),
+    endTime: stats.firstOpenTime - 1,
   });
 }
 
@@ -207,4 +233,9 @@ function getWindowLimit(
   overrides: MarketDataSyncOptions["candlesPerTimeframe"],
 ) {
   return overrides?.[timeframe] ?? defaultCandlesPerTimeframe[timeframe];
+}
+
+async function createLocalMarketDataStore(): Promise<MarketDataStoreLike> {
+  const { MarketDataStore } = await import("./marketData");
+  return new MarketDataStore();
 }

@@ -55,7 +55,11 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: limit.error }, { status: 400 });
   }
 
-  if (source.value === "local" && isLocalPersistenceDisabled()) {
+  if (
+    source.value === "local" &&
+    !isCloudflareDeployTarget() &&
+    isLocalPersistenceDisabled()
+  ) {
     return localPersistenceUnavailableResponse();
   }
 
@@ -159,14 +163,13 @@ async function scanMarkets(
     };
   }
 
-  const [{ MarketDataStore }, { scanLocalMarket }] = await Promise.all([
-    import("@/lib/storage/marketData"),
+  const [{ scanLocalMarket }, store] = await Promise.all([
     import("@/lib/scanner/scanLocalMarket"),
+    createMarketDataStore(),
   ]);
-  const store = new MarketDataStore();
 
   try {
-    const markets = store.getMarkets().slice(0, limit);
+    const markets = (await store.getMarkets()).slice(0, limit);
     const settled = await scanMarketBatch({
       markets,
       getResult: (symbol) => scanLocalMarket({ store, symbol, timeframe }),
@@ -174,8 +177,18 @@ async function scanMarkets(
 
     return { settled, useLocal: true, scannedMarketCount: markets.length };
   } finally {
-    store.close();
+    await store.close?.();
   }
+}
+
+async function createMarketDataStore() {
+  if (isCloudflareDeployTarget()) {
+    const { createD1MarketDataStore } = await import("@/lib/storage/d1MarketData");
+    return createD1MarketDataStore();
+  }
+
+  const { MarketDataStore } = await import("@/lib/storage/marketData");
+  return new MarketDataStore();
 }
 
 type ScanSnapshotInput = {

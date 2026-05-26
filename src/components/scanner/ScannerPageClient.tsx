@@ -42,7 +42,7 @@ type MarketDataSummaryResponse = {
 };
 
 type MarketDataSyncResponse = {
-  mode: "recent" | "incremental";
+  mode: "recent" | "incremental" | "backfill";
   requestedMarkets: number;
   requestedPairs: number;
   syncedPairs: number;
@@ -55,7 +55,7 @@ type MarketDataSyncResponse = {
 };
 
 type DataSyncControlsState = {
-  mode: "recent" | "incremental";
+  mode: "recent" | "incremental" | "backfill";
   marketLimit: 50 | 100 | 200 | 500;
   timeframes: Timeframe[];
 };
@@ -355,6 +355,7 @@ function LocalDataPanel({
           >
             <option value="incremental">{t.scanner.incrementalSync}</option>
             <option value="recent">{t.scanner.recentSync}</option>
+            <option value="backfill">{t.scanner.backfillSync}</option>
           </select>
         </label>
 
@@ -600,7 +601,7 @@ async function syncMarketData({
   marketLimit,
   timeframes,
 }: {
-  mode: "recent" | "incremental";
+  mode: "recent" | "incremental" | "backfill";
   marketLimit: number;
   timeframes: Timeframe[];
 }) {

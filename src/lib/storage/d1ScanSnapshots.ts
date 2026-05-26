@@ -1,6 +1,6 @@
-import { getCloudflareContext } from "@opennextjs/cloudflare";
 import type { Timeframe } from "@/lib/exchanges/types";
 import type { MtfPreset } from "@/lib/scanner/multiTimeframe";
+import { getD1Database, isMissingD1TableError } from "./d1";
 import {
   summarizeScanSnapshots,
   toStoredSnapshot,
@@ -9,21 +9,6 @@ import {
   type StoredScanResult,
   type StoredScanSnapshot,
 } from "./scanSnapshotModel";
-
-type D1Result<T> = {
-  results?: T[];
-};
-
-type D1PreparedStatement = {
-  bind(...values: unknown[]): D1PreparedStatement;
-  first<T = unknown>(): Promise<T | null>;
-  all<T = unknown>(): Promise<D1Result<T>>;
-  run(): Promise<unknown>;
-};
-
-type D1Database = {
-  prepare(query: string): D1PreparedStatement;
-};
 
 type ScanSnapshotRow = {
   id: string;
@@ -44,11 +29,6 @@ export type ScanHistoryResponse = {
   itemCount: number;
   summary: ReturnType<typeof summarizeScanSnapshots>;
 };
-
-export async function getD1Database() {
-  const { env } = await getCloudflareContext({ async: true });
-  return ((env as { DB?: D1Database }).DB ?? null) as D1Database | null;
-}
 
 export async function persistScanSnapshotToD1(input: PersistScanSnapshotInput) {
   const db = await getD1Database();
@@ -180,11 +160,4 @@ function parseJson<T>(value: string | null) {
   }
 
   return JSON.parse(value) as T;
-}
-
-function isMissingD1TableError(error: unknown) {
-  return (
-    error instanceof Error &&
-    error.message.toLowerCase().includes("no such table")
-  );
 }

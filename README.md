@@ -71,14 +71,14 @@ Production mode on Cloudflare supports the remote Binance scanner:
 /api/scan/mtf?source=remote
 ```
 
-Remote Binance is the default scanner source. Scan snapshots are persisted to Cloudflare D1 through the `DB` binding. Local SQLite market-data sync remains available only in local Node.js development. Cloudflare Workers should run with:
+Remote Binance is the default scanner source. Cloudflare production persists scan snapshots, synced markets, synced candles, and sync state to Cloudflare D1 through the `DB` binding. Local SQLite market-data sync remains available for local Node.js development. Cloudflare Workers should run with:
 
 ```txt
 DISABLE_LOCAL_SQLITE=true
 NEXT_PUBLIC_DEPLOY_TARGET=cloudflare
 ```
 
-These values are set in `wrangler.jsonc`. If a local-only SQLite route is called in Cloudflare production, it returns a clear `501` response instead of importing local SQLite.
+These values are set in `wrangler.jsonc`. Cloudflare production uses D1 for synced market data when `source=local`; local-only SQLite code is still isolated from the Worker bundle path.
 
 Cloudflare commands:
 
@@ -95,7 +95,7 @@ For local Wrangler preview, apply the D1 migration locally first:
 npm run db:migrate:local
 ```
 
-D1 currently stores scan snapshots for the History page. Candle storage and local market-data sync still use local SQLite only and are not available on Cloudflare production.
+D1 currently stores scan snapshots, market metadata, candles, and sync state. `/api/data/sync` can run recent-window refreshes, latest incremental syncs, or older-history `backfill` syncs. Full historical coverage should be built up in batches with `backfill`; it is intentionally not a single unlimited request.
 
 ## Data Source
 
@@ -190,9 +190,14 @@ Market phases:
 
 ```txt
 GET /api/markets?limit=100
-GET /api/candles?symbol=BTCUSDT&timeframe=4h&limit=300
+GET /api/candles?source=remote&symbol=BTCUSDT&timeframe=4h&limit=300
+GET /api/candles?source=local&symbol=BTCUSDT&timeframe=4h&limit=300
 GET /api/scan?source=remote&timeframe=4h&limit=100
+GET /api/scan?source=local&timeframe=4h&limit=100
 GET /api/scan/mtf?source=remote&preset=swing&limit=50
+GET /api/scan/mtf?source=local&preset=swing&limit=50
+GET /api/data/sync
+POST /api/data/sync
 ```
 
 Responses include:

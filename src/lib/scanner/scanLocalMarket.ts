@@ -1,5 +1,5 @@
 import type { Timeframe } from "@/lib/exchanges/types";
-import type { MarketDataStore } from "@/lib/storage/marketData";
+import type { MarketDataStoreLike } from "@/lib/storage/marketDataModel";
 import {
   calculateMultiTimeframeRankScore,
   mtfPresetTimeframes,
@@ -12,16 +12,16 @@ import type { ScanResult } from "./types";
 const SCAN_CANDLE_LIMIT = 300;
 const MIN_SCAN_CANDLES = 200;
 
-export function scanLocalMarket({
+export async function scanLocalMarket({
   store,
   symbol,
   timeframe,
 }: {
-  store: MarketDataStore;
+  store: MarketDataStoreLike;
   symbol: string;
   timeframe: Timeframe;
-}): ScanResult {
-  const candles = store.getCandles({
+}): Promise<ScanResult> {
+  const candles = await store.getCandles({
     symbol,
     timeframe,
     limit: SCAN_CANDLE_LIMIT,
@@ -36,18 +36,18 @@ export function scanLocalMarket({
   return scanCandles(symbol, timeframe, candles);
 }
 
-export function scanLocalMarketMultiTimeframe({
+export async function scanLocalMarketMultiTimeframe({
   store,
   symbol,
   preset,
 }: {
-  store: MarketDataStore;
+  store: MarketDataStoreLike;
   symbol: string;
   preset: MtfPreset;
-}): ScanResult {
+}): Promise<ScanResult> {
   const timeframes = mtfPresetTimeframes[preset];
-  const results = timeframes.map((timeframe) =>
-    scanLocalMarket({ store, symbol, timeframe }),
+  const results = await Promise.all(
+    timeframes.map((timeframe) => scanLocalMarket({ store, symbol, timeframe })),
   );
   const summary = summarizeMultiTimeframe(results);
   const rankScore = calculateMultiTimeframeRankScore(results, summary);

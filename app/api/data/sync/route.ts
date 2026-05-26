@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { TIMEFRAMES, type Timeframe } from "@/lib/exchanges/types";
 import {
+  isCloudflareDeployTarget,
   isLocalPersistenceDisabled,
   localPersistenceUnavailableMessage,
 } from "@/lib/runtime/localPersistence";
@@ -9,10 +10,14 @@ export const runtime = "nodejs";
 
 const MAX_MARKET_LIMIT = 500;
 const DEFAULT_MARKET_LIMIT = 200;
-const SUPPORTED_MODES = new Set<MarketDataSyncMode>(["recent", "incremental"]);
+const SUPPORTED_MODES = new Set<MarketDataSyncMode>([
+  "recent",
+  "incremental",
+  "backfill",
+]);
 const SUPPORTED_TIMEFRAMES = new Set<Timeframe>(TIMEFRAMES);
 
-type MarketDataSyncMode = "recent" | "incremental";
+type MarketDataSyncMode = "recent" | "incremental" | "backfill";
 
 type SyncRequestBody = {
   mode?: string;
@@ -21,24 +26,23 @@ type SyncRequestBody = {
 };
 
 export async function GET() {
-  if (isLocalPersistenceDisabled()) {
+  if (!isCloudflareDeployTarget() && isLocalPersistenceDisabled()) {
     return localPersistenceUnavailableResponse();
   }
 
-  const { MarketDataStore } = await import("@/lib/storage/marketData");
-  const store = new MarketDataStore();
+  const store = await createMarketDataStore();
 
   try {
     return NextResponse.json({
-      summary: store.getSummary(),
+      summary: await store.getSummary(),
     });
   } finally {
-    store.close();
+    await store.close?.();
   }
 }
 
 export async function POST(request: Request) {
-  if (isLocalPersistenceDisabled()) {
+  if (!isCloudflareDeployTarget() && isLocalPersistenceDisabled()) {
     return localPersistenceUnavailableResponse();
   }
 
@@ -60,11 +64,15 @@ export async function POST(request: Request) {
   }
 
   try {
-    const { syncMarketData } = await import("@/lib/storage/marketDataSync");
+    const [{ syncMarketData }, store] = await Promise.all([
+      import("@/lib/storage/marketDataSync"),
+      createMarketDataStore(),
+    ]);
     const result = await syncMarketData({
       mode: mode.value,
       marketLimit: marketLimit.value,
       timeframes: timeframes.value,
+      store,
     });
 
     return NextResponse.json(result);
@@ -77,6 +85,16 @@ export async function POST(request: Request) {
       { status: 502 },
     );
   }
+}
+
+async function createMarketDataStore() {
+  if (isCloudflareDeployTarget()) {
+    const { createD1MarketDataStore } = await import("@/lib/storage/d1MarketData");
+    return createD1MarketDataStore();
+  }
+
+  const { MarketDataStore } = await import("@/lib/storage/marketData");
+  return new MarketDataStore();
 }
 
 function localPersistenceUnavailableResponse() {
@@ -92,7 +110,7 @@ function parseMode(value: string | undefined) {
   if (!SUPPORTED_MODES.has(mode as MarketDataSyncMode)) {
     return {
       valid: false as const,
-      error: "mode must be recent or incremental.",
+      error: "mode must be recent, incremental, or backfill.",
     };
   }
 
