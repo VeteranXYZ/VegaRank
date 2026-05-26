@@ -9,8 +9,6 @@ import {
 import { useMemo } from "react";
 import { useLanguage } from "@/components/providers/LanguageProvider";
 import { PhaseBadge } from "./PhaseBadge";
-import { RiskBadge } from "./RiskBadge";
-import { ScoreBadge } from "./ScoreBadge";
 import { SignalBadge } from "./SignalBadge";
 import {
   SignalSummaryBar,
@@ -58,21 +56,23 @@ export function ScannerTable({
     () => [
       {
         id: "rank",
-        header: t.common.rank,
-        cell: ({ row }) => row.index + 1,
+        header: t.scanner.columns.rank,
+        cell: ({ row }) => (
+          <span className="tabular-nums text-[var(--muted)]">{row.index + 1}</span>
+        ),
       },
       {
         accessorKey: "symbol",
         header: t.scanner.columns.symbol,
         cell: ({ row }) => (
-          <span className="font-semibold text-[var(--foreground)]">
+          <div className="font-semibold leading-tight text-[var(--foreground)]">
             {row.original.symbol}
-          </span>
+          </div>
         ),
       },
       {
         accessorKey: "phase",
-        header: t.common.phase,
+        header: t.scanner.columns.setup,
         cell: ({ row }) => <PhaseBadge phase={row.original.phase} />,
       },
       {
@@ -81,55 +81,18 @@ export function ScannerTable({
         cell: ({ row }) => <SignalBadge signal={row.original.signal} />,
       },
       {
-        id: "multiTimeframe",
-        header: t.common.alignment,
-        cell: ({ row }) =>
-          row.original.multiTimeframe ? (
-            <span className="inline-flex rounded-md border border-[var(--border)] bg-[#0b0f14] px-2 py-1 text-xs font-semibold text-[var(--foreground)]">
-              {t.alignment[row.original.multiTimeframe.alignment]}
-            </span>
-          ) : (
-            <span className="text-[var(--muted)]">{t.common.single}</span>
-          ),
-      },
-      {
-        accessorKey: "opportunityScore",
-        header: t.scanner.columns.opportunity,
-        cell: ({ row }) => (
-          <ScoreBadge
-            label={t.scanner.columns.opportunity}
-            value={row.original.opportunityScore}
-            compact
-          />
-        ),
-      },
-      {
-        accessorKey: "confirmationScore",
-        header: t.scanner.columns.confirmation,
-        cell: ({ row }) => (
-          <ScoreBadge
-            label={t.scanner.columns.confirmation}
-            value={row.original.confirmationScore}
-            compact
-          />
-        ),
-      },
-      {
-        accessorKey: "riskScore",
-        header: t.common.risk,
-        cell: ({ row }) => (
-          <ScoreBadge
-            label={t.common.risk}
-            value={row.original.riskScore}
-            tone="risk"
-            compact
-          />
-        ),
-      },
-      {
         accessorKey: "rankScore",
         header: t.scanner.columns.score,
-        cell: ({ row }) => formatNumber(row.original.rankScore, 1),
+        cell: ({ row }) => (
+          <span className="font-semibold tabular-nums text-[var(--foreground)]">
+            {formatNumber(row.original.rankScore, 1)}
+          </span>
+        ),
+      },
+      {
+        id: "ocr",
+        header: t.scanner.columns.ocr,
+        cell: ({ row }) => <CompactScores result={row.original} />,
       },
       {
         accessorKey: "rsi14",
@@ -138,13 +101,18 @@ export function ScannerTable({
       },
       {
         accessorKey: "bbWidthPercentile",
-        header: t.scanner.columns.bbWidth,
+        header: t.scanner.columns.bbCompact,
         cell: ({ row }) => formatNullable(row.original.bbWidthPercentile, 0),
       },
       {
         accessorKey: "volumeRatio",
-        header: t.scanner.columns.volumeRatio,
-        cell: ({ row }) => formatNullable(row.original.volumeRatio, 2),
+        header: t.scanner.columns.volCompact,
+        cell: ({ row }) => formatNullable(row.original.volume.ratio20, 2),
+      },
+      {
+        id: "macd",
+        header: "MACD",
+        cell: ({ row }) => <MacdCell result={row.original} />,
       },
       {
         id: "maStatus",
@@ -153,14 +121,17 @@ export function ScannerTable({
       },
       {
         id: "warnings",
-        header: t.scanner.columns.warnings,
+        header: t.scanner.columns.warnCompact,
         cell: ({ row }) =>
           row.original.warnings.length > 0 ? (
-            <RiskBadge
-              label={`${row.original.warnings.length} ${t.scanner.warnings}`}
-            />
+            <span
+              aria-label={`${row.original.warnings.length} ${t.scanner.warnings}`}
+              className="inline-flex rounded border border-[#8f6b24]/40 bg-[#2b2111]/70 px-1.5 py-0.5 text-[11px] font-semibold text-[var(--warning)]"
+            >
+              W{row.original.warnings.length}
+            </span>
           ) : (
-            <span className="text-[var(--muted)]">{t.common.none}</span>
+            <span className="text-[var(--muted)]">-</span>
           ),
       },
     ],
@@ -175,11 +146,11 @@ export function ScannerTable({
   });
 
   return (
-    <section className="min-w-0 overflow-hidden rounded-md border border-[var(--border)] bg-[var(--panel)]">
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--border)] px-4 py-3">
+    <section className="min-w-0 overflow-hidden rounded-md border border-[var(--border)] bg-[var(--panel)] xl:flex xl:min-h-0 xl:flex-1 xl:flex-col">
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[var(--border)] px-3 py-2">
         <div>
-          <h2 className="text-lg font-semibold">{t.scanner.results}</h2>
-          <p className="mt-1 text-xs text-[var(--muted)]">
+          <h2 className="text-sm font-semibold">{t.scanner.results}</h2>
+          <p className="mt-0.5 text-[11px] text-[var(--muted)]">
             {updatedAt
               ? `${sourceItemCount} ${t.scanner.scanned} · ${
                   cached ? t.common.cached : t.common.fresh
@@ -193,7 +164,7 @@ export function ScannerTable({
           type="button"
           onClick={onRefresh}
           disabled={isFetching}
-          className="rounded-md border border-[var(--border)] px-3 py-2 text-sm font-semibold text-[var(--foreground)] disabled:cursor-not-allowed disabled:opacity-60"
+          className="h-7 rounded border border-[var(--border)] px-2 text-xs font-semibold text-[var(--foreground)] disabled:cursor-not-allowed disabled:opacity-60"
         >
           {isFetching ? t.common.refreshing : t.common.refresh}
         </button>
@@ -206,7 +177,7 @@ export function ScannerTable({
       />
 
       {partialErrors.length > 0 && (
-        <div className="border-b border-[var(--border)] bg-[#2b2111] px-4 py-3 text-sm text-[var(--warning)]">
+        <div className="border-b border-[var(--border)] bg-[#2b2111] px-3 py-2 text-xs text-[var(--warning)]">
           {partialErrors.length} {t.scanner.partialErrors}
         </div>
       )}
@@ -224,13 +195,18 @@ export function ScannerTable({
           message={t.scanner.noMatchesMessage}
         />
       ) : (
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[980px] border-collapse text-left text-sm">
-            <thead className="bg-[#0d131a] text-xs uppercase text-[var(--muted)]">
+        <div className="min-h-0 flex-1 overflow-auto">
+          <table className="w-full min-w-[690px] table-fixed border-collapse text-left text-xs">
+            <thead className="sticky top-0 z-10 bg-[#0a1016] text-[11px] uppercase text-[var(--muted)] shadow-[0_1px_0_var(--border)]">
               {table.getHeaderGroups().map((headerGroup) => (
                 <tr key={headerGroup.id}>
                   {headerGroup.headers.map((header) => (
-                    <th key={header.id} className="px-2 py-2 font-semibold">
+                    <th
+                      key={header.id}
+                      className={`whitespace-nowrap px-1.5 py-1.5 font-semibold ${getColumnClass(
+                        header.id,
+                      )}`}
+                    >
                       {flexRender(
                         header.column.columnDef.header,
                         header.getContext(),
@@ -247,13 +223,26 @@ export function ScannerTable({
                 return (
                   <tr
                     key={row.original.symbol}
+                    tabIndex={0}
+                    role="button"
                     onClick={() => onSelect(row.original.symbol)}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter" || event.key === " ") {
+                        event.preventDefault();
+                        onSelect(row.original.symbol);
+                      }
+                    }}
                     className={`cursor-pointer border-t border-[var(--border)] transition ${
-                      isSelected ? "bg-[#132119]" : "hover:bg-[#101923]"
+                      isSelected ? "bg-[#10231a]" : "hover:bg-[#101923]"
                     }`}
                   >
                     {row.getVisibleCells().map((cell) => (
-                      <td key={cell.id} className="px-2 py-2 align-middle">
+                      <td
+                        key={cell.id}
+                        className={`h-8 overflow-hidden whitespace-nowrap px-1.5 py-1 align-middle ${getColumnClass(
+                          cell.column.id,
+                        )}`}
+                      >
                         {flexRender(cell.column.columnDef.cell, cell.getContext())}
                       </td>
                     ))}
@@ -280,7 +269,7 @@ function MaStatus({ result }: { result: ScanResult }) {
       {items.map(([label, active]) => (
         <span
           key={label}
-          className={`inline-flex h-7 min-w-9 items-center justify-center rounded-md border px-2 text-xs font-semibold ${
+          className={`inline-flex h-5 min-w-7 items-center justify-center rounded border px-1 text-[11px] font-semibold ${
             active
               ? "border-[#2f7d46] bg-[#132119] text-[var(--accent)]"
               : "border-[var(--border)] bg-[#0b0f14] text-[var(--muted)]"
@@ -291,6 +280,52 @@ function MaStatus({ result }: { result: ScanResult }) {
       ))}
     </div>
   );
+}
+
+function CompactScores({ result }: { result: ScanResult }) {
+  return (
+    <span className="inline-flex items-center gap-1 font-mono text-[11px] tabular-nums">
+      <span className="text-[var(--accent)]">O{result.opportunityScore.toFixed(0)}</span>
+      <span className="text-[#60a5fa]">
+        C{result.confirmationScore.toFixed(0)}
+      </span>
+      <span className={getRiskTextClass(result.riskScore)}>
+        R{result.riskScore.toFixed(0)}
+      </span>
+    </span>
+  );
+}
+
+function MacdCell({ result }: { result: ScanResult }) {
+  if (!result.macd) {
+    return <span className="text-[var(--muted)]">-</span>;
+  }
+
+  if (result.macd.bearishCross || !result.macd.histogramRising) {
+    return <span className="text-[var(--warning)]">Weak</span>;
+  }
+
+  if (result.macd.bullishCross) {
+    return <span className="text-[var(--accent)]">Cross</span>;
+  }
+
+  if (result.macd.aboveZero) {
+    return <span className="text-[#60a5fa]">+0</span>;
+  }
+
+  return <span className="text-[var(--muted)]">Imp</span>;
+}
+
+function getRiskTextClass(riskScore: number) {
+  if (riskScore >= 55) {
+    return "text-[var(--danger)]";
+  }
+
+  if (riskScore >= 30) {
+    return "text-[var(--warning)]";
+  }
+
+  return "text-[var(--accent)]";
 }
 
 function StateMessage({ title, message }: { title: string; message: string }) {
@@ -310,4 +345,34 @@ function formatNullable(value: number | null, decimals: number) {
 
 function formatNumber(value: number, decimals: number) {
   return value.toFixed(decimals);
+}
+
+function getColumnClass(columnId: string) {
+  switch (columnId) {
+    case "rank":
+      return "w-[26px]";
+    case "symbol":
+      return "w-[78px]";
+    case "phase":
+      return "w-[102px]";
+    case "signal_state":
+      return "w-[72px]";
+    case "rankScore":
+      return "w-12";
+    case "ocr":
+      return "w-[84px]";
+    case "rsi14":
+    case "bbWidthPercentile":
+      return "w-[38px]";
+    case "volumeRatio":
+      return "w-[42px]";
+    case "macd":
+      return "w-12";
+    case "maStatus":
+      return "w-16";
+    case "warnings":
+      return "w-[26px]";
+    default:
+      return "";
+  }
 }

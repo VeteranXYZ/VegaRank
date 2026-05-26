@@ -161,16 +161,28 @@ export const dictionaries = {
       syncErrors: "Sync Errors",
       noLocalData: "No local market data yet.",
       syncComplete: "Data sync complete",
+      sectionScan: "Scan",
+      sectionUniverse: "Universe",
+      sectionFilters: "Filters",
+      sectionView: "View",
+      sectionPresets: "Presets",
+      marketMetrics: "Market Metrics",
       columns: {
+        rank: "#",
         symbol: "Symbol",
-        score: "Rank Score",
+        setup: "Setup",
+        score: "Score",
+        ocr: "O/C/R",
         opportunity: "Opportunity",
         confirmation: "Confirmation",
         rsi: "RSI",
         bbWidth: "BB Width %",
+        bbCompact: "BB%",
         volumeRatio: "Volume Ratio",
+        volCompact: "Vol",
         maStatus: "MA Status",
         warnings: "Warnings",
+        warnCompact: "W",
       },
     },
     history: {
@@ -229,7 +241,10 @@ export const dictionaries = {
       phaseRead: "Phase Read",
       signalRead: "Signal Read",
       scoringModel: "Scoring Model",
-      scoreWeights: "Rank = Opportunity 45% + Confirmation 35% - Risk 25% - phase penalty.",
+      scoreWeights:
+        "Rank score = opportunity 40% + confirmation 40% - risk 30% - phase/risk penalties.",
+      volumeContext:
+        "Volume mainly affects confirmation and risk context. It is not a standalone trade signal.",
       opportunityHelp:
         "Opportunity rewards compression, pullback location, normal momentum, and quiet volume before confirmation.",
       confirmationHelp:
@@ -274,6 +289,8 @@ export const dictionaries = {
         NEUTRAL:
           "Scores and phase do not meet a stronger signal rule under the current model.",
       } satisfies Record<ScannerSignalState, string>,
+      signalRuleBreakoutWatchlist:
+        "Breakout attempt has volume and momentum confirmation, but follow-through is still needed.",
     },
     sort: {
       rankScore: "Rank Score",
@@ -577,16 +594,28 @@ export const dictionaries = {
       syncErrors: "同步错误",
       noLocalData: "还没有本地行情数据。",
       syncComplete: "数据同步完成",
+      sectionScan: "扫描",
+      sectionUniverse: "市场",
+      sectionFilters: "过滤",
+      sectionView: "视图",
+      sectionPresets: "预设",
+      marketMetrics: "市场指标",
       columns: {
+        rank: "排名",
         symbol: "标的",
-        score: "综合分",
+        setup: "结构",
+        score: "综合",
+        ocr: "机/确/险",
         opportunity: "机会",
         confirmation: "确认",
         rsi: "RSI",
         bbWidth: "布林宽度%",
+        bbCompact: "BB%",
         volumeRatio: "量能比",
+        volCompact: "量",
         maStatus: "均线状态",
         warnings: "警告",
+        warnCompact: "警",
       },
     },
     history: {
@@ -645,7 +674,10 @@ export const dictionaries = {
       phaseRead: "结构判读",
       signalRead: "信号判读",
       scoringModel: "评分模型",
-      scoreWeights: "综合分 = 机会分 45% + 确认分 35% - 风险分 25% - 阶段惩罚。",
+      scoreWeights:
+        "综合分 = 机会分 40% + 确认分 40% - 风险分 30% - 阶段/风险惩罚。",
+      volumeContext:
+        "量能主要影响确认分和风险背景，不是独立交易信号。",
       opportunityHelp:
         "机会分奖励压缩、回踩位置、正常动能，以及确认前的低量整理。",
       confirmationHelp:
@@ -677,6 +709,8 @@ export const dictionaries = {
         WEAK: "破位结构优先级最高，会覆盖其他评分。",
         NEUTRAL: "当前评分和结构没有满足更强信号规则。",
       } satisfies Record<ScannerSignalState, string>,
+      signalRuleBreakoutWatchlist:
+        "突破尝试获得量能和动能确认，但仍需要后续 K 线维持结构。",
     },
     sort: {
       rankScore: "综合分",
@@ -696,7 +730,7 @@ export const dictionaries = {
       WATCHLIST: "压缩或筑底结构正在形成，但仍需要确认。",
       CONFIRMED: "突破具备趋势、动量和量能确认。",
       TREND_CONTINUATION: "趋势结构仍健康，风险可控。",
-      HIGH_RISK: "风险条件占主导，需要避免追高或降低仓位。",
+      HIGH_RISK: "风险条件占主导，结构不够干净。",
       WEAK: "价格和动量低于关键趋势水平。",
       NEUTRAL: "当前规则没有给出明确优势。",
     } satisfies Record<ScannerSignalState, string>,

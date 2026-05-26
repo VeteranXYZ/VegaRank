@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   filterAndSortResults,
   getSignalSummary,
+  initialScannerFilters,
   mergeBatchScanResponses,
   shouldUseBatchedMtfScan,
   shouldUseBatchedScan,
@@ -15,6 +16,10 @@ import type {
 } from "@/lib/shared/scannerTypes";
 
 describe("scanner result filtering", () => {
+  it("defaults the display count to 50 rows", () => {
+    expect(initialScannerFilters.limit).toBe(50);
+  });
+
   it("filters by signal before sorting the result set", () => {
     const rows = filterAndSortResults(
       [

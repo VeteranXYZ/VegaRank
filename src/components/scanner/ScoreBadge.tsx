@@ -15,12 +15,14 @@ export function ScoreBadge({
 
   return (
     <span
-      className={`inline-flex flex-col rounded-md border border-[var(--border)] px-3 py-2 text-xs ${
+      className={`inline-flex items-center justify-between gap-1.5 rounded border border-[var(--border)] bg-[#0b0f14]/80 px-2 py-1 text-[11px] ${
         compact ? "min-w-0" : "min-w-24"
       }`}
     >
-      <span className="text-[var(--muted)]">{label}</span>
-      <span className={`text-base font-semibold ${color}`}>{value}</span>
+      <span className="truncate text-[var(--muted)]">{label}</span>
+      <span className={`font-semibold tabular-nums ${color}`}>
+        {value.toFixed(0)}
+      </span>
     </span>
   );
 }

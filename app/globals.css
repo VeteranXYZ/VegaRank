@@ -1,14 +1,17 @@
 @import "tailwindcss";
 
 :root {
-  --background: #0b0f14;
-  --foreground: #e6edf3;
-  --muted: #8b949e;
-  --panel: #111820;
-  --border: #26313d;
-  --accent: #3fb950;
-  --warning: #f2cc60;
-  --danger: #ff7b72;
+  --background: #070b0f;
+  --foreground: #e5edf5;
+  --muted: #8b98a8;
+  --muted-2: #64748b;
+  --panel: #0d141b;
+  --panel-2: #101923;
+  --border: rgba(117, 137, 158, 0.22);
+  --accent: #40c463;
+  --warning: #e3b341;
+  --danger: #f87171;
+  --info: #60a5fa;
 }
 
 * {
@@ -31,4 +34,12 @@ button,
 select,
 input {
   font: inherit;
+}
+
+button:focus-visible,
+select:focus-visible,
+input:focus-visible,
+a:focus-visible {
+  outline: 2px solid rgba(96, 165, 250, 0.85);
+  outline-offset: 2px;
 }

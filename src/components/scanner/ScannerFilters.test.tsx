@@ -58,10 +58,8 @@ describe("scanner diagnostics panel", () => {
       </LanguageProvider>,
     );
 
-    expect(html).toContain("Cached");
-    expect(html).toContain("Duration");
-    expect(html).toContain("Updated at");
-    expect(html).toContain("Next refresh estimate");
+    expect(html).toContain("Market Universe");
+    expect(html).toContain("All Eligible");
     expect(html).toContain("Scanner reached the safety cap");
     expect(html).toContain("Insufficient history");
     expect(html).toContain("Low volume filtered");

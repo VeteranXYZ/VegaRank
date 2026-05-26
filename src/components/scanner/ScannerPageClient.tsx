@@ -94,7 +94,7 @@ export type ScannerFiltersState = {
   limit: 50 | 100 | 200 | "ALL";
 };
 
-const initialFilters: ScannerFiltersState = {
+export const initialScannerFilters: ScannerFiltersState = {
   mode: "single",
   source: "remote",
   timeframe: "4h",
@@ -111,7 +111,8 @@ const initialFilters: ScannerFiltersState = {
 
 export function ScannerPageClient() {
   const { dictionary: t } = useLanguage();
-  const [filters, setFilters] = useState<ScannerFiltersState>(initialFilters);
+  const [filters, setFilters] =
+    useState<ScannerFiltersState>(initialScannerFilters);
   const [selectedSymbol, setSelectedSymbol] = useState<string | null>(null);
   const [batchProgress, setBatchProgress] = useState<BatchProgress | null>(null);
   const scanQuery = useQuery({
@@ -159,64 +160,51 @@ export function ScannerPageClient() {
     updateFilters({ ...filters, signal });
   }
 
-  function applyQuickFilter(nextFilters: ScannerFiltersState) {
-    updateFilters(nextFilters);
-  }
-
   return (
-    <section className="mx-auto max-w-[1600px] px-4 py-6">
-      <div className="mb-5 flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <p className="text-sm uppercase tracking-wide text-[var(--muted)]">
-            {t.scanner.source}: Binance spot USDT
-          </p>
-          <h1 className="mt-1 text-3xl font-semibold">{t.scanner.title}</h1>
-          <p className="mt-2 max-w-2xl text-sm leading-6 text-[var(--muted)]">
-            {t.scanner.subtitle}
-          </p>
+    <section className="mx-auto flex min-h-[calc(100vh-1px)] max-w-[1800px] flex-col px-3 py-3">
+      <div className="mb-2 rounded-md border border-[var(--border)] bg-[var(--panel)] px-3 py-2">
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-[var(--muted)]">
+          <h1 className="mr-1 text-lg font-semibold text-[var(--foreground)]">
+            {t.scanner.title}
+          </h1>
+          <span>· Binance Spot USDT</span>
+          <span>· {filters.mode === "mtf" ? t.scanner.mtfMode : t.scanner.singleMode}</span>
+          <span>
+            ·{" "}
+            {filters.mode === "mtf"
+              ? t.mtfPreset[filters.mtfPreset]
+              : t.timeframe[filters.timeframe]}
+          </span>
+          <span>
+            ·{" "}
+            {(scanQuery.data?.source ?? filters.source) === "local"
+              ? t.scanner.localSource
+              : t.scanner.remoteSource}
+          </span>
+          <span>
+            · {formatInteger(scanQuery.data?.scannedCount)} /{" "}
+            {formatInteger(scanQuery.data?.eligibleCount)} {t.scanner.scanned}
+          </span>
+          <span>
+            · {formatInteger(scanQuery.data?.itemCount ?? rows.length)}{" "}
+            {t.scanner.results}
+          </span>
+          <span>
+            · {formatInteger(scanQuery.data?.failedCount)}{" "}
+            {t.scanner.failedMarkets}
+          </span>
+          <span>
+            · {scanQuery.data?.cached ? t.scanner.cached : t.scanner.live}
+          </span>
+          <span>· {formatDuration(scanQuery.data?.durationMs)}</span>
+          <span>· {t.scanner.nextRefresh} {formatTime(scanQuery.data?.cacheExpiresAt)}</span>
         </div>
-        <div className="grid w-full grid-cols-1 gap-2 text-sm sm:w-auto sm:grid-cols-3">
-          <HeaderMetric
-            label={t.scanner.mode}
-            value={
-              filters.mode === "mtf" ? t.scanner.mtfMode : t.scanner.singleMode
-            }
-          />
-          <HeaderMetric
-            label={t.scanner.timeframe}
-            value={
-              filters.mode === "mtf"
-                ? t.mtfPreset[filters.mtfPreset]
-                : t.timeframe[filters.timeframe]
-            }
-          />
-          <HeaderMetric
-            label={t.scanner.source}
-            value={
-              (scanQuery.data?.source ?? filters.source) === "local"
-                ? t.scanner.localSource
-                : t.scanner.remoteSource
-            }
-          />
-          <HeaderMetric
-            label={t.scanner.results}
-            value={formatDisplayCount(
-              rows.length,
-              scanQuery.data?.itemCount ?? rows.length,
-            )}
-          />
-        </div>
+        <ScanScopePanel data={scanQuery.data ?? null} progress={batchProgress} />
       </div>
 
-      <ScanScopePanel data={scanQuery.data ?? null} progress={batchProgress} />
-
-      <div className="grid gap-5 xl:grid-cols-[280px_minmax(0,1fr)_380px]">
+      <div className="grid min-h-0 flex-1 gap-3 xl:h-[calc(100vh-92px)] xl:grid-cols-[260px_minmax(0,1fr)_340px]">
         <ScannerFilters filters={filters} onChange={updateFilters} />
-        <div className="min-w-0 space-y-4">
-          <QuickFilterBar
-            filters={filters}
-            onSelect={applyQuickFilter}
-          />
+        <div className="min-w-0 space-y-2 xl:flex xl:min-h-0 xl:flex-col">
           <MtfAlignmentSummary items={alignmentSummary} />
           <ScannerTable
             rows={rows}
@@ -258,23 +246,21 @@ export function ScanScopePanel({
   const { dictionary: t } = useLanguage();
 
   return (
-    <section className="mb-5 rounded-md border border-[var(--border)] bg-[var(--panel)] px-4 py-3">
-      <h2 className="text-sm font-semibold">{t.scanner.marketUniverse}</h2>
-      <p className="mt-1 text-xs leading-5 text-[var(--muted)]">
-        {t.scanner.cachePolicyNote}
-      </p>
-      <p className="mt-1 text-xs leading-5 text-[var(--muted)]">
-        {t.scanner.cloudflareBatchNote}
-      </p>
+    <div className="mt-1 border-t border-[var(--border)] pt-1.5">
+      <div className="flex flex-wrap gap-x-3 gap-y-1 text-[11px] leading-5 text-[var(--muted)]">
+        <span>{t.scanner.marketUniverse}: {t.scanner.allEligible}</span>
+        <span>{t.scanner.cachePolicyNote}</span>
+        <span>{t.scanner.cloudflareBatchNote}</span>
+      </div>
 
       {data?.capped && (
-        <div className="mt-3 rounded-md border border-[var(--warning)] bg-[#2b2111] px-3 py-2 text-xs font-semibold text-[var(--warning)]">
+        <div className="mt-1 rounded border border-[var(--warning)]/50 bg-[#2b2111]/70 px-2 py-1 text-[11px] font-semibold text-[var(--warning)]">
           {t.scanner.cappedWarning}
         </div>
       )}
 
       {progress && (
-        <div className="mt-3 rounded-md border border-[var(--border)] bg-[#0b0f14] px-3 py-2 text-xs text-[var(--muted)]">
+        <div className="mt-1 rounded border border-[var(--border)] bg-[#0b0f14] px-2 py-1 text-[11px] text-[var(--muted)]">
           <span className="font-semibold text-[var(--foreground)]">
             {progress.mode === "mtf"
               ? t.scanner.scanningMtfBatch
@@ -282,49 +268,18 @@ export function ScanScopePanel({
             {progress.batchIndex} /{" "}
             {progress.totalBatches}
           </span>
-          <span className="ml-3">
+          <span className="ml-2">
             {t.scanner.scanned}: {formatInteger(progress.scannedCount)} /{" "}
             {formatInteger(progress.totalEligibleCount)}
           </span>
-          <span className="ml-3">
+          <span className="ml-2">
             {t.scanner.failedMarkets}: {formatInteger(progress.failedCount)}
           </span>
         </div>
       )}
 
-      <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7">
-        <HeaderMetric
-          label={t.scanner.eligibleMarkets}
-          value={formatInteger(data?.eligibleCount)}
-        />
-        <HeaderMetric
-          label={t.scanner.scannedMarkets}
-          value={formatInteger(data?.scannedCount)}
-        />
-        <HeaderMetric
-          label={t.scanner.failedMarkets}
-          value={formatInteger(data?.failedCount)}
-        />
-        <HeaderMetric
-          label={t.scanner.cacheStatus}
-          value={data?.cached ? t.scanner.cached : t.scanner.live}
-        />
-        <HeaderMetric
-          label={t.scanner.duration}
-          value={formatDuration(data?.durationMs)}
-        />
-        <HeaderMetric
-          label={t.scanner.updatedAt}
-          value={formatDateTime(data?.updatedAt)}
-        />
-        <HeaderMetric
-          label={t.scanner.nextRefresh}
-          value={formatDateTime(data?.cacheExpiresAt)}
-        />
-      </div>
-
       {data?.failureSummary && (
-        <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs text-[var(--muted)]">
+        <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-[var(--muted)]">
           <span>
             {t.scanner.insufficientHistory}:{" "}
             {formatInteger(data.failureSummary.insufficientHistory)}
@@ -350,81 +305,7 @@ export function ScanScopePanel({
           </span>
         </div>
       )}
-    </section>
-  );
-}
-
-function QuickFilterBar({
-  filters,
-  onSelect,
-}: {
-  filters: ScannerFiltersState;
-  onSelect: (filters: ScannerFiltersState) => void;
-}) {
-  const { dictionary: t } = useLanguage();
-  const presets: Array<{ label: string; filters: ScannerFiltersState }> = [
-    { label: t.scanner.resetView, filters: initialFilters },
-    {
-      label: t.scanner.quickWatchlist,
-      filters: {
-        ...initialFilters,
-        mode: "single",
-        timeframe: "4h",
-        signal: "WATCHLIST",
-        minOpportunityScore: 60,
-        maxRiskScore: 40,
-        sortBy: "opportunityScore",
-      },
-    },
-    {
-      label: t.scanner.quickMtfSwing,
-      filters: {
-        ...initialFilters,
-        mode: "mtf",
-        mtfPreset: "swing",
-        maxRiskScore: 60,
-      },
-    },
-    {
-      label: t.scanner.quickDailyTrend,
-      filters: {
-        ...initialFilters,
-        mode: "single",
-        timeframe: "1d",
-        signal: "TREND_CONTINUATION",
-        maxRiskScore: 45,
-      },
-    },
-    {
-      label: t.scanner.quickCleanRisk,
-      filters: {
-        ...filters,
-        signal: "ALL",
-        phase: "ALL",
-        maxRiskScore: 35,
-        sortBy: "lowestRiskScore",
-      },
-    },
-  ];
-
-  return (
-    <section className="rounded-md border border-[var(--border)] bg-[var(--panel)] px-4 py-3">
-      <div className="mb-3 text-xs font-semibold uppercase tracking-wide text-[var(--muted)]">
-        {t.scanner.quickFilters}
-      </div>
-      <div className="flex flex-wrap gap-2">
-        {presets.map((preset) => (
-          <button
-            key={preset.label}
-            type="button"
-            onClick={() => onSelect(preset.filters)}
-            className="rounded-md border border-[var(--border)] bg-[#0b0f14] px-3 py-2 text-xs font-semibold text-[var(--foreground)] transition hover:border-[var(--foreground)]"
-          >
-            {preset.label}
-          </button>
-        ))}
-      </div>
-    </section>
+    </div>
   );
 }
 
@@ -437,27 +318,29 @@ function MtfAlignmentSummary({
   const total = items.reduce((sum, item) => sum + item.count, 0);
 
   return (
-    <section className="rounded-md border border-[var(--border)] bg-[var(--panel)] px-4 py-3">
-      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-        <h2 className="text-sm font-semibold">{t.scanner.mtfAlignmentSummary}</h2>
+    <section className="rounded-md border border-[var(--border)] bg-[var(--panel)] px-3 py-2">
+      <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+        <h2 className="text-xs font-semibold uppercase tracking-wide text-[var(--muted)]">
+          {t.scanner.mtfAlignmentSummary}
+        </h2>
         <span className="text-xs text-[var(--muted)]">
           {total > 0 ? `${total} ${t.scanner.scanned}` : t.scanner.noMtfAlignment}
         </span>
       </div>
       {total > 0 ? (
-        <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
+        <div className="grid gap-1.5 sm:grid-cols-2 lg:grid-cols-5">
           {items.map((item) => (
             <div
               key={item.alignment}
-              className="rounded-md border border-[var(--border)] bg-[#0b0f14] p-3"
+              className="rounded border border-[var(--border)] bg-[#0b0f14]/80 px-2 py-1.5"
             >
               <div className="truncate text-xs text-[var(--muted)]">
                 {t.alignment[item.alignment]}
               </div>
-              <div className="mt-1 text-lg font-semibold tabular-nums">
+              <div className="mt-0.5 text-sm font-semibold tabular-nums">
                 {item.count}
               </div>
-              <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-[#111820]">
+              <div className="mt-1 h-1 overflow-hidden rounded-full bg-[#111820]">
                 <div
                   className="h-full rounded-full bg-[var(--accent)]"
                   style={{ width: `${(item.count / total) * 100}%` }}
@@ -468,15 +351,6 @@ function MtfAlignmentSummary({
         </div>
       ) : null}
     </section>
-  );
-}
-
-function HeaderMetric({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="min-w-0 rounded-md border border-[var(--border)] bg-[var(--panel)] px-3 py-2 sm:min-w-28">
-      <div className="text-xs text-[var(--muted)]">{label}</div>
-      <div className="mt-1 break-words text-sm font-semibold">{value}</div>
-    </div>
   );
 }
 
@@ -849,12 +723,15 @@ function formatDuration(value: number | undefined) {
   return `${(value / 1000).toFixed(1)} s`;
 }
 
-function formatDateTime(value: string | undefined) {
+function formatTime(value: string | undefined) {
   if (!value) {
     return "--";
   }
 
-  return new Date(value).toLocaleString();
+  return new Date(value).toLocaleTimeString([], {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
 }
 
 function getLatestIsoTime(values: Array<string | null | undefined>) {
@@ -865,16 +742,6 @@ function getLatestIsoTime(values: Array<string | null | undefined>) {
   );
 
   return Number.isFinite(latest) ? new Date(latest).toISOString() : null;
-}
-
-function formatDisplayCount(displayed: number, total: number) {
-  const formatter = new Intl.NumberFormat();
-
-  if (displayed === total) {
-    return formatter.format(total);
-  }
-
-  return `${formatter.format(displayed)} / ${formatter.format(total)}`;
 }
 
 export function getSignalSummary(results: ScanResult[]) {

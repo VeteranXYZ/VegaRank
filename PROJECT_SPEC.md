@@ -93,7 +93,7 @@ MVP scope:
 - Exchange: Binance Spot only
 - Quote asset: USDT only
 - Market universe: all eligible Binance Spot USDT pairs by default
-- Market filtering: exclude stablecoin, fiat-like, and unsuitable bases including USDC, FDUSD, TUSD, BUSD, DAI, USDP, USDD, RLUSD, USD1, USDE, SUSDE, EUR, EURI, AEUR, BRL, TRY, UAH, ZAR, IDRT, BIDR, and U
+- Market filtering: exclude stablecoin, fiat-like, commodity-like, wrapped/staking duplicate, fan-token, and unsuitable bases including USDC, FDUSD, TUSD, BUSD, DAI, USDP, USDD, RLUSD, BFUSD, XUSD, USD1, USDE, SUSDE, FRAX, PAXG, XAUT, EUR, EURI, AEUR, BRL, TRY, UAH, ZAR, IDRT, BIDR, U, WBTC, WBETH, BNSOL, PSG, ATM, PORTO, LAZIO, SANTOS, ASR, ACM, BAR, JUV, CITY, and ALPINE
 - Timeframes: 4h, 1d, 1w, and 1M
 - Minimum timeframe: 4h
 - Core workflow: scan 4h, confirm with 1d, optionally inspect 1w and 1M
@@ -520,6 +520,9 @@ Only include symbols where:
 Exclude:
 
 - Stablecoin pairs
+- Fiat-like and commodity-like pairs
+- Wrapped/staking duplicate assets
+- Fan tokens
 - Leveraged tokens
 - Inverse/UP/DOWN/BULL/BEAR tokens
 - Very low liquidity pairs if they appear in the top list accidentally
@@ -531,12 +534,51 @@ const EXCLUDED_BASE_ASSETS = new Set([
   "USDC",
   "FDUSD",
   "TUSD",
+  "BUSD",
   "DAI",
   "USDP",
-  "BUSD",
+  "USDD",
+  "RLUSD",
+  "BFUSD",
+  "XUSD",
+  "USD1",
+  "USDE",
+  "SUSDE",
+  "FRAX",
+  "PAXG",
+  "XAUT",
   "EUR",
+  "EURI",
   "AEUR",
+  "BRL",
+  "TRY",
+  "UAH",
+  "ZAR",
+  "IDRT",
+  "BIDR",
+  "U",
   "PAX",
+  "WBTC",
+  "WBETH",
+  "BNSOL",
+]);
+```
+
+Fan-token bases to exclude:
+
+```ts
+const EXCLUDED_FAN_TOKEN_BASE_ASSETS = new Set([
+  "PSG",
+  "ATM",
+  "PORTO",
+  "LAZIO",
+  "SANTOS",
+  "ASR",
+  "ACM",
+  "BAR",
+  "JUV",
+  "CITY",
+  "ALPINE",
 ]);
 ```
 
@@ -1295,10 +1337,12 @@ Route:
 Layout:
 
 ```txt
-Left: filters
-Center: result table
-Right: selected symbol summary
+Left: compact filter rail, 260-280px
+Center: dense result table, flexible width
+Right: selected symbol inspector, 340-380px
 ```
+
+The scanner page is a desktop-first compact technical workbench. The table is the main product surface. The top diagnostics are a compact status bar, the table scrolls independently with a sticky header, and the left filter rail plus right inspector remain visible during desktop table scanning. Full scans can process all eligible symbols while the default display count remains 50.
 
 ### 14.2 Filters
 
@@ -1322,19 +1366,18 @@ Support:
 
 Required:
 
-- Rank
+- #
 - Symbol
-- Phase
-- Opportunity
-- Confirmation
-- Risk
+- Setup / Phase
+- Signal
 - Rank Score
+- O/C/R compact score
 - RSI
-- BB Width Percentile
-- Volume Ratio
+- BB%
+- Volume ratio
 - MACD status
-- MA Status
-- Warnings
+- Compact MA Status
+- Compact warning count
 
 ### 14.4 Selected symbol panel
 
@@ -1342,13 +1385,15 @@ When clicking a row, show:
 
 - Symbol
 - Phase
-- Opportunity score
-- Confirmation score
-- Risk score
+- Signal
+- Rank, opportunity, confirmation, and risk score strip
+- Compact market metrics
+- Volume context
 - Reasons
 - Warnings
 - Next confirmation
 - Invalidation
+- Data quality
 
 ### 14.5 UI states
 

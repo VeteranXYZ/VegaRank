@@ -240,6 +240,27 @@ describe("scanner scoring", () => {
     expect(scores.opportunityScore).toBeLessThanOrEqual(50);
   });
 
+  it("caps setup-only opportunity when confirmation is very low", () => {
+    const scores = calculateScannerScores({
+      snapshot: makeSnapshot({
+        close: 100,
+        ma20: 100,
+        ma50: 101,
+        ma200: null,
+        bbMiddle: 100,
+        bbUpper: 105,
+        widthPercentile: 10,
+        rsi14: 50,
+        volumeRatio: 0.9,
+      }),
+      sufficientHistory: true,
+      phase: "SQUEEZE",
+    });
+
+    expect(scores.confirmationScore).toBeLessThan(20);
+    expect(scores.opportunityScore).toBeLessThanOrEqual(80);
+  });
+
   it("treats squeeze volume dry-up as setup opportunity, not confirmation", () => {
     const scores = calculateScannerScores({
       snapshot: makeSnapshot({
@@ -631,6 +652,33 @@ describe("scanner signal labels", () => {
         riskScore: 80,
       }).state,
     ).toBe("WEAK");
+  });
+
+  it("does not label high-confirmation breakout attempts as neutral", () => {
+    const signal = deriveScannerSignal({
+      phase: "BREAKOUT_ATTEMPT",
+      opportunityScore: 55,
+      confirmationScore: 100,
+      riskScore: 0,
+      rankScore: 70,
+    });
+
+    expect(signal.state).toBe("WATCHLIST");
+    expect(signal.summary).toBe(
+      "Breakout attempt has volume and momentum confirmation, but follow-through is still needed.",
+    );
+  });
+
+  it("labels confirmed breakouts with strong confirmation and low risk as confirmed", () => {
+    expect(
+      deriveScannerSignal({
+        phase: "BREAKOUT_CONFIRMED",
+        opportunityScore: 35,
+        confirmationScore: 85,
+        riskScore: 20,
+        rankScore: 60,
+      }).state,
+    ).toBe("CONFIRMED");
   });
 });
 

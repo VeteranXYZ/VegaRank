@@ -71,6 +71,21 @@ function capOpportunityScore({
     cap = Math.min(cap, 40);
   }
 
+  if (confirmationScore < 20) {
+    cap = Math.min(cap, 80);
+  }
+
+  if (phase === "PULLBACK_HEALTHY" && confirmationScore < 25) {
+    cap = Math.min(cap, 85);
+  }
+
+  if (
+    (phase === "SQUEEZE" || phase === "BASE_BUILDING") &&
+    confirmationScore < 20
+  ) {
+    cap = Math.min(cap, 80);
+  }
+
   if (
     snapshot.ma50 !== null &&
     snapshot.ma200 !== null &&

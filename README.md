@@ -141,7 +141,9 @@ This avoids regional restrictions that can affect `https://api.binance.com` in s
 Market filtering:
 
 - Includes `TRADING` spot markets quoted in `USDT`.
-- Excludes stablecoin, fiat-like, and unsuitable bases such as `USDC`, `FDUSD`, `TUSD`, `BUSD`, `DAI`, `USDP`, `USDD`, `RLUSD`, `USD1`, `USDE`, `SUSDE`, `EUR`, `EURI`, `AEUR`, `BRL`, `TRY`, `UAH`, `ZAR`, `IDRT`, `BIDR`, and `U`.
+- Excludes stablecoin, fiat-like, commodity-like, and unsuitable bases such as `USDC`, `FDUSD`, `TUSD`, `BUSD`, `DAI`, `USDP`, `USDD`, `RLUSD`, `BFUSD`, `XUSD`, `USD1`, `USDE`, `SUSDE`, `FRAX`, `PAXG`, `XAUT`, `EUR`, `EURI`, `AEUR`, `BRL`, `TRY`, `UAH`, `ZAR`, `IDRT`, `BIDR`, and `U`.
+- Excludes wrapped/staking duplicates such as `WBTC`, `WBETH`, and `BNSOL`.
+- Excludes fan tokens such as `PSG`, `ATM`, `PORTO`, `LAZIO`, `SANTOS`, `ASR`, `ACM`, `BAR`, `JUV`, `CITY`, and `ALPINE`.
 - Excludes leveraged token suffixes such as `UP`, `DOWN`, `BULL`, `BEAR`, `3L`, `3S`, `5L`, and `5S`, with explicit exceptions for legitimate symbols where needed.
 - Sorts by 24h quote volume.
 
@@ -254,9 +256,19 @@ Responses include:
 - `lastClosedCandleTime`
 - `failureSummary`
 
-The scan route defaults to the full eligible Binance Spot USDT universe with a hard safety cap of 600 symbols. `maxSymbols` is optional and only narrows the scan universe when explicitly provided. It is not the number of displayed result rows. Leave it empty, set it to `ALL` in the UI, or pass `maxSymbols=all` for full-market selection. The scan route uses `p-limit` with concurrency `5`. If one symbol fails, the route returns partial results and a small sampled `errors` array.
+The scan route defaults to the full eligible Binance Spot USDT universe with a hard safety cap of 600 symbols. `maxSymbols` is optional and only narrows the scan universe when explicitly provided. It is not the number of displayed result rows. Leave it empty, set it to `ALL` in the UI, or pass `maxSymbols=all` for full-market selection. The UI defaults to displaying 50 rows while still scanning the full eligible universe. The scan route uses `p-limit` with concurrency `5`. If one symbol fails, the route returns partial results and a small sampled `errors` array.
 
 Batch responses also include `batchMode`, `cursor`, `nextCursor`, `hasMore`, `batchSize`, `batchIndex`, `totalBatches`, `totalEligibleCount`, and `scannedInBatch`.
+
+## Scanner Workbench
+
+The `/scanner` page is a desktop-first compact technical workbench:
+
+- Dense three-column layout: filters, results table, and selected-symbol inspector.
+- Compact status bar shows source, mode, timeframe, scan progress, cache state, duration, and next refresh.
+- The table is the primary surface for comparing symbols; it uses compact rows, sticky headers, O/C/R score cells, warning counts, MACD status, and inline MA indicators.
+- The right inspector keeps detailed reasoning, warnings, volume context, next confirmation, invalidation, and data quality for the selected row.
+- Full-market scans can process all eligible symbols while the default visible row count remains 50.
 
 ## Cache
 

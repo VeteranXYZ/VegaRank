@@ -11,6 +11,7 @@ type SignalInput = {
   opportunityScore: number;
   confirmationScore: number;
   riskScore: number;
+  rankScore?: number;
 };
 
 export function deriveScannerSignal({
@@ -18,6 +19,7 @@ export function deriveScannerSignal({
   opportunityScore,
   confirmationScore,
   riskScore,
+  rankScore = 0,
 }: SignalInput): ScannerSignal {
   if (phase === "BREAKDOWN") {
     return {
@@ -37,13 +39,46 @@ export function deriveScannerSignal({
 
   if (
     phase === "BREAKOUT_CONFIRMED" &&
-    confirmationScore >= 70 &&
-    riskScore <= 40
+    confirmationScore >= 80 &&
+    riskScore <= 25
   ) {
     return {
       state: "CONFIRMED",
       label: scannerSignalLabels.CONFIRMED,
       summary: "Breakout has trend, momentum, and volume confirmation.",
+    };
+  }
+
+  if (
+    phase === "BREAKOUT_ATTEMPT" &&
+    rankScore >= 60 &&
+    confirmationScore >= 70 &&
+    riskScore <= 25
+  ) {
+    return {
+      state: "WATCHLIST",
+      label: scannerSignalLabels.WATCHLIST,
+      summary:
+        "Breakout attempt has volume and momentum confirmation, but follow-through is still needed.",
+    };
+  }
+
+  if (
+    (phase === "BREAKOUT_CONFIRMED" || phase === "TRENDING") &&
+    rankScore >= 60 &&
+    confirmationScore >= 70 &&
+    riskScore <= 25
+  ) {
+    return {
+      state: phase === "TRENDING" ? "TREND_CONTINUATION" : "WATCHLIST",
+      label:
+        phase === "TRENDING"
+          ? scannerSignalLabels.TREND_CONTINUATION
+          : scannerSignalLabels.WATCHLIST,
+      summary:
+        phase === "TRENDING"
+          ? "Trend structure remains constructive with manageable risk."
+          : "Breakout structure is constructive, but follow-through is still needed.",
     };
   }
 

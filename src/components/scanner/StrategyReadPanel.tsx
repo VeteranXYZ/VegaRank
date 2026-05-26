@@ -10,10 +10,10 @@ export function StrategyReadPanel({ result }: StrategyReadPanelProps) {
   const missingIndicators = result.dataQuality.missingIndicators;
 
   return (
-    <section className="rounded-md border border-[var(--border)] bg-[var(--panel)] p-4">
-      <h2 className="mb-4 text-lg font-semibold">{t.strategy.title}</h2>
+    <section className="rounded-md border border-[var(--border)] bg-[#0b0f14]/60 p-3">
+      <h2 className="mb-2 text-sm font-semibold">{t.strategy.title}</h2>
 
-      <div className="space-y-3">
+      <div className="space-y-2">
         <ReadBlock
           label={t.strategy.phaseRead}
           value={t.phase[result.phase]}
@@ -22,16 +22,19 @@ export function StrategyReadPanel({ result }: StrategyReadPanelProps) {
         <ReadBlock
           label={t.strategy.signalRead}
           value={t.signal[result.signal.state]}
-          text={t.strategy.signalRule[result.signal.state]}
+          text={getSignalReadText(result, t)}
         />
       </div>
 
-      <div className="mt-4 rounded-md border border-[var(--border)] bg-[#0b0f14] p-3">
-        <div className="text-sm font-semibold">{t.strategy.scoringModel}</div>
-        <p className="mt-2 text-sm leading-6 text-[var(--muted)]">
+      <div className="mt-3 border-t border-[var(--border)] pt-3">
+        <div className="text-xs font-semibold">{t.strategy.scoringModel}</div>
+        <p className="mt-1.5 text-xs leading-5 text-[var(--muted)]">
           {t.strategy.scoreWeights}
         </p>
-        <div className="mt-3 space-y-3">
+        <p className="mt-1.5 text-xs leading-5 text-[var(--muted)]">
+          {t.strategy.volumeContext}
+        </p>
+        <div className="mt-2 space-y-2">
           <ScoreRow
             label={t.scanner.columns.opportunity}
             value={result.opportunityScore}
@@ -51,26 +54,42 @@ export function StrategyReadPanel({ result }: StrategyReadPanelProps) {
         </div>
       </div>
 
-      <div className="mt-4 rounded-md border border-[var(--border)] bg-[#0b0f14] p-3">
-        <div className="flex items-center justify-between gap-3 text-sm">
+      <div className="mt-3 border-t border-[var(--border)] pt-3">
+        <div className="flex items-center justify-between gap-3 text-xs">
           <span className="font-semibold">{t.strategy.dataQuality}</span>
           <span className="tabular-nums text-[var(--muted)]">
             {result.dataQuality.candleCount} {t.strategy.candles}
           </span>
         </div>
-        <p className="mt-2 text-sm text-[var(--muted)]">
+        <p className="mt-1.5 text-xs text-[var(--muted)]">
           {result.dataQuality.sufficientHistory
             ? t.strategy.sufficientHistory
             : t.strategy.limitedHistory}
         </p>
         {missingIndicators.length > 0 && (
-          <p className="mt-2 text-sm text-[var(--warning)]">
+          <p className="mt-1.5 text-xs text-[var(--warning)]">
             {t.strategy.missingIndicators}: {missingIndicators.join(", ")}
           </p>
         )}
       </div>
     </section>
   );
+}
+
+function getSignalReadText(
+  result: ScanResult,
+  t: ReturnType<typeof useLanguage>["dictionary"],
+) {
+  if (
+    result.signal.state === "WATCHLIST" &&
+    result.phase === "BREAKOUT_ATTEMPT" &&
+    result.confirmationScore >= 70 &&
+    result.riskScore <= 25
+  ) {
+    return t.strategy.signalRuleBreakoutWatchlist;
+  }
+
+  return t.strategy.signalRule[result.signal.state];
 }
 
 function ReadBlock({
@@ -83,16 +102,16 @@ function ReadBlock({
   text: string;
 }) {
   return (
-    <div className="rounded-md border border-[var(--border)] bg-[#0b0f14] p-3">
-      <div className="flex flex-wrap items-center gap-2">
-        <span className="text-xs uppercase tracking-wide text-[var(--muted)]">
+    <div className="rounded border border-[var(--border)] bg-[#0b0f14]/80 px-2 py-1.5">
+      <div className="flex flex-wrap items-center gap-1.5">
+        <span className="text-[10px] uppercase tracking-wide text-[var(--muted)]">
           {label}
         </span>
-        <span className="rounded-md bg-[#101923] px-2 py-1 text-xs font-semibold">
+        <span className="rounded bg-[#101923] px-1.5 py-0.5 text-[11px] font-semibold">
           {value}
         </span>
       </div>
-      <p className="mt-2 text-sm leading-6 text-[var(--muted)]">{text}</p>
+      <p className="mt-1.5 text-xs leading-5 text-[var(--muted)]">{text}</p>
     </div>
   );
 }
@@ -112,11 +131,11 @@ function ScoreRow({
 
   return (
     <div>
-      <div className="mb-1 flex items-center justify-between gap-3 text-sm">
+      <div className="mb-1 flex items-center justify-between gap-3 text-xs">
         <span>{label}</span>
         <span className="tabular-nums text-[var(--muted)]">{value.toFixed(0)}</span>
       </div>
-      <div className="h-2 overflow-hidden rounded-full bg-[#111820]">
+      <div className="h-1.5 overflow-hidden rounded-full bg-[#111820]">
         <div
           className={`h-full rounded-full ${
             risk ? "bg-[var(--warning)]" : "bg-[var(--accent)]"
@@ -124,7 +143,7 @@ function ScoreRow({
           style={{ width }}
         />
       </div>
-      <p className="mt-1 text-xs leading-5 text-[var(--muted)]">{help}</p>
+      <p className="mt-1 text-[11px] leading-4 text-[var(--muted)]">{help}</p>
     </div>
   );
 }

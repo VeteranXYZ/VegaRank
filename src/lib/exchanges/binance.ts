@@ -13,12 +13,17 @@ const EXCLUDED_BASE_ASSETS = new Set([
   "USDP",
   "USDD",
   "RLUSD",
+  "BFUSD",
+  "XUSD",
   "USD1",
   "USDE",
   "SUSDE",
   "USDS",
   "USTC",
   "PYUSD",
+  "FRAX",
+  "PAXG",
+  "XAUT",
   "EUR",
   "EURI",
   "AEUR",
@@ -30,6 +35,23 @@ const EXCLUDED_BASE_ASSETS = new Set([
   "BIDR",
   "U",
   "PAX",
+  "WBTC",
+  "WBETH",
+  "BNSOL",
+]);
+
+const EXCLUDED_FAN_TOKEN_BASE_ASSETS = new Set([
+  "PSG",
+  "ATM",
+  "PORTO",
+  "LAZIO",
+  "SANTOS",
+  "ASR",
+  "ACM",
+  "BAR",
+  "JUV",
+  "CITY",
+  "ALPINE",
 ]);
 
 const LEVERAGED_SUFFIXES = ["DOWN", "BULL", "BEAR", "3L", "3S", "5L", "5S"];
@@ -267,7 +289,10 @@ export async function fetchCandlesFromBinance(
 }
 
 function isExcludedBaseAsset(baseAsset: string) {
-  if (EXCLUDED_BASE_ASSETS.has(baseAsset)) {
+  if (
+    EXCLUDED_BASE_ASSETS.has(baseAsset) ||
+    EXCLUDED_FAN_TOKEN_BASE_ASSETS.has(baseAsset)
+  ) {
     return true;
   }
 

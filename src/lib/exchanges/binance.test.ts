@@ -15,11 +15,35 @@ describe("Binance market eligibility", () => {
 
   it("excludes stablecoin, fiat-like, and leveraged base assets", async () => {
     const result = await getEligibleUsdtMarkets();
+    const symbols = result.markets.map((market) => market.symbol);
 
-    expect(result.markets.map((market) => market.symbol)).toEqual(["BTCUSDT"]);
-    expect(result.totalUsdtPairs).toBe(13);
+    expect(symbols).toEqual(["BTCUSDT"]);
+    expect(symbols).not.toEqual(
+      expect.arrayContaining([
+        "BFUSDUSDT",
+        "XUSDUSDT",
+        "PAXGUSDT",
+        "XAUTUSDT",
+        "FRAXUSDT",
+        "WBTCUSDT",
+        "WBETHUSDT",
+        "BNSOLUSDT",
+        "PSGUSDT",
+        "ATMUSDT",
+        "PORTOUSDT",
+        "LAZIOUSDT",
+        "SANTOSUSDT",
+        "ASRUSDT",
+        "ACMUSDT",
+        "BARUSDT",
+        "JUVUSDT",
+        "CITYUSDT",
+        "ALPINEUSDT",
+      ]),
+    );
+    expect(result.totalUsdtPairs).toBe(32);
     expect(result.eligibleCount).toBe(1);
-    expect(result.excludedStableOrLeveraged).toBe(12);
+    expect(result.excludedStableOrLeveraged).toBe(31);
   });
 });
 
@@ -31,6 +55,14 @@ function mockBinanceFetch(input: RequestInfo | URL) {
       symbols: [
         makeSymbol("BTCUSDT", "BTC"),
         makeSymbol("RLUSDUSDT", "RLUSD"),
+        makeSymbol("BFUSDUSDT", "BFUSD"),
+        makeSymbol("XUSDUSDT", "XUSD"),
+        makeSymbol("PAXGUSDT", "PAXG"),
+        makeSymbol("XAUTUSDT", "XAUT"),
+        makeSymbol("FRAXUSDT", "FRAX"),
+        makeSymbol("WBTCUSDT", "WBTC"),
+        makeSymbol("WBETHUSDT", "WBETH"),
+        makeSymbol("BNSOLUSDT", "BNSOL"),
         makeSymbol("UUSDT", "U"),
         makeSymbol("BRLUSDT", "BRL"),
         makeSymbol("TRYUSDT", "TRY"),
@@ -40,6 +72,17 @@ function mockBinanceFetch(input: RequestInfo | URL) {
         makeSymbol("BIDRUSDT", "BIDR"),
         makeSymbol("USDDUSDT", "USDD"),
         makeSymbol("SUSDEUSDT", "SUSDE"),
+        makeSymbol("PSGUSDT", "PSG"),
+        makeSymbol("ATMUSDT", "ATM"),
+        makeSymbol("PORTOUSDT", "PORTO"),
+        makeSymbol("LAZIOUSDT", "LAZIO"),
+        makeSymbol("SANTOSUSDT", "SANTOS"),
+        makeSymbol("ASRUSDT", "ASR"),
+        makeSymbol("ACMUSDT", "ACM"),
+        makeSymbol("BARUSDT", "BAR"),
+        makeSymbol("JUVUSDT", "JUV"),
+        makeSymbol("CITYUSDT", "CITY"),
+        makeSymbol("ALPINEUSDT", "ALPINE"),
         makeSymbol("ETHUPUSDT", "ETHUP"),
         makeSymbol("BTCDOWNUSDT", "BTCDOWN"),
       ],
@@ -50,6 +93,14 @@ function mockBinanceFetch(input: RequestInfo | URL) {
     return jsonResponse([
       { symbol: "BTCUSDT", quoteVolume: "1000000", priceChangePercent: "1" },
       { symbol: "RLUSDUSDT", quoteVolume: "1000000", priceChangePercent: "0" },
+      { symbol: "BFUSDUSDT", quoteVolume: "1000000", priceChangePercent: "0" },
+      { symbol: "XUSDUSDT", quoteVolume: "1000000", priceChangePercent: "0" },
+      { symbol: "PAXGUSDT", quoteVolume: "1000000", priceChangePercent: "0" },
+      { symbol: "XAUTUSDT", quoteVolume: "1000000", priceChangePercent: "0" },
+      { symbol: "FRAXUSDT", quoteVolume: "1000000", priceChangePercent: "0" },
+      { symbol: "WBTCUSDT", quoteVolume: "1000000", priceChangePercent: "0" },
+      { symbol: "WBETHUSDT", quoteVolume: "1000000", priceChangePercent: "0" },
+      { symbol: "BNSOLUSDT", quoteVolume: "1000000", priceChangePercent: "0" },
       { symbol: "UUSDT", quoteVolume: "1000000", priceChangePercent: "0" },
       { symbol: "BRLUSDT", quoteVolume: "1000000", priceChangePercent: "0" },
       { symbol: "TRYUSDT", quoteVolume: "1000000", priceChangePercent: "0" },
@@ -59,6 +110,17 @@ function mockBinanceFetch(input: RequestInfo | URL) {
       { symbol: "BIDRUSDT", quoteVolume: "1000000", priceChangePercent: "0" },
       { symbol: "USDDUSDT", quoteVolume: "1000000", priceChangePercent: "0" },
       { symbol: "SUSDEUSDT", quoteVolume: "1000000", priceChangePercent: "0" },
+      { symbol: "PSGUSDT", quoteVolume: "1000000", priceChangePercent: "0" },
+      { symbol: "ATMUSDT", quoteVolume: "1000000", priceChangePercent: "0" },
+      { symbol: "PORTOUSDT", quoteVolume: "1000000", priceChangePercent: "0" },
+      { symbol: "LAZIOUSDT", quoteVolume: "1000000", priceChangePercent: "0" },
+      { symbol: "SANTOSUSDT", quoteVolume: "1000000", priceChangePercent: "0" },
+      { symbol: "ASRUSDT", quoteVolume: "1000000", priceChangePercent: "0" },
+      { symbol: "ACMUSDT", quoteVolume: "1000000", priceChangePercent: "0" },
+      { symbol: "BARUSDT", quoteVolume: "1000000", priceChangePercent: "0" },
+      { symbol: "JUVUSDT", quoteVolume: "1000000", priceChangePercent: "0" },
+      { symbol: "CITYUSDT", quoteVolume: "1000000", priceChangePercent: "0" },
+      { symbol: "ALPINEUSDT", quoteVolume: "1000000", priceChangePercent: "0" },
       { symbol: "ETHUPUSDT", quoteVolume: "1000000", priceChangePercent: "0" },
       { symbol: "BTCDOWNUSDT", quoteVolume: "1000000", priceChangePercent: "0" },
     ]);

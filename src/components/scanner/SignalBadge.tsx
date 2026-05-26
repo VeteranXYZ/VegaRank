@@ -19,7 +19,7 @@ export function SignalBadge({ signal }: SignalBadgeProps) {
 
   return (
     <span
-      className={`inline-flex rounded-md border px-2 py-1 text-xs font-semibold ${signalToneClass[signal.state]}`}
+      className={`inline-flex h-5 items-center rounded border px-1.5 text-[11px] font-semibold leading-none ${signalToneClass[signal.state]}`}
       title={t.signalSummary[signal.state]}
     >
       {t.signal[signal.state]}
