@@ -396,7 +396,7 @@ const defaultScannerFilters: ScannerFiltersState = {
   minOpportunityScore: 0,
   maxRiskScore: 100,
   minQuoteVolume: 0,
-  maxSymbols: "ALL",
+  maxSymbols: 100,
   sortBy: "rankScore",
   limit: 50,
 };

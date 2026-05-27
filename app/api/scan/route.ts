@@ -22,9 +22,10 @@ import { getScannerStorageAdapter } from "@/lib/storage/storageAdapter";
 export const runtime = "nodejs";
 
 const MAX_ELIGIBLE_SCAN_SYMBOLS = 600;
-const DEFAULT_BATCH_SIZE = 35;
-const MAX_BATCH_SIZE = 40;
-const SCAN_CONCURRENCY = 5;
+const DEFAULT_BATCH_SIZE = 20;
+const MAX_BATCH_SIZE = 25;
+const SCAN_CONCURRENCY = 3;
+const DEFAULT_MAX_LIVE_SYMBOLS = 100;
 const SCAN_UNIVERSE = "all-eligible-usdt";
 type ScanTimeframe = Timeframe;
 const SUPPORTED_TIMEFRAMES = new Set<ScanTimeframe>(TIMEFRAMES);
@@ -45,6 +46,11 @@ type ScanPayload = {
   failedCount: number;
   minQuoteVolume: number;
   maxSymbols: number | null;
+  requestedAllSymbols?: boolean;
+  effectiveMaxSymbols?: number;
+  liveSymbolLimit?: number;
+  liveSymbolLimitApplied?: boolean;
+  truncatedForLiveScan?: boolean;
   capped: boolean;
   concurrency: number;
   durationMs: number;
@@ -110,11 +116,15 @@ export async function GET(request: Request) {
   try {
     const ttlMs = cacheTtls.scan[timeframe];
     const cacheTtlSeconds = Math.floor(ttlMs / 1000);
+    const liveLimit = getLiveSymbolLimitMeta({
+      source: source.value,
+      requestedMaxSymbols: maxSymbols.value,
+    });
     const cacheKey = cacheKeys.scan({
       source: source.value,
       timeframe,
       universe: SCAN_UNIVERSE,
-      maxSymbols: maxSymbols.value,
+      maxSymbols: liveLimit.effectiveMaxSymbols,
       minQuoteVolume: minQuoteVolume.value,
       batchMode,
       cursor: batchMode ? cursor.value : undefined,
@@ -138,7 +148,7 @@ export async function GET(request: Request) {
     const { settled, useLocal, marketStats, batch } = await scanMarkets({
       timeframe,
       source: source.value,
-      maxSymbols: maxSymbols.value,
+      maxSymbols: liveLimit.effectiveMaxSymbols,
       minQuoteVolume: minQuoteVolume.value,
       batch: batchMode ? { cursor: cursor.value, batchSize } : null,
     });
@@ -167,7 +177,12 @@ export async function GET(request: Request) {
       skippedCount,
       failedCount: errors.length,
       minQuoteVolume: minQuoteVolume.value,
-      maxSymbols: maxSymbols.value,
+      maxSymbols: liveLimit.effectiveMaxSymbols,
+      requestedAllSymbols: liveLimit.requestedAllSymbols,
+      effectiveMaxSymbols: liveLimit.effectiveMaxSymbols ?? undefined,
+      liveSymbolLimit: liveLimit.liveSymbolLimit,
+      liveSymbolLimitApplied: liveLimit.liveSymbolLimitApplied,
+      truncatedForLiveScan: liveLimit.truncatedForLiveScan,
       capped: marketStats.capped,
       concurrency: SCAN_CONCURRENCY,
       durationMs,
@@ -231,7 +246,19 @@ export async function GET(request: Request) {
     return NextResponse.json(
       {
         error: "Failed to scan Binance markets.",
-        message: "Remote scanner request failed.",
+        message: error instanceof Error ? error.message : "Remote scanner request failed.",
+        errorCode: "SCANNER_ROUTE_FAILED",
+        details: {
+          route: "/api/scan",
+          source: source.valid ? source.value : undefined,
+          timeframe,
+          maxSymbols: maxSymbols.valid ? maxSymbols.value : undefined,
+          minQuoteVolume: minQuoteVolume.valid ? minQuoteVolume.value : undefined,
+          batchMode,
+          cursor: cursor.valid ? cursor.value : undefined,
+          batchSize,
+          durationMs: Date.now() - startedAt,
+        },
       },
       { status: 502 },
     );
@@ -576,4 +603,37 @@ function parseCursor(value: string | null) {
   }
 
   return { valid: true as const, value: parsed };
+}
+
+function getLiveSymbolLimitMeta({
+  source,
+  requestedMaxSymbols,
+}: {
+  source: ScanSource;
+  requestedMaxSymbols: number | null;
+}) {
+  const liveSymbolLimit = getMaxLiveSymbols();
+  const requestedAllSymbols = requestedMaxSymbols === null;
+  const liveSymbolLimitApplied = source === "remote" && requestedAllSymbols;
+  const effectiveMaxSymbols = liveSymbolLimitApplied
+    ? liveSymbolLimit
+    : requestedMaxSymbols;
+
+  return {
+    requestedAllSymbols,
+    effectiveMaxSymbols,
+    liveSymbolLimit,
+    liveSymbolLimitApplied,
+    truncatedForLiveScan: liveSymbolLimitApplied,
+  };
+}
+
+function getMaxLiveSymbols() {
+  const parsed = Number(process.env.SCANNER_MAX_LIVE_SYMBOLS);
+
+  if (!Number.isInteger(parsed) || parsed < 1) {
+    return DEFAULT_MAX_LIVE_SYMBOLS;
+  }
+
+  return Math.min(parsed, MAX_ELIGIBLE_SCAN_SYMBOLS);
 }

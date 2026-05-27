@@ -49,17 +49,25 @@ describe("scan API remote market universe", () => {
     expect(body.universe).toBe("all-eligible-usdt");
     expect(body.scannedMarketCount).toBe(0);
     expect(getEligibleUsdtMarketsMock).toHaveBeenCalledWith({
-      maxSymbols: null,
+      maxSymbols: 100,
       minQuoteVolume: 0,
       safetyCap: 600,
     });
+    expect(body).toMatchObject({
+      requestedAllSymbols: true,
+      effectiveMaxSymbols: 100,
+      liveSymbolLimit: 100,
+      liveSymbolLimitApplied: true,
+      truncatedForLiveScan: true,
+    });
   });
 
-  it("does not default to a Top 50 or Top 100 market cap", async () => {
+  it("limits remote ALL live scans to the configured top symbol count", async () => {
+    vi.stubEnv("SCANNER_MAX_LIVE_SYMBOLS", "75");
     await GET(new Request("http://localhost/api/scan?timeframe=4h"));
 
     expect(getEligibleUsdtMarketsMock).toHaveBeenCalledWith(
-      expect.objectContaining({ maxSymbols: null }),
+      expect.objectContaining({ maxSymbols: 75 }),
     );
   });
 
@@ -74,14 +82,18 @@ describe("scan API remote market universe", () => {
     );
   });
 
-  it("treats maxSymbols=all as the full eligible universe", async () => {
-    await GET(
+  it("marks maxSymbols=all as truncated for Cloudflare live scan safety", async () => {
+    const response = await GET(
       new Request("http://localhost/api/scan?timeframe=4h&maxSymbols=all"),
     );
+    const body = await response.json();
 
     expect(getEligibleUsdtMarketsMock).toHaveBeenCalledWith(
-      expect.objectContaining({ maxSymbols: null }),
+      expect.objectContaining({ maxSymbols: 100 }),
     );
+    expect(body.requestedAllSymbols).toBe(true);
+    expect(body.effectiveMaxSymbols).toBe(100);
+    expect(body.liveSymbolLimitApplied).toBe(true);
   });
 
   it("passes minQuoteVolume into the remote universe filter", async () => {
@@ -194,7 +206,7 @@ describe("scan API remote market universe", () => {
       skippedCount: 1,
       failedCount: 2,
       cached: false,
-      concurrency: 5,
+      concurrency: 3,
       capped: true,
       minQuoteVolume: 0,
       usesClosedCandles: true,
@@ -235,7 +247,7 @@ describe("scan API remote market universe", () => {
 
     const response = await GET(
       new Request(
-        "http://localhost/api/scan?timeframe=4h&batchMode=true&batchSize=35&cursor=35",
+        "http://localhost/api/scan?timeframe=4h&batchMode=true&batchSize=20&cursor=20",
       ),
     );
     const body = await response.json();
@@ -243,23 +255,23 @@ describe("scan API remote market universe", () => {
     expect(response.status).toBe(200);
     expect(body).toMatchObject({
       batchMode: true,
-      cursor: 35,
-      nextCursor: 70,
+      cursor: 20,
+      nextCursor: 40,
       hasMore: true,
-      batchSize: 35,
+      batchSize: 20,
       batchIndex: 2,
-      totalBatches: 3,
+      totalBatches: 4,
       totalEligibleCount: 80,
-      scannedInBatch: 35,
-      scannedCount: 35,
+      scannedInBatch: 20,
+      scannedCount: 20,
       eligibleCount: 80,
     });
-    expect(scanMarketMock).toHaveBeenCalledTimes(35);
-    expect(scanMarketMock).toHaveBeenCalledWith("COIN35USDT", "4h");
-    expect(scanMarketMock).toHaveBeenLastCalledWith("COIN69USDT", "4h");
+    expect(scanMarketMock).toHaveBeenCalledTimes(20);
+    expect(scanMarketMock).toHaveBeenCalledWith("COIN20USDT", "4h");
+    expect(scanMarketMock).toHaveBeenLastCalledWith("COIN39USDT", "4h");
   });
 
-  it("defaults batchSize to 35 in batch mode", async () => {
+  it("defaults batchSize to 20 in batch mode", async () => {
     const markets = Array.from({ length: 36 }, (_, index) => ({
       exchange: "binance",
       symbol: `DEF${index}USDT`,
@@ -282,13 +294,13 @@ describe("scan API remote market universe", () => {
     const body = await response.json();
 
     expect(response.status).toBe(200);
-    expect(body.batchSize).toBe(35);
-    expect(body.nextCursor).toBe(35);
+    expect(body.batchSize).toBe(20);
+    expect(body.nextCursor).toBe(20);
     expect(body.hasMore).toBe(true);
-    expect(scanMarketMock).toHaveBeenCalledTimes(35);
+    expect(scanMarketMock).toHaveBeenCalledTimes(20);
   });
 
-  it("clamps batchSize above 40 to the Cloudflare Free safe maximum", async () => {
+  it("clamps batchSize above 25 to the Cloudflare Free safe maximum", async () => {
     const markets = Array.from({ length: 50 }, (_, index) => ({
       exchange: "binance",
       symbol: `SAFE${index}USDT`,
@@ -313,9 +325,9 @@ describe("scan API remote market universe", () => {
     const body = await response.json();
 
     expect(response.status).toBe(200);
-    expect(body.batchSize).toBe(40);
-    expect(body.scannedInBatch).toBe(40);
-    expect(scanMarketMock).toHaveBeenCalledTimes(40);
+    expect(body.batchSize).toBe(25);
+    expect(body.scannedInBatch).toBe(25);
+    expect(scanMarketMock).toHaveBeenCalledTimes(25);
   });
 
   it("classifies platform subrequest failures separately from indicator failures", async () => {

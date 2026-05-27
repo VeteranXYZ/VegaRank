@@ -30,6 +30,11 @@ type ScanApiResponse = {
   failedCount?: number;
   minQuoteVolume?: number;
   maxSymbols?: number | null;
+  requestedAllSymbols?: boolean;
+  effectiveMaxSymbols?: number;
+  liveSymbolLimit?: number;
+  liveSymbolLimitApplied?: boolean;
+  truncatedForLiveScan?: boolean;
   capped?: boolean;
   concurrency?: number;
   durationMs?: number;
@@ -59,6 +64,11 @@ type ScanApiResponse = {
   scannedMarketCount?: number;
   displayLimit?: number;
   errors?: { symbol: string; message: string }[];
+  batchWarnings?: Array<{
+    code: string;
+    message: string;
+    cursor?: number;
+  }>;
   cached: boolean;
   updatedAt: string;
 };
@@ -149,7 +159,7 @@ export const initialScannerFilters: ScannerFiltersState = {
   minOpportunityScore: 0,
   maxRiskScore: 100,
   minQuoteVolume: 0,
-  maxSymbols: "ALL",
+  maxSymbols: 100,
   sortBy: "rankScore",
   limit: 50,
 };
@@ -458,6 +468,19 @@ export function ScanScopePanel({
         </div>
       )}
 
+      {data?.liveSymbolLimitApplied && (
+        <div className="mt-1 border border-[var(--warning)]/40 bg-[#1b1710] px-2 py-0.5 text-[10px] font-semibold text-[var(--warning)]">
+          Live scan limited to top {formatInteger(data.liveSymbolLimit)} symbols for
+          Cloudflare stability.
+        </div>
+      )}
+
+      {data?.batchWarnings && data.batchWarnings.length > 0 && (
+        <div className="mt-1 border border-[var(--warning)]/40 bg-[#1b1710] px-2 py-0.5 text-[10px] font-semibold text-[var(--warning)]">
+          Some later batches failed. Showing partial results from completed batches.
+        </div>
+      )}
+
       {progress && (
         <div className="mt-0.5 border border-[var(--border)] bg-[#0b0f14] px-2 py-0.5 text-[10px] text-[var(--muted)]">
           <span className="font-semibold text-[var(--foreground)]">
@@ -586,11 +609,11 @@ export async function fetchSingleTimeframeScan(
   return (await response.json()) as ScanApiResponse;
 }
 
-async function fetchBatchedSingleTimeframeScan(
+export async function fetchBatchedSingleTimeframeScan(
   filters: ScannerFiltersState,
   options: FetchScanOptions,
 ) {
-  const batchSize = 35;
+  const batchSize = 20;
   let cursor = 0;
   let response: ScanApiResponse | null = null;
   const responses: ScanApiResponse[] = [];
@@ -605,19 +628,48 @@ async function fetchBatchedSingleTimeframeScan(
         batchSize: String(batchSize),
         cursor: String(cursor),
       });
-      const batchResponse = await fetch(`/api/scan?${params.toString()}`, {
-        signal: options.signal,
-      });
+      let batchResponse: Response;
+
+      try {
+        batchResponse = await fetch(`/api/scan?${params.toString()}`, {
+          signal: options.signal,
+        });
+      } catch (error) {
+        if (isAbortError(error) || responses.length === 0) {
+          throw error;
+        }
+
+        return mergeBatchScanResponses(responses, [
+          {
+            code: "BATCH_REQUEST_FAILED",
+            message:
+              error instanceof Error
+                ? error.message
+                : "Scanner batch request failed.",
+            cursor,
+          },
+        ]);
+      }
 
       if (!batchResponse.ok) {
-        throw new Error(
-          await getScannerErrorMessage({
-            response: batchResponse,
-            fallback: "Scanner batch request failed.",
-            subrequestMessage:
-              "Cloudflare Free subrequest limit reached. Try a smaller batch size.",
-          }),
-        );
+        const message = await getScannerErrorMessage({
+          response: batchResponse,
+          fallback: "Scanner batch request failed.",
+          subrequestMessage:
+            "Cloudflare Free subrequest limit reached. Try a smaller batch size.",
+        });
+
+        if (responses.length === 0) {
+          throw new Error(message);
+        }
+
+        return mergeBatchScanResponses(responses, [
+          {
+            code: "BATCH_REQUEST_FAILED",
+            message,
+            cursor,
+          },
+        ]);
       }
 
       response = (await batchResponse.json()) as ScanApiResponse;
@@ -680,11 +732,11 @@ async function fetchMtfScan(
   return (await response.json()) as ScanApiResponse;
 }
 
-async function fetchBatchedMtfScan(
+export async function fetchBatchedMtfScan(
   filters: ScannerFiltersState,
   options: FetchScanOptions,
 ) {
-  const batchSize = 15;
+  const batchSize = 8;
   let cursor = 0;
   let response: ScanApiResponse | null = null;
   const responses: ScanApiResponse[] = [];
@@ -699,19 +751,48 @@ async function fetchBatchedMtfScan(
         batchSize: String(batchSize),
         cursor: String(cursor),
       });
-      const batchResponse = await fetch(`/api/scan/mtf?${params.toString()}`, {
-        signal: options.signal,
-      });
+      let batchResponse: Response;
+
+      try {
+        batchResponse = await fetch(`/api/scan/mtf?${params.toString()}`, {
+          signal: options.signal,
+        });
+      } catch (error) {
+        if (isAbortError(error) || responses.length === 0) {
+          throw error;
+        }
+
+        return mergeBatchScanResponses(responses, [
+          {
+            code: "BATCH_REQUEST_FAILED",
+            message:
+              error instanceof Error
+                ? error.message
+                : "MTF scanner batch request failed.",
+            cursor,
+          },
+        ]);
+      }
 
       if (!batchResponse.ok) {
-        throw new Error(
-          await getScannerErrorMessage({
-            response: batchResponse,
-            fallback: "MTF scanner batch request failed.",
-            subrequestMessage:
-              "Cloudflare Free subrequest limit reached. Try a smaller MTF batch size.",
-          }),
-        );
+        const message = await getScannerErrorMessage({
+          response: batchResponse,
+          fallback: "MTF scanner batch request failed.",
+          subrequestMessage:
+            "Cloudflare Free subrequest limit reached. Try a smaller MTF batch size.",
+        });
+
+        if (responses.length === 0) {
+          throw new Error(message);
+        }
+
+        return mergeBatchScanResponses(responses, [
+          {
+            code: "BATCH_REQUEST_FAILED",
+            message,
+            cursor,
+          },
+        ]);
       }
 
       response = (await batchResponse.json()) as ScanApiResponse;
@@ -753,7 +834,10 @@ export function shouldUseBatchedMtfScan(filters: ScannerFiltersState) {
   );
 }
 
-export function mergeBatchScanResponses(responses: ScanApiResponse[]) {
+export function mergeBatchScanResponses(
+  responses: ScanApiResponse[],
+  batchWarnings: ScanApiResponse["batchWarnings"] = [],
+) {
   if (responses.length === 0) {
     throw new Error("No scanner batches returned.");
   }
@@ -812,6 +896,10 @@ export function mergeBatchScanResponses(responses: ScanApiResponse[]) {
     ),
     failureSummary: mergeFailureSummaries(responses),
     errors: responses.flatMap((response) => response.errors ?? []).slice(0, 10),
+    batchWarnings: [
+      ...responses.flatMap((response) => response.batchWarnings ?? []),
+      ...batchWarnings,
+    ],
     results,
     itemCount: results.length,
     updatedAt: responses.at(-1)?.updatedAt ?? first.updatedAt,
@@ -820,6 +908,12 @@ export function mergeBatchScanResponses(responses: ScanApiResponse[]) {
       responses.map((response) => response.lastClosedCandleTime),
     ),
   } satisfies ScanApiResponse;
+}
+
+function isAbortError(error: unknown) {
+  return error instanceof DOMException
+    ? error.name === "AbortError"
+    : error instanceof Error && error.name === "AbortError";
 }
 
 function mergeFailureSummaries(responses: ScanApiResponse[]) {

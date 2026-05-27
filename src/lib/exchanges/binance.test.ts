@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { clearMemoryCache } from "@/lib/cache/memory";
-import { getEligibleUsdtMarkets } from "./binance";
+import { fetchBinance, getEligibleUsdtMarkets } from "./binance";
 
 describe("Binance market eligibility", () => {
   beforeEach(() => {
@@ -9,6 +9,7 @@ describe("Binance market eligibility", () => {
   });
 
   afterEach(() => {
+    vi.useRealTimers();
     vi.unstubAllGlobals();
     clearMemoryCache();
   });
@@ -50,6 +51,28 @@ describe("Binance market eligibility", () => {
     expect(result.totalUsdtPairs).toBe(35);
     expect(result.eligibleCount).toBe(4);
     expect(result.excludedStableOrLeveraged).toBe(31);
+  });
+
+  it("times out slow Binance requests with a clear message", async () => {
+    vi.useFakeTimers();
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((_input: RequestInfo | URL, init?: RequestInit) => {
+        return new Promise((_resolve, reject) => {
+          init?.signal?.addEventListener("abort", () => {
+            reject(Object.assign(new Error("aborted"), { name: "AbortError" }));
+          });
+        });
+      }),
+    );
+
+    const request = fetchBinance("/api/v3/exchangeInfo");
+    const expectation = expect(request).rejects.toThrow(
+      "Binance request timed out after 10000ms",
+    );
+    await vi.advanceTimersByTimeAsync(10_000);
+
+    await expectation;
   });
 });
 

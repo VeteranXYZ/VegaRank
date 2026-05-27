@@ -3,6 +3,7 @@ import { getOrSetCached } from "@/lib/cache/memory";
 import type { Candle, Market, Timeframe } from "./types";
 
 const BINANCE_REST_BASE_URL = "https://data-api.binance.vision";
+const DEFAULT_BINANCE_TIMEOUT_MS = 10_000;
 
 const EXCLUDED_BASE_ASSETS = new Set([
   "USDC",
@@ -308,8 +309,8 @@ function isSupportedUsdtSymbol(symbol: string) {
   return /^[A-Z0-9]+USDT$/.test(symbol);
 }
 
-async function fetchBinance<T>(path: string): Promise<T> {
-  const response = await fetch(`${BINANCE_REST_BASE_URL}${path}`, {
+export async function fetchBinance<T>(path: string): Promise<T> {
+  const response = await fetchWithTimeout(`${BINANCE_REST_BASE_URL}${path}`, {
     headers: {
       Accept: "application/json",
     },
@@ -318,12 +319,44 @@ async function fetchBinance<T>(path: string): Promise<T> {
 
   if (!response.ok) {
     const body = await response.text();
-    throw new Error(
-      `Binance request failed with ${response.status}: ${body || response.statusText}`,
-    );
+    const detail = body || response.statusText;
+
+    if (response.status === 429 || response.status === 418) {
+      throw new Error(`Binance rate limit error ${response.status}: ${detail}`);
+    }
+
+    if (response.status >= 500) {
+      throw new Error(`Binance temporary error ${response.status}: ${detail}`);
+    }
+
+    throw new Error(`Binance request failed with ${response.status}: ${detail}`);
   }
 
   return response.json() as Promise<T>;
+}
+
+export async function fetchWithTimeout(
+  input: RequestInfo | URL,
+  init: RequestInit = {},
+  timeoutMs = DEFAULT_BINANCE_TIMEOUT_MS,
+) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    return await fetch(input, {
+      ...init,
+      signal: controller.signal,
+    });
+  } catch (error) {
+    if (controller.signal.aborted) {
+      throw new Error(`Binance request timed out after ${timeoutMs}ms`);
+    }
+
+    throw error;
+  } finally {
+    clearTimeout(timeout);
+  }
 }
 
 function toCandle(kline: BinanceKline): Candle {

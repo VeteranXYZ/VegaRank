@@ -1,5 +1,8 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
+  fetchBatchedMtfScan,
+  fetchBatchedSingleTimeframeScan,
+  fetchSingleTimeframeScan,
   filterAndSortResults,
   getSignalSummary,
   getNextColumnSort,
@@ -20,6 +23,10 @@ import type {
 describe("scanner result filtering", () => {
   it("defaults the display count to 50 rows", () => {
     expect(initialScannerFilters.limit).toBe(50);
+  });
+
+  it("defaults the live scan range to 100 symbols instead of ALL", () => {
+    expect(initialScannerFilters.maxSymbols).toBe(100);
   });
 
   it("filters by signal before sorting the result set", () => {
@@ -243,10 +250,36 @@ describe("scanner signal summary", () => {
 });
 
 describe("scanner batched fetch helpers", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
   it("uses batched scan mode for full remote single-timeframe scans only", () => {
     expect(shouldUseBatchedScan(makeFilters({ maxSymbols: "ALL" }))).toBe(true);
     expect(shouldUseBatchedScan(makeFilters({ maxSymbols: 100 }))).toBe(false);
     expect(shouldUseBatchedScan(makeFilters({ mode: "mtf" }))).toBe(false);
+  });
+
+  it("requests maxSymbols=100 for the default single-timeframe scan", async () => {
+    const fetchMock = vi.fn().mockResolvedValueOnce(
+      jsonResponse({
+        exchange: "binance",
+        timeframe: "4h",
+        source: "remote",
+        results: [],
+        itemCount: 0,
+        cached: false,
+        updatedAt: "2026-05-25T10:00:00.000Z",
+      }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await fetchSingleTimeframeScan(initialScannerFilters, {});
+
+    const url = String(fetchMock.mock.calls[0][0]);
+    expect(url).toContain("/api/scan?");
+    expect(url).toContain("maxSymbols=100");
+    expect(url).not.toContain("batchMode=true");
   });
 
   it("uses batched MTF scan mode for full remote MTF scans only", () => {
@@ -450,6 +483,105 @@ describe("scanner batched fetch helpers", () => {
     expect(merged.mode).toBe("mtf");
     expect(merged.scannedCount).toBe(3);
   });
+
+  it("returns partial single-timeframe batch results when a later batch fails", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi
+        .fn()
+        .mockResolvedValueOnce(
+          jsonResponse(
+            makeBatchResponse({
+              results: [
+                makeResult({
+                  symbol: "AAAUSDT",
+                  signalState: "WATCHLIST",
+                  phase: "SQUEEZE",
+                  rankScore: 80,
+                }),
+              ],
+              hasMore: true,
+              nextCursor: 20,
+              batchIndex: 1,
+              totalBatches: 2,
+            }),
+          ),
+        )
+        .mockResolvedValueOnce(
+          jsonResponse({ message: "Second batch failed." }, 502),
+        ),
+    );
+
+    const result = await fetchBatchedSingleTimeframeScan(
+      makeFilters({ maxSymbols: "ALL" }),
+      {},
+    );
+
+    expect(result.results.map((item) => item.symbol)).toEqual(["AAAUSDT"]);
+    expect(result.batchWarnings).toEqual([
+      {
+        code: "BATCH_REQUEST_FAILED",
+        message: "Second batch failed.",
+        cursor: 20,
+      },
+    ]);
+  });
+
+  it("throws when the first single-timeframe batch fails", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValueOnce(jsonResponse({ message: "First batch failed." }, 502)),
+    );
+
+    await expect(
+      fetchBatchedSingleTimeframeScan(makeFilters({ maxSymbols: "ALL" }), {}),
+    ).rejects.toThrow("First batch failed.");
+  });
+
+  it("returns partial MTF batch results when a later batch fails", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi
+        .fn()
+        .mockResolvedValueOnce(
+          jsonResponse(
+            makeBatchResponse({
+              mode: "mtf",
+              preset: "short",
+              results: [
+                makeResult({
+                  symbol: "AAAUSDT",
+                  signalState: "WATCHLIST",
+                  phase: "SQUEEZE",
+                  rankScore: 80,
+                }),
+              ],
+              hasMore: true,
+              nextCursor: 8,
+              batchIndex: 1,
+              totalBatches: 2,
+            }),
+          ),
+        )
+        .mockResolvedValueOnce(
+          jsonResponse({ message: "Second MTF batch failed." }, 502),
+        ),
+    );
+
+    const result = await fetchBatchedMtfScan(
+      makeFilters({ mode: "mtf", maxSymbols: "ALL" }),
+      {},
+    );
+
+    expect(result.results.map((item) => item.symbol)).toEqual(["AAAUSDT"]);
+    expect(result.batchWarnings).toEqual([
+      {
+        code: "BATCH_REQUEST_FAILED",
+        message: "Second MTF batch failed.",
+        cursor: 8,
+      },
+    ]);
+  });
 });
 
 function makeFilters(
@@ -558,6 +690,60 @@ function makeResult({
       missingIndicators: [],
     },
   };
+}
+
+function makeBatchResponse(
+  overrides: Partial<{
+    mode: "mtf";
+    preset: "short";
+    results: ScanResult[];
+    hasMore: boolean;
+    nextCursor: number | null;
+    batchIndex: number;
+    totalBatches: number;
+  }> = {},
+) {
+  return {
+    exchange: "binance" as const,
+    timeframe: "4h" as const,
+    source: "remote" as const,
+    universe: "all-eligible-usdt",
+    eligibleCount: 2,
+    scannedCount: overrides.results?.length ?? 0,
+    scannedInBatch: overrides.results?.length ?? 0,
+    failedCount: 0,
+    skippedCount: 0,
+    cached: false,
+    cacheTtlSeconds: 3600,
+    cacheExpiresAt: "2026-05-25T11:00:00.000Z",
+    updatedAt: "2026-05-25T10:00:00.000Z",
+    durationMs: 100,
+    batchMode: true as const,
+    batchSize: 20,
+    batchIndex: overrides.batchIndex ?? 1,
+    totalBatches: overrides.totalBatches ?? 1,
+    totalEligibleCount: 2,
+    hasMore: overrides.hasMore ?? false,
+    nextCursor: overrides.nextCursor ?? null,
+    failureSummary: emptyFailureSummary(),
+    results: overrides.results ?? [],
+    itemCount: overrides.results?.length ?? 0,
+    ...(overrides.mode
+      ? {
+          mode: overrides.mode,
+          preset: overrides.preset,
+        }
+      : {}),
+  };
+}
+
+function jsonResponse(body: unknown, status = 200) {
+  return Promise.resolve(
+    new Response(JSON.stringify(body), {
+      status,
+      headers: { "Content-Type": "application/json" },
+    }),
+  );
 }
 
 function makeVolume(ratio20 = 1) {

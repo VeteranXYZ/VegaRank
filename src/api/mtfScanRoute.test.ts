@@ -47,6 +47,13 @@ describe("MTF scan API timeframe defaults", () => {
     expect(body.cacheTtlSeconds).toBeGreaterThanOrEqual(60 * 60);
     expect(body.usesClosedCandles).toBe(true);
     expect(body.lastClosedCandleTime).toBe(null);
+    expect(body).toMatchObject({
+      requestedAllSymbols: true,
+      effectiveMaxSymbols: 100,
+      liveSymbolLimit: 100,
+      liveSymbolLimitApplied: true,
+      truncatedForLiveScan: true,
+    });
     expect(body.failureSummary).toEqual({
       insufficientHistory: 0,
       fetchFailed: 0,
@@ -76,7 +83,7 @@ describe("MTF scan API timeframe defaults", () => {
 
     const response = await GET(
       new Request(
-        "http://localhost/api/scan/mtf?source=remote&preset=short&batchMode=true&batchSize=15&cursor=15",
+        "http://localhost/api/scan/mtf?source=remote&preset=short&batchMode=true&batchSize=8&cursor=8",
       ),
     );
     const body = await response.json();
@@ -88,25 +95,25 @@ describe("MTF scan API timeframe defaults", () => {
       primaryTimeframe: "4h",
       confirmationTimeframe: "1d",
       batchMode: true,
-      cursor: 15,
-      nextCursor: 30,
+      cursor: 8,
+      nextCursor: 16,
       hasMore: true,
-      batchSize: 15,
+      batchSize: 8,
       batchIndex: 2,
-      totalBatches: 3,
+      totalBatches: 5,
       totalEligibleCount: 40,
-      scannedInBatch: 15,
-      scannedCount: 15,
+      scannedInBatch: 8,
+      scannedCount: 8,
     });
-    expect(scanMarketMultiTimeframeMock).toHaveBeenCalledTimes(15);
-    expect(scanMarketMultiTimeframeMock).toHaveBeenCalledWith("MTF15USDT", "short");
+    expect(scanMarketMultiTimeframeMock).toHaveBeenCalledTimes(8);
+    expect(scanMarketMultiTimeframeMock).toHaveBeenCalledWith("MTF08USDT", "short");
     expect(scanMarketMultiTimeframeMock).toHaveBeenLastCalledWith(
-      "MTF29USDT",
+      "MTF15USDT",
       "short",
     );
   });
 
-  it("defaults MTF batchSize to 15", async () => {
+  it("defaults MTF batchSize to 8", async () => {
     const markets = Array.from({ length: 16 }, (_, index) => ({
       exchange: "binance",
       symbol: `DEFAULT${index}USDT`,
@@ -129,13 +136,13 @@ describe("MTF scan API timeframe defaults", () => {
     const body = await response.json();
 
     expect(response.status).toBe(200);
-    expect(body.batchSize).toBe(15);
-    expect(body.nextCursor).toBe(15);
+    expect(body.batchSize).toBe(8);
+    expect(body.nextCursor).toBe(8);
     expect(body.hasMore).toBe(true);
-    expect(scanMarketMultiTimeframeMock).toHaveBeenCalledTimes(15);
+    expect(scanMarketMultiTimeframeMock).toHaveBeenCalledTimes(8);
   });
 
-  it("clamps MTF batchSize above 20 to the safe maximum", async () => {
+  it("clamps MTF batchSize above 10 to the safe maximum", async () => {
     const markets = Array.from({ length: 30 }, (_, index) => ({
       exchange: "binance",
       symbol: `SAFE${index}USDT`,
@@ -160,9 +167,9 @@ describe("MTF scan API timeframe defaults", () => {
     const body = await response.json();
 
     expect(response.status).toBe(200);
-    expect(body.batchSize).toBe(20);
-    expect(body.scannedInBatch).toBe(20);
-    expect(scanMarketMultiTimeframeMock).toHaveBeenCalledTimes(20);
+    expect(body.batchSize).toBe(10);
+    expect(body.scannedInBatch).toBe(10);
+    expect(scanMarketMultiTimeframeMock).toHaveBeenCalledTimes(10);
   });
 
   it("classifies MTF subrequest limit failures separately", async () => {
