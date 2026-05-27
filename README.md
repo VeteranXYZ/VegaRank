@@ -77,14 +77,17 @@ Production mode on Cloudflare supports the remote Binance scanner:
 /api/scan/mtf?source=remote
 ```
 
-Remote Binance is the default and sufficient scanner source for Phase 1. The app is a private real-time scanner, not a paid database warehouse. D1, full candle warehousing, historical backfill, and persistent scan history are out of scope unless a future database backend is added. Cloudflare Workers should run with:
+Remote Binance remains the default scanner source for Cloudflare. Cached latest-scan
+JSON is feature-gated and disabled by default until a production cache reader is
+implemented. The app is a private real-time scanner and research tool, not a trading
+bot. Cloudflare Workers should run with:
 
 ```txt
 DISABLE_LOCAL_SQLITE=true
 DEPLOY_TARGET=cloudflare
 ```
 
-These values are set in `wrangler.jsonc`. Cloudflare production uses Remote Binance only; local SQLite code is isolated behind local Node.js branches. `source=local` returns a friendly `501` in Cloudflare production.
+These values are set in `wrangler.jsonc`. Cloudflare production uses Remote Binance only; local SQLite code is isolated behind local Node.js branches. `source=local` returns a friendly `501` in Cloudflare production. `source=cached` also returns a controlled `501` unless `NEXT_PUBLIC_SCANNER_ENABLE_CACHED_SOURCE=true` is explicitly enabled and a cache reader is implemented.
 
 Cloudflare commands:
 
@@ -100,15 +103,15 @@ D1 is not configured in `wrangler.jsonc` for Phase 1. The old migration workflow
 
 Cloudflare Workers Free can hit the external subrequest limit if one invocation scans hundreds of symbols. As a temporary Phase 1 solution, the Scanner UI processes full-market scans through sequential frontend batches:
 
-- API form: `/api/scan?source=remote&timeframe=4h&batchMode=true&batchSize=35&cursor=0`
-- MTF API form: `/api/scan/mtf?source=remote&preset=short&batchMode=true&batchSize=15&cursor=0`
-- Single-timeframe default batch size: `35`
-- Single-timeframe maximum API batch size: `40`
-- MTF default batch size: `15`
-- MTF maximum API batch size: `20`
+- API form: `/api/scan?source=remote&timeframe=4h&batchMode=true&batchSize=20&cursor=0`
+- MTF API form: `/api/scan/mtf?source=remote&preset=short&batchMode=true&batchSize=8&cursor=0`
+- Single-timeframe default batch size: `20`
+- Single-timeframe maximum API batch size: `25`
+- MTF default batch size: `8`
+- MTF maximum API batch size: `10`
 - The frontend requests one batch at a time, merges results, deduplicates by symbol/timeframe, then sorts by `rankScore`.
 
-MTF batches are smaller because each symbol needs candles for multiple timeframes. Numeric `maxSymbols` requests such as `maxSymbols=20` still use the normal single-call scan path. Workers Paid may remove the need for this batching later. D1, KV, R2, Queues, and Durable Objects are not required for this phase.
+MTF batches are smaller because each symbol needs candles for multiple timeframes. Numeric `maxSymbols` requests such as `maxSymbols=100` still use the normal single-call scan path. The `/scanner` UI defaults to `maxSymbols=100`; manual `ALL` live scans are capped by `SCANNER_MAX_LIVE_SYMBOLS` (default `100`) for Cloudflare stability. Workers Paid or a VPS background scanner may remove the need for this batching later. D1, KV, R2, Queues, and Durable Objects are not required for this phase.
 
 ### Historical Behavior Review
 
@@ -254,9 +257,9 @@ GET /api/candles?source=remote&symbol=BTCUSDT&timeframe=4h&limit=300
 GET /api/scan?source=remote&timeframe=4h
 GET /api/scan?source=remote&timeframe=4h&maxSymbols=200&minQuoteVolume=10000000
 GET /api/scan?source=remote&timeframe=4h&maxSymbols=all
-GET /api/scan?source=remote&timeframe=4h&batchMode=true&batchSize=35&cursor=0
+GET /api/scan?source=remote&timeframe=4h&batchMode=true&batchSize=20&cursor=0
 GET /api/scan/mtf?source=remote&preset=short
-GET /api/scan/mtf?source=remote&preset=short&batchMode=true&batchSize=15&cursor=0
+GET /api/scan/mtf?source=remote&preset=short&batchMode=true&batchSize=8&cursor=0
 ```
 
 Responses include:
@@ -274,7 +277,12 @@ Responses include:
 - `lastClosedCandleTime`
 - `failureSummary`
 
-The scan route defaults to the full eligible Binance Spot USDT universe with a hard safety cap of 600 symbols. `maxSymbols` is optional and only narrows the scan universe when explicitly provided. It is not the number of displayed result rows. Leave it empty, set it to `ALL` in the UI, or pass `maxSymbols=all` for full-market selection. The UI defaults to displaying 50 rows while still scanning the full eligible universe. The scan route uses `p-limit` with concurrency `5`. If one symbol fails, the route returns partial results and a small sampled `errors` array.
+The scan route defaults to remote Binance with a live-scan safety limit. Passing
+`maxSymbols=all` means "all within the current live safety cap" on Cloudflare-like
+runtime paths, not an unbounded all-market background job. The UI defaults to
+scanning the top 100 eligible symbols and displaying 50 rows. The single-timeframe
+scan route uses `p-limit` with concurrency `3`; MTF uses concurrency `2`. If one
+symbol fails, the route returns partial results and a small sampled `errors` array.
 
 Batch responses also include `batchMode`, `cursor`, `nextCursor`, `hasMore`, `batchSize`, `batchIndex`, `totalBatches`, `totalEligibleCount`, and `scannedInBatch`.
 
@@ -405,6 +413,89 @@ The evaluation job does not pull a full Binance history by itself. It evaluates
 signals only when future candles are already present in the local market-data store.
 The result is a statistical research record, not a trading recommendation or return
 guarantee.
+
+## Oracle VPS First Stage Runbook
+
+The Oracle VPS first stage is a local Node.js workflow for background market data
+sync, local scanner runs, signal persistence, forward evaluation, and latest-scan
+JSON export. It is intentionally separate from Cloudflare. Cloudflare `/scanner`
+continues to default to `source=remote`; cached latest JSON is disabled by default
+and should only be enabled after a real cache reader is wired.
+
+No trading API is used. There are no private Binance API keys, no order endpoints,
+and no automated trading behavior.
+
+Local market candles are stored in `.data/market-data.sqlite` by default. Set
+`MARKET_DATA_DB_PATH=/path/to/market-data.sqlite` to override this for a VPS or
+isolated test run. This preserves the existing market-data database path. Research
+signals and evaluations remain in `.data/scanner-research.sqlite` by default. The
+market-data schema now includes:
+
+- `market_candles`
+- `market_data_sync_jobs`
+
+The older local `candles` table is kept for compatibility. New sync writes use the
+structured `market_candles` table, while local scans read `market_candles` first
+and fall back to legacy `candles` rows when needed.
+
+`market_data_sync_jobs.status` uses `running`, `success`, `partial_success`,
+`failed`, and `skipped`. Sync summaries report `candlesFetched` as the number of
+rows returned by Binance, plus exact local `candlesInserted` and `candlesUpdated`
+counts from SQLite upsert checks. Duplicate candles do not create duplicate rows
+because `market_candles` has a unique key on `(market, source, symbol, timeframe,
+open_time)`.
+
+CLI commands:
+
+```bash
+npm run market:sync -- --universe=core --timeframe=4h --lookback=500
+npm run market:sync -- --symbol=BTCUSDT --timeframe=4h --lookback=500
+npm run market:sync -- --symbols=BTCUSDT,ETHUSDT --timeframes=4h,1d
+npm run market:stats
+npm run market:inspect -- --symbol=BTCUSDT --timeframe=4h --limit=20
+
+npm run scanner:run -- --source=local --symbol=BTCUSDT --timeframe=4h
+npm run scanner:run -- --source=local --universe=core --timeframe=4h
+npm run scanner:export-latest
+```
+
+Safety behavior:
+
+- `market:sync` requires `--symbol`, `--symbols`, or `--universe=core`.
+- It never defaults to all Binance markets.
+- `--lookback` is capped at `1000` candles.
+- A single symbol failure is recorded and reported without killing the whole job;
+  the command exits non-zero only if all requested pairs fail.
+- `scanner:run --source=local` reads only local SQLite `market_candles` data. It
+  does not request Binance. If local candles are insufficient, it skips the symbol
+  and prints a warning.
+- `research:evaluate` reads local market candles through the market-data store. It
+  does not perform market sync or remote backfill.
+
+`scanner:export-latest` writes stable JSON files for future Cloudflare cache
+reading:
+
+- `.data/public/latest-scan.json`
+- `.data/public/latest-scan-4h.json`
+- `.data/public/latest-scan-1d.json`
+
+These exports include `generatedAt`, `timeframe`, `scoringVersion`, `source`,
+`results`, `summary`, `warnings`, and `researchStats`. They intentionally omit
+secrets, absolute local paths, hostnames, and server metadata. If there are no scan
+records yet, the files contain a stable empty state instead of fake data.
+
+Example VPS separation:
+
+```cron
+15 */4 * * * cd /path/to/project && npm run market:sync -- --universe=core --timeframe=4h --lookback=500
+25 */4 * * * cd /path/to/project && npm run scanner:run -- --source=local --universe=core --timeframe=4h
+35 */4 * * * cd /path/to/project && npm run research:evaluate -- --horizon=24h --limit=200
+40 */4 * * * cd /path/to/project && npm run scanner:export-latest
+```
+
+The sync job, scanner job, evaluation job, and export job should remain separate.
+Cloudflare should not perform heavy all-market scans; the VPS background workflow is
+where larger local datasets should be accumulated.
 
 ## Known Limitations
 

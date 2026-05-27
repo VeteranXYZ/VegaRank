@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { isLocalSourceEnabledInUi } from "./sourceUi";
+import { isCachedSourceEnabledInUi, isLocalSourceEnabledInUi } from "./sourceUi";
 
 describe("scanner source UI", () => {
   afterEach(() => {
@@ -20,5 +20,12 @@ describe("scanner source UI", () => {
     vi.stubEnv("DEPLOY_TARGET", "cloudflare");
 
     expect(isLocalSourceEnabledInUi()).toBe(false);
+  });
+
+  it("hides cached source unless explicitly feature-gated on", () => {
+    expect(isCachedSourceEnabledInUi()).toBe(false);
+
+    vi.stubEnv("NEXT_PUBLIC_SCANNER_ENABLE_CACHED_SOURCE", "true");
+    expect(isCachedSourceEnabledInUi()).toBe(true);
   });
 });

@@ -118,6 +118,18 @@ describe("scan API remote market universe", () => {
     expect(body.error).toContain("Local SQLite storage is only available");
   });
 
+  it("returns a controlled response for feature-gated cached source", async () => {
+    const response = await GET(
+      new Request("http://localhost/api/scan?source=cached&timeframe=4h"),
+    );
+    const body = await response.json();
+
+    expect(response.status).toBe(501);
+    expect(body.errorCode).toBe("CACHED_SOURCE_UNAVAILABLE");
+    expect(body.results).toEqual([]);
+    expect(getEligibleUsdtMarketsMock).not.toHaveBeenCalled();
+  });
+
   it.each(["1h", "15m", "5m", "1m"])(
     "rejects unsupported lower timeframe %s",
     async (timeframe) => {

@@ -29,9 +29,9 @@ const DEFAULT_MAX_LIVE_SYMBOLS = 100;
 const SCAN_UNIVERSE = "all-eligible-usdt";
 type ScanTimeframe = Timeframe;
 const SUPPORTED_TIMEFRAMES = new Set<ScanTimeframe>(TIMEFRAMES);
-const SUPPORTED_SOURCES = new Set<ScanSource>(["remote", "local"]);
+const SUPPORTED_SOURCES = new Set<ScanSource>(["remote", "local", "cached"]);
 
-type ScanSource = "remote" | "local";
+type ScanSource = "remote" | "local" | "cached";
 
 type ScanPayload = {
   exchange: "binance";
@@ -107,6 +107,10 @@ export async function GET(request: Request) {
 
   if (!cursor.valid) {
     return NextResponse.json({ error: cursor.error }, { status: 400 });
+  }
+
+  if (source.value === "cached") {
+    return cachedSourceUnavailableResponse();
   }
 
   if (source.value === "local" && isLocalPersistenceDisabled()) {
@@ -272,7 +276,7 @@ async function persistResearchSignals({
 }: {
   payload: ScanPayload;
   updatedAt: string;
-  source: ScanSource;
+  source: Exclude<ScanSource, "cached">;
 }) {
   if (isLocalPersistenceDisabled()) {
     return;
@@ -525,11 +529,28 @@ function parseSource(value: string | null) {
   if (!SUPPORTED_SOURCES.has(source as ScanSource)) {
     return {
       valid: false as const,
-      error: "source must be remote or local.",
+      error: "source must be remote, local, or cached.",
     };
   }
 
   return { valid: true as const, value: source as ScanSource };
+}
+
+function cachedSourceUnavailableResponse() {
+  return NextResponse.json(
+    {
+      error: "Cached scanner source is not available.",
+      message:
+        "source=cached is feature-gated and no latest-scan JSON reader is configured in this deployment yet.",
+      errorCode: "CACHED_SOURCE_UNAVAILABLE",
+      source: "cached",
+      results: [],
+      itemCount: 0,
+      cached: false,
+      updatedAt: new Date().toISOString(),
+    },
+    { status: 501 },
+  );
 }
 
 function parseOptionalMaxSymbols(value: string | null) {

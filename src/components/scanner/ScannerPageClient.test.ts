@@ -29,6 +29,10 @@ describe("scanner result filtering", () => {
     expect(initialScannerFilters.maxSymbols).toBe(100);
   });
 
+  it("keeps the default scanner source remote", () => {
+    expect(initialScannerFilters.source).toBe("remote");
+  });
+
   it("filters by signal before sorting the result set", () => {
     const rows = filterAndSortResults(
       [

@@ -15,7 +15,12 @@
     "research:evaluate": "node scripts/run-ts.mjs scripts/research.ts evaluate",
     "research:prune": "node scripts/run-ts.mjs scripts/research.ts prune",
     "research:stats": "node scripts/run-ts.mjs scripts/research.ts stats",
-    "research:inspect": "node scripts/run-ts.mjs scripts/research.ts inspect"
+    "research:inspect": "node scripts/run-ts.mjs scripts/research.ts inspect",
+    "market:sync": "node scripts/run-ts.mjs scripts/market.ts sync",
+    "market:stats": "node scripts/run-ts.mjs scripts/market.ts stats",
+    "market:inspect": "node scripts/run-ts.mjs scripts/market.ts inspect",
+    "scanner:run": "node scripts/run-ts.mjs scripts/scanner.ts run",
+    "scanner:export-latest": "node scripts/run-ts.mjs scripts/scanner.ts export-latest"
   },
   "dependencies": {
     "@tanstack/react-query": "5.100.14",

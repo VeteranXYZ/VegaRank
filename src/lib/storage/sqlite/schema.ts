@@ -144,3 +144,97 @@ export function initializeScannerResearchSchema(db: DatabaseSync) {
       ON signal_forward_evaluations(signal_time);
   `);
 }
+
+export function initializeMarketDataSchema(db: DatabaseSync) {
+  db.exec(`
+    PRAGMA journal_mode = WAL;
+    PRAGMA foreign_keys = ON;
+
+    CREATE TABLE IF NOT EXISTS market_candles (
+      id TEXT PRIMARY KEY,
+      market TEXT NOT NULL DEFAULT 'spot',
+      source TEXT NOT NULL DEFAULT 'binance',
+      symbol TEXT NOT NULL,
+      timeframe TEXT NOT NULL,
+      open_time INTEGER NOT NULL,
+      close_time INTEGER NOT NULL,
+      open REAL NOT NULL,
+      high REAL NOT NULL,
+      low REAL NOT NULL,
+      close REAL NOT NULL,
+      volume REAL NOT NULL,
+      quote_volume REAL,
+      trade_count INTEGER,
+      taker_buy_base_volume REAL,
+      taker_buy_quote_volume REAL,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      UNIQUE(market, source, symbol, timeframe, open_time)
+    );
+
+    CREATE INDEX IF NOT EXISTS market_candles_symbol_timeframe_open_idx
+      ON market_candles(symbol, timeframe, open_time);
+    CREATE INDEX IF NOT EXISTS market_candles_source_symbol_timeframe_open_idx
+      ON market_candles(source, symbol, timeframe, open_time);
+    CREATE INDEX IF NOT EXISTS market_candles_timeframe_open_idx
+      ON market_candles(timeframe, open_time);
+
+    CREATE TABLE IF NOT EXISTS market_data_sync_jobs (
+      id TEXT PRIMARY KEY,
+      source TEXT NOT NULL DEFAULT 'binance',
+      universe TEXT,
+      symbols_json TEXT NOT NULL,
+      timeframe TEXT NOT NULL,
+      status TEXT NOT NULL,
+      started_at TEXT NOT NULL,
+      finished_at TEXT,
+      requested_symbols INTEGER NOT NULL DEFAULT 0,
+      synced_symbols INTEGER NOT NULL DEFAULT 0,
+      failed_symbols INTEGER NOT NULL DEFAULT 0,
+      candles_fetched INTEGER NOT NULL DEFAULT 0,
+      candles_inserted INTEGER NOT NULL DEFAULT 0,
+      candles_updated INTEGER NOT NULL DEFAULT 0,
+      error_message TEXT,
+      errors_json TEXT,
+      metadata_json TEXT
+    );
+
+    CREATE INDEX IF NOT EXISTS market_data_sync_jobs_started_at_idx
+      ON market_data_sync_jobs(started_at);
+    CREATE INDEX IF NOT EXISTS market_data_sync_jobs_status_idx
+      ON market_data_sync_jobs(status);
+    CREATE INDEX IF NOT EXISTS market_data_sync_jobs_timeframe_idx
+      ON market_data_sync_jobs(timeframe);
+  `);
+
+  ensureColumn(
+    db,
+    "market_data_sync_jobs",
+    "candles_inserted",
+    "INTEGER NOT NULL DEFAULT 0",
+  );
+  ensureColumn(
+    db,
+    "market_data_sync_jobs",
+    "candles_updated",
+    "INTEGER NOT NULL DEFAULT 0",
+  );
+  ensureColumn(db, "market_data_sync_jobs", "errors_json", "TEXT");
+}
+
+function ensureColumn(
+  db: DatabaseSync,
+  table: string,
+  column: string,
+  definition: string,
+) {
+  const rows = db.prepare(`PRAGMA table_info(${table})`).all() as Array<{
+    name: string;
+  }>;
+
+  if (rows.some((row) => row.name === column)) {
+    return;
+  }
+
+  db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);
+}

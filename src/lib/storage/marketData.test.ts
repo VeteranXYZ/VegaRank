@@ -8,12 +8,12 @@ describe("market data store", () => {
 
     try {
       store.upsertMarkets([makeMarket("BTCUSDT"), makeMarket("ETHUSDT")]);
-      store.upsertCandles({
+      const firstUpsert = store.upsertCandles({
         symbol: "btcusdt",
         timeframe: "4h",
         candles: [makeCandle(2, 102), makeCandle(1, 101), makeCandle(3, 103)],
       });
-      store.upsertCandles({
+      const secondUpsert = store.upsertCandles({
         symbol: "BTCUSDT",
         timeframe: "4h",
         candles: [makeCandle(2, 202)],
@@ -35,6 +35,8 @@ describe("market data store", () => {
         "ETHUSDT",
         "BTCUSDT",
       ]);
+      expect(firstUpsert).toEqual({ received: 3, inserted: 3, updated: 0 });
+      expect(secondUpsert).toEqual({ received: 1, inserted: 0, updated: 1 });
       expect(store.getCandles({ symbol: "BTCUSDT", timeframe: "4h" })).toEqual([
         makeCandle(1, 101),
         makeCandle(2, 202),
@@ -46,6 +48,9 @@ describe("market data store", () => {
       expect(
         store.getLatestCandleOpenTime({ symbol: "BTCUSDT", timeframe: "4h" }),
       ).toBe(3);
+      expect(
+        store.getLatestCandleTime({ symbol: "BTCUSDT", timeframe: "4h" }),
+      ).toBe(3);
       expect(store.getCandleStats({ symbol: "BTCUSDT", timeframe: "4h" })).toEqual(
         {
           firstOpenTime: 1,
@@ -54,6 +59,74 @@ describe("market data store", () => {
           candleCount: 3,
         },
       );
+      expect(
+        store.getCandleCoverage({ symbol: "BTCUSDT", timeframe: "4h" }),
+      ).toEqual({
+        firstOpenTime: 1,
+        lastOpenTime: 3,
+        lastCloseTime: 1_002,
+        candleCount: 3,
+      });
+      const job = store.createMarketDataSyncJob({
+        symbols: ["BTCUSDT"],
+        timeframe: "4h",
+        universe: "core",
+      });
+      expect(job.status).toBe("running");
+      const finishedJob = store.finishMarketDataSyncJob({
+        id: job.id,
+        status: "success",
+        syncedSymbols: 1,
+        candlesFetched: 3,
+        candlesInserted: 3,
+        candlesUpdated: 0,
+        errors: [],
+      });
+      expect(finishedJob).toMatchObject({
+        id: job.id,
+        status: "success",
+        syncedSymbols: 1,
+        candlesFetched: 3,
+        candlesInserted: 3,
+        candlesUpdated: 0,
+        errors: [],
+      });
+      expect(store.listMarketDataSyncJobs({ limit: 1 })[0]).toMatchObject({
+        id: job.id,
+        universe: "core",
+      });
+      const partialJob = store.createMarketDataSyncJob({
+        symbols: ["BTCUSDT", "ETHUSDT"],
+        timeframe: "4h",
+      });
+      const finishedPartialJob = store.finishMarketDataSyncJob({
+        id: partialJob.id,
+        status: "partial_success",
+        syncedSymbols: 1,
+        failedSymbols: 1,
+        candlesFetched: 3,
+        candlesInserted: 0,
+        candlesUpdated: 3,
+        errors: [
+          {
+            symbol: "ETHUSDT",
+            timeframe: "4h",
+            message: "Temporary market data error.",
+          },
+        ],
+      });
+      expect(finishedPartialJob).toMatchObject({
+        status: "partial_success",
+        syncedSymbols: 1,
+        failedSymbols: 1,
+        errors: [
+          {
+            symbol: "ETHUSDT",
+            timeframe: "4h",
+            message: "Temporary market data error.",
+          },
+        ],
+      });
       expect(
         store.getSyncState({ symbol: "BTCUSDT", timeframe: "4h" }),
       ).toMatchObject({

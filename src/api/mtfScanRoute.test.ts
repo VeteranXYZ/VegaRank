@@ -64,6 +64,18 @@ describe("MTF scan API timeframe defaults", () => {
     });
   });
 
+  it("returns a controlled response for feature-gated cached source", async () => {
+    const response = await GET(
+      new Request("http://localhost/api/scan/mtf?source=cached&preset=short"),
+    );
+    const body = await response.json();
+
+    expect(response.status).toBe(501);
+    expect(body.errorCode).toBe("CACHED_SOURCE_UNAVAILABLE");
+    expect(body.results).toEqual([]);
+    expect(getEligibleUsdtMarketsMock).not.toHaveBeenCalled();
+  });
+
   it("returns MTF batch metadata and scans only the requested slice", async () => {
     const markets = Array.from({ length: 40 }, (_, index) => ({
       exchange: "binance",

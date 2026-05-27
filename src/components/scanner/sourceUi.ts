@@ -10,3 +10,7 @@ export function isLocalSourceEnabledInUi() {
 
   return process.env.NODE_ENV !== "production";
 }
+
+export function isCachedSourceEnabledInUi() {
+  return process.env.NEXT_PUBLIC_SCANNER_ENABLE_CACHED_SOURCE === "true";
+}

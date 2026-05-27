@@ -6,7 +6,11 @@ import { useLanguage } from "@/components/providers/LanguageProvider";
 import { ScannerFilters, type ScannerSortKey } from "./ScannerFilters";
 import { ScannerTable } from "./ScannerTable";
 import { SelectedSymbolPanel } from "./SelectedSymbolPanel";
-import { isLocalSourceEnabledInUi, SCANNER_BUILD_MARKER } from "./sourceUi";
+import {
+  isCachedSourceEnabledInUi,
+  isLocalSourceEnabledInUi,
+  SCANNER_BUILD_MARKER,
+} from "./sourceUi";
 import { scannerSignalOrder } from "@/lib/shared/scannerConfig";
 import type { MtfPreset } from "@/lib/shared/scannerConfig";
 import type {
@@ -22,7 +26,7 @@ type ScanApiResponse = {
   mode?: "mtf";
   timeframe?: Timeframe;
   preset?: MtfPreset;
-  source?: "local" | "remote";
+  source?: "cached" | "local" | "remote";
   universe?: string;
   eligibleCount?: number;
   scannedCount?: number;
@@ -114,7 +118,7 @@ type FetchScanOptions = {
 };
 
 export type ScannerMode = "single" | "mtf";
-export type ScannerDataSource = "remote" | "local";
+export type ScannerDataSource = "remote" | "local" | "cached";
 export type TableSortKey =
   | "rank"
   | "symbol"
@@ -245,7 +249,9 @@ export function ScannerPageClient() {
             ·{" "}
             {(scanQuery.data?.source ?? filters.source) === "local"
               ? t.scanner.localSource
-              : t.scanner.remoteSource}
+              : (scanQuery.data?.source ?? filters.source) === "cached"
+                ? "Cached Latest"
+                : t.scanner.remoteSource}
           </span>
           <span>
             · {formatInteger(scanQuery.data?.scannedCount)} /{" "}
@@ -965,7 +971,11 @@ async function getScannerErrorMessage({
 }
 
 function normalizeFilters(filters: ScannerFiltersState): ScannerFiltersState {
-  if (isLocalSourceEnabledInUi()) {
+  if (filters.source === "cached" && !isCachedSourceEnabledInUi()) {
+    return { ...filters, source: "remote" };
+  }
+
+  if (filters.source !== "local" || isLocalSourceEnabledInUi()) {
     return filters;
   }
 

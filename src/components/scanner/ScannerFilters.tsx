@@ -8,7 +8,7 @@ import type { MarketPhase, ScannerSignalState } from "@/lib/shared/scannerTypes"
 import type { ScannerFiltersState } from "./ScannerPageClient";
 import { useLanguage } from "@/components/providers/LanguageProvider";
 import { TIMEFRAMES } from "@/lib/shared/timeframes";
-import { isLocalSourceEnabledInUi } from "./sourceUi";
+import { isCachedSourceEnabledInUi, isLocalSourceEnabledInUi } from "./sourceUi";
 
 export type ScannerSortKey =
   | "rankScore"
@@ -42,6 +42,7 @@ const signalOptions: Array<ScannerSignalState | "ALL"> = [
 export function ScannerFilters({ filters, onChange }: ScannerFiltersProps) {
   const { dictionary: t } = useLanguage();
   const localSourceEnabled = isLocalSourceEnabledInUi();
+  const cachedSourceEnabled = isCachedSourceEnabledInUi();
   const presets: Array<{ label: string; filters: ScannerFiltersState }> = [
     { label: t.scanner.resetView, filters: defaultScannerFilters },
     {
@@ -120,14 +121,21 @@ export function ScannerFilters({ filters, onChange }: ScannerFiltersProps) {
               {t.scanner.source}
             </span>
             <select
-              value={localSourceEnabled ? filters.source : "remote"}
-              disabled={!localSourceEnabled}
+              value={
+                filters.source === "local" && !localSourceEnabled
+                  ? "remote"
+                  : filters.source === "cached" && !cachedSourceEnabled
+                    ? "remote"
+                    : filters.source
+              }
+              disabled={!localSourceEnabled && !cachedSourceEnabled}
               onChange={(event) =>
                 update("source", event.target.value as ScannerFiltersState["source"])
               }
               className={`${controlClass} disabled:cursor-not-allowed disabled:opacity-70`}
             >
               <option value="remote">{t.scanner.remoteBinanceSource}</option>
+              {cachedSourceEnabled && <option value="cached">Cached Latest</option>}
               {localSourceEnabled && (
                 <option value="local">{t.scanner.localSyncedSource}</option>
               )}
