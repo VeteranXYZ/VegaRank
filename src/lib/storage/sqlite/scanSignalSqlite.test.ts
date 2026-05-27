@@ -1,7 +1,8 @@
-import { mkdir, writeFile } from "node:fs/promises";
+import { writeFile } from "node:fs/promises";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import type { ScanResult } from "@/lib/scanner/types";
+import { cleanupTestTempDir, createTestTempDir } from "@/lib/test/testTempDir";
 import { safeJsonParse } from "../json";
 import type { SignalForwardEvaluation } from "../scanEvaluation";
 import { toScanSignalRecords, toScanSnapshotRecord } from "../scanSignalModel";
@@ -102,49 +103,50 @@ describe("SQLite scanner research storage", () => {
   });
 
   it("migrates JSONL fixtures into SQLite idempotently", async () => {
-    const dir = path.join(
-      "/private/tmp",
-      `scanner-research-${Date.now()}-${Math.random()}`,
-    );
-    await mkdir(dir, { recursive: true });
+    const dir = await createTestTempDir("sqlite-research-migration");
     const dbPath = path.join(dir, "research.sqlite");
     const snapshotsFile = path.join(dir, "snapshots.jsonl");
     const signalsFile = path.join(dir, "signals.jsonl");
     const evaluationsFile = path.join(dir, "evaluations.jsonl");
-    const snapshot = toScanSnapshotRecord({
-      createdAt: "2026-05-25T00:00:00.000Z",
-      timeframe: "4h",
-      source: "local",
-      results: [makeResult()],
-    });
-    const [signal] = toScanSignalRecords({
-      snapshot,
-      results: [makeResult()],
-    });
-    const evaluation = makeEvaluation(signal.id, { outcomeLabel: "favorable" });
-    await writeFile(snapshotsFile, `${JSON.stringify(snapshot)}\n`, "utf8");
-    await writeFile(signalsFile, `${JSON.stringify(signal)}\n`, "utf8");
-    await writeFile(evaluationsFile, `${JSON.stringify(evaluation)}\n`, "utf8");
 
-    await migrateJsonlResearchToSqlite({
-      dbPath,
-      snapshotsFile,
-      signalsFile,
-      evaluationsFile,
-    });
-    await migrateJsonlResearchToSqlite({
-      dbPath,
-      snapshotsFile,
-      signalsFile,
-      evaluationsFile,
-    });
-
-    const store = new ScanSignalSqliteStore(dbPath);
     try {
-      expect(await store.listScanSignals({ limit: 10 })).toHaveLength(1);
-      expect(await store.listForwardEvaluations({ horizon: "24h" })).toHaveLength(1);
+      const snapshot = toScanSnapshotRecord({
+        createdAt: "2026-05-25T00:00:00.000Z",
+        timeframe: "4h",
+        source: "local",
+        results: [makeResult()],
+      });
+      const [signal] = toScanSignalRecords({
+        snapshot,
+        results: [makeResult()],
+      });
+      const evaluation = makeEvaluation(signal.id, { outcomeLabel: "favorable" });
+      await writeFile(snapshotsFile, `${JSON.stringify(snapshot)}\n`, "utf8");
+      await writeFile(signalsFile, `${JSON.stringify(signal)}\n`, "utf8");
+      await writeFile(evaluationsFile, `${JSON.stringify(evaluation)}\n`, "utf8");
+
+      await migrateJsonlResearchToSqlite({
+        dbPath,
+        snapshotsFile,
+        signalsFile,
+        evaluationsFile,
+      });
+      await migrateJsonlResearchToSqlite({
+        dbPath,
+        snapshotsFile,
+        signalsFile,
+        evaluationsFile,
+      });
+
+      const store = new ScanSignalSqliteStore(dbPath);
+      try {
+        expect(await store.listScanSignals({ limit: 10 })).toHaveLength(1);
+        expect(await store.listForwardEvaluations({ horizon: "24h" })).toHaveLength(1);
+      } finally {
+        store.close();
+      }
     } finally {
-      store.close();
+      await cleanupTestTempDir(dir);
     }
   });
 });

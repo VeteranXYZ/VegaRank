@@ -1,74 +1,86 @@
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import type { ScanResult } from "@/lib/scanner/types";
+import { cleanupTestTempDir, createTestTempDir } from "@/lib/test/testTempDir";
 import type { SignalForwardEvaluation } from "./scanEvaluation";
 import { getResearchStats } from "./researchStats";
 import { ScanSignalSqliteStore } from "./sqlite/scanSignalSqlite";
 
 describe("research stats", () => {
   it("handles an empty SQLite database", async () => {
-    const dbPath = tempDbPath("empty");
-    const stats = await getResearchStats({
-      storageMode: "sqlite",
-      sqliteDbPath: dbPath,
-    });
+    const dir = await createTestTempDir("research-stats-empty");
 
-    expect(stats.totalSignals).toBe(0);
-    expect(stats.latestEvaluationTime).toBeUndefined();
-    expect(stats.bySignalLabel).toEqual([]);
+    try {
+      const dbPath = path.join(dir, "research.sqlite");
+      const stats = await getResearchStats({
+        storageMode: "sqlite",
+        sqliteDbPath: dbPath,
+      });
+
+      expect(stats.totalSignals).toBe(0);
+      expect(stats.latestEvaluationTime).toBeUndefined();
+      expect(stats.bySignalLabel).toEqual([]);
+    } finally {
+      await cleanupTestTempDir(dir);
+    }
   });
 
   it("summarizes signals, evaluations, risk types, and scoring versions", async () => {
-    const dbPath = tempDbPath("records");
+    const dir = await createTestTempDir("research-stats-records");
+    const dbPath = path.join(dir, "research.sqlite");
     const store = new ScanSignalSqliteStore(dbPath);
 
     try {
-      const confirmed = await seedSignal(store, "confirmed", "BTCUSDT", []);
-      const distribution = await seedSignal(store, "distribution_risk", "ETHUSDT", [
-        "distribution_risk",
+      try {
+        const confirmed = await seedSignal(store, "confirmed", "BTCUSDT", []);
+        const distribution = await seedSignal(store, "distribution_risk", "ETHUSDT", [
+          "distribution_risk",
+        ]);
+        await store.saveForwardEvaluations([
+          makeEvaluation(confirmed.id, { outcomeLabel: "favorable" }),
+          makeEvaluation(distribution.id, {
+            outcomeLabel: "insufficient_data",
+            evaluationTime: null,
+            priceAtEvaluation: null,
+            returnPct: null,
+            maxReturnPct: null,
+            maxDrawdownPct: null,
+          }),
+        ]);
+      } finally {
+        store.close();
+      }
+
+      const stats = await getResearchStats({
+        storageMode: "sqlite",
+        sqliteDbPath: dbPath,
+      });
+
+      expect(stats.totalSignals).toBe(2);
+      expect(stats.totalEvaluations).toBe(2);
+      expect(stats.insufficientDataCount).toBe(1);
+      expect(stats.bySignalLabel).toEqual(
+        expect.arrayContaining([
+          { signalLabel: "confirmed", count: 1 },
+          { signalLabel: "distribution_risk", count: 1 },
+        ]),
+      );
+      expect(stats.byActionBias).toEqual(
+        expect.arrayContaining([
+          { actionBias: "eligible", count: 1 },
+          { actionBias: "avoid", count: 1 },
+        ]),
+      );
+      expect(stats.byRiskType).toEqual([
+        { riskType: "distribution_risk", count: 1 },
       ]);
-      await store.saveForwardEvaluations([
-        makeEvaluation(confirmed.id, { outcomeLabel: "favorable" }),
-        makeEvaluation(distribution.id, {
-          outcomeLabel: "insufficient_data",
-          evaluationTime: null,
-          priceAtEvaluation: null,
-          returnPct: null,
-          maxReturnPct: null,
-          maxDrawdownPct: null,
-        }),
-      ]);
+      expect(stats.scoringVersions[0]).toMatchObject({
+        scoringVersion: "explainable-v1",
+        count: 2,
+      });
     } finally {
-      store.close();
+      await cleanupTestTempDir(dir);
     }
-
-    const stats = await getResearchStats({
-      storageMode: "sqlite",
-      sqliteDbPath: dbPath,
-    });
-
-    expect(stats.totalSignals).toBe(2);
-    expect(stats.totalEvaluations).toBe(2);
-    expect(stats.insufficientDataCount).toBe(1);
-    expect(stats.bySignalLabel).toEqual(
-      expect.arrayContaining([
-        { signalLabel: "confirmed", count: 1 },
-        { signalLabel: "distribution_risk", count: 1 },
-      ]),
-    );
-    expect(stats.byActionBias).toEqual(
-      expect.arrayContaining([
-        { actionBias: "eligible", count: 1 },
-        { actionBias: "avoid", count: 1 },
-      ]),
-    );
-    expect(stats.byRiskType).toEqual([
-      { riskType: "distribution_risk", count: 1 },
-    ]);
-    expect(stats.scoringVersions[0]).toMatchObject({
-      scoringVersion: "explainable-v1",
-      count: 2,
-    });
   });
 });
 
@@ -207,11 +219,4 @@ function makeResult(overrides: Partial<ScanResult> = {}): ScanResult {
     },
     ...overrides,
   };
-}
-
-function tempDbPath(name: string) {
-  return path.join(
-    "/private/tmp",
-    `scanner-research-stats-${name}-${Date.now()}-${Math.random()}.sqlite`,
-  );
 }
