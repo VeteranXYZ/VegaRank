@@ -3,6 +3,7 @@ import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { Pool } from "pg";
 import Redis from "ioredis";
+import { PgMarketDataStore } from "@/lib/storage/postgres/marketDataPg";
 
 type ServiceCheck = {
   ok: boolean;
@@ -54,6 +55,16 @@ const server = http.createServer(async (request, response) => {
       };
 
       sendJson(response, payload.ok ? 200 : 503, payload);
+      return;
+    }
+
+    if (url.pathname === "/api/symbols") {
+      await handleSymbols(response, url);
+      return;
+    }
+
+    if (url.pathname === "/api/candles") {
+      await handleCandles(response, url);
       return;
     }
 
@@ -141,6 +152,108 @@ async function checkRedis(): Promise<ServiceCheck> {
   }
 }
 
+async function handleSymbols(response: http.ServerResponse, url: URL) {
+  const limit = parseBoundedInteger({
+    value: url.searchParams.get("limit"),
+    fallback: 500,
+    min: 1,
+    max: 1000,
+    name: "limit",
+  });
+
+  if (!limit.valid) {
+    sendJson(response, 400, { ok: false, service: serviceName, error: limit.error });
+    return;
+  }
+
+  const store = new PgMarketDataStore();
+
+  try {
+    const symbols = await store.listSymbols({ limit: limit.value });
+
+    sendJson(response, 200, {
+      ok: true,
+      service: serviceName,
+      source: "postgres",
+      symbols,
+      itemCount: symbols.length,
+    });
+  } catch (error) {
+    sendJson(response, 503, {
+      ok: false,
+      service: serviceName,
+      source: "postgres",
+      error: sanitizeConnectionError(error, "POSTGRES_UNAVAILABLE"),
+    });
+  } finally {
+    await store.close().catch(() => undefined);
+  }
+}
+
+async function handleCandles(response: http.ServerResponse, url: URL) {
+  const symbol = url.searchParams.get("symbol")?.trim().toUpperCase() ?? "";
+  const timeframe = url.searchParams.get("timeframe")?.trim() ?? "";
+  const limit = parseBoundedInteger({
+    value: url.searchParams.get("limit"),
+    fallback: 100,
+    min: 1,
+    max: 1000,
+    name: "limit",
+  });
+
+  if (!/^[A-Z0-9]{5,30}$/.test(symbol)) {
+    sendJson(response, 400, {
+      ok: false,
+      service: serviceName,
+      error: "INVALID_SYMBOL",
+    });
+    return;
+  }
+
+  if (!/^[A-Za-z0-9]{1,8}$/.test(timeframe)) {
+    sendJson(response, 400, {
+      ok: false,
+      service: serviceName,
+      error: "INVALID_TIMEFRAME",
+    });
+    return;
+  }
+
+  if (!limit.valid) {
+    sendJson(response, 400, { ok: false, service: serviceName, error: limit.error });
+    return;
+  }
+
+  const store = new PgMarketDataStore();
+
+  try {
+    const candles = await store.listCandles({
+      symbol,
+      timeframe,
+      limit: limit.value,
+    });
+
+    sendJson(response, 200, {
+      ok: true,
+      service: serviceName,
+      source: "postgres",
+      symbol,
+      timeframe,
+      candles,
+      itemCount: candles.length,
+    });
+  } catch (error) {
+    sendJson(response, 503, {
+      ok: false,
+      service: serviceName,
+      source: "postgres",
+      error: sanitizeConnectionError(error, "POSTGRES_UNAVAILABLE"),
+    });
+  } finally {
+    await store.close().catch(() => undefined);
+  }
+}
+
 function sanitizeConnectionError(error: unknown, fallbackCode: string): ServiceCheck {
   const code = getSafeErrorCode(error) ?? fallbackCode;
 
@@ -191,6 +304,35 @@ function parsePort(value: string) {
   }
 
   return parsed;
+}
+
+function parseBoundedInteger({
+  value,
+  fallback,
+  min,
+  max,
+  name,
+}: {
+  value: string | null;
+  fallback: number;
+  min: number;
+  max: number;
+  name: string;
+}) {
+  if (value === null || value === "") {
+    return { valid: true as const, value: fallback };
+  }
+
+  const parsed = Number(value);
+
+  if (!Number.isInteger(parsed) || parsed < min || parsed > max) {
+    return {
+      valid: false as const,
+      error: `${name.toUpperCase()}_OUT_OF_RANGE`,
+    };
+  }
+
+  return { valid: true as const, value: parsed };
 }
 
 function loadDotEnv() {

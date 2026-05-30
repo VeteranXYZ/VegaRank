@@ -19,6 +19,7 @@
     "research:stats": "node scripts/run-ts.mjs scripts/research.ts stats",
     "research:inspect": "node scripts/run-ts.mjs scripts/research.ts inspect",
     "market:sync": "node scripts/run-ts.mjs scripts/market.ts sync",
+    "market:sync:pg": "node scripts/run-ts.mjs scripts/market-sync-pg.ts",
     "market:stats": "node scripts/run-ts.mjs scripts/market.ts stats",
     "market:inspect": "node scripts/run-ts.mjs scripts/market.ts inspect",
     "scanner:run": "node scripts/run-ts.mjs scripts/scanner.ts run",

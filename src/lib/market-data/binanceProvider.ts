@@ -4,6 +4,7 @@ import type { Candle, Timeframe } from "@/lib/exchanges/types";
 const BINANCE_REST_BASE_URL = "https://data-api.binance.vision";
 const DEFAULT_KLINE_LIMIT = 500;
 const MAX_KLINE_LIMIT = 1000;
+export type BinanceKlineTimeframe = Timeframe | "1h";
 
 type BinanceKline = [
   number,
@@ -21,15 +22,16 @@ type BinanceKline = [
 ];
 
 const timeframeToBinanceInterval = {
+  "1h": "1h",
   "4h": "4h",
   "1d": "1d",
   "1w": "1w",
   "1M": "1M",
-} satisfies Record<Timeframe, string>;
+} satisfies Record<BinanceKlineTimeframe, string>;
 
 export type FetchBinanceKlinesOptions = {
   symbol: string;
-  timeframe: Timeframe;
+  timeframe: BinanceKlineTimeframe;
   limit?: number;
   startTime?: number;
   endTime?: number;
