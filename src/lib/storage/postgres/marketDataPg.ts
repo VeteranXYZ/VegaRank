@@ -187,6 +187,28 @@ export class PgMarketDataStore {
     return result.rows.map(toPgSymbol);
   }
 
+  async listSymbolsByNames(symbols: string[]) {
+    if (symbols.length === 0) {
+      return [];
+    }
+
+    const normalizedSymbols = symbols.map((symbol) => symbol.toUpperCase());
+    const result = await this.pool.query<SymbolRow>(
+      `
+        SELECT *
+        FROM symbols
+        WHERE exchange = 'binance'
+          AND market = 'spot'
+          AND is_enabled = true
+          AND symbol = ANY($1::text[])
+        ORDER BY COALESCE(quote_volume, 0) DESC, symbol ASC
+      `,
+      [normalizedSymbols],
+    );
+
+    return result.rows.map(toPgSymbol);
+  }
+
   async getSymbol(symbol: string) {
     const result = await this.pool.query<SymbolRow>(
       `
@@ -328,6 +350,18 @@ export class PgMarketDataStore {
     );
 
     return result.rows.map(toPgCandle);
+  }
+
+  async listCandlesForScan({
+    symbol,
+    timeframe,
+    limit,
+  }: {
+    symbol: string;
+    timeframe: string;
+    limit: number;
+  }) {
+    return this.listCandles({ symbol, timeframe, limit });
   }
 
   async getLatestCandleOpenTime({

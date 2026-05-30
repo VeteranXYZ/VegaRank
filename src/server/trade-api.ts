@@ -4,6 +4,7 @@ import path from "node:path";
 import { Pool } from "pg";
 import Redis from "ioredis";
 import { PgMarketDataStore } from "@/lib/storage/postgres/marketDataPg";
+import { PgScannerResultsStore } from "@/lib/storage/postgres/scannerResultsPg";
 
 type ServiceCheck = {
   ok: boolean;
@@ -70,6 +71,16 @@ const server = http.createServer(async (request, response) => {
 
     if (url.pathname === "/api/market-sync/jobs") {
       await handleMarketSyncJobs(response, url);
+      return;
+    }
+
+    if (url.pathname === "/api/scan/latest") {
+      await handleLatestScan(response, url);
+      return;
+    }
+
+    if (url.pathname === "/api/scan/runs") {
+      await handleScanRuns(response, url);
       return;
     }
 
@@ -282,6 +293,88 @@ async function handleMarketSyncJobs(response: http.ServerResponse, url: URL) {
       ok: true,
       count: jobs.length,
       jobs,
+    });
+  } catch (error) {
+    sendJson(response, 503, {
+      ok: false,
+      error: sanitizeConnectionError(error, "POSTGRES_UNAVAILABLE"),
+    });
+  } finally {
+    await store.close().catch(() => undefined);
+  }
+}
+
+async function handleLatestScan(response: http.ServerResponse, url: URL) {
+  const timeframe = url.searchParams.get("timeframe")?.trim() ?? "4h";
+  const limit = parseBoundedInteger({
+    value: url.searchParams.get("limit"),
+    fallback: 100,
+    min: 1,
+    max: 500,
+    name: "limit",
+  });
+
+  if (!/^[A-Za-z0-9]{1,8}$/.test(timeframe)) {
+    sendJson(response, 400, {
+      ok: false,
+      service: serviceName,
+      error: "INVALID_TIMEFRAME",
+    });
+    return;
+  }
+
+  if (!limit.valid) {
+    sendJson(response, 400, { ok: false, service: serviceName, error: limit.error });
+    return;
+  }
+
+  const store = new PgScannerResultsStore();
+
+  try {
+    const run = await store.getLatestScanRun({ timeframe });
+    const signals = run
+      ? await store.listLatestScanSignals({ scanRunId: run.id, limit: limit.value })
+      : [];
+
+    sendJson(response, 200, {
+      ok: true,
+      run,
+      signals,
+      count: signals.length,
+    });
+  } catch (error) {
+    sendJson(response, 503, {
+      ok: false,
+      error: sanitizeConnectionError(error, "POSTGRES_UNAVAILABLE"),
+    });
+  } finally {
+    await store.close().catch(() => undefined);
+  }
+}
+
+async function handleScanRuns(response: http.ServerResponse, url: URL) {
+  const limit = parseBoundedInteger({
+    value: url.searchParams.get("limit"),
+    fallback: 10,
+    min: 1,
+    max: 500,
+    name: "limit",
+  });
+
+  if (!limit.valid) {
+    sendJson(response, 400, { ok: false, service: serviceName, error: limit.error });
+    return;
+  }
+
+  const store = new PgScannerResultsStore();
+
+  try {
+    const runs = await store.listScanRuns({ limit: limit.value });
+
+    sendJson(response, 200, {
+      ok: true,
+      count: runs.length,
+      runs,
     });
   } catch (error) {
     sendJson(response, 503, {

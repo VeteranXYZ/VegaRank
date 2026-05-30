@@ -23,6 +23,7 @@
     "market:stats": "node scripts/run-ts.mjs scripts/market.ts stats",
     "market:inspect": "node scripts/run-ts.mjs scripts/market.ts inspect",
     "scanner:run": "node scripts/run-ts.mjs scripts/scanner.ts run",
+    "scanner:run:pg": "node scripts/run-ts.mjs scripts/scanner-run-pg.ts",
     "scanner:export-latest": "node scripts/run-ts.mjs scripts/scanner.ts export-latest"
   },
   "dependencies": {
