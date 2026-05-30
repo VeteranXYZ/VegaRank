@@ -68,6 +68,11 @@ const server = http.createServer(async (request, response) => {
       return;
     }
 
+    if (url.pathname === "/api/market-sync/jobs") {
+      await handleMarketSyncJobs(response, url);
+      return;
+    }
+
     sendJson(response, 404, {
       ok: false,
       service: serviceName,
@@ -247,6 +252,40 @@ async function handleCandles(response: http.ServerResponse, url: URL) {
       ok: false,
       service: serviceName,
       source: "postgres",
+      error: sanitizeConnectionError(error, "POSTGRES_UNAVAILABLE"),
+    });
+  } finally {
+    await store.close().catch(() => undefined);
+  }
+}
+
+async function handleMarketSyncJobs(response: http.ServerResponse, url: URL) {
+  const limit = parseBoundedInteger({
+    value: url.searchParams.get("limit"),
+    fallback: 10,
+    min: 1,
+    max: 100,
+    name: "limit",
+  });
+
+  if (!limit.valid) {
+    sendJson(response, 400, { ok: false, service: serviceName, error: limit.error });
+    return;
+  }
+
+  const store = new PgMarketDataStore();
+
+  try {
+    const jobs = await store.listMarketDataSyncJobs({ limit: limit.value });
+
+    sendJson(response, 200, {
+      ok: true,
+      count: jobs.length,
+      jobs,
+    });
+  } catch (error) {
+    sendJson(response, 503, {
+      ok: false,
       error: sanitizeConnectionError(error, "POSTGRES_UNAVAILABLE"),
     });
   } finally {

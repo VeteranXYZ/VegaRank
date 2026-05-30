@@ -49,6 +49,22 @@ export type MarketDataSyncJobUpdate = {
   errorMessage?: string | null;
 };
 
+export type MarketDataSyncJobRecord = {
+  id: string;
+  exchange: string;
+  market: string;
+  timeframe: string;
+  status: string;
+  symbolsTotal: number;
+  symbolsDone: number;
+  candlesInserted: number;
+  candlesUpdated: number;
+  errorMessage: string | null;
+  params: Record<string, unknown>;
+  startedAt: string;
+  finishedAt: string | null;
+};
+
 type SymbolRow = {
   id: string;
   exchange: string;
@@ -77,6 +93,26 @@ type CandleRow = {
   close: number | string;
   volume: number | string;
   quote_volume: number | string | null;
+};
+
+type LatestCandleRow = {
+  latest_open_time_ms: string | null;
+};
+
+type MarketDataSyncJobRow = {
+  id: string;
+  exchange: string;
+  market: string;
+  timeframe: string;
+  status: string;
+  symbols_total: number;
+  symbols_done: number;
+  candles_inserted: number;
+  candles_updated: number;
+  error_message: string | null;
+  params: Record<string, unknown>;
+  started_at: Date | string;
+  finished_at: Date | string | null;
 };
 
 type UpsertCandleRow = {
@@ -294,6 +330,29 @@ export class PgMarketDataStore {
     return result.rows.map(toPgCandle);
   }
 
+  async getLatestCandleOpenTime({
+    symbol,
+    timeframe,
+  }: {
+    symbol: string;
+    timeframe: string;
+  }) {
+    const result = await this.pool.query<LatestCandleRow>(
+      `
+        SELECT MAX(open_time_ms) AS latest_open_time_ms
+        FROM market_candles
+        WHERE exchange = 'binance'
+          AND market = 'spot'
+          AND symbol = $1
+          AND timeframe = $2
+      `,
+      [symbol.toUpperCase(), timeframe],
+    );
+
+    const latest = result.rows[0]?.latest_open_time_ms;
+    return latest === null || latest === undefined ? null : Number(latest);
+  }
+
   async createMarketDataSyncJob(input: MarketDataSyncJobInput) {
     await this.pool.query(
       `
@@ -334,6 +393,33 @@ export class PgMarketDataStore {
         input.errorMessage ?? null,
       ],
     );
+  }
+
+  async listMarketDataSyncJobs({ limit = 10 }: { limit?: number } = {}) {
+    const result = await this.pool.query<MarketDataSyncJobRow>(
+      `
+        SELECT
+          id,
+          exchange,
+          market,
+          timeframe,
+          status,
+          symbols_total,
+          symbols_done,
+          candles_inserted,
+          candles_updated,
+          error_message,
+          params,
+          started_at,
+          finished_at
+        FROM market_data_sync_jobs
+        ORDER BY started_at DESC
+        LIMIT $1
+      `,
+      [limit],
+    );
+
+    return result.rows.map(toMarketDataSyncJobRecord);
   }
 
   private async getSymbolForUpdate(client: PoolClient, symbol: string) {
@@ -384,6 +470,26 @@ function toPgCandle(row: CandleRow): PgCandle {
     close: Number(row.close),
     volume: Number(row.volume),
     quoteVolume: toNullableNumber(row.quote_volume) ?? undefined,
+  };
+}
+
+function toMarketDataSyncJobRecord(
+  row: MarketDataSyncJobRow,
+): MarketDataSyncJobRecord {
+  return {
+    id: row.id,
+    exchange: row.exchange,
+    market: row.market,
+    timeframe: row.timeframe,
+    status: row.status,
+    symbolsTotal: row.symbols_total,
+    symbolsDone: row.symbols_done,
+    candlesInserted: row.candles_inserted,
+    candlesUpdated: row.candles_updated,
+    errorMessage: row.error_message,
+    params: row.params ?? {},
+    startedAt: new Date(row.started_at).toISOString(),
+    finishedAt: row.finished_at ? new Date(row.finished_at).toISOString() : null,
   };
 }
 
