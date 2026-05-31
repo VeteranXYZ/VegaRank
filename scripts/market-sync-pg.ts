@@ -1,16 +1,20 @@
 import { randomUUID } from "node:crypto";
 import pLimit from "p-limit";
-import { getEligibleUsdtMarkets } from "@/lib/exchanges/binance";
-import type { Market } from "@/lib/exchanges/types";
 import {
   fetchBinanceKlines,
   type BinanceKlineTimeframe,
 } from "@/lib/market-data/binanceProvider";
+import { getBinancePublicBaseUrl } from "@/lib/market-data/binanceConfig";
+import {
+  isSymbolAssetClassFilter,
+  type SymbolAssetClassFilter,
+} from "@/lib/market-data/symbolClassification";
 import { acquireRedisLock } from "@/lib/cache/redisLock";
 import {
   MARKET_DATA_TIMEFRAMES,
   PgMarketDataStore,
   type MarketDataTimeframe,
+  type PgSymbol,
 } from "@/lib/storage/postgres/marketDataPg";
 
 type SyncOptions = {
@@ -18,8 +22,12 @@ type SyncOptions = {
   timeframes: MarketDataTimeframe[];
   candleLimit: number;
   marketLimit: number;
+  allSymbols: boolean;
+  assetClass: SymbolAssetClassFilter;
+  includeNonScanner: boolean;
   concurrency: number;
   confirmLargeSync: boolean;
+  baseUrl: string;
 };
 
 type TimeframeSyncSummary = {
@@ -36,7 +44,7 @@ type TimeframeSyncSummary = {
 
 const DEFAULT_MARKET_LIMIT = 5;
 const LARGE_SYNC_THRESHOLD = 25;
-const MAX_MARKET_LIMIT = 100;
+const MAX_MARKET_LIMIT = 500;
 const DEFAULT_CANDLE_LIMIT = 100;
 const MAX_CANDLE_LIMIT = 1000;
 const DEFAULT_CONCURRENCY = 3;
@@ -49,16 +57,14 @@ async function main() {
   const summaries: TimeframeSyncSummary[] = [];
 
   try {
-    const markets = await resolveMarkets(options);
+    const markets = await resolveMarkets({ store, options });
 
     if (markets.length === 0) {
-      throw new Error("No Binance Spot USDT symbols matched the sync request.");
+      throw new Error("No PostgreSQL symbols matched the sync request.");
     }
 
-    await store.upsertSymbols(markets);
-
     console.info(
-      `market:sync:pg resolved symbols=${markets.length} timeframes=${options.timeframes.join(",")} limit=${options.candleLimit}`,
+      `market:sync:pg resolved symbols=${markets.length} timeframes=${options.timeframes.join(",")} limit=${options.candleLimit} assetClass=${options.assetClass} includeNonScanner=${options.includeNonScanner} allSymbols=${options.allSymbols} baseUrl=${options.baseUrl}`,
     );
 
     for (const timeframe of options.timeframes) {
@@ -99,7 +105,7 @@ async function syncTimeframe({
   timeframe,
 }: {
   store: PgMarketDataStore;
-  markets: Market[];
+  markets: PgSymbol[];
   options: SyncOptions;
   timeframe: MarketDataTimeframe;
 }): Promise<TimeframeSyncSummary> {
@@ -160,9 +166,14 @@ async function syncTimeframe({
       params: {
         requestedSymbols: options.symbols,
         marketLimit: options.symbols.length === 0 ? options.marketLimit : null,
+        allSymbols: options.symbols.length === 0 ? options.allSymbols : false,
+        assetClass: options.assetClass,
+        includeNonScanner: options.includeNonScanner,
         candleLimit: options.candleLimit,
         concurrency: options.concurrency,
         incremental: true,
+        source: "binance",
+        baseUrl: options.baseUrl,
         lockKey,
       },
     });
@@ -273,18 +284,22 @@ async function syncTimeframe({
   }
 }
 
-async function resolveMarkets(options: SyncOptions): Promise<Market[]> {
-  if (options.symbols.length === 0) {
-    const { markets } = await getEligibleUsdtMarkets({
-      maxSymbols: options.marketLimit,
-      safetyCap: options.marketLimit,
-    });
-    return markets;
+async function resolveMarkets({
+  store,
+  options,
+}: {
+  store: PgMarketDataStore;
+  options: SyncOptions;
+}): Promise<PgSymbol[]> {
+  if (options.symbols.length > 0) {
+    return store.listSymbolsByNames(options.symbols);
   }
 
-  const requested = new Set(options.symbols);
-  const { markets } = await getEligibleUsdtMarkets({ maxSymbols: null });
-  return markets.filter((market) => requested.has(market.symbol));
+  return store.listSymbols({
+    limit: options.allSymbols ? null : options.marketLimit,
+    assetClass: options.assetClass,
+    includeNonScanner: options.includeNonScanner,
+  });
 }
 
 function parseOptions(args: string[]): SyncOptions {
@@ -298,12 +313,15 @@ function parseOptions(args: string[]): SyncOptions {
     name: "marketLimit",
   });
   const confirmLargeSync = flags.confirmLargeSync === "true";
+  const allSymbols = flags.allSymbols === "true";
+  const assetClass = parseAssetClass(flags.assetClass);
+  const includeNonScanner = flags.includeNonScanner === "true";
 
-  if (
-    symbols.length === 0 &&
-    marketLimit > LARGE_SYNC_THRESHOLD &&
-    !confirmLargeSync
-  ) {
+  if (symbols.length === 0 && allSymbols && !confirmLargeSync) {
+    throw new Error("--all-symbols requires --confirm-large-sync.");
+  }
+
+  if (symbols.length === 0 && marketLimit > LARGE_SYNC_THRESHOLD && !confirmLargeSync) {
     throw new Error(
       `marketLimit above ${LARGE_SYNC_THRESHOLD} requires --confirm-large-sync.`,
     );
@@ -320,6 +338,9 @@ function parseOptions(args: string[]): SyncOptions {
       name: "limit",
     }),
     marketLimit,
+    allSymbols,
+    assetClass,
+    includeNonScanner,
     concurrency: parseInteger({
       value: flags.concurrency,
       fallback: DEFAULT_CONCURRENCY,
@@ -328,6 +349,7 @@ function parseOptions(args: string[]): SyncOptions {
       name: "concurrency",
     }),
     confirmLargeSync,
+    baseUrl: getBinancePublicBaseUrl(),
   };
 }
 
@@ -390,6 +412,16 @@ function parseTimeframes(value: string | undefined): MarketDataTimeframe[] {
   }
 
   return timeframes as MarketDataTimeframe[];
+}
+
+function parseAssetClass(value: string | undefined): SymbolAssetClassFilter {
+  const assetClass = value?.trim().toLowerCase() ?? "crypto";
+
+  if (!isSymbolAssetClassFilter(assetClass)) {
+    throw new Error("asset-class must be one of crypto, stable, fiat, gold, special, all.");
+  }
+
+  return assetClass;
 }
 
 function parseInteger({

@@ -1,4 +1,8 @@
 import { PgMarketDataStore } from "@/lib/storage/postgres/marketDataPg";
+import {
+  isSymbolAssetClassFilter,
+  type SymbolAssetClassFilter,
+} from "@/lib/market-data/symbolClassification";
 
 const DEFAULT_LIMIT = 100;
 const MAX_LIMIT = 500;
@@ -6,6 +10,8 @@ const MAX_LIMIT = 500;
 async function main() {
   const flags = parseFlags(process.argv.slice(2));
   const timeframe = flags.timeframe ?? "4h";
+  const assetClass = parseAssetClass(flags.assetClass);
+  const includeNonScanner = flags.includeNonScanner === "true";
   const limit = parseInteger({
     value: flags.limit,
     fallback: DEFAULT_LIMIT,
@@ -19,11 +25,15 @@ async function main() {
     const { rows, summary } = await store.listMarketDataCoverage({
       timeframe,
       limit,
+      assetClass,
+      includeNonScanner,
     });
 
     printJson({
       ok: true,
       timeframe,
+      assetClass,
+      includeNonScanner,
       itemCount: rows.length,
       summary,
       rows,
@@ -40,6 +50,16 @@ async function main() {
   } finally {
     await store.close().catch(() => undefined);
   }
+}
+
+function parseAssetClass(value: string | undefined): SymbolAssetClassFilter {
+  const assetClass = value?.trim().toLowerCase() ?? "crypto";
+
+  if (!isSymbolAssetClassFilter(assetClass)) {
+    throw new Error("asset-class must be one of crypto, stable, fiat, gold, special, all.");
+  }
+
+  return assetClass;
 }
 
 function parseFlags(args: string[]) {

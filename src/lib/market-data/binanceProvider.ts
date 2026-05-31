@@ -1,7 +1,7 @@
 import { fetchWithTimeout } from "@/lib/exchanges/binance";
 import type { Candle, Timeframe } from "@/lib/exchanges/types";
+import { buildBinancePublicUrl } from "./binanceConfig";
 
-const BINANCE_REST_BASE_URL = "https://data-api.binance.vision";
 const DEFAULT_KLINE_LIMIT = 500;
 const MAX_KLINE_LIMIT = 1000;
 export type BinanceKlineTimeframe = Timeframe | "1h";
@@ -61,7 +61,7 @@ export async function fetchBinanceKlines({
   }
 
   const response = await fetchWithTimeout(
-    `${BINANCE_REST_BASE_URL}/api/v3/klines?${params.toString()}`,
+    buildBinancePublicUrl(`/api/v3/klines?${params.toString()}`),
     {
       headers: { Accept: "application/json" },
       cache: "no-store",

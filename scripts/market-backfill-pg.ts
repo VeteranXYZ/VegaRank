@@ -4,6 +4,11 @@ import {
   fetchBinanceKlines,
   type BinanceKlineTimeframe,
 } from "@/lib/market-data/binanceProvider";
+import { getBinancePublicBaseUrl } from "@/lib/market-data/binanceConfig";
+import {
+  isSymbolAssetClassFilter,
+  type SymbolAssetClassFilter,
+} from "@/lib/market-data/symbolClassification";
 import { acquireRedisLock } from "@/lib/cache/redisLock";
 import {
   MARKET_DATA_TIMEFRAMES,
@@ -19,8 +24,12 @@ type BackfillOptions = {
   batchLimit: number;
   maxBatches: number;
   marketLimit: number;
+  allSymbols: boolean;
+  assetClass: SymbolAssetClassFilter;
+  includeNonScanner: boolean;
   concurrency: number;
   confirmLargeSync: boolean;
+  baseUrl: string;
 };
 
 type SymbolBackfillResult = {
@@ -36,9 +45,9 @@ type SymbolBackfillResult = {
 
 const DEFAULT_MARKET_LIMIT = 5;
 const LARGE_SYNC_THRESHOLD = 25;
-const MAX_MARKET_LIMIT = 100;
+const MAX_MARKET_LIMIT = 500;
 const DEFAULT_TARGET_COUNT = 500;
-const MAX_TARGET_COUNT = 5000;
+const MAX_TARGET_COUNT = 50000;
 const DEFAULT_BATCH_LIMIT = 1000;
 const MAX_BATCH_LIMIT = 1000;
 const DEFAULT_MAX_BATCHES = 20;
@@ -80,11 +89,16 @@ async function main() {
       params: {
         mode: "backfill",
         targetCount: options.targetCount,
-        batchLimit: options.batchLimit,
-        maxBatches: options.maxBatches,
         requestedSymbols: options.symbols,
         marketLimit: options.symbols.length === 0 ? options.marketLimit : null,
+        allSymbols: options.symbols.length === 0 ? options.allSymbols : false,
+        assetClass: options.assetClass,
+        includeNonScanner: options.includeNonScanner,
         concurrency: options.concurrency,
+        batchLimit: options.batchLimit,
+        maxBatches: options.maxBatches,
+        source: "binance",
+        baseUrl: options.baseUrl,
         lockKey,
       },
     });
@@ -275,7 +289,11 @@ async function resolveSymbols({
     return store.listSymbolsByNames(options.symbols);
   }
 
-  return store.listSymbols({ limit: options.marketLimit });
+  return store.listSymbols({
+    limit: options.allSymbols ? null : options.marketLimit,
+    assetClass: options.assetClass,
+    includeNonScanner: options.includeNonScanner,
+  });
 }
 
 function parseOptions(args: string[]): BackfillOptions {
@@ -289,27 +307,35 @@ function parseOptions(args: string[]): BackfillOptions {
     name: "marketLimit",
   });
   const confirmLargeSync = flags.confirmLargeSync === "true";
+  const allSymbols = flags.allSymbols === "true";
+  const assetClass = parseAssetClass(flags.assetClass);
+  const includeNonScanner = flags.includeNonScanner === "true";
+  const targetCount = parseInteger({
+    value: flags.targetCount,
+    fallback: DEFAULT_TARGET_COUNT,
+    min: 1,
+    max: MAX_TARGET_COUNT,
+    name: "targetCount",
+  });
 
-  if (
-    symbols.length === 0 &&
-    marketLimit > LARGE_SYNC_THRESHOLD &&
-    !confirmLargeSync
-  ) {
+  if (symbols.length === 0 && allSymbols && !confirmLargeSync) {
+    throw new Error("--all-symbols requires --confirm-large-sync.");
+  }
+
+  if (symbols.length === 0 && marketLimit > LARGE_SYNC_THRESHOLD && !confirmLargeSync) {
     throw new Error(
       `marketLimit above ${LARGE_SYNC_THRESHOLD} requires --confirm-large-sync.`,
     );
   }
 
+  if (targetCount > 5000 && !confirmLargeSync) {
+    throw new Error("targetCount above 5000 requires --confirm-large-sync.");
+  }
+
   return {
     symbols,
     timeframe: parseTimeframe(flags.timeframe),
-    targetCount: parseInteger({
-      value: flags.targetCount,
-      fallback: DEFAULT_TARGET_COUNT,
-      min: 1,
-      max: MAX_TARGET_COUNT,
-      name: "targetCount",
-    }),
+    targetCount,
     batchLimit: parseInteger({
       value: flags.batchLimit ?? flags.limit,
       fallback: DEFAULT_BATCH_LIMIT,
@@ -325,6 +351,9 @@ function parseOptions(args: string[]): BackfillOptions {
       name: "maxBatches",
     }),
     marketLimit,
+    allSymbols,
+    assetClass,
+    includeNonScanner,
     concurrency: parseInteger({
       value: flags.concurrency,
       fallback: DEFAULT_CONCURRENCY,
@@ -333,6 +362,7 @@ function parseOptions(args: string[]): BackfillOptions {
       name: "concurrency",
     }),
     confirmLargeSync,
+    baseUrl: getBinancePublicBaseUrl(),
   };
 }
 
@@ -389,6 +419,16 @@ function parseTimeframe(value: string | undefined): MarketDataTimeframe {
   }
 
   return timeframe as MarketDataTimeframe;
+}
+
+function parseAssetClass(value: string | undefined): SymbolAssetClassFilter {
+  const assetClass = value?.trim().toLowerCase() ?? "crypto";
+
+  if (!isSymbolAssetClassFilter(assetClass)) {
+    throw new Error("asset-class must be one of crypto, stable, fiat, gold, special, all.");
+  }
+
+  return assetClass;
 }
 
 function parseInteger({

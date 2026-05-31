@@ -3,6 +3,10 @@ import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { Pool } from "pg";
 import Redis from "ioredis";
+import {
+  isSymbolAssetClassFilter,
+  type SymbolAssetClassFilter,
+} from "@/lib/market-data/symbolClassification";
 import { PgMarketDataStore } from "@/lib/storage/postgres/marketDataPg";
 import { PgScannerResultsStore } from "@/lib/storage/postgres/scannerResultsPg";
 
@@ -56,6 +60,11 @@ const server = http.createServer(async (request, response) => {
       };
 
       sendJson(response, payload.ok ? 200 : 503, payload);
+      return;
+    }
+
+    if (url.pathname === "/api/symbols/summary") {
+      await handleSymbolsSummary(response);
       return;
     }
 
@@ -211,6 +220,30 @@ async function handleSymbols(response: http.ServerResponse, url: URL) {
   }
 }
 
+async function handleSymbolsSummary(response: http.ServerResponse) {
+  const store = new PgMarketDataStore();
+
+  try {
+    const summary = await store.getSymbolsSummary();
+
+    sendJson(response, 200, {
+      ok: true,
+      service: serviceName,
+      source: "postgres",
+      ...summary,
+    });
+  } catch (error) {
+    sendJson(response, 503, {
+      ok: false,
+      service: serviceName,
+      source: "postgres",
+      error: sanitizeConnectionError(error, "POSTGRES_UNAVAILABLE"),
+    });
+  } finally {
+    await store.close().catch(() => undefined);
+  }
+}
+
 async function handleCandles(response: http.ServerResponse, url: URL) {
   const symbol = url.searchParams.get("symbol")?.trim().toUpperCase() ?? "";
   const timeframe = url.searchParams.get("timeframe")?.trim() ?? "";
@@ -311,6 +344,8 @@ async function handleMarketSyncJobs(response: http.ServerResponse, url: URL) {
 
 async function handleMarketDataCoverage(response: http.ServerResponse, url: URL) {
   const timeframe = url.searchParams.get("timeframe")?.trim() ?? "4h";
+  const assetClass = parseAssetClassParam(url.searchParams.get("assetClass"));
+  const includeNonScanner = parseBooleanParam(url.searchParams.get("includeNonScanner"));
   const limit = parseBoundedInteger({
     value: url.searchParams.get("limit"),
     fallback: 100,
@@ -328,6 +363,15 @@ async function handleMarketDataCoverage(response: http.ServerResponse, url: URL)
     return;
   }
 
+  if (!assetClass.valid) {
+    sendJson(response, 400, {
+      ok: false,
+      service: serviceName,
+      error: "INVALID_ASSET_CLASS",
+    });
+    return;
+  }
+
   if (!limit.valid) {
     sendJson(response, 400, { ok: false, service: serviceName, error: limit.error });
     return;
@@ -339,11 +383,15 @@ async function handleMarketDataCoverage(response: http.ServerResponse, url: URL)
     const { rows, summary } = await store.listMarketDataCoverage({
       timeframe,
       limit: limit.value,
+      assetClass: assetClass.value,
+      includeNonScanner,
     });
 
     sendJson(response, 200, {
       ok: true,
       timeframe,
+      assetClass: assetClass.value,
+      includeNonScanner,
       itemCount: rows.length,
       summary,
       rows,
@@ -352,12 +400,23 @@ async function handleMarketDataCoverage(response: http.ServerResponse, url: URL)
     sendJson(response, 503, {
       ok: false,
       timeframe,
+      assetClass: assetClass.value,
+      includeNonScanner,
       itemCount: 0,
       summary: {
         totalSymbols: 0,
         healthy: 0,
         belowMinimum: 0,
         stale: 0,
+        scannerEligible: 0,
+        marketContext: 0,
+        byAssetClass: {
+          crypto: 0,
+          stable: 0,
+          fiat: 0,
+          gold: 0,
+          special: 0,
+        },
       },
       rows: [],
       error: sanitizeConnectionError(error, "POSTGRES_UNAVAILABLE"),
@@ -528,6 +587,24 @@ function parseBoundedInteger({
   }
 
   return { valid: true as const, value: parsed };
+}
+
+function parseAssetClassParam(value: string | null) {
+  const assetClass = value?.trim().toLowerCase() ?? "crypto";
+
+  if (!isSymbolAssetClassFilter(assetClass)) {
+    return { valid: false as const, value: "crypto" as SymbolAssetClassFilter };
+  }
+
+  return { valid: true as const, value: assetClass };
+}
+
+function parseBooleanParam(value: string | null) {
+  if (value === null || value === "") {
+    return false;
+  }
+
+  return value === "1" || value.toLowerCase() === "true" || value.toLowerCase() === "yes";
 }
 
 function loadDotEnv() {

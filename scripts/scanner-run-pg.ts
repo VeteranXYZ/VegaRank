@@ -2,6 +2,10 @@ import { randomUUID } from "node:crypto";
 import pLimit from "p-limit";
 import type { Timeframe } from "@/lib/exchanges/types";
 import { acquireRedisLock } from "@/lib/cache/redisLock";
+import {
+  isSymbolAssetClassFilter,
+  type SymbolAssetClassFilter,
+} from "@/lib/market-data/symbolClassification";
 import { scanCandles } from "@/lib/scanner/scanCandles";
 import { PgMarketDataStore } from "@/lib/storage/postgres/marketDataPg";
 import {
@@ -14,7 +18,11 @@ type ScannerRunOptions = {
   timeframe: PgScannerTimeframe;
   candleLimit: number;
   marketLimit: number;
+  allSymbols: boolean;
+  assetClass: SymbolAssetClassFilter;
+  includeNonScanner: boolean;
   concurrency: number;
+  confirmLargeSync: boolean;
 };
 
 type SkipStats = {
@@ -23,7 +31,7 @@ type SkipStats = {
 };
 
 const DEFAULT_MARKET_LIMIT = 25;
-const MAX_MARKET_LIMIT = 100;
+const MAX_MARKET_LIMIT = 500;
 const DEFAULT_CANDLE_LIMIT = 500;
 const MAX_CANDLE_LIMIT = 1000;
 const DEFAULT_CONCURRENCY = 3;
@@ -64,15 +72,33 @@ async function main() {
       throw new Error("No enabled PostgreSQL symbols matched the scanner request.");
     }
 
+    if (options.symbols.length > 0) {
+      for (const symbol of symbols) {
+        if (!symbol.isScannerEligible) {
+          console.warn(
+            `scanner:run:pg warning: symbol=${symbol.symbol} is not scanner eligible, included because explicit symbols were provided`,
+          );
+        }
+      }
+    }
+
     await scannerResults.createScanRun({
       id: scanRunId,
       timeframe: options.timeframe,
-      universe: options.symbols.length > 0 ? "explicit-symbols" : "top-enabled-symbols",
+      universe:
+        options.symbols.length > 0
+          ? "explicit-symbols"
+          : options.allSymbols
+            ? "all-symbols"
+            : "eligible-symbols",
       status: "running",
       symbolsTotal: symbols.length,
       params: {
         candleLimit: options.candleLimit,
         marketLimit: options.symbols.length > 0 ? null : options.marketLimit,
+        allSymbols: options.symbols.length === 0 ? options.allSymbols : false,
+        assetClass: options.assetClass,
+        includeNonScanner: options.includeNonScanner,
         requestedSymbols: options.symbols,
         source: "postgres",
         scannerMode: "single",
@@ -223,14 +249,32 @@ async function resolveSymbols({
     return store.listSymbolsByNames(options.symbols);
   }
 
-  return store.listSymbols({ limit: options.marketLimit });
+  return store.listSymbols({
+    limit: options.allSymbols ? null : options.marketLimit,
+    assetClass: options.assetClass,
+    includeNonScanner: options.includeNonScanner,
+  });
 }
 
 function parseOptions(args: string[]): ScannerRunOptions {
   const flags = parseFlags(args);
+  const symbols = parseSymbols(flags.symbols ?? flags.symbol);
+  const marketLimit = parseInteger({
+    value: flags.marketLimit,
+    fallback: DEFAULT_MARKET_LIMIT,
+    min: 1,
+    max: MAX_MARKET_LIMIT,
+    name: "marketLimit",
+  });
+  const allSymbols = flags.allSymbols === "true";
+  const confirmLargeSync = flags.confirmLargeSync === "true";
+
+  if (symbols.length === 0 && allSymbols && !confirmLargeSync) {
+    throw new Error("--all-symbols requires --confirm-large-sync.");
+  }
 
   return {
-    symbols: parseSymbols(flags.symbols ?? flags.symbol),
+    symbols,
     timeframe: parseTimeframe(flags.timeframe),
     candleLimit: parseInteger({
       value: flags.limit,
@@ -239,13 +283,10 @@ function parseOptions(args: string[]): ScannerRunOptions {
       max: MAX_CANDLE_LIMIT,
       name: "limit",
     }),
-    marketLimit: parseInteger({
-      value: flags.marketLimit,
-      fallback: DEFAULT_MARKET_LIMIT,
-      min: 1,
-      max: MAX_MARKET_LIMIT,
-      name: "marketLimit",
-    }),
+    marketLimit,
+    allSymbols,
+    assetClass: parseAssetClass(flags.assetClass),
+    includeNonScanner: flags.includeNonScanner === "true",
     concurrency: parseInteger({
       value: flags.concurrency,
       fallback: DEFAULT_CONCURRENCY,
@@ -253,6 +294,7 @@ function parseOptions(args: string[]): ScannerRunOptions {
       max: MAX_CONCURRENCY,
       name: "concurrency",
     }),
+    confirmLargeSync,
   };
 }
 
@@ -311,6 +353,16 @@ function parseTimeframe(value: string | undefined): PgScannerTimeframe {
   }
 
   return timeframe as PgScannerTimeframe;
+}
+
+function parseAssetClass(value: string | undefined): SymbolAssetClassFilter {
+  const assetClass = value?.trim().toLowerCase() ?? "crypto";
+
+  if (!isSymbolAssetClassFilter(assetClass)) {
+    throw new Error("asset-class must be one of crypto, stable, fiat, gold, special, all.");
+  }
+
+  return assetClass;
 }
 
 function parseInteger({

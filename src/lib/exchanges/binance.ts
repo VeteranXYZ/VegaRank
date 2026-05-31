@@ -1,8 +1,8 @@
 import { cacheKeys, cacheTtls } from "@/lib/cache/keys";
 import { getOrSetCached } from "@/lib/cache/memory";
+import { buildBinancePublicUrl } from "@/lib/market-data/binanceConfig";
 import type { Candle, Market, Timeframe } from "./types";
 
-const BINANCE_REST_BASE_URL = "https://data-api.binance.vision";
 const DEFAULT_BINANCE_TIMEOUT_MS = 10_000;
 
 const EXCLUDED_BASE_ASSETS = new Set([
@@ -310,7 +310,7 @@ function isSupportedUsdtSymbol(symbol: string) {
 }
 
 export async function fetchBinance<T>(path: string): Promise<T> {
-  const response = await fetchWithTimeout(`${BINANCE_REST_BASE_URL}${path}`, {
+  const response = await fetchWithTimeout(buildBinancePublicUrl(path), {
     headers: {
       Accept: "application/json",
     },

@@ -1,5 +1,13 @@
 import type { Pool, PoolClient } from "pg";
 import type { Candle, Market } from "@/lib/exchanges/types";
+import {
+  classifyUsdtSymbol,
+  emptyAssetClassCounts,
+  isSymbolAssetClass,
+  type SymbolAssetClass,
+  type SymbolAssetClassFilter,
+  type SymbolClassification,
+} from "@/lib/market-data/symbolClassification";
 import { createPostgresPool } from "./pool";
 
 export type MarketDataTimeframe = "1h" | "4h" | "1d" | "1w" | "1M";
@@ -16,9 +24,19 @@ export type PgSymbol = {
   quoteVolume: number | null;
   priceChangePercent: number | null;
   isEnabled: boolean;
+  assetClass: SymbolAssetClass;
+  isScannerEligible: boolean;
+  isBacktestEligible: boolean;
+  isMarketContext: boolean;
   metadata: Record<string, unknown>;
   updatedAt: string;
 };
+
+export type PgSymbolUpsertInput = Market &
+  SymbolClassification & {
+    isEnabled: boolean;
+    metadata?: Record<string, unknown>;
+  };
 
 export type PgCandle = Candle & {
   id: number;
@@ -68,6 +86,10 @@ export type MarketDataSyncJobRecord = {
 export type MarketDataCoverageRow = {
   symbolId: number;
   symbol: string;
+  assetClass: SymbolAssetClass;
+  isScannerEligible: boolean;
+  isBacktestEligible: boolean;
+  isMarketContext: boolean;
   timeframe: string;
   candleCount: number;
   firstOpenTime: string | null;
@@ -84,6 +106,25 @@ export type MarketDataCoverageSummary = {
   healthy: number;
   belowMinimum: number;
   stale: number;
+  scannerEligible: number;
+  marketContext: number;
+  byAssetClass: Record<SymbolAssetClass, number>;
+};
+
+export type SymbolsSummary = {
+  total: number;
+  enabled: number;
+  disabled: number;
+  scannerEligible: number;
+  backtestEligible: number;
+  marketContext: number;
+  byAssetClass: Record<SymbolAssetClass, number>;
+  topByQuoteVolume: Array<{
+    symbol: string;
+    assetClass: SymbolAssetClass;
+    quoteVolume: number | null;
+    isScannerEligible: boolean;
+  }>;
 };
 
 export type SymbolCandleCoverage = {
@@ -104,6 +145,10 @@ type SymbolRow = {
   quote_volume: number | string | null;
   price_change_percent: number | string | null;
   is_enabled: boolean;
+  asset_class?: string | null;
+  is_scanner_eligible?: boolean | null;
+  is_backtest_eligible?: boolean | null;
+  is_market_context?: boolean | null;
   metadata: Record<string, unknown>;
   updated_at: Date | string;
 };
@@ -153,12 +198,32 @@ type MarketDataSyncJobRow = {
 type MarketDataCoverageQueryRow = {
   symbol_id: string;
   symbol: string;
+  asset_class: string | null;
+  is_scanner_eligible: boolean | null;
+  is_backtest_eligible: boolean | null;
+  is_market_context: boolean | null;
   candle_count: string;
   first_open_time: Date | string | null;
   latest_open_time: Date | string | null;
   latest_close_time: Date | string | null;
   latest_open_time_ms: string | null;
   latest_close_time_ms: string | null;
+};
+
+type SymbolsSummaryCountRow = {
+  asset_class: string | null;
+  total: string;
+  enabled: string;
+  scanner_eligible: string;
+  backtest_eligible: string;
+  market_context: string;
+};
+
+type TopQuoteVolumeSymbolRow = {
+  symbol: string;
+  asset_class: string | null;
+  quote_volume: number | string | null;
+  is_scanner_eligible: boolean | null;
 };
 
 type UpsertCandleRow = {
@@ -184,13 +249,22 @@ export class PgMarketDataStore {
     const rows: PgSymbol[] = [];
 
     for (const market of markets) {
+      const classification = classifyUsdtSymbol({
+        symbol: market.symbol,
+        baseAsset: market.baseAsset,
+      });
       const result = await this.pool.query<SymbolRow>(
         `
           INSERT INTO symbols (
             exchange, market, symbol, base_asset, quote_asset, status,
-            quote_volume, price_change_percent, is_enabled, metadata, updated_at
+            quote_volume, price_change_percent, is_enabled, asset_class,
+            is_scanner_eligible, is_backtest_eligible, is_market_context,
+            metadata, updated_at
           )
-          VALUES ($1, 'spot', $2, $3, $4, $5, $6, $7, true, '{}'::jsonb, now())
+          VALUES (
+            $1, 'spot', $2, $3, $4, $5, $6, $7, true, $8, $9, $10, $11,
+            '{}'::jsonb, now()
+          )
           ON CONFLICT(exchange, market, symbol) DO UPDATE SET
             base_asset = excluded.base_asset,
             quote_asset = excluded.quote_asset,
@@ -209,6 +283,10 @@ export class PgMarketDataStore {
           market.status,
           market.quoteVolume ?? null,
           market.priceChangePercent ?? null,
+          classification.assetClass,
+          classification.isScannerEligible,
+          classification.isBacktestEligible,
+          classification.isMarketContext,
         ],
       );
 
@@ -218,16 +296,102 @@ export class PgMarketDataStore {
     return rows;
   }
 
-  async listSymbols({ limit = 500 }: { limit?: number } = {}) {
+  async upsertImportedSymbols(symbols: PgSymbolUpsertInput[]) {
+    const rows: PgSymbol[] = [];
+
+    for (const symbol of symbols) {
+      const result = await this.pool.query<SymbolRow>(
+        `
+          INSERT INTO symbols (
+            exchange, market, symbol, base_asset, quote_asset, status,
+            quote_volume, price_change_percent, is_enabled, asset_class,
+            is_scanner_eligible, is_backtest_eligible, is_market_context,
+            metadata, updated_at
+          )
+          VALUES (
+            $1, 'spot', $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12,
+            $13::jsonb, now()
+          )
+          ON CONFLICT(exchange, market, symbol) DO UPDATE SET
+            base_asset = excluded.base_asset,
+            quote_asset = excluded.quote_asset,
+            status = excluded.status,
+            quote_volume = excluded.quote_volume,
+            price_change_percent = excluded.price_change_percent,
+            is_enabled = excluded.is_enabled,
+            asset_class = excluded.asset_class,
+            is_scanner_eligible = excluded.is_scanner_eligible,
+            is_backtest_eligible = excluded.is_backtest_eligible,
+            is_market_context = excluded.is_market_context,
+            metadata = symbols.metadata || excluded.metadata,
+            updated_at = now()
+          RETURNING *
+        `,
+        [
+          symbol.exchange,
+          symbol.symbol.toUpperCase(),
+          symbol.baseAsset,
+          symbol.quoteAsset,
+          symbol.status,
+          symbol.quoteVolume ?? null,
+          symbol.priceChangePercent ?? null,
+          symbol.isEnabled,
+          symbol.assetClass,
+          symbol.isScannerEligible,
+          symbol.isBacktestEligible,
+          symbol.isMarketContext,
+          JSON.stringify(symbol.metadata ?? {}),
+        ],
+      );
+
+      rows.push(toPgSymbol(result.rows[0]));
+    }
+
+    return rows;
+  }
+
+  async listSymbols({
+    limit = 500,
+    assetClass = "all",
+    includeNonScanner = true,
+  }: {
+    limit?: number | null;
+    assetClass?: SymbolAssetClassFilter;
+    includeNonScanner?: boolean;
+  } = {}) {
+    const params: unknown[] = [];
+    const filters = [
+      "exchange = 'binance'",
+      "market = 'spot'",
+      "is_enabled = true",
+    ];
+
+    if (assetClass !== "all") {
+      params.push(assetClass);
+      filters.push(`asset_class = $${params.length}`);
+    }
+
+    if (!includeNonScanner) {
+      filters.push("is_scanner_eligible = true");
+    }
+
+    const limitSql =
+      limit === null
+        ? ""
+        : (() => {
+            params.push(limit);
+            return `LIMIT $${params.length}`;
+          })();
+
     const result = await this.pool.query<SymbolRow>(
       `
         SELECT *
         FROM symbols
-        WHERE is_enabled = true
+        WHERE ${filters.join("\n          AND ")}
         ORDER BY COALESCE(quote_volume, 0) DESC, symbol ASC
-        LIMIT $1
+        ${limitSql}
       `,
-      [limit],
+      params,
     );
 
     return result.rows.map(toPgSymbol);
@@ -547,17 +711,41 @@ export class PgMarketDataStore {
     timeframe,
     limit = 100,
     minCandles = 200,
+    assetClass = "all",
+    includeNonScanner = true,
   }: {
     timeframe: string;
     limit?: number;
     minCandles?: number;
+    assetClass?: SymbolAssetClassFilter;
+    includeNonScanner?: boolean;
   }) {
     const staleBeforeMs = Date.now() - getStaleThresholdMs(timeframe);
+    const params: unknown[] = [timeframe];
+    const filters = [
+      "s.exchange = 'binance'",
+      "s.market = 'spot'",
+      "s.is_enabled = true",
+    ];
+
+    if (assetClass !== "all") {
+      params.push(assetClass);
+      filters.push(`s.asset_class = $${params.length}`);
+    }
+
+    if (!includeNonScanner) {
+      filters.push("s.is_scanner_eligible = true");
+    }
+
     const result = await this.pool.query<MarketDataCoverageQueryRow>(
       `
         SELECT
           s.id AS symbol_id,
           s.symbol,
+          s.asset_class,
+          s.is_scanner_eligible,
+          s.is_backtest_eligible,
+          s.is_market_context,
           COUNT(c.id) AS candle_count,
           MIN(c.open_time) AS first_open_time,
           MAX(c.open_time) AS latest_open_time,
@@ -568,16 +756,19 @@ export class PgMarketDataStore {
         LEFT JOIN market_candles c
           ON c.symbol_id = s.id
           AND c.timeframe = $1
-        WHERE s.exchange = 'binance'
-          AND s.market = 'spot'
-          AND s.is_enabled = true
-        GROUP BY s.id, s.symbol
+        WHERE ${filters.join("\n          AND ")}
+        GROUP BY
+          s.id,
+          s.symbol,
+          s.asset_class,
+          s.is_scanner_eligible,
+          s.is_backtest_eligible,
+          s.is_market_context
         ORDER BY COALESCE(COUNT(c.id), 0) ASC, s.symbol ASC
-        LIMIT $2
       `,
-      [timeframe, limit],
+      params,
     );
-    const rows = result.rows.map((row) =>
+    const allRows = result.rows.map((row) =>
       toMarketDataCoverageRow({
         row,
         timeframe,
@@ -585,9 +776,82 @@ export class PgMarketDataStore {
         staleBeforeMs,
       }),
     );
-    const summary = summarizeMarketDataCoverage(rows);
+    const rows = allRows.slice(0, limit);
+    const summary = summarizeMarketDataCoverage(allRows);
 
     return { rows, summary };
+  }
+
+  async getSymbolsSummary({ topLimit = 20 }: { topLimit?: number } = {}) {
+    const [countResult, topResult] = await Promise.all([
+      this.pool.query<SymbolsSummaryCountRow>(
+        `
+          SELECT
+            asset_class,
+            COUNT(*) AS total,
+            COUNT(*) FILTER (WHERE is_enabled = true) AS enabled,
+            COUNT(*) FILTER (WHERE is_scanner_eligible = true) AS scanner_eligible,
+            COUNT(*) FILTER (WHERE is_backtest_eligible = true) AS backtest_eligible,
+            COUNT(*) FILTER (WHERE is_market_context = true) AS market_context
+          FROM symbols
+          WHERE exchange = 'binance'
+            AND market = 'spot'
+          GROUP BY asset_class
+        `,
+      ),
+      this.pool.query<TopQuoteVolumeSymbolRow>(
+        `
+          SELECT
+            symbol,
+            asset_class,
+            quote_volume,
+            is_scanner_eligible
+          FROM symbols
+          WHERE exchange = 'binance'
+            AND market = 'spot'
+            AND is_enabled = true
+          ORDER BY COALESCE(quote_volume, 0) DESC, symbol ASC
+          LIMIT $1
+        `,
+        [topLimit],
+      ),
+    ]);
+    const byAssetClass = emptyAssetClassCounts();
+    let total = 0;
+    let enabled = 0;
+    let scannerEligible = 0;
+    let backtestEligible = 0;
+    let marketContext = 0;
+
+    for (const row of countResult.rows) {
+      const assetClass = isSymbolAssetClass(row.asset_class)
+        ? row.asset_class
+        : "crypto";
+      const assetClassTotal = Number(row.total);
+
+      byAssetClass[assetClass] += assetClassTotal;
+      total += assetClassTotal;
+      enabled += Number(row.enabled);
+      scannerEligible += Number(row.scanner_eligible);
+      backtestEligible += Number(row.backtest_eligible);
+      marketContext += Number(row.market_context);
+    }
+
+    return {
+      total,
+      enabled,
+      disabled: total - enabled,
+      scannerEligible,
+      backtestEligible,
+      marketContext,
+      byAssetClass,
+      topByQuoteVolume: topResult.rows.map((row) => ({
+        symbol: row.symbol,
+        assetClass: isSymbolAssetClass(row.asset_class) ? row.asset_class : "crypto",
+        quoteVolume: toNullableNumber(row.quote_volume),
+        isScannerEligible: row.is_scanner_eligible ?? true,
+      })),
+    } satisfies SymbolsSummary;
   }
 
   private async getSymbolForUpdate(client: PoolClient, symbol: string) {
@@ -608,6 +872,8 @@ export class PgMarketDataStore {
 }
 
 function toPgSymbol(row: SymbolRow): PgSymbol {
+  const assetClass = isSymbolAssetClass(row.asset_class) ? row.asset_class : "crypto";
+
   return {
     id: Number(row.id),
     exchange: row.exchange,
@@ -619,6 +885,10 @@ function toPgSymbol(row: SymbolRow): PgSymbol {
     quoteVolume: toNullableNumber(row.quote_volume),
     priceChangePercent: toNullableNumber(row.price_change_percent),
     isEnabled: row.is_enabled,
+    assetClass,
+    isScannerEligible: row.is_scanner_eligible ?? true,
+    isBacktestEligible: row.is_backtest_eligible ?? true,
+    isMarketContext: row.is_market_context ?? false,
     metadata: row.metadata ?? {},
     updatedAt: new Date(row.updated_at).toISOString(),
   };
@@ -677,10 +947,15 @@ function toMarketDataCoverageRow({
     row.latest_close_time_ms === null ? null : Number(row.latest_close_time_ms);
   const isBelowScannerMinimum = candleCount < minCandles;
   const isStale = latestCloseTimeMs === null || latestCloseTimeMs < staleBeforeMs;
+  const assetClass = isSymbolAssetClass(row.asset_class) ? row.asset_class : "crypto";
 
   return {
     symbolId: Number(row.symbol_id),
     symbol: row.symbol,
+    assetClass,
+    isScannerEligible: row.is_scanner_eligible ?? true,
+    isBacktestEligible: row.is_backtest_eligible ?? true,
+    isMarketContext: row.is_market_context ?? false,
     timeframe,
     candleCount,
     firstOpenTime: row.first_open_time
@@ -705,6 +980,11 @@ function summarizeMarketDataCoverage(
 ): MarketDataCoverageSummary {
   const belowMinimum = rows.filter((row) => row.isBelowScannerMinimum).length;
   const stale = rows.filter((row) => row.isStale).length;
+  const byAssetClass = emptyAssetClassCounts();
+
+  for (const row of rows) {
+    byAssetClass[row.assetClass] += 1;
+  }
 
   return {
     totalSymbols: rows.length,
@@ -715,6 +995,9 @@ function summarizeMarketDataCoverage(
     ]).size,
     belowMinimum,
     stale,
+    scannerEligible: rows.filter((row) => row.isScannerEligible).length,
+    marketContext: rows.filter((row) => row.isMarketContext).length,
+    byAssetClass,
   };
 }
 
