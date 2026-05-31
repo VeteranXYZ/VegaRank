@@ -1,9 +1,9 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { useMemo, useState, type ReactNode } from "react";
+import { Fragment, useMemo, useState, type ReactNode } from "react";
 import {
-  formatActionBias,
+  formatActionDisplay,
   formatDateTime,
   formatGroupHint,
   formatGroupLabel,
@@ -12,8 +12,9 @@ import {
   formatScore,
   formatSignalLabel,
   getDetectedRiskTypeLabels,
+  getLatestScanGroupCount,
+  getLatestScanGroupSummaryChips,
   getLatestScanScoreRows,
-  hasDetectedRiskTypes,
   latestScanGroupOrder,
   normalizeGroupKey,
   toTitleCase,
@@ -22,7 +23,7 @@ import {
 
 type LatestScanAssetClass = "crypto" | "stable" | "fiat" | "gold" | "special" | "all";
 type LatestScanTimeframe = "4h" | "1h" | "1d" | "1w";
-type LatestScanLimit = 50 | 100 | 200;
+type LatestScanLimit = 100 | 200 | 300 | 500;
 
 type LatestScanRun = {
   id: string;
@@ -128,6 +129,12 @@ type LatestRunSummaryTextInput = {
   lowQualityExcluded: number | null | undefined;
 };
 
+type LatestLimitedViewWarningInput = {
+  count: number | null | undefined;
+  returnedItems: number | null | undefined;
+  totalSignals: number | null | undefined;
+};
+
 const assetClassOptions: LatestScanAssetClass[] = [
   "crypto",
   "stable",
@@ -137,7 +144,8 @@ const assetClassOptions: LatestScanAssetClass[] = [
   "all",
 ];
 const timeframeOptions: LatestScanTimeframe[] = ["4h", "1h", "1d", "1w"];
-const limitOptions: LatestScanLimit[] = [50, 100, 200];
+const limitOptions: LatestScanLimit[] = [100, 200, 300, 500];
+const latestScanTableColumnCount = 9;
 
 export function LatestScanPageClient() {
   const [timeframe, setTimeframe] = useState<LatestScanTimeframe>("4h");
@@ -206,8 +214,11 @@ export function LatestScanPageClient() {
             finishedAt={finishedAt}
             totalSignals={totalSignals}
             returnedItems={returnedItems}
+            count={data?.count}
             lowQualityExcluded={lowQualityExcluded}
           />
+
+          {data?.summary && <LatestScanGroupSummary summary={data.summary} />}
 
           {latestScanQuery.isError ? (
             <StatePanel
@@ -235,6 +246,7 @@ export function LatestScanPageClient() {
                   key={section.group}
                   group={section.group}
                   items={section.items}
+                  summaryCount={section.summaryCount}
                 />
               ))}
             </div>
@@ -365,6 +377,7 @@ function LatestScanSummaryPanel({
   finishedAt,
   totalSignals,
   returnedItems,
+  count,
   lowQualityExcluded,
 }: {
   data: LatestScanResponse | null;
@@ -374,6 +387,7 @@ function LatestScanSummaryPanel({
   finishedAt: string | null;
   totalSignals: number;
   returnedItems: number;
+  count: number | null | undefined;
   lowQualityExcluded: number;
 }) {
   const run = data?.run;
@@ -390,6 +404,11 @@ function LatestScanSummaryPanel({
     assetClass,
     symbolsTotal: run?.symbolsTotal,
   });
+  const limitedViewWarning = buildLimitedViewWarning({
+    count,
+    returnedItems,
+    totalSignals,
+  });
 
   return (
     <section className="border border-[var(--border)] bg-[var(--panel)] px-3 py-2">
@@ -402,6 +421,11 @@ function LatestScanSummaryPanel({
           {showUniverseWarning && (
             <p className="mt-1 border border-amber-500/50 bg-amber-500/10 px-2 py-1 text-[11px] font-semibold text-amber-200">
               This does not look like a full crypto universe scan.
+            </p>
+          )}
+          {limitedViewWarning && (
+            <p className="mt-1 border border-[var(--border)] bg-[#111827] px-2 py-1 text-[11px] font-semibold text-[var(--foreground)]">
+              {limitedViewWarning}
             </p>
           )}
         </div>
@@ -430,14 +454,41 @@ function LatestScanSummaryPanel({
   );
 }
 
+function LatestScanGroupSummary({ summary }: { summary: LatestScanSummary }) {
+  const chips = getLatestScanGroupSummaryChips(summary);
+
+  return (
+    <section className="border border-[var(--border)] bg-[var(--panel)] px-3 py-2">
+      <h2 className="text-[10px] font-semibold uppercase tracking-wide text-[var(--muted-2)]">
+        Full Scan Group Counts
+      </h2>
+      <div className="mt-2 flex flex-wrap gap-1.5 text-[11px]">
+        {chips.map((chip) => (
+          <span
+            key={chip.group}
+            className="border border-[var(--border)] bg-[#0b0f14] px-2 py-1 text-[var(--foreground)]"
+          >
+            {chip.label} {formatInteger(chip.count)}
+          </span>
+        ))}
+      </div>
+    </section>
+  );
+}
+
 function LatestScanGroupSection({
   group,
   items,
+  summaryCount,
 }: {
   group: LatestScanGroupKey;
   items: LatestScanItem[];
+  summaryCount: number;
 }) {
-  if (items.length === 0 && group === "insufficient_history") {
+  const [expandedItemId, setExpandedItemId] = useState<string | null>(null);
+  const hasLimitedHiddenItems = items.length === 0 && summaryCount > 0;
+
+  if (items.length === 0 && group === "insufficient_history" && summaryCount === 0) {
     return null;
   }
 
@@ -447,7 +498,11 @@ function LatestScanGroupSection({
         <div>
           <h2 className="text-sm font-semibold">
             {formatGroupLabel(group)}{" "}
-            <span className="text-[var(--muted)]">({formatInteger(items.length)})</span>
+            <span className="text-[var(--muted)]">
+              {summaryCount > items.length
+                ? `(${formatInteger(items.length)} shown of ${formatInteger(summaryCount)})`
+                : `(${formatInteger(items.length)})`}
+            </span>
           </h2>
           <p className="mt-1 text-[11px] leading-5 text-[var(--muted)]">
             {formatGroupHint(group)}
@@ -457,29 +512,43 @@ function LatestScanGroupSection({
 
       {items.length === 0 ? (
         <div className="px-3 py-4 text-sm text-[var(--muted)]">
-          No results in this group.
+          {hasLimitedHiddenItems
+            ? "Not shown in the current limited view. Increase API Limit to include this group."
+            : "No results in this group."}
         </div>
       ) : (
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[940px] table-fixed border-collapse text-left text-xs">
+          <table className="w-full min-w-[860px] table-fixed border-collapse text-left text-xs">
             <thead className="bg-[#090f15] text-[10px] uppercase text-[var(--muted)]">
               <tr>
                 <th className="w-[94px] px-2 py-1.5">Symbol</th>
                 <th className="w-[72px] px-2 py-1.5">Rank</th>
                 <th className="w-[128px] px-2 py-1.5">Signal</th>
                 <th className="w-[112px] px-2 py-1.5">Action</th>
-                <th className="w-[136px] px-2 py-1.5">Structure</th>
+                <th className="w-[136px] px-2 py-1.5">Setup Type</th>
                 <th className="w-[124px] px-2 py-1.5">Quality</th>
-                <th className="w-[78px] px-2 py-1.5">Candles</th>
                 <th className="w-[104px] px-2 py-1.5">Price</th>
                 <th className="w-[152px] px-2 py-1.5">Candle Time</th>
                 <th className="w-[86px] px-2 py-1.5">Details</th>
               </tr>
             </thead>
             <tbody>
-              {items.map((item) => (
-                <LatestScanRow key={item.id} item={item} />
-              ))}
+              {items.map((item) => {
+                const isExpanded = expandedItemId === item.id;
+
+                return (
+                  <Fragment key={item.id}>
+                    <LatestScanRow
+                      item={item}
+                      isExpanded={isExpanded}
+                      onToggleDetails={() =>
+                        setExpandedItemId(isExpanded ? null : item.id)
+                      }
+                    />
+                    {isExpanded && <LatestScanDetailsRow item={item} />}
+                  </Fragment>
+                );
+              })}
             </tbody>
           </table>
         </div>
@@ -488,9 +557,23 @@ function LatestScanGroupSection({
   );
 }
 
-function LatestScanRow({ item }: { item: LatestScanItem }) {
+function LatestScanRow({
+  item,
+  isExpanded,
+  onToggleDetails,
+}: {
+  item: LatestScanItem;
+  isExpanded: boolean;
+  onToggleDetails: () => void;
+}) {
   return (
-    <tr className="border-t border-[var(--border)] align-top hover:bg-[#101923]/75">
+    <tr
+      className={
+        isExpanded
+          ? "border-t border-[var(--border)] bg-[#101923] align-top"
+          : "border-t border-[var(--border)] align-top hover:bg-[#101923]/75"
+      }
+    >
       <td className="px-2 py-1.5 font-semibold text-[var(--foreground)]">
         {item.symbol}
       </td>
@@ -499,9 +582,10 @@ function LatestScanRow({ item }: { item: LatestScanItem }) {
       </td>
       <td className="px-2 py-1.5">
         <div>{formatSignalLabel(item.signalLabel)}</div>
-        {hasDetectedRiskTypes(item.detectedRiskTypes) && <RiskWarningBadge />}
       </td>
-      <td className="px-2 py-1.5">{formatActionBias(item.actionBias)}</td>
+      <td className="px-2 py-1.5">
+        {formatActionDisplay(item.actionBias, item.detectedRiskTypes)}
+      </td>
       <td className="px-2 py-1.5">{formatStructure(item.primaryStructure)}</td>
       <td className="px-2 py-1.5">
         <div>{formatQualityTier(item.qualityTier)}</div>
@@ -512,21 +596,30 @@ function LatestScanRow({ item }: { item: LatestScanItem }) {
         )}
       </td>
       <td className="px-2 py-1.5 font-mono tabular-nums">
-        {formatInteger(item.candleCount)}
-      </td>
-      <td className="px-2 py-1.5 font-mono tabular-nums">
         {formatPrice(item.priceAtSignal)}
       </td>
       <td className="px-2 py-1.5 text-[11px] text-[var(--muted)]">
         {formatDateTime(item.candleOpenTime)}
       </td>
       <td className="px-2 py-1.5">
-        <details className="group">
-          <summary className="cursor-pointer list-none text-[var(--info)]">
-            Details
-          </summary>
-          <LatestScanDetails item={item} />
-        </details>
+        <button
+          type="button"
+          aria-expanded={isExpanded}
+          onClick={onToggleDetails}
+          className="border border-[var(--border)] px-2 py-1 text-[11px] font-semibold text-[var(--info)]"
+        >
+          {isExpanded ? "Hide" : "Details"}
+        </button>
+      </td>
+    </tr>
+  );
+}
+
+function LatestScanDetailsRow({ item }: { item: LatestScanItem }) {
+  return (
+    <tr className="border-t border-[var(--border)] bg-[#080d12]">
+      <td colSpan={latestScanTableColumnCount} className="px-3 py-3">
+        <LatestScanDetails item={item} />
       </td>
     </tr>
   );
@@ -536,9 +629,18 @@ function LatestScanDetails({ item }: { item: LatestScanItem }) {
   const factors = normalizeFactors(item.factors);
   const rawMetrics = pickRawMetrics(item.rawMetrics);
   const riskTypeLabels = getDetectedRiskTypeLabels(item.detectedRiskTypes);
+  const metricsAndFactors = [...factors, ...rawMetrics];
 
   return (
-    <div className="mt-2 w-[360px] space-y-3 rounded-none border border-[var(--border)] bg-[#080d12] p-2 text-[11px] leading-5 text-[var(--muted)]">
+    <div className="grid gap-3 text-[11px] leading-5 text-[var(--muted)] md:grid-cols-2 xl:grid-cols-3">
+      <DetailBlock title="Candle Context">
+        <TextList
+          values={[
+            `Candles: ${formatInteger(item.candleCount)}`,
+            `Candle Time: ${formatDateTime(item.candleOpenTime)}`,
+          ]}
+        />
+      </DetailBlock>
       <DetailBlock title="Score Breakdown">
         <ScoreBreakdown item={item} />
       </DetailBlock>
@@ -557,25 +659,10 @@ function LatestScanDetails({ item }: { item: LatestScanItem }) {
       <DetailBlock title="Invalidation">
         <TextList values={formatUnknownList(item.invalidation)} />
       </DetailBlock>
-      {factors.length > 0 && (
-        <DetailBlock title="Factors">
-          <TextList values={factors} />
-        </DetailBlock>
-      )}
-      {rawMetrics.length > 0 && (
-        <DetailBlock title="Selected Metrics">
-          <TextList values={rawMetrics} />
-        </DetailBlock>
-      )}
+      <DetailBlock title="Selected Metrics / Factors">
+        <TextList values={metricsAndFactors} />
+      </DetailBlock>
     </div>
-  );
-}
-
-function RiskWarningBadge() {
-  return (
-    <span className="mt-1 inline-block border border-amber-500/50 bg-amber-500/10 px-1 py-0.5 text-[10px] font-semibold text-amber-200">
-      Risk noted
-    </span>
   );
 }
 
@@ -703,13 +790,24 @@ function TextList({ values }: { values: string[] }) {
 
 function buildGroupSections(data: LatestScanResponse | null) {
   const groups = data?.groups ?? {};
+  const summary = data?.summary ?? null;
 
   return latestScanGroupOrder
-    .map((group) => ({
-      group,
-      items: getGroupItems(groups, group),
-    }))
-    .filter((section) => section.items.length > 0 || section.group !== "insufficient_history");
+    .map((group) => {
+      const summaryCount = getLatestScanGroupCount(summary, group);
+
+      return {
+        group,
+        summaryCount,
+        items: getGroupItems(groups, group),
+      };
+    })
+    .filter(
+      (section) =>
+        section.items.length > 0 ||
+        section.summaryCount > 0 ||
+        section.group !== "insufficient_history",
+    );
 }
 
 function getGroupItems(groups: LatestScanGroups, group: LatestScanGroupKey) {
@@ -793,6 +891,32 @@ export function buildLatestRunSummaryText({
     `Filtered signals shown: ${formatInteger(returnedItems)} of ${formatInteger(totalSignals)}`,
     `Low-quality excluded: ${formatInteger(lowQualityExcluded)}`,
   ].join(" · ");
+}
+
+export function buildLimitedViewWarning({
+  count,
+  returnedItems,
+  totalSignals,
+}: LatestLimitedViewWarningInput) {
+  const normalizedCount = typeof count === "number" ? count : 0;
+  const normalizedReturnedItems =
+    typeof returnedItems === "number" ? returnedItems : normalizedCount;
+  const normalizedTotalSignals =
+    typeof totalSignals === "number" ? totalSignals : 0;
+
+  if (
+    normalizedTotalSignals <= 0 ||
+    (normalizedTotalSignals <= normalizedReturnedItems &&
+      normalizedTotalSignals <= normalizedCount)
+  ) {
+    return null;
+  }
+
+  return `Limited view: showing the first ${formatInteger(
+    normalizedReturnedItems,
+  )} returned results from ${formatInteger(
+    normalizedTotalSignals,
+  )} filtered signals. Some groups may not appear until you increase API Limit.`;
 }
 
 export function shouldShowIncompleteCryptoUniverseWarning({

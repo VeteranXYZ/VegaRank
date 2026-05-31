@@ -37,6 +37,10 @@ type LatestScanScoreInput = {
   structureScore: number | null;
 };
 
+type LatestScanGroupSummaryInput = Partial<
+  Record<LatestScanGroupKey | "insufficientHistory", number | null | undefined>
+>;
+
 const signalLabels: Record<string, string> = {
   confirmed: "Confirmed",
   watch: "Watch",
@@ -144,6 +148,27 @@ export function formatActionBias(value: string | null | undefined) {
   return actionLabels[value] ?? toTitleCase(value);
 }
 
+export function formatActionDisplay(
+  actionBias: string | null | undefined,
+  detectedRiskTypes: unknown,
+) {
+  const hasRisks = hasDetectedRiskTypes(detectedRiskTypes);
+
+  if (actionBias === "eligible" && hasRisks) {
+    return "Eligible / Caution";
+  }
+
+  if (actionBias === "watch_only" && hasRisks) {
+    return "Watch / Caution";
+  }
+
+  if (actionBias === "do_not_chase") {
+    return "Do not chase";
+  }
+
+  return formatActionBias(actionBias);
+}
+
 export function formatQualityTier(value: string | null | undefined) {
   if (!value) {
     return "Unknown";
@@ -176,6 +201,34 @@ export function getDetectedRiskTypeLabels(value: unknown) {
 
 export function hasDetectedRiskTypes(value: unknown) {
   return getDetectedRiskTypeLabels(value).length > 0;
+}
+
+export function getLatestScanGroupCount(
+  summary: LatestScanGroupSummaryInput | null | undefined,
+  group: LatestScanGroupKey,
+) {
+  if (!summary) {
+    return 0;
+  }
+
+  const value =
+    group === "insufficient_history"
+      ? summary.insufficient_history ?? summary.insufficientHistory
+      : summary[group];
+
+  return typeof value === "number" && Number.isFinite(value) ? value : 0;
+}
+
+export function getLatestScanGroupSummaryChips(
+  summary: LatestScanGroupSummaryInput | null | undefined,
+) {
+  return latestScanGroupOrder
+    .filter((group) => group !== "insufficient_history")
+    .map((group) => ({
+      group,
+      label: formatGroupLabel(group),
+      count: getLatestScanGroupCount(summary, group),
+    }));
 }
 
 export function getResultGroupSortOrder(group: string | null | undefined) {

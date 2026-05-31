@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
+  buildLimitedViewWarning,
   buildLatestRunSummaryText,
   buildLatestScanUrl,
   shouldShowIncompleteCryptoUniverseWarning,
@@ -91,5 +92,24 @@ describe("latest scan summary helpers", () => {
         symbolsTotal: 20,
       }),
     ).toBe(false);
+  });
+
+  it("explains when API limit hides part of the filtered signal set", () => {
+    expect(
+      buildLimitedViewWarning({
+        count: 100,
+        returnedItems: 100,
+        totalSignals: 364,
+      }),
+    ).toBe(
+      "Limited view: showing the first 100 returned results from 364 filtered signals. Some groups may not appear until you increase API Limit.",
+    );
+    expect(
+      buildLimitedViewWarning({
+        count: 364,
+        returnedItems: 364,
+        totalSignals: 364,
+      }),
+    ).toBeNull();
   });
 });

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   formatActionBias,
+  formatActionDisplay,
   formatDateTime,
   formatGroupHint,
   formatGroupLabel,
@@ -9,6 +10,8 @@ import {
   formatScore,
   formatSignalLabel,
   getDetectedRiskTypeLabels,
+  getLatestScanGroupCount,
+  getLatestScanGroupSummaryChips,
   getLatestScanScoreRows,
   getResultGroupSortOrder,
   hasDetectedRiskTypes,
@@ -71,6 +74,39 @@ describe("latest scan UI helpers", () => {
     ]);
     expect(hasDetectedRiskTypes([])).toBe(false);
     expect(hasDetectedRiskTypes([{ type: "overheat_risk" }])).toBe(false);
+  });
+
+  it("moves risk conflicts into readable action wording", () => {
+    expect(formatActionDisplay("eligible", ["overheat_risk"])).toBe(
+      "Eligible / Caution",
+    );
+    expect(formatActionDisplay("watch_only", ["overheat_risk"])).toBe(
+      "Watch / Caution",
+    );
+    expect(formatActionDisplay("avoid", ["overheat_risk"])).toBe("Avoid");
+    expect(formatActionDisplay("do_not_chase", [])).toBe("Do not chase");
+    expect(formatActionDisplay("ignore", [])).toBe("Ignore");
+    expect(formatActionDisplay("watch_only", [])).toBe("Watch Only");
+  });
+
+  it("returns full-scan group counts for summary chips", () => {
+    const summary = {
+      eligible: 12,
+      watch: 90,
+      overheated: 8,
+      risk: 140,
+      neutral: 114,
+      insufficient_history: 5,
+    };
+
+    expect(getLatestScanGroupCount(summary, "risk")).toBe(140);
+    expect(getLatestScanGroupSummaryChips(summary)).toEqual([
+      { group: "eligible", label: "Eligible", count: 12 },
+      { group: "watch", label: "Watch", count: 90 },
+      { group: "overheated", label: "Overheated", count: 8 },
+      { group: "risk", label: "Risk", count: 140 },
+      { group: "neutral", label: "Neutral", count: 114 },
+    ]);
   });
 
   it("normalizes backend group key variants", () => {
