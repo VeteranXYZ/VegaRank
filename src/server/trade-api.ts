@@ -25,14 +25,34 @@ type StatusResponse = {
 };
 
 const serviceName = "trade-api" as const;
-loadDotEnv();
+const defaultHost = "127.0.0.1";
+const defaultPort = "3000";
+const allowedOrigins = new Set([
+  "https://s.bitcoinmind.com",
+  "http://localhost:3000",
+]);
 
-const host = process.env.API_HOST ?? "127.0.0.1";
-const port = parsePort(process.env.PORT ?? "3000");
+export function createTradeApiServer() {
+  return http.createServer(handleTradeApiRequest);
+}
 
-const server = http.createServer(async (request, response) => {
+export async function handleTradeApiRequest(
+  request: http.IncomingMessage,
+  response: http.ServerResponse,
+) {
+  setCorsHeaders(response, getCorsHeaders(request));
+
   try {
-    const url = new URL(request.url ?? "/", `http://${request.headers.host ?? host}`);
+    const url = new URL(
+      request.url ?? "/",
+      `http://${request.headers.host ?? defaultHost}`,
+    );
+
+    if (request.method === "OPTIONS") {
+      response.writeHead(204);
+      response.end();
+      return;
+    }
 
     if (request.method !== "GET") {
       sendJson(response, 405, {
@@ -111,17 +131,31 @@ const server = http.createServer(async (request, response) => {
       error: "INTERNAL_ERROR",
     });
   }
-});
+}
 
-server.on("error", (error) => {
-  const code = getSafeErrorCode(error) ?? "SERVER_LISTEN_FAILED";
-  console.error(`${serviceName} failed to start: ${code}`);
-  process.exitCode = 1;
-});
+export function startTradeApiServer() {
+  loadDotEnv();
 
-server.listen(port, host, () => {
-  console.info(`${serviceName} listening on http://${host}:${port}`);
-});
+  const host = process.env.API_HOST ?? defaultHost;
+  const port = parsePort(process.env.PORT ?? defaultPort);
+  const server = createTradeApiServer();
+
+  server.on("error", (error) => {
+    const code = getSafeErrorCode(error) ?? "SERVER_LISTEN_FAILED";
+    console.error(`${serviceName} failed to start: ${code}`);
+    process.exitCode = 1;
+  });
+
+  server.listen(port, host, () => {
+    console.info(`${serviceName} listening on http://${host}:${port}`);
+  });
+
+  return server;
+}
+
+if (isTradeApiEntrypoint()) {
+  startTradeApiServer();
+}
 
 async function checkPostgres(): Promise<ServiceCheck> {
   const databaseUrl = process.env.DATABASE_URL;
@@ -699,6 +733,34 @@ function unquoteEnvValue(value: string) {
   return value;
 }
 
+function getCorsHeaders(request: http.IncomingMessage): Record<string, string> {
+  const origin = getHeaderValue(request.headers.origin);
+
+  if (!origin || !allowedOrigins.has(origin)) {
+    return {};
+  }
+
+  return {
+    "Access-Control-Allow-Origin": origin,
+    "Access-Control-Allow-Methods": "GET, OPTIONS",
+    "Access-Control-Allow-Headers": "Content-Type",
+    Vary: "Origin",
+  };
+}
+
+function getHeaderValue(value: string | string[] | undefined) {
+  return Array.isArray(value) ? value[0] : value;
+}
+
+function setCorsHeaders(
+  response: http.ServerResponse,
+  headers: Record<string, string>,
+) {
+  for (const [header, value] of Object.entries(headers)) {
+    response.setHeader(header, value);
+  }
+}
+
 function sendJson(
   response: http.ServerResponse,
   statusCode: number,
@@ -709,4 +771,8 @@ function sendJson(
     "cache-control": "no-store",
   });
   response.end(JSON.stringify(payload));
+}
+
+function isTradeApiEntrypoint() {
+  return process.argv[1] === path.resolve(process.cwd(), "src/server/trade-api.ts");
 }

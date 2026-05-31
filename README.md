@@ -112,6 +112,39 @@ With this value present, the latest scan request is built as
 `/api/scan/latest` URL is only a local development fallback when the public
 environment variable is missing.
 
+### Public Trade API CORS Verification
+
+After deploying or restarting `https://api.auere.com`, verify that the public
+scanner origin receives CORS headers:
+
+```bash
+curl -i \
+  -H 'Origin: https://s.bitcoinmind.com' \
+  'https://api.auere.com/api/scan/latest?timeframe=4h&assetClass=crypto&limit=100'
+```
+
+Expected response headers include:
+
+```txt
+Access-Control-Allow-Origin: https://s.bitcoinmind.com
+Access-Control-Allow-Methods: GET, OPTIONS
+Access-Control-Allow-Headers: Content-Type
+```
+
+Verify the preflight path does not require a database lookup:
+
+```bash
+curl -i -X OPTIONS \
+  -H 'Origin: https://s.bitcoinmind.com' \
+  -H 'Access-Control-Request-Method: GET' \
+  'https://api.auere.com/api/scan/latest?timeframe=4h&assetClass=crypto&limit=100'
+```
+
+Expected: `HTTP 204` and
+`Access-Control-Allow-Origin: https://s.bitcoinmind.com`. After API deploy,
+open `https://s.bitcoinmind.com/scanner`; the latest scan table should render
+without a browser CORS error.
+
 D1 is not configured in `wrangler.jsonc` for Phase 1. The old migration workflow is intentionally removed.
 
 ### Cloudflare Free Batching
