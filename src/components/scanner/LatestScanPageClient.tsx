@@ -802,7 +802,14 @@ export function shouldShowIncompleteCryptoUniverseWarning({
   assetClass: string;
   symbolsTotal: number | null | undefined;
 }) {
-  return assetClass.toLowerCase() === "crypto" && (symbolsTotal ?? 0) > 0 && symbolsTotal < 300;
+  const normalizedSymbolsTotal =
+    typeof symbolsTotal === "number" ? symbolsTotal : 0;
+
+  return (
+    assetClass.toLowerCase() === "crypto" &&
+    normalizedSymbolsTotal > 0 &&
+    normalizedSymbolsTotal < 300
+  );
 }
 
 export function getTradeApiBaseUrl(
