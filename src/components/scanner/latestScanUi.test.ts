@@ -33,9 +33,11 @@ describe("latest scan UI helpers", () => {
     expect(formatQualityTier("wrapped_or_staked")).toBe("Wrapped/Staked");
     expect(formatGroupLabel("eligible")).toBe("Eligible");
     expect(formatGroupHint("eligible")).toBe(
-      "Candidates worth manual review, not automatic buys.",
+      "Candidates worth manual review: positive rank, confirmed/trend, clear setup, and no detected risks.",
     );
-    expect(formatGroupHint("watch")).toBe("Monitor for confirmation.");
+    expect(formatGroupHint("watch")).toBe(
+      "Monitor for confirmation; lower or negative-rank watch rows are lower priority.",
+    );
     expect(formatGroupHint("overheated")).toBe(
       "Strong but extended, do not chase.",
     );
@@ -107,6 +109,16 @@ describe("latest scan UI helpers", () => {
       { group: "risk", label: "Risk", count: 140 },
       { group: "neutral", label: "Neutral", count: 114 },
     ]);
+
+    expect(
+      getLatestScanGroupCount(
+        {
+          eligible: 3,
+          totalByGroup: { eligible: 26 },
+        },
+        "eligible",
+      ),
+    ).toBe(26);
   });
 
   it("normalizes backend group key variants", () => {

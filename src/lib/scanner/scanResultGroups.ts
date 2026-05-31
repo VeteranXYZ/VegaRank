@@ -14,6 +14,7 @@ export type ScanResultGroupInput = {
   actionBias?: string | null;
   primaryStructure?: string | null;
   rankScore?: number | null;
+  detectedRiskTypes?: unknown[] | null;
 };
 
 export type ScanResultGroupSummary = Record<ScanResultGroup, number> & {
@@ -45,13 +46,28 @@ export function classifyScanResultGroup(
   const actionBias = signal.actionBias ?? "";
   const signalLabel = signal.signalLabel ?? "";
   const primaryStructure = signal.primaryStructure ?? "";
+  const rankScore = signal.rankScore ?? Number.NEGATIVE_INFINITY;
+  const hasDetectedRisks = hasAnyDetectedRiskType(signal, [
+    "overheat_risk",
+    "weak_bounce_risk",
+    "distribution_risk",
+    "trend_breakdown_risk",
+    "liquidity_spike_risk",
+    "failed_breakout_risk",
+  ]);
 
   if (
     actionBias === "avoid" ||
     signalLabel === "breakdown_risk" ||
     signalLabel === "distribution_risk" ||
     primaryStructure === "trend_breakdown" ||
-    primaryStructure === "distribution_risk"
+    primaryStructure === "distribution_risk" ||
+    hasAnyDetectedRiskType(signal, [
+      "distribution_risk",
+      "trend_breakdown_risk",
+      "liquidity_spike_risk",
+      "failed_breakout_risk",
+    ])
   ) {
     return "risk";
   }
@@ -65,11 +81,21 @@ export function classifyScanResultGroup(
   }
 
   if (
-    actionBias === "eligible" ||
-    signalLabel === "confirmed" ||
-    signalLabel === "trend"
+    actionBias === "eligible" &&
+    (signalLabel === "confirmed" || signalLabel === "trend") &&
+    rankScore > 0 &&
+    primaryStructure !== "" &&
+    primaryStructure !== "neutral" &&
+    !hasDetectedRisks
   ) {
     return "eligible";
+  }
+
+  if (
+    actionBias === "eligible" &&
+    (signalLabel === "confirmed" || signalLabel === "trend" || rankScore > 0)
+  ) {
+    return "watch";
   }
 
   if (
@@ -81,6 +107,17 @@ export function classifyScanResultGroup(
   }
 
   return "neutral";
+}
+
+function hasAnyDetectedRiskType(
+  signal: ScanResultGroupInput,
+  riskTypes: string[],
+) {
+  const detectedRiskTypes = signal.detectedRiskTypes ?? [];
+
+  return detectedRiskTypes.some(
+    (riskType) => typeof riskType === "string" && riskTypes.includes(riskType),
+  );
 }
 
 export function compareScanResultGroupItems<

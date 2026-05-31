@@ -58,6 +58,10 @@ type LatestScanSummary = {
   risk?: number;
   neutral?: number;
   insufficient_history?: number;
+  visibleByGroup?: Partial<Record<LatestScanGroupKey, number>>;
+  totalByGroup?: Partial<Record<LatestScanGroupKey, number>>;
+  limitedGroups?: LatestScanGroupKey[];
+  allocationStrategy?: string;
 };
 
 type LatestScanItem = {

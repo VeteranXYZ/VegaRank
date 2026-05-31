@@ -12,6 +12,7 @@ describe("scan result grouping", () => {
         actionBias: "eligible",
         signalLabel: "confirmed",
         primaryStructure: "trend_breakdown",
+        rankScore: 80,
       }),
     ).toBe("risk");
     expect(
@@ -24,10 +25,83 @@ describe("scan result grouping", () => {
   });
 
   it("groups eligible, watch, risk, and neutral signals", () => {
-    expect(classifyScanResultGroup({ actionBias: "eligible" })).toBe("eligible");
+    expect(
+      classifyScanResultGroup({
+        actionBias: "eligible",
+        signalLabel: "confirmed",
+        primaryStructure: "strong_trend",
+        rankScore: 50,
+      }),
+    ).toBe("eligible");
     expect(classifyScanResultGroup({ signalLabel: "watch" })).toBe("watch");
     expect(classifyScanResultGroup({ actionBias: "avoid" })).toBe("risk");
     expect(classifyScanResultGroup({ actionBias: "ignore" })).toBe("neutral");
+  });
+
+  it("keeps neutral setups out of eligible even with confirmed labels", () => {
+    expect(
+      classifyScanResultGroup({
+        actionBias: "eligible",
+        signalLabel: "confirmed",
+        primaryStructure: "neutral",
+        rankScore: 80,
+      }),
+    ).toBe("watch");
+  });
+
+  it("keeps severe risks ahead of overheated and eligible states", () => {
+    expect(
+      classifyScanResultGroup({
+        actionBias: "do_not_chase",
+        signalLabel: "distribution_risk",
+        primaryStructure: "overextended",
+        rankScore: 120,
+      }),
+    ).toBe("risk");
+    expect(
+      classifyScanResultGroup({
+        actionBias: "eligible",
+        signalLabel: "confirmed",
+        primaryStructure: "strong_trend",
+        detectedRiskTypes: ["trend_breakdown_risk"],
+        rankScore: 80,
+      }),
+    ).toBe("risk");
+  });
+
+  it("keeps detected-risk eligible rows in watch when the risk is not severe", () => {
+    expect(
+      classifyScanResultGroup({
+        actionBias: "eligible",
+        signalLabel: "confirmed",
+        primaryStructure: "strong_trend",
+        detectedRiskTypes: ["overheat_risk"],
+        rankScore: 80,
+      }),
+    ).toBe("watch");
+  });
+
+  it("keeps negative-rank watch rows deterministic and lower priority", () => {
+    expect(
+      classifyScanResultGroup({
+        actionBias: "watch_only",
+        signalLabel: "watch",
+        primaryStructure: "neutral",
+        rankScore: -10,
+      }),
+    ).toBe("watch");
+
+    const sorted = [
+      { symbol: "LOWUSDT", resultGroup: "watch" as const, rankScore: -10 },
+      { symbol: "HIGHUSDT", resultGroup: "watch" as const, rankScore: 12 },
+      { symbol: "TIEUSDT", resultGroup: "watch" as const, rankScore: -10 },
+    ].sort(compareScanResultGroupItems);
+
+    expect(sorted.map((item) => item.symbol)).toEqual([
+      "HIGHUSDT",
+      "LOWUSDT",
+      "TIEUSDT",
+    ]);
   });
 
   it("sorts by display group before rank score", () => {
@@ -47,8 +121,18 @@ describe("scan result grouping", () => {
   it("summarizes both semantic groups and raw labels", () => {
     expect(
       summarizeScanResultGroups([
-        { signalLabel: "confirmed", actionBias: "eligible" },
-        { signalLabel: "trend", actionBias: "eligible" },
+        {
+          signalLabel: "confirmed",
+          actionBias: "eligible",
+          primaryStructure: "strong_trend",
+          rankScore: 80,
+        },
+        {
+          signalLabel: "trend",
+          actionBias: "eligible",
+          primaryStructure: "healthy_pullback",
+          rankScore: 60,
+        },
         { signalLabel: "breakdown_risk", actionBias: "avoid" },
       ]),
     ).toMatchObject({

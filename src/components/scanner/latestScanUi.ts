@@ -19,8 +19,10 @@ const groupLabels = {
 } satisfies Record<LatestScanGroupKey, string>;
 
 const groupHints = {
-  eligible: "Candidates worth manual review, not automatic buys.",
-  watch: "Monitor for confirmation.",
+  eligible:
+    "Candidates worth manual review: positive rank, confirmed/trend, clear setup, and no detected risks.",
+  watch:
+    "Monitor for confirmation; lower or negative-rank watch rows are lower priority.",
   overheated: "Strong but extended, do not chase.",
   risk: "Avoid or wait for repair.",
   neutral: "No clear edge.",
@@ -39,7 +41,9 @@ type LatestScanScoreInput = {
 
 type LatestScanGroupSummaryInput = Partial<
   Record<LatestScanGroupKey | "insufficientHistory", number | null | undefined>
->;
+> & {
+  totalByGroup?: Partial<Record<LatestScanGroupKey, number | null | undefined>>;
+};
 
 const signalLabels: Record<string, string> = {
   confirmed: "Confirmed",
@@ -209,6 +213,12 @@ export function getLatestScanGroupCount(
 ) {
   if (!summary) {
     return 0;
+  }
+
+  const totalByGroupValue = summary.totalByGroup?.[group];
+
+  if (typeof totalByGroupValue === "number" && Number.isFinite(totalByGroupValue)) {
+    return totalByGroupValue;
   }
 
   const value =
