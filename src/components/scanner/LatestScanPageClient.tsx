@@ -107,6 +107,14 @@ type LatestScanResponse = {
   message?: string;
 };
 
+type BuildLatestScanUrlParams = {
+  timeframe: LatestScanTimeframe;
+  assetClass: LatestScanAssetClass;
+  limit?: LatestScanLimit;
+  includeLowQuality?: boolean;
+  tradeApiBaseUrl?: string;
+};
+
 const assetClassOptions: LatestScanAssetClass[] = [
   "crypto",
   "stable",
@@ -696,20 +704,15 @@ async function fetchLatestScan({
   includeLowQuality: boolean;
   signal?: AbortSignal;
 }) {
-  const params = new URLSearchParams({
-    timeframe,
-    assetClass,
-    limit: String(limit),
-  });
-
-  if (includeLowQuality) {
-    params.set("includeLowQuality", "true");
-  }
-
-  const apiBaseUrl = normalizeApiBaseUrl(process.env.NEXT_PUBLIC_TRADE_API_BASE_URL);
-  const response = await fetch(`${apiBaseUrl}/api/scan/latest?${params.toString()}`, {
-    signal,
-  });
+  const response = await fetch(
+    buildLatestScanUrl({
+      timeframe,
+      assetClass,
+      limit,
+      includeLowQuality,
+    }),
+    { signal },
+  );
 
   if (!response.ok) {
     throw new Error(
@@ -720,7 +723,29 @@ async function fetchLatestScan({
   return (await response.json()) as LatestScanResponse;
 }
 
-function normalizeApiBaseUrl(value: string | undefined) {
+export function buildLatestScanUrl({
+  timeframe,
+  assetClass,
+  limit = 100,
+  includeLowQuality = false,
+  tradeApiBaseUrl = process.env.NEXT_PUBLIC_TRADE_API_BASE_URL,
+}: BuildLatestScanUrlParams) {
+  const params = new URLSearchParams({
+    timeframe,
+    assetClass,
+    limit: String(limit),
+  });
+
+  if (includeLowQuality) {
+    params.set("includeLowQuality", "true");
+  }
+
+  return `${getTradeApiBaseUrl(tradeApiBaseUrl)}/api/scan/latest?${params.toString()}`;
+}
+
+export function getTradeApiBaseUrl(
+  value = process.env.NEXT_PUBLIC_TRADE_API_BASE_URL,
+) {
   return value?.trim().replace(/\/+$/, "") ?? "";
 }
 

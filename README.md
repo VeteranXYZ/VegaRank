@@ -97,6 +97,21 @@ npm run preview:cloudflare
 npm run deploy:cloudflare
 ```
 
+### Cloudflare Pages Production Environment
+
+Cloudflare Pages Production must define the public trade API base URL at build
+time so the `/scanner` frontend calls the public API host instead of the Pages
+same-origin fallback:
+
+```txt
+NEXT_PUBLIC_TRADE_API_BASE_URL=https://api.auere.com
+```
+
+With this value present, the latest scan request is built as
+`https://api.auere.com/api/scan/latest?...`. The same-origin
+`/api/scan/latest` URL is only a local development fallback when the public
+environment variable is missing.
+
 D1 is not configured in `wrangler.jsonc` for Phase 1. The old migration workflow is intentionally removed.
 
 ### Cloudflare Free Batching
