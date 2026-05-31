@@ -7,12 +7,15 @@ import {
   formatGroupLabel,
   formatPrice,
   formatQualityTier,
+  formatReviewTierLabel,
   formatScore,
   formatSignalLabel,
   getDetectedRiskTypeLabels,
   getLatestScanGroupCount,
   getLatestScanGroupSummaryChips,
   getLatestScanScoreRows,
+  getReviewStatusNote,
+  getReviewStatusReasons,
   getResultGroupSortOrder,
   hasDetectedRiskTypes,
   normalizeGroupKey,
@@ -44,6 +47,20 @@ describe("latest scan UI helpers", () => {
     expect(formatGroupHint("risk")).toBe("Avoid or wait for repair.");
     expect(formatGroupHint("neutral")).toBe("No clear edge.");
     expect(formatGroupHint("insufficient_history")).toBe("Not enough candles.");
+    expect(formatReviewTierLabel("watch_high")).toBe("Needs confirmation");
+    expect(formatReviewTierLabel("watch_caution")).toBe("Caution");
+    expect(formatReviewTierLabel("watch_low")).toBe("Low priority");
+
+    const combinedLabels = [
+      formatGroupHint("eligible"),
+      formatGroupHint("watch"),
+      formatReviewTierLabel("eligible"),
+      formatReviewTierLabel("watch_high"),
+      formatReviewTierLabel("watch_caution"),
+      formatReviewTierLabel("watch_low"),
+    ].join(" ");
+
+    expect(combinedLabels).not.toMatch(/\b(buy|sell|entry|long|short)\b/i);
   });
 
   it("formats detailed score rows with readable labels", () => {
@@ -89,6 +106,41 @@ describe("latest scan UI helpers", () => {
     expect(formatActionDisplay("do_not_chase", [])).toBe("Do not chase");
     expect(formatActionDisplay("ignore", [])).toBe("Ignore");
     expect(formatActionDisplay("watch_only", [])).toBe("Watch Only");
+  });
+
+  it("explains review status from API fields or safe fallbacks", () => {
+    expect(
+      getReviewStatusNote({
+        statusNote: "Caution",
+        reviewTier: "watch_caution",
+        resultGroup: "watch",
+      }),
+    ).toBe("Caution");
+    expect(getReviewStatusNote({ reviewTier: "watch_low" })).toBe("Low priority");
+    expect(
+      getReviewStatusReasons({
+        statusReasons: [
+          "Caution: detected overheat risk, so this is not treated as a clean eligible candidate.",
+        ],
+      }),
+    ).toEqual([
+      "Caution: detected overheat risk, so this is not treated as a clean eligible candidate.",
+    ]);
+    expect(
+      getReviewStatusReasons({
+        resultGroup: "watch",
+        detectedRiskTypes: ["overheat_risk"],
+        primaryStructure: "neutral",
+        rankScore: -1,
+      }),
+    ).toEqual([
+      "Caution: detected Overheat Risk, so this is not treated as a clean eligible candidate.",
+      "Neutral setup type prevents clean eligible classification.",
+      "Low priority watch because rank score is below zero.",
+    ]);
+    expect(getReviewStatusReasons({ resultGroup: "risk" })).toEqual([
+      "Risk group has priority over opportunity score.",
+    ]);
   });
 
   it("returns full-scan group counts for summary chips", () => {

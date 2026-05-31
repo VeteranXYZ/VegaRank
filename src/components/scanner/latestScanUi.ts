@@ -9,6 +9,16 @@ export const latestScanGroupOrder = [
 
 export type LatestScanGroupKey = (typeof latestScanGroupOrder)[number];
 
+export type LatestScanReviewTier =
+  | "eligible"
+  | "watch_high"
+  | "watch_caution"
+  | "watch_low"
+  | "overheated"
+  | "risk"
+  | "neutral"
+  | "insufficient_history";
+
 const groupLabels = {
   eligible: "Eligible",
   watch: "Watch",
@@ -28,6 +38,17 @@ const groupHints = {
   neutral: "No clear edge.",
   insufficient_history: "Not enough candles.",
 } satisfies Record<LatestScanGroupKey, string>;
+
+const reviewTierLabels = {
+  eligible: "Manual review",
+  watch_high: "Needs confirmation",
+  watch_caution: "Caution",
+  watch_low: "Low priority",
+  overheated: "Do not chase",
+  risk: "Avoid",
+  neutral: "No clear edge",
+  insufficient_history: "Not enough candles",
+} satisfies Record<LatestScanReviewTier, string>;
 
 type LatestScanScoreInput = {
   opportunityScore: number | null;
@@ -173,6 +194,78 @@ export function formatActionDisplay(
   return formatActionBias(actionBias);
 }
 
+export function formatReviewTierLabel(value: string | null | undefined) {
+  return isLatestScanReviewTier(value)
+    ? reviewTierLabels[value]
+    : "Needs review";
+}
+
+export function getReviewStatusNote(item: {
+  statusNote?: string | null;
+  reviewTier?: string | null;
+  resultGroup?: string | null;
+}) {
+  if (item.statusNote?.trim()) {
+    return item.statusNote.trim();
+  }
+
+  if (isLatestScanReviewTier(item.reviewTier)) {
+    return formatReviewTierLabel(item.reviewTier);
+  }
+
+  const group = normalizeGroupKey(item.resultGroup);
+
+  return group === "watch" ? "Needs confirmation" : formatReviewTierLabel(group);
+}
+
+export function getReviewStatusReasons(item: {
+  statusReasons?: unknown;
+  detectedRiskTypes?: unknown;
+  primaryStructure?: string | null;
+  rankScore?: number | null;
+  resultGroup?: string | null;
+}) {
+  if (Array.isArray(item.statusReasons)) {
+    const reasons = item.statusReasons.filter(
+      (reason): reason is string => typeof reason === "string" && reason.length > 0,
+    );
+
+    if (reasons.length > 0) {
+      return reasons;
+    }
+  }
+
+  const reasons: string[] = [];
+  const resultGroup = normalizeGroupKey(item.resultGroup);
+  const riskLabels = getDetectedRiskTypeLabels(item.detectedRiskTypes);
+
+  if (riskLabels.length > 0) {
+    reasons.push(
+      `Caution: detected ${riskLabels.join(", ")}, so this is not treated as a clean eligible candidate.`,
+    );
+  }
+
+  if (item.primaryStructure === "neutral") {
+    reasons.push("Neutral setup type prevents clean eligible classification.");
+  }
+
+  if (typeof item.rankScore === "number" && item.rankScore < 0) {
+    reasons.push("Low priority watch because rank score is below zero.");
+  }
+
+  if (resultGroup === "risk") {
+    reasons.push("Risk group has priority over opportunity score.");
+  } else if (resultGroup === "overheated") {
+    reasons.push("Overheated state has priority over opportunity score.");
+  } else if (reasons.length === 0 && resultGroup === "watch") {
+    reasons.push(
+      "Needs confirmation: positive rank with a meaningful setup, but eligible rules are not fully met.",
+    );
+  }
+
+  return reasons;
+}
+
 export function formatQualityTier(value: string | null | undefined) {
   if (!value) {
     return "Unknown";
@@ -256,6 +349,21 @@ export function normalizeGroupKey(
     : latestScanGroupOrder.includes(group as LatestScanGroupKey)
       ? (group as LatestScanGroupKey)
       : "neutral";
+}
+
+function isLatestScanReviewTier(
+  value: string | null | undefined,
+): value is LatestScanReviewTier {
+  return (
+    value === "eligible" ||
+    value === "watch_high" ||
+    value === "watch_caution" ||
+    value === "watch_low" ||
+    value === "overheated" ||
+    value === "risk" ||
+    value === "neutral" ||
+    value === "insufficient_history"
+  );
 }
 
 export function toTitleCase(value: string) {

@@ -8,14 +8,16 @@ import {
   buildScanResultGroups,
   classifyScanResultGroup,
   compareScanResultGroupItems,
+  getScanResultReview,
   summarizeScanResultGroups,
+  type ScanResultReview,
   type ScanResultGroup,
 } from "./scanResultGroups";
 
 export type LatestScanItem = LatestScanSignalRecord &
   SymbolQuality & {
     resultGroup: ScanResultGroup;
-  };
+  } & ScanResultReview;
 
 const BALANCED_ALLOCATION_STRATEGY = "balanced_group_quota_v1" as const;
 
@@ -192,10 +194,13 @@ function enrichLatestScanItem(signal: LatestScanSignalRecord): LatestScanItem {
     candleCount: signal.candleCount,
     firstOpenTime: signal.firstOpenTime,
   });
+  const resultGroup = classifyScanResultGroup(signal);
+  const review = getScanResultReview({ ...signal, resultGroup });
 
   return {
     ...signal,
     ...quality,
-    resultGroup: classifyScanResultGroup(signal),
+    resultGroup,
+    ...review,
   };
 }

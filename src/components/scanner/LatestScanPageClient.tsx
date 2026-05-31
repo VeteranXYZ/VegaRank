@@ -15,6 +15,8 @@ import {
   getLatestScanGroupCount,
   getLatestScanGroupSummaryChips,
   getLatestScanScoreRows,
+  getReviewStatusNote,
+  getReviewStatusReasons,
   latestScanGroupOrder,
   normalizeGroupKey,
   toTitleCase,
@@ -73,6 +75,10 @@ type LatestScanItem = {
   rankScore: number | null;
   signalLabel: string | null;
   actionBias: string | null;
+  reviewTier?: string | null;
+  statusNote?: string | null;
+  cautionLevel?: string | null;
+  statusReasons?: string[];
   primaryStructure: string | null;
   qualityTier: string | null;
   isLowQuality: boolean;
@@ -588,7 +594,10 @@ function LatestScanRow({
         <div>{formatSignalLabel(item.signalLabel)}</div>
       </td>
       <td className="px-2 py-1.5">
-        {formatActionDisplay(item.actionBias, item.detectedRiskTypes)}
+        <div>{formatActionDisplay(item.actionBias, item.detectedRiskTypes)}</div>
+        <div className="mt-1 text-[10px] font-semibold text-[var(--muted)]">
+          {getReviewStatusNote(item)}
+        </div>
       </td>
       <td className="px-2 py-1.5">{formatStructure(item.primaryStructure)}</td>
       <td className="px-2 py-1.5">
@@ -633,10 +642,14 @@ function LatestScanDetails({ item }: { item: LatestScanItem }) {
   const factors = normalizeFactors(item.factors);
   const rawMetrics = pickRawMetrics(item.rawMetrics);
   const riskTypeLabels = getDetectedRiskTypeLabels(item.detectedRiskTypes);
+  const statusReasons = getReviewStatusReasons(item);
   const metricsAndFactors = [...factors, ...rawMetrics];
 
   return (
     <div className="grid gap-3 text-[11px] leading-5 text-[var(--muted)] md:grid-cols-2 xl:grid-cols-3">
+      <DetailBlock title="Grouping Reason">
+        <TextList values={statusReasons} />
+      </DetailBlock>
       <DetailBlock title="Candle Context">
         <TextList
           values={[

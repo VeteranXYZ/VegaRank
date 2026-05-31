@@ -66,6 +66,12 @@ describe("latest scan response", () => {
       risk: 1,
     });
     expect(response.summary.allocationStrategy).toBe("balanced_group_quota_v1");
+    expect(response.items[0]).toMatchObject({
+      symbol: "ETHUSDT",
+      reviewTier: "eligible",
+      statusNote: "Manual review",
+      cautionLevel: "none",
+    });
   });
 
   it("keeps neutral confirmed setups out of eligible results", () => {
@@ -88,6 +94,10 @@ describe("latest scan response", () => {
 
     expect(response.groups.eligible).toHaveLength(0);
     expect(response.groups.watch.map((item) => item.symbol)).toEqual(["HBARUSDT"]);
+    expect(response.groups.watch[0]).toMatchObject({
+      reviewTier: "watch_low",
+      statusNote: "Low priority",
+    });
     expect(response.summary.watch).toBe(1);
   });
 
