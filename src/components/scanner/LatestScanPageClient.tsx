@@ -11,6 +11,9 @@ import {
   formatQualityTier,
   formatScore,
   formatSignalLabel,
+  getDetectedRiskTypeLabels,
+  getLatestScanScoreRows,
+  hasDetectedRiskTypes,
   latestScanGroupOrder,
   normalizeGroupKey,
   toTitleCase,
@@ -115,6 +118,16 @@ type BuildLatestScanUrlParams = {
   tradeApiBaseUrl?: string;
 };
 
+type LatestRunSummaryTextInput = {
+  symbolsTotal: number | null | undefined;
+  symbolsScanned: number | null | undefined;
+  signalsCreated: number | null | undefined;
+  symbolsSkipped: number | null | undefined;
+  returnedItems: number | null | undefined;
+  totalSignals: number | null | undefined;
+  lowQualityExcluded: number | null | undefined;
+};
+
 const assetClassOptions: LatestScanAssetClass[] = [
   "crypto",
   "stable",
@@ -147,7 +160,6 @@ export function LatestScanPageClient() {
   const finishedAt = data?.run?.finishedAt ?? data?.run?.startedAt ?? null;
   const totalSignals = data?.summary?.totalSignals ?? 0;
   const returnedItems = data?.summary?.returnedItems ?? data?.count ?? 0;
-  const runSignalsCreated = data?.run?.signalsCreated ?? 0;
   const lowQualityExcluded = data?.summary?.lowQualityExcluded ?? 0;
 
   return (
@@ -173,7 +185,7 @@ export function LatestScanPageClient() {
         </div>
       </header>
 
-      <div className="grid min-h-0 flex-1 gap-2 xl:grid-cols-[260px_minmax(0,1fr)]">
+      <div className="grid min-h-0 flex-1 gap-2 xl:grid-cols-[220px_minmax(0,1fr)]">
         <LatestScanControls
           timeframe={timeframe}
           assetClass={assetClass}
@@ -194,7 +206,6 @@ export function LatestScanPageClient() {
             finishedAt={finishedAt}
             totalSignals={totalSignals}
             returnedItems={returnedItems}
-            runSignalsCreated={runSignalsCreated}
             lowQualityExcluded={lowQualityExcluded}
           />
 
@@ -254,9 +265,9 @@ function LatestScanControls({
   onIncludeLowQualityChange: (value: boolean) => void;
 }) {
   return (
-    <aside className="border border-[var(--border)] bg-[var(--panel)] p-2.5 xl:h-full xl:overflow-y-auto">
+    <aside className="border border-[var(--border)] bg-[var(--panel)] p-2 xl:h-fit xl:overflow-y-auto">
       <h2 className="mb-2 text-sm font-semibold leading-none">Latest Scan Filters</h2>
-      <div className="space-y-3 text-xs text-[var(--muted)]">
+      <div className="grid gap-2 text-xs text-[var(--muted)] sm:grid-cols-2 xl:grid-cols-1">
         <ControlSection title="Scope">
           <label className="block">
             <span className="mb-1 block text-[11px] uppercase tracking-wide">
@@ -275,9 +286,6 @@ function LatestScanControls({
                 </option>
               ))}
             </select>
-            <p className="mt-1 text-[10px] leading-4 text-[var(--muted-2)]">
-              Coverage varies by timeframe.
-            </p>
           </label>
 
           <label className="block">
@@ -332,9 +340,7 @@ function LatestScanControls({
                 Include low-quality symbols
               </span>
               <span className="mt-1 block text-[10px] leading-4 text-[var(--muted-2)]">
-                Default view excludes symbols flagged as low-quality, suspicious,
-                special, very new, low-history, stable-like, fan token, or
-                wrapped/staked assets.
+                Default excludes low-quality symbols from the shown result set.
               </span>
             </span>
           </label>
@@ -359,7 +365,6 @@ function LatestScanSummaryPanel({
   finishedAt,
   totalSignals,
   returnedItems,
-  runSignalsCreated,
   lowQualityExcluded,
 }: {
   data: LatestScanResponse | null;
@@ -369,10 +374,22 @@ function LatestScanSummaryPanel({
   finishedAt: string | null;
   totalSignals: number;
   returnedItems: number;
-  runSignalsCreated: number;
   lowQualityExcluded: number;
 }) {
   const run = data?.run;
+  const summaryText = buildLatestRunSummaryText({
+    symbolsTotal: run?.symbolsTotal,
+    symbolsScanned: run?.symbolsScanned,
+    signalsCreated: run?.signalsCreated,
+    symbolsSkipped: run?.symbolsSkipped,
+    returnedItems,
+    totalSignals,
+    lowQualityExcluded,
+  });
+  const showUniverseWarning = shouldShowIncompleteCryptoUniverseWarning({
+    assetClass,
+    symbolsTotal: run?.symbolsTotal,
+  });
 
   return (
     <section className="border border-[var(--border)] bg-[var(--panel)] px-3 py-2">
@@ -380,11 +397,13 @@ function LatestScanSummaryPanel({
         <div>
           <h2 className="text-sm font-semibold">Latest Successful Scan Run</h2>
           <p className="mt-1 text-[11px] leading-5 text-[var(--muted)]">
-            Showing {formatInteger(returnedItems)} of {formatInteger(totalSignals)}{" "}
-            filtered signals · {formatInteger(runSignalsCreated)} signals created in
-            latest scan run · {formatInteger(lowQualityExcluded)} low-quality symbols
-            excluded
+            {summaryText}
           </p>
+          {showUniverseWarning && (
+            <p className="mt-1 border border-amber-500/50 bg-amber-500/10 px-2 py-1 text-[11px] font-semibold text-amber-200">
+              This does not look like a full crypto universe scan.
+            </p>
+          )}
         </div>
         <div className="text-right text-[11px] text-[var(--muted)]">
           <div>{timeframe} · {assetClass}</div>
@@ -394,17 +413,18 @@ function LatestScanSummaryPanel({
 
       <div className="mt-2 grid gap-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-6">
         <SummaryMetric label="Finished" value={formatDateTime(finishedAt)} />
-        <SummaryMetric label="Universe" value={run?.universe ?? "Unknown"} />
-        <SummaryMetric label="Symbols Total" value={formatInteger(run?.symbolsTotal)} />
+        <SummaryMetric label="Full Universe Size" value={formatInteger(run?.symbolsTotal)} />
         <SummaryMetric label="Scanned" value={formatInteger(run?.symbolsScanned)} />
         <SummaryMetric label="Signals Created" value={formatInteger(run?.signalsCreated)} />
         <SummaryMetric label="Skipped" value={formatInteger(run?.symbolsSkipped)} />
-        <SummaryMetric label="Failed" value={formatInteger(run?.failedSymbols)} />
-        <SummaryMetric label="Filtered Signals" value={formatInteger(totalSignals)} />
-        <SummaryMetric label="Returned Items" value={formatInteger(returnedItems)} />
-        <SummaryMetric label="Low Quality Excluded" value={formatInteger(lowQualityExcluded)} />
-        <SummaryMetric label="Confirmed" value={formatInteger(data?.summary?.confirmed)} />
-        <SummaryMetric label="Risk" value={formatInteger(data?.summary?.risk)} />
+        <SummaryMetric
+          label="Filtered Signals Shown"
+          value={`${formatInteger(returnedItems)} of ${formatInteger(totalSignals)}`}
+        />
+        <SummaryMetric
+          label="Low-Quality Excluded"
+          value={formatInteger(lowQualityExcluded)}
+        />
       </div>
     </section>
   );
@@ -441,21 +461,19 @@ function LatestScanGroupSection({
         </div>
       ) : (
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[1120px] table-fixed border-collapse text-left text-xs">
+          <table className="w-full min-w-[940px] table-fixed border-collapse text-left text-xs">
             <thead className="bg-[#090f15] text-[10px] uppercase text-[var(--muted)]">
               <tr>
-                <th className="w-[88px] px-2 py-1.5">Symbol</th>
-                <th className="w-[64px] px-2 py-1.5">Rank</th>
-                <th className="w-[92px] px-2 py-1.5">Signal</th>
-                <th className="w-[96px] px-2 py-1.5">Action</th>
-                <th className="w-[120px] px-2 py-1.5">Structure</th>
-                <th className="w-[118px] px-2 py-1.5">Quality</th>
-                <th className="w-[150px] px-2 py-1.5">Flags</th>
-                <th className="w-[76px] px-2 py-1.5">Candles</th>
-                <th className="w-[96px] px-2 py-1.5">Price</th>
-                <th className="w-[148px] px-2 py-1.5">Candle</th>
-                <th className="w-[190px] px-2 py-1.5">Scores</th>
-                <th className="w-[76px] px-2 py-1.5">Details</th>
+                <th className="w-[94px] px-2 py-1.5">Symbol</th>
+                <th className="w-[72px] px-2 py-1.5">Rank</th>
+                <th className="w-[128px] px-2 py-1.5">Signal</th>
+                <th className="w-[112px] px-2 py-1.5">Action</th>
+                <th className="w-[136px] px-2 py-1.5">Structure</th>
+                <th className="w-[124px] px-2 py-1.5">Quality</th>
+                <th className="w-[78px] px-2 py-1.5">Candles</th>
+                <th className="w-[104px] px-2 py-1.5">Price</th>
+                <th className="w-[152px] px-2 py-1.5">Candle Time</th>
+                <th className="w-[86px] px-2 py-1.5">Details</th>
               </tr>
             </thead>
             <tbody>
@@ -479,12 +497,19 @@ function LatestScanRow({ item }: { item: LatestScanItem }) {
       <td className="px-2 py-1.5 font-mono tabular-nums">
         {formatScore(item.rankScore)}
       </td>
-      <td className="px-2 py-1.5">{formatSignalLabel(item.signalLabel)}</td>
+      <td className="px-2 py-1.5">
+        <div>{formatSignalLabel(item.signalLabel)}</div>
+        {hasDetectedRiskTypes(item.detectedRiskTypes) && <RiskWarningBadge />}
+      </td>
       <td className="px-2 py-1.5">{formatActionBias(item.actionBias)}</td>
       <td className="px-2 py-1.5">{formatStructure(item.primaryStructure)}</td>
-      <td className="px-2 py-1.5">{formatQualityTier(item.qualityTier)}</td>
       <td className="px-2 py-1.5">
-        <TokenList values={item.qualityFlags.map(formatQualityTier)} empty="-" />
+        <div>{formatQualityTier(item.qualityTier)}</div>
+        {item.isLowQuality && (
+          <span className="mt-1 inline-block border border-[var(--border)] bg-[#15100b] px-1 py-0.5 text-[10px] text-amber-200">
+            Low quality
+          </span>
+        )}
       </td>
       <td className="px-2 py-1.5 font-mono tabular-nums">
         {formatInteger(item.candleCount)}
@@ -494,9 +519,6 @@ function LatestScanRow({ item }: { item: LatestScanItem }) {
       </td>
       <td className="px-2 py-1.5 text-[11px] text-[var(--muted)]">
         {formatDateTime(item.candleOpenTime)}
-      </td>
-      <td className="px-2 py-1.5">
-        <ScoreStrip item={item} />
       </td>
       <td className="px-2 py-1.5">
         <details className="group">
@@ -513,14 +535,21 @@ function LatestScanRow({ item }: { item: LatestScanItem }) {
 function LatestScanDetails({ item }: { item: LatestScanItem }) {
   const factors = normalizeFactors(item.factors);
   const rawMetrics = pickRawMetrics(item.rawMetrics);
+  const riskTypeLabels = getDetectedRiskTypeLabels(item.detectedRiskTypes);
 
   return (
-    <div className="mt-2 w-[300px] space-y-2 rounded-none border border-[var(--border)] bg-[#080d12] p-2 text-[11px] leading-5 text-[var(--muted)]">
+    <div className="mt-2 w-[360px] space-y-3 rounded-none border border-[var(--border)] bg-[#080d12] p-2 text-[11px] leading-5 text-[var(--muted)]">
+      <DetailBlock title="Score Breakdown">
+        <ScoreBreakdown item={item} />
+      </DetailBlock>
+      <DetailBlock title="Quality Flags">
+        <TokenList values={item.qualityFlags.map(formatQualityTier)} empty="None" />
+      </DetailBlock>
       <DetailBlock title="Secondary Structures">
         <TokenList values={formatUnknownList(item.secondaryStructures)} empty="None" />
       </DetailBlock>
       <DetailBlock title="Detected Risks">
-        <TokenList values={formatUnknownList(item.detectedRiskTypes)} empty="None" />
+        <TokenList values={riskTypeLabels} empty="None" />
       </DetailBlock>
       <DetailBlock title="Next Confirmation">
         <TextList values={formatUnknownList(item.nextConfirmation)} />
@@ -542,25 +571,29 @@ function LatestScanDetails({ item }: { item: LatestScanItem }) {
   );
 }
 
-function ScoreStrip({ item }: { item: LatestScanItem }) {
-  const scores = [
-    ["O", item.opportunityScore],
-    ["C", item.confirmationScore],
-    ["R", item.riskScore],
-    ["T", item.trendScore],
-    ["M", item.momentumScore],
-    ["V", item.volumeScore],
-    ["S", item.structureScore],
-  ] as const;
-
+function RiskWarningBadge() {
   return (
-    <div className="flex flex-wrap gap-x-1.5 gap-y-0.5 font-mono text-[10px] tabular-nums">
-      {scores.map(([label, value]) => (
-        <span key={label}>
-          <span className="text-[var(--muted)]">{label}</span> {formatScore(value, 0)}
-        </span>
+    <span className="mt-1 inline-block border border-amber-500/50 bg-amber-500/10 px-1 py-0.5 text-[10px] font-semibold text-amber-200">
+      Risk noted
+    </span>
+  );
+}
+
+function ScoreBreakdown({ item }: { item: LatestScanItem }) {
+  return (
+    <dl className="grid grid-cols-2 gap-x-3 gap-y-1">
+      {getLatestScanScoreRows(item).map((score) => (
+        <div
+          key={score.label}
+          className="flex items-center justify-between gap-2 border-b border-[var(--border)] pb-0.5"
+        >
+          <dt className="text-[var(--muted-2)]">{score.label}</dt>
+          <dd className="font-mono tabular-nums text-[var(--foreground)]">
+            {score.value}
+          </dd>
+        </div>
       ))}
-    </div>
+    </dl>
   );
 }
 
@@ -741,6 +774,35 @@ export function buildLatestScanUrl({
   }
 
   return `${getTradeApiBaseUrl(tradeApiBaseUrl)}/api/scan/latest?${params.toString()}`;
+}
+
+export function buildLatestRunSummaryText({
+  symbolsTotal,
+  symbolsScanned,
+  signalsCreated,
+  symbolsSkipped,
+  returnedItems,
+  totalSignals,
+  lowQualityExcluded,
+}: LatestRunSummaryTextInput) {
+  return [
+    `Full universe size: ${formatInteger(symbolsTotal)}`,
+    `Scanned: ${formatInteger(symbolsScanned)}`,
+    `Signals created: ${formatInteger(signalsCreated)}`,
+    `Skipped: ${formatInteger(symbolsSkipped)}`,
+    `Filtered signals shown: ${formatInteger(returnedItems)} of ${formatInteger(totalSignals)}`,
+    `Low-quality excluded: ${formatInteger(lowQualityExcluded)}`,
+  ].join(" · ");
+}
+
+export function shouldShowIncompleteCryptoUniverseWarning({
+  assetClass,
+  symbolsTotal,
+}: {
+  assetClass: string;
+  symbolsTotal: number | null | undefined;
+}) {
+  return assetClass.toLowerCase() === "crypto" && (symbolsTotal ?? 0) > 0 && symbolsTotal < 300;
 }
 
 export function getTradeApiBaseUrl(

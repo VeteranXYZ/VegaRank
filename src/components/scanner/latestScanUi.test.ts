@@ -8,7 +8,10 @@ import {
   formatQualityTier,
   formatScore,
   formatSignalLabel,
+  getDetectedRiskTypeLabels,
+  getLatestScanScoreRows,
   getResultGroupSortOrder,
+  hasDetectedRiskTypes,
   normalizeGroupKey,
 } from "./latestScanUi";
 
@@ -26,7 +29,48 @@ describe("latest scan UI helpers", () => {
     expect(formatActionBias("do_not_chase")).toBe("Do Not Chase");
     expect(formatQualityTier("wrapped_or_staked")).toBe("Wrapped/Staked");
     expect(formatGroupLabel("eligible")).toBe("Eligible");
-    expect(formatGroupHint("eligible")).toContain("manual review");
+    expect(formatGroupHint("eligible")).toBe(
+      "Candidates worth manual review, not automatic buys.",
+    );
+    expect(formatGroupHint("watch")).toBe("Monitor for confirmation.");
+    expect(formatGroupHint("overheated")).toBe(
+      "Strong but extended, do not chase.",
+    );
+    expect(formatGroupHint("risk")).toBe("Avoid or wait for repair.");
+    expect(formatGroupHint("neutral")).toBe("No clear edge.");
+    expect(formatGroupHint("insufficient_history")).toBe("Not enough candles.");
+  });
+
+  it("formats detailed score rows with readable labels", () => {
+    expect(
+      getLatestScanScoreRows({
+        opportunityScore: 72.2,
+        confirmationScore: 60,
+        riskScore: 24.8,
+        trendScore: 55,
+        momentumScore: 48,
+        volumeScore: 70,
+        structureScore: null,
+      }),
+    ).toEqual([
+      { label: "Opportunity", value: "72.2" },
+      { label: "Confirmation", value: "60.0" },
+      { label: "Risk", value: "24.8" },
+      { label: "Trend", value: "55.0" },
+      { label: "Momentum", value: "48.0" },
+      { label: "Volume", value: "70.0" },
+      { label: "Structure", value: "-" },
+    ]);
+  });
+
+  it("detects and formats backend risk type conflicts", () => {
+    expect(hasDetectedRiskTypes(["overheat_risk"])).toBe(true);
+    expect(getDetectedRiskTypeLabels(["overheat_risk", "distribution_risk"])).toEqual([
+      "Overheat Risk",
+      "Distribution Risk",
+    ]);
+    expect(hasDetectedRiskTypes([])).toBe(false);
+    expect(hasDetectedRiskTypes([{ type: "overheat_risk" }])).toBe(false);
   });
 
   it("normalizes backend group key variants", () => {

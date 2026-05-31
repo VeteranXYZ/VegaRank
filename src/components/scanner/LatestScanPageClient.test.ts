@@ -1,5 +1,9 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { buildLatestScanUrl } from "./LatestScanPageClient";
+import {
+  buildLatestRunSummaryText,
+  buildLatestScanUrl,
+  shouldShowIncompleteCryptoUniverseWarning,
+} from "./LatestScanPageClient";
 
 const originalTradeApiBaseUrl = process.env.NEXT_PUBLIC_TRADE_API_BASE_URL;
 
@@ -48,5 +52,44 @@ describe("latest scan API URL builder", () => {
     });
 
     expect(url).toContain("limit=100");
+  });
+});
+
+describe("latest scan summary helpers", () => {
+  it("summarizes the full latest scan run in practical wording", () => {
+    expect(
+      buildLatestRunSummaryText({
+        symbolsTotal: 413,
+        symbolsScanned: 409,
+        signalsCreated: 409,
+        symbolsSkipped: 4,
+        returnedItems: 100,
+        totalSignals: 409,
+        lowQualityExcluded: 12,
+      }),
+    ).toBe(
+      "Full universe size: 413 · Scanned: 409 · Signals created: 409 · Skipped: 4 · Filtered signals shown: 100 of 409 · Low-quality excluded: 12",
+    );
+  });
+
+  it("warns when a crypto latest scan is too small to look like a full universe", () => {
+    expect(
+      shouldShowIncompleteCryptoUniverseWarning({
+        assetClass: "crypto",
+        symbolsTotal: 299,
+      }),
+    ).toBe(true);
+    expect(
+      shouldShowIncompleteCryptoUniverseWarning({
+        assetClass: "crypto",
+        symbolsTotal: 413,
+      }),
+    ).toBe(false);
+    expect(
+      shouldShowIncompleteCryptoUniverseWarning({
+        assetClass: "stable",
+        symbolsTotal: 20,
+      }),
+    ).toBe(false);
   });
 });

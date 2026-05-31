@@ -19,13 +19,23 @@ const groupLabels = {
 } satisfies Record<LatestScanGroupKey, string>;
 
 const groupHints = {
-  eligible: "Candidate worth further manual review.",
-  watch: "Monitor, confirmation needed.",
-  overheated: "Do not chase.",
+  eligible: "Candidates worth manual review, not automatic buys.",
+  watch: "Monitor for confirmation.",
+  overheated: "Strong but extended, do not chase.",
   risk: "Avoid or wait for repair.",
   neutral: "No clear edge.",
   insufficient_history: "Not enough candles.",
 } satisfies Record<LatestScanGroupKey, string>;
+
+type LatestScanScoreInput = {
+  opportunityScore: number | null;
+  confirmationScore: number | null;
+  riskScore: number | null;
+  trendScore: number | null;
+  momentumScore: number | null;
+  volumeScore: number | null;
+  structureScore: number | null;
+};
 
 const signalLabels: Record<string, string> = {
   confirmed: "Confirmed",
@@ -140,6 +150,32 @@ export function formatQualityTier(value: string | null | undefined) {
   }
 
   return qualityLabels[value] ?? toTitleCase(value);
+}
+
+export function getLatestScanScoreRows(item: LatestScanScoreInput) {
+  return [
+    { label: "Opportunity", value: formatScore(item.opportunityScore) },
+    { label: "Confirmation", value: formatScore(item.confirmationScore) },
+    { label: "Risk", value: formatScore(item.riskScore) },
+    { label: "Trend", value: formatScore(item.trendScore) },
+    { label: "Momentum", value: formatScore(item.momentumScore) },
+    { label: "Volume", value: formatScore(item.volumeScore) },
+    { label: "Structure", value: formatScore(item.structureScore) },
+  ];
+}
+
+export function getDetectedRiskTypeLabels(value: unknown) {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value
+    .map((riskType) => (typeof riskType === "string" ? toTitleCase(riskType) : ""))
+    .filter(Boolean);
+}
+
+export function hasDetectedRiskTypes(value: unknown) {
+  return getDetectedRiskTypeLabels(value).length > 0;
 }
 
 export function getResultGroupSortOrder(group: string | null | undefined) {
