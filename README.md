@@ -380,6 +380,29 @@ that horizon. It is not a failure and it is not a forecast.
 The status API `/api/history/research-stats` returns the same basic storage summary
 for the UI and local checks without exposing secrets.
 
+### PostgreSQL Latest Scan Results
+
+PostgreSQL scanner results must be read by latest successful `scan_runs.id`, not by
+`max(scan_time)`. A single scan run inserts many `scan_signals` rows, and each row
+can have a slightly different `scan_time`.
+
+```sql
+with latest_run as (
+  select id
+  from scan_runs
+  where timeframe = '4h'
+    and status = 'success'
+  order by finished_at desc nulls last, started_at desc
+  limit 1
+)
+select *
+from scan_signals
+where scan_run_id = (select id from latest_run);
+```
+
+The current PostgreSQL run counters are `symbols_total`, `symbols_scanned`,
+`symbols_skipped`, and `failed_symbols`.
+
 ### VPS Evaluation Scheduling
 
 Do not deploy these examples directly from this repository state; they are reference

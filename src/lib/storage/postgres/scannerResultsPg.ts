@@ -1,4 +1,9 @@
 import type { Pool } from "pg";
+import {
+  isSymbolAssetClass,
+  type SymbolAssetClass,
+  type SymbolAssetClassFilter,
+} from "@/lib/market-data/symbolClassification";
 import type { ScanResult } from "@/lib/scanner/types";
 import { SCORING_VERSION } from "@/lib/scanner/scoring";
 import { createPostgresPool } from "./pool";
@@ -56,6 +61,15 @@ export type ScanSignalRecord = {
   scoringVersion: string | null;
   scannerVersion: string | null;
   createdAt: string;
+};
+
+export type LatestScanSignalRecord = ScanSignalRecord & {
+  assetClass: SymbolAssetClass;
+  isScannerEligible: boolean;
+  isBacktestEligible: boolean;
+  isMarketContext: boolean;
+  candleCount: number;
+  firstOpenTime: string | null;
 };
 
 export type CreateScanRunInput = {
@@ -139,6 +153,15 @@ type ScanSignalRow = {
   scoring_version: string | null;
   scanner_version: string | null;
   created_at: Date | string;
+};
+
+type LatestScanSignalRow = ScanSignalRow & {
+  asset_class: string | null;
+  is_scanner_eligible: boolean | null;
+  is_backtest_eligible: boolean | null;
+  is_market_context: boolean | null;
+  candle_count: string | null;
+  first_open_time: Date | string | null;
 };
 
 export class PgScannerResultsStore {
@@ -278,13 +301,80 @@ export class PgScannerResultsStore {
         SELECT *
         FROM scan_runs
         WHERE timeframe = $1
-        ORDER BY started_at DESC
+          AND status = 'success'
+        ORDER BY finished_at DESC NULLS LAST, started_at DESC
         LIMIT 1
       `,
       [timeframe],
     );
 
     return result.rows[0] ? toScanRunRecord(result.rows[0]) : null;
+  }
+
+  async listLatestScanSignalsForRun({
+    scanRunId,
+    timeframe,
+    assetClass = "all",
+    includeNonScanner = false,
+    includeMarketContext = false,
+  }: {
+    scanRunId: string;
+    timeframe: string;
+    assetClass?: SymbolAssetClassFilter;
+    includeNonScanner?: boolean;
+    includeMarketContext?: boolean;
+  }): Promise<LatestScanSignalRecord[]> {
+    const params: unknown[] = [scanRunId, timeframe];
+    const filters = ["ss.scan_run_id = $1"];
+
+    if (assetClass !== "all") {
+      params.push(assetClass);
+      filters.push(`s.asset_class = $${params.length}`);
+    }
+
+    if (!includeNonScanner) {
+      filters.push("s.is_scanner_eligible = true");
+    }
+
+    if (!includeMarketContext) {
+      filters.push("s.is_market_context = false");
+    }
+
+    const result = await this.pool.query<LatestScanSignalRow>(
+      `
+        SELECT
+          ss.*,
+          s.asset_class,
+          s.is_scanner_eligible,
+          s.is_backtest_eligible,
+          s.is_market_context,
+          COALESCE(coverage.candle_count, 0) AS candle_count,
+          coverage.first_open_time
+        FROM scan_signals ss
+        JOIN symbols s
+          ON s.id = ss.symbol_id
+        LEFT JOIN (
+          SELECT
+            symbol_id,
+            COUNT(*) AS candle_count,
+            MIN(open_time) AS first_open_time
+          FROM market_candles
+          WHERE timeframe = $2
+            AND symbol_id IN (
+              SELECT symbol_id
+              FROM scan_signals
+              WHERE scan_run_id = $1
+            )
+          GROUP BY symbol_id
+        ) coverage
+          ON coverage.symbol_id = ss.symbol_id
+        WHERE ${filters.join("\n          AND ")}
+        ORDER BY ss.symbol ASC
+      `,
+      params,
+    );
+
+    return result.rows.map(toLatestScanSignalRecord);
   }
 
   async listLatestScanSignals({
@@ -379,6 +469,22 @@ function toScanSignalRecord(row: ScanSignalRow): ScanSignalRecord {
     scoringVersion: row.scoring_version,
     scannerVersion: row.scanner_version,
     createdAt: new Date(row.created_at).toISOString(),
+  };
+}
+
+function toLatestScanSignalRecord(row: LatestScanSignalRow): LatestScanSignalRecord {
+  const signal = toScanSignalRecord(row);
+
+  return {
+    ...signal,
+    assetClass: isSymbolAssetClass(row.asset_class) ? row.asset_class : "crypto",
+    isScannerEligible: row.is_scanner_eligible ?? true,
+    isBacktestEligible: row.is_backtest_eligible ?? true,
+    isMarketContext: row.is_market_context ?? false,
+    candleCount: Number(row.candle_count ?? 0),
+    firstOpenTime: row.first_open_time
+      ? new Date(row.first_open_time).toISOString()
+      : null,
   };
 }
 

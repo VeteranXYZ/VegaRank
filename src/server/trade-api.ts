@@ -7,6 +7,7 @@ import {
   isSymbolAssetClassFilter,
   type SymbolAssetClassFilter,
 } from "@/lib/market-data/symbolClassification";
+import { buildLatestScanResponse } from "@/lib/scanner/latestScanResponse";
 import { PgMarketDataStore } from "@/lib/storage/postgres/marketDataPg";
 import { PgScannerResultsStore } from "@/lib/storage/postgres/scannerResultsPg";
 
@@ -428,6 +429,12 @@ async function handleMarketDataCoverage(response: http.ServerResponse, url: URL)
 
 async function handleLatestScan(response: http.ServerResponse, url: URL) {
   const timeframe = url.searchParams.get("timeframe")?.trim() ?? "4h";
+  const assetClass = parseAssetClassParam(url.searchParams.get("assetClass"));
+  const includeLowQuality = parseBooleanParam(url.searchParams.get("includeLowQuality"));
+  const includeNonScanner = parseBooleanParam(url.searchParams.get("includeNonScanner"));
+  const includeMarketContext = parseBooleanParam(
+    url.searchParams.get("includeMarketContext"),
+  );
   const limit = parseBoundedInteger({
     value: url.searchParams.get("limit"),
     fallback: 100,
@@ -445,6 +452,15 @@ async function handleLatestScan(response: http.ServerResponse, url: URL) {
     return;
   }
 
+  if (!assetClass.valid) {
+    sendJson(response, 400, {
+      ok: false,
+      service: serviceName,
+      error: "INVALID_ASSET_CLASS",
+    });
+    return;
+  }
+
   if (!limit.valid) {
     sendJson(response, 400, { ok: false, service: serviceName, error: limit.error });
     return;
@@ -454,15 +470,48 @@ async function handleLatestScan(response: http.ServerResponse, url: URL) {
 
   try {
     const run = await store.getLatestScanRun({ timeframe });
-    const signals = run
-      ? await store.listLatestScanSignals({ scanRunId: run.id, limit: limit.value })
-      : [];
 
-    sendJson(response, 200, {
-      ok: true,
+    if (!run) {
+      sendJson(response, 200, {
+        ok: true,
+        run: null,
+        timeframe,
+        assetClass: assetClass.value,
+        includeLowQuality,
+        includeNonScanner,
+        includeMarketContext,
+        summary: null,
+        groups: null,
+        items: [],
+        count: 0,
+      });
+      return;
+    }
+
+    const signals = await store.listLatestScanSignalsForRun({
+      scanRunId: run.id,
+      timeframe,
+      assetClass: assetClass.value,
+      includeNonScanner,
+      includeMarketContext,
+    });
+    const latestScan = buildLatestScanResponse({
       run,
       signals,
-      count: signals.length,
+      limit: limit.value,
+      includeLowQuality,
+    });
+
+    sendJson(response, 200, {
+      ...latestScan,
+      service: serviceName,
+      source: "postgres",
+      timeframe,
+      assetClass: assetClass.value,
+      includeLowQuality,
+      includeNonScanner,
+      includeMarketContext,
+      count: latestScan.items.length,
     });
   } catch (error) {
     sendJson(response, 503, {
