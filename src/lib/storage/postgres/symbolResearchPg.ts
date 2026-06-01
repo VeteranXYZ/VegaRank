@@ -10,6 +10,11 @@ import {
   type LatestScanSignalRecord,
   type ScanRunRecord,
 } from "./scannerResultsPg";
+import {
+  loadSymbolBehaviorPg,
+  type LoadSymbolBehaviorPgInput,
+  type SymbolBehaviorResult,
+} from "./symbolBehaviorPg";
 import { createPostgresPool } from "./pool";
 
 export type SymbolResearchSymbolRecord = {
@@ -455,6 +460,12 @@ export class PgSymbolResearchStore {
       symbol: symbol.toUpperCase(),
       timeframe,
     });
+  }
+
+  async getSymbolBehaviorPg(
+    input: LoadSymbolBehaviorPgInput,
+  ): Promise<SymbolBehaviorResult> {
+    return loadSymbolBehaviorPg(this.pool, input);
   }
 
   private async getSymbol({

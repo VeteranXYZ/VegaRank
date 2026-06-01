@@ -528,7 +528,7 @@ async function handleSymbolResearch(response: http.ServerResponse, url: URL) {
       return;
     }
 
-    const [historySignals, timeframeSignals, candles] = await Promise.all([
+    const [historySignals, timeframeSignals, candles, behavior] = await Promise.all([
       store.getSymbolSignalHistoryPg({
         exchange,
         market,
@@ -557,6 +557,17 @@ async function handleSymbolResearch(response: http.ServerResponse, url: URL) {
             candleLimit: candleLimit.value,
           })
         : Promise.resolve([]),
+      loadSymbolBehaviorSafely({
+        store,
+        exchange,
+        market,
+        symbol,
+        timeframe,
+        currentSignal: latest.signal,
+        assetClass: assetClass.value,
+        includeNonScanner,
+        includeMarketContext,
+      }),
     ]);
     const latestSignal = enrichSymbolResearchSignal(latest.signal, {
       currentSignal: latest.signal,
@@ -601,6 +612,7 @@ async function handleSymbolResearch(response: http.ServerResponse, url: URL) {
           assetClass: assetClass.value,
         }),
       ),
+      ...(behavior ? { behavior } : {}),
       candles: buildSymbolResearchCandlesPayload({ timeframe, candles }),
     });
   } catch {
@@ -956,6 +968,47 @@ function buildSymbolResearchCurrentSelectionMetadata({
     selectedRunFinishedAt: run?.finishedAt ?? null,
     selectedSignalScanTime: signal?.scanTime ?? null,
   };
+}
+
+async function loadSymbolBehaviorSafely({
+  store,
+  exchange,
+  market,
+  symbol,
+  timeframe,
+  currentSignal,
+  assetClass,
+  includeNonScanner,
+  includeMarketContext,
+}: {
+  store: PgSymbolResearchStore;
+  exchange: string;
+  market: string;
+  symbol: string;
+  timeframe: string;
+  currentSignal: SymbolResearchSignalRecord;
+  assetClass: SymbolAssetClassFilter;
+  includeNonScanner: boolean;
+  includeMarketContext: boolean;
+}) {
+  try {
+    return await store.getSymbolBehaviorPg({
+      exchange,
+      market,
+      symbol,
+      timeframe,
+      currentSignal,
+      assetClass,
+      includeNonScanner,
+      includeMarketContext,
+    });
+  } catch (error) {
+    console.warn(
+      "trade-api symbol behavior unavailable:",
+      getSafeErrorCode(error) ?? "UNKNOWN",
+    );
+    return null;
+  }
 }
 
 type SymbolResearchUnavailableReason =

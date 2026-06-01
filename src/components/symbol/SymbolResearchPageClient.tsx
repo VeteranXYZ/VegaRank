@@ -4,8 +4,10 @@ import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useMemo, useState, type FormEvent, type ReactNode } from "react";
+import { SymbolBehaviorPanel } from "./SymbolBehaviorPanel";
 import { SymbolResearchChart } from "./SymbolResearchChart";
 import { SymbolSignalTimeline } from "./SymbolSignalTimeline";
+import type { SymbolBehavior } from "./symbolBehaviorUi";
 import {
   normalizeSymbolResearchCandles,
   type SymbolResearchCandles,
@@ -181,6 +183,7 @@ type SymbolResearchSuccessResponse = {
   };
   history?: SymbolResearchSignal[];
   timeframes?: SymbolResearchSignal[];
+  behavior?: SymbolBehavior | null;
   candles?: SymbolResearchCandles;
 };
 
@@ -615,6 +618,8 @@ export function SymbolResearchPageClient({
           </p>
         </Panel>
       </div>
+
+      <SymbolBehaviorPanel behavior={data.behavior} className="mt-4" />
 
       <SymbolResearchChart
         symbol={data.symbol.symbol}

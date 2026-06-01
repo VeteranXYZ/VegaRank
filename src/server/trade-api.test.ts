@@ -10,6 +10,7 @@ const getSymbolSignalHistoryPgMock = vi.hoisted(() => vi.fn());
 const getSymbolLatestSignalsByTimeframesPgMock = vi.hoisted(() => vi.fn());
 const getSymbolCandlesPgMock = vi.hoisted(() => vi.fn());
 const getSymbolCandleCoveragePgMock = vi.hoisted(() => vi.fn());
+const getSymbolBehaviorPgMock = vi.hoisted(() => vi.fn());
 const closeSymbolResearchMock = vi.hoisted(() => vi.fn());
 const pgScannerResultsStoreMock = vi.hoisted(() =>
   vi.fn(function PgScannerResultsStore() {
@@ -28,6 +29,7 @@ const pgSymbolResearchStoreMock = vi.hoisted(() =>
       getSymbolLatestSignalsByTimeframesPg: getSymbolLatestSignalsByTimeframesPgMock,
       getSymbolCandlesPg: getSymbolCandlesPgMock,
       getSymbolCandleCoveragePg: getSymbolCandleCoveragePgMock,
+      getSymbolBehaviorPg: getSymbolBehaviorPgMock,
       close: closeSymbolResearchMock,
     };
   }),
@@ -350,6 +352,7 @@ describe("trade-api symbol research", () => {
       makeResearchCandle({ openTime: 1000, close: 1.1 }),
       makeResearchCandle({ openTime: 2000, close: 1.2 }),
     ]);
+    getSymbolBehaviorPgMock.mockResolvedValue(makeResearchBehavior());
 
     const response = await requestTradeApi(
       "/api/symbol/research?exchange=binance&market=spot&symbol=seiusdt&timeframe=4h",
@@ -399,6 +402,16 @@ describe("trade-api symbol research", () => {
       firstOpenTime: "1970-01-01T00:00:01.000Z",
       lastOpenTime: "1970-01-01T00:00:02.000Z",
     });
+    expect(body.behavior).toMatchObject({
+      timeframe: "4h",
+      symbol: "SEIUSDT",
+      sampleSize: 12,
+      eligibleSampleSize: 11,
+      currentContext: {
+        currentSignalLabel: "confirmed",
+        currentResultGroup: "eligible",
+      },
+    });
     expect(getSymbolResearchLatestSignalPgMock).toHaveBeenCalledWith({
       exchange: "binance",
       market: "spot",
@@ -408,6 +421,50 @@ describe("trade-api symbol research", () => {
       includeNonScanner: false,
       includeMarketContext: false,
     });
+    expect(getSymbolBehaviorPgMock).toHaveBeenCalledWith({
+      exchange: "binance",
+      market: "spot",
+      symbol: "SEIUSDT",
+      timeframe: "4h",
+      currentSignal: expect.objectContaining({ id: "signal-latest" }),
+      assetClass: "crypto",
+      includeNonScanner: false,
+      includeMarketContext: false,
+    });
+  });
+
+  it("keeps symbol research available when behavior calculation fails", async () => {
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    getSymbolResearchLatestSignalPgMock.mockResolvedValue({
+      symbol: makeResearchSymbol("SEIUSDT"),
+      scanRun: makeRun("full-run", {
+        symbolsTotal: 413,
+        symbolsScanned: 409,
+        signalsCreated: 409,
+      }),
+      signal: makeResearchSignal({ id: "signal-latest", symbol: "SEIUSDT" }),
+    });
+    getSymbolBehaviorPgMock.mockRejectedValue(
+      Object.assign(new Error("behavior failed"), { code: "BEHAVIOR_FAILED" }),
+    );
+
+    try {
+      const response = await requestTradeApi(
+        "/api/symbol/research?exchange=binance&market=spot&symbol=seiusdt&timeframe=4h",
+      );
+      const body = JSON.parse(response.body);
+
+      expect(response.status).toBe(200);
+      expect(body.ok).toBe(true);
+      expect(body.latest.signal.id).toBe("signal-latest");
+      expect(body.behavior).toBeUndefined();
+      expect(warnSpy).toHaveBeenCalledWith(
+        "trade-api symbol behavior unavailable:",
+        "BEHAVIOR_FAILED",
+      );
+    } finally {
+      warnSpy.mockRestore();
+    }
   });
 
   it("returns requested timeframe metadata for daily and weekly symbol research", async () => {
@@ -762,6 +819,8 @@ function resetSymbolResearchMocks() {
     firstOpenTime: null,
     lastOpenTime: null,
   });
+  getSymbolBehaviorPgMock.mockReset();
+  getSymbolBehaviorPgMock.mockResolvedValue(null);
   closeSymbolResearchMock.mockReset();
   closeSymbolResearchMock.mockResolvedValue(undefined);
   pgSymbolResearchStoreMock.mockClear();
@@ -907,5 +966,38 @@ function makeResearchCandle({
     close,
     volume: 100,
     quoteVolume: 150,
+  };
+}
+
+function makeResearchBehavior() {
+  return {
+    timeframe: "4h",
+    symbol: "SEIUSDT",
+    sampleSize: 12,
+    eligibleSampleSize: 11,
+    horizons: [
+      {
+        candles: 1,
+        sampleSize: 11,
+        averageReturnPct: 1.2,
+        medianReturnPct: 0.8,
+        winRatePct: 63.6,
+        averageMaxUpsidePct: 2.4,
+        averageMaxDrawdownPct: -1.1,
+        bestReturnPct: 5.3,
+        worstReturnPct: -3.2,
+      },
+    ],
+    byGroup: [],
+    bySignalLabel: [],
+    recentOutcomes: [],
+    currentContext: {
+      currentSignalLabel: "confirmed",
+      currentResultGroup: "eligible",
+      matchingGroupSampleSize: 7,
+      matchingSignalSampleSize: 5,
+      note: "Research only.",
+    },
+    warnings: [],
   };
 }

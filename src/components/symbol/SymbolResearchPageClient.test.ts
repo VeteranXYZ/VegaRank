@@ -283,3 +283,222 @@ describe("SymbolResearchPageClient unavailable state", () => {
     expect(html).not.toContain('href="/symbol/binance/SEIUSDT?timeframe=1h');
   });
 });
+
+describe("SymbolResearchPageClient success state", () => {
+  beforeEach(() => {
+    pushMock.mockReset();
+    searchParamsMock.mockReset();
+    searchParamsMock.mockReturnValue(
+      new URLSearchParams("timeframe=4h&assetClass=crypto&from=scanner"),
+    );
+    useQueryMock.mockReset();
+  });
+
+  it("renders the historical behavior section from the research response", () => {
+    useQueryMock.mockReturnValue({
+      isLoading: false,
+      isError: false,
+      isFetching: false,
+      refetch: vi.fn(),
+      data: makeSuccessResponse(),
+    });
+
+    const html = renderToStaticMarkup(
+      createElement(SymbolResearchPageClient, {
+        exchange: "binance",
+        symbol: "SEIUSDT",
+      }),
+    );
+
+    expect(html).toContain("Historical Behavior");
+    expect(html).toContain("Past scanner signals for this symbol and timeframe");
+    expect(html).toContain("Historical Sample");
+    expect(html).toContain("Forward return after 1 candle");
+    expect(html).toContain("Current setup context");
+    expect(html).toContain("Recent outcomes");
+    expect(html).toContain("Available data from prior scanner signals.");
+  });
+});
+
+function makeSuccessResponse() {
+  return {
+    ok: true,
+    timeframe: "4h",
+    symbol: {
+      exchange: "binance",
+      market: "spot",
+      symbol: "SEIUSDT",
+      assetClass: "crypto",
+      qualityTier: "core",
+      isLowQuality: false,
+      qualityFlags: [],
+    },
+    latest: {
+      scanRun: {
+        id: "full-run",
+        status: "success",
+        timeframe: "4h",
+        symbolsTotal: 413,
+        symbolsScanned: 409,
+        signalsCreated: 409,
+        finishedAt: "2026-06-01T00:01:00.000Z",
+      },
+      signal: makeSymbolResearchSignal(),
+    },
+    currentSelection: {
+      selectedRunId: "full-run",
+      selectedSignalId: "signal-latest",
+      selectedTimeframe: "4h",
+      selectedRunStartedAt: "2026-06-01T00:00:00.000Z",
+      selectedRunFinishedAt: "2026-06-01T00:01:00.000Z",
+      selectedSignalScanTime: "2026-06-01T00:00:30.000Z",
+      preferredFullUniverse: true,
+      isLikelyFullUniverse: true,
+      minExpectedSymbols: 300,
+      fallbackUsed: false,
+    },
+    scoreBreakdown: {
+      rankScore: 82,
+      finalSignalScore: 76,
+      opportunityScore: 74,
+      confirmationScore: 68,
+      riskScore: 14,
+      trendScore: 72,
+      momentumScore: 64,
+      volumeScore: 54,
+      structureScore: 80,
+    },
+    interpretation: {
+      group: "eligible",
+      label: "Confirmed",
+      action: "Manual review",
+      setupType: "Strong Trend",
+      statusNote: "Manual review",
+      reasons: ["Clean candidate."],
+      nextConfirmation: ["Hold above range."],
+      invalidation: ["Loses recent support."],
+    },
+    history: [makeSymbolResearchSignal()],
+    timeframes: [makeSymbolResearchSignal()],
+    behavior: {
+      timeframe: "4h",
+      symbol: "SEIUSDT",
+      sampleSize: 12,
+      eligibleSampleSize: 11,
+      horizons: [
+        {
+          candles: 1,
+          sampleSize: 11,
+          averageReturnPct: 1.2,
+          medianReturnPct: 0.8,
+          winRatePct: 63.6,
+          averageMaxUpsidePct: 2.4,
+          averageMaxDrawdownPct: -1.1,
+          bestReturnPct: 5.3,
+          worstReturnPct: -3.2,
+        },
+        {
+          candles: 3,
+          sampleSize: 11,
+          averageReturnPct: 2.2,
+          medianReturnPct: 1.8,
+          winRatePct: 72.7,
+          averageMaxUpsidePct: 4.4,
+          averageMaxDrawdownPct: -2.1,
+          bestReturnPct: 8.3,
+          worstReturnPct: -4.2,
+        },
+        {
+          candles: 5,
+          sampleSize: 11,
+          averageReturnPct: 3.2,
+          medianReturnPct: 2.8,
+          winRatePct: 72.7,
+          averageMaxUpsidePct: 5.4,
+          averageMaxDrawdownPct: -2.8,
+          bestReturnPct: 10.3,
+          worstReturnPct: -6.2,
+        },
+      ],
+      byGroup: [],
+      bySignalLabel: [],
+      recentOutcomes: [
+        {
+          scanTime: "2026-05-31T00:00:00.000Z",
+          candleOpenTime: "2026-05-30T20:00:00.000Z",
+          signalLabel: "confirmed",
+          resultGroup: "eligible",
+          actionBias: "eligible",
+          primaryStructure: "strong_trend",
+          priceAtSignal: 1.23,
+          rankScore: 82,
+          forwardReturnsPct: { next1: 1.2, next3: 2.1, next5: 3.4 },
+          maxUpsidePct: { next1: 2.2, next3: 3.1, next5: 4.4 },
+          maxDrawdownPct: { next1: -0.8, next3: -1.4, next5: -2.5 },
+          hasEnoughForwardCandles: true,
+        },
+      ],
+      currentContext: {
+        currentSignalLabel: "confirmed",
+        currentResultGroup: "eligible",
+        matchingGroupSampleSize: 7,
+        matchingSignalSampleSize: 5,
+        note: "Research only.",
+      },
+      warnings: [],
+    },
+    candles: {
+      timeframe: "4h",
+      count: 0,
+      firstOpenTime: null,
+      lastOpenTime: null,
+      rows: [],
+    },
+  };
+}
+
+function makeSymbolResearchSignal() {
+  return {
+    id: "signal-latest",
+    scanRunId: "full-run",
+    symbolId: 1,
+    exchange: "binance",
+    market: "spot",
+    symbol: "SEIUSDT",
+    timeframe: "4h",
+    scanTime: "2026-06-01T00:00:30.000Z",
+    candleOpenTime: "2026-05-31T20:00:00.000Z",
+    priceAtSignal: 1.23,
+    rankScore: 82,
+    finalSignalScore: 76,
+    opportunityScore: 74,
+    confirmationScore: 68,
+    riskScore: 14,
+    trendScore: 72,
+    momentumScore: 64,
+    volumeScore: 54,
+    structureScore: 80,
+    signalLabel: "confirmed",
+    actionBias: "eligible",
+    resultGroup: "eligible",
+    reviewTier: "eligible",
+    statusNote: "Manual review",
+    cautionLevel: "none",
+    statusReasons: ["Clean candidate."],
+    primaryStructure: "strong_trend",
+    secondaryStructures: [],
+    detectedRiskTypes: [],
+    nextConfirmation: ["Hold above range."],
+    invalidation: ["Loses recent support."],
+    factors: {},
+    rawMetrics: {},
+    scoringVersion: "test",
+    scannerVersion: "test",
+    createdAt: "2026-06-01T00:00:31.000Z",
+    scanRunStartedAt: "2026-06-01T00:00:00.000Z",
+    scanRunFinishedAt: "2026-06-01T00:01:00.000Z",
+    sourceRunIsLikelyFullUniverse: true,
+    isSelectedCurrentRun: true,
+    isNewerThanSelectedCurrentRun: false,
+  };
+}
