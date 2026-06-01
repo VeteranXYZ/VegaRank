@@ -96,17 +96,19 @@ export function isLikelyFullUniverseRun({
       : typeof run.params.allSymbols === "string"
         ? run.params.allSymbols.toLowerCase() === "true"
         : null;
-  const hasFullSymbolCount =
-    run.symbolsTotal >= minExpectedSymbols ||
-    run.symbolsScanned >= minExpectedSymbols;
-  const hasFullSignalCount =
-    typeof run.signalsCreated === "number"
-      ? run.signalsCreated >= minExpectedSymbols
-      : true;
+  const hasFullUniverseIntent =
+    paramsAllSymbols === true ||
+    (paramsAllSymbols === null && run.universe === "all-symbols");
+  const coveredSymbols = Math.max(
+    run.symbolsTotal,
+    run.symbolsScanned,
+    run.symbolsScanned + run.symbolsSkipped,
+  );
+  const hasFullSymbolCount = coveredSymbols >= minExpectedSymbols;
 
   return (
     hasFullSymbolCount &&
-    hasFullSignalCount &&
+    hasFullUniverseIntent &&
     (paramsAssetClass === null || paramsAssetClass === assetClass) &&
     (paramsAllSymbols === null || paramsAllSymbols)
   );
@@ -353,14 +355,17 @@ export class PgScannerResultsStore {
           FROM scan_runs
           WHERE timeframe = $1
             AND status = 'success'
-            AND (symbols_total >= $2 OR symbols_scanned >= $2)
-            AND (signals_created IS NULL OR signals_created >= $2)
+            AND (
+              symbols_total >= $2
+              OR symbols_scanned >= $2
+              OR symbols_scanned + symbols_skipped >= $2
+            )
             AND (
               NOT (params ? 'assetClass')
               OR lower(params->>'assetClass') = $3
             )
             AND (
-              NOT (params ? 'allSymbols')
+              universe = 'all-symbols'
               OR lower(params->>'allSymbols') = 'true'
             )
           ORDER BY finished_at DESC NULLS LAST, started_at DESC
@@ -403,7 +408,7 @@ export class PgScannerResultsStore {
     includeMarketContext?: boolean;
   }): Promise<LatestScanSignalRecord[]> {
     const params: unknown[] = [scanRunId, timeframe];
-    const filters = ["ss.scan_run_id = $1"];
+    const filters = ["ss.scan_run_id = $1", "ss.timeframe = $2"];
 
     if (assetClass !== "all") {
       params.push(assetClass);

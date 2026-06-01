@@ -39,14 +39,22 @@ vi.mock("@/lib/storage/postgres/scannerResultsPg", () => ({
     assetClass,
     minExpectedSymbols = 300,
   }: {
-    run: { symbolsTotal: number; symbolsScanned: number; signalsCreated: number };
+    run: {
+      universe?: string;
+      symbolsTotal: number;
+      symbolsScanned: number;
+      signalsCreated: number;
+      symbolsSkipped?: number;
+      params?: Record<string, unknown>;
+    };
     assetClass: string;
     minExpectedSymbols?: number;
   }) =>
     assetClass !== "crypto" ||
     ((run.symbolsTotal >= minExpectedSymbols ||
-      run.symbolsScanned >= minExpectedSymbols) &&
-      run.signalsCreated >= minExpectedSymbols),
+      run.symbolsScanned >= minExpectedSymbols ||
+      run.symbolsScanned + (run.symbolsSkipped ?? 0) >= minExpectedSymbols) &&
+      (run.universe === "all-symbols" || run.params?.allSymbols === true)),
 }));
 
 vi.mock("@/lib/storage/postgres/symbolResearchPg", () => ({
@@ -172,6 +180,60 @@ describe("trade-api latest scan run selection", () => {
       isLikelyFullUniverse: true,
       minExpectedSymbols: 300,
       fallbackUsed: false,
+    });
+  });
+
+  it("passes daily and weekly timeframes through latest scan metadata", async () => {
+    getLatestScanRunMock.mockImplementation(({ timeframe }: { timeframe: string }) =>
+      Promise.resolve(
+        makeRun(`full-${timeframe}`, {
+          timeframe,
+          symbolsTotal: 413,
+          symbolsScanned: timeframe === "1w" ? 221 : 409,
+          signalsCreated: timeframe === "1w" ? 221 : 409,
+          symbolsSkipped: timeframe === "1w" ? 192 : 4,
+          params: { assetClass: "crypto", allSymbols: true },
+        }),
+      ),
+    );
+
+    const dailyResponse = await requestTradeApi(
+      "/api/scan/latest?timeframe=1d&assetClass=crypto&limit=100",
+    );
+    const weeklyResponse = await requestTradeApi(
+      "/api/scan/latest?timeframe=1w&assetClass=crypto&limit=100",
+    );
+    const dailyBody = JSON.parse(dailyResponse.body);
+    const weeklyBody = JSON.parse(weeklyResponse.body);
+
+    expect(dailyResponse.status).toBe(200);
+    expect(dailyBody.timeframe).toBe("1d");
+    expect(dailyBody.run).toMatchObject({ id: "full-1d", timeframe: "1d" });
+    expect(dailyBody.summary.latestRunSelection).toMatchObject({
+      preferredFullUniverse: true,
+      isLikelyFullUniverse: true,
+      fallbackUsed: false,
+    });
+
+    expect(weeklyResponse.status).toBe(200);
+    expect(weeklyBody.timeframe).toBe("1w");
+    expect(weeklyBody.run).toMatchObject({ id: "full-1w", timeframe: "1w" });
+    expect(weeklyBody.summary.latestRunSelection).toMatchObject({
+      preferredFullUniverse: true,
+      isLikelyFullUniverse: true,
+      fallbackUsed: false,
+    });
+    expect(getLatestScanRunMock).toHaveBeenNthCalledWith(1, {
+      timeframe: "1d",
+      assetClass: "crypto",
+      preferFullUniverse: true,
+      minExpectedSymbols: 300,
+    });
+    expect(getLatestScanRunMock).toHaveBeenNthCalledWith(2, {
+      timeframe: "1w",
+      assetClass: "crypto",
+      preferFullUniverse: true,
+      minExpectedSymbols: 300,
     });
   });
 
@@ -344,6 +406,73 @@ describe("trade-api symbol research", () => {
       includeNonScanner: false,
       includeMarketContext: false,
     });
+  });
+
+  it("returns requested timeframe metadata for daily and weekly symbol research", async () => {
+    getSymbolResearchLatestSignalPgMock.mockImplementation(
+      ({ timeframe }: { timeframe: string }) =>
+        Promise.resolve({
+          symbol: makeResearchSymbol("SEIUSDT"),
+          scanRun: makeRun(`full-${timeframe}`, {
+            timeframe,
+            symbolsTotal: 413,
+            symbolsScanned: timeframe === "1w" ? 221 : 409,
+            signalsCreated: timeframe === "1w" ? 221 : 409,
+            symbolsSkipped: timeframe === "1w" ? 192 : 4,
+            params: { assetClass: "crypto", allSymbols: true },
+          }),
+          signal: makeResearchSignal({
+            id: `signal-${timeframe}`,
+            scanRunId: `full-${timeframe}`,
+            symbol: "SEIUSDT",
+            timeframe,
+            scanRunSymbolsTotal: 413,
+            scanRunSymbolsScanned: timeframe === "1w" ? 221 : 409,
+            scanRunSignalsCreated: timeframe === "1w" ? 221 : 409,
+          }),
+        }),
+    );
+    getSymbolCandlesPgMock.mockImplementation(({ timeframe }: { timeframe: string }) =>
+      Promise.resolve([
+        makeResearchCandle({ openTime: 1000, close: 1.1, timeframe }),
+        makeResearchCandle({ openTime: 2000, close: 1.2, timeframe }),
+      ]),
+    );
+
+    const dailyResponse = await requestTradeApi(
+      "/api/symbol/research?exchange=binance&symbol=SEIUSDT&timeframe=1d",
+    );
+    const weeklyResponse = await requestTradeApi(
+      "/api/symbol/research?exchange=binance&symbol=SEIUSDT&timeframe=1w",
+    );
+    const dailyBody = JSON.parse(dailyResponse.body);
+    const weeklyBody = JSON.parse(weeklyResponse.body);
+
+    expect(dailyResponse.status).toBe(200);
+    expect(dailyBody.timeframe).toBe("1d");
+    expect(dailyBody.latest.signal).toMatchObject({
+      id: "signal-1d",
+      timeframe: "1d",
+      isSelectedCurrentRun: true,
+      sourceRunIsLikelyFullUniverse: true,
+    });
+    expect(dailyBody.candles).toMatchObject({ timeframe: "1d", count: 2 });
+    expect(dailyBody.candles.rows.every((row: { timeframe: string }) => row.timeframe === "1d")).toBe(
+      true,
+    );
+
+    expect(weeklyResponse.status).toBe(200);
+    expect(weeklyBody.timeframe).toBe("1w");
+    expect(weeklyBody.latest.signal).toMatchObject({
+      id: "signal-1w",
+      timeframe: "1w",
+      isSelectedCurrentRun: true,
+      sourceRunIsLikelyFullUniverse: true,
+    });
+    expect(weeklyBody.candles).toMatchObject({ timeframe: "1w", count: 2 });
+    expect(weeklyBody.candles.rows.every((row: { timeframe: string }) => row.timeframe === "1w")).toBe(
+      true,
+    );
   });
 
   it("keeps selected current classification when history includes newer non-preferred rows", async () => {
@@ -556,9 +685,11 @@ function resetSymbolResearchMocks() {
 function makeRun(
   id: string,
   overrides: Partial<{
+    timeframe: string;
     symbolsTotal: number;
     symbolsScanned: number;
     signalsCreated: number;
+    symbolsSkipped: number;
     params: Record<string, unknown>;
   }> = {},
 ) {
@@ -567,13 +698,13 @@ function makeRun(
     exchange: "binance",
     market: "spot",
     mode: "single",
-    timeframe: "4h",
+    timeframe: overrides.timeframe ?? "4h",
     universe: "all-symbols",
     status: "success",
     symbolsTotal: overrides.symbolsTotal ?? 2,
     symbolsScanned: overrides.symbolsScanned ?? 2,
     signalsCreated: overrides.signalsCreated ?? 2,
-    symbolsSkipped: 0,
+    symbolsSkipped: overrides.symbolsSkipped ?? 0,
     failedSymbols: 0,
     params: overrides.params ?? {},
     errorMessage: null,
@@ -670,9 +801,11 @@ function makeResearchSignal(
 function makeResearchCandle({
   openTime,
   close,
+  timeframe = "4h",
 }: {
   openTime: number;
   close: number;
+  timeframe?: string;
 }) {
   return {
     id: openTime,
@@ -680,7 +813,7 @@ function makeResearchCandle({
     exchange: "binance",
     market: "spot",
     symbol: "SEIUSDT",
-    timeframe: "4h",
+    timeframe,
     openTime,
     closeTime: openTime + 1000,
     open: close - 0.1,

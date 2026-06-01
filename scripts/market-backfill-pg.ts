@@ -47,6 +47,7 @@ const DEFAULT_MARKET_LIMIT = 5;
 const LARGE_SYNC_THRESHOLD = 25;
 const MAX_MARKET_LIMIT = 500;
 const DEFAULT_TARGET_COUNT = 500;
+const DEFAULT_DAILY_TARGET_COUNT = 1000;
 const MAX_TARGET_COUNT = 50000;
 const DEFAULT_BATCH_LIMIT = 1000;
 const MAX_BATCH_LIMIT = 1000;
@@ -299,6 +300,7 @@ async function resolveSymbols({
 function parseOptions(args: string[]): BackfillOptions {
   const flags = parseFlags(args);
   const symbols = parseSymbols(flags.symbols ?? flags.symbol);
+  const timeframe = parseTimeframe(flags.timeframe);
   const marketLimit = parseInteger({
     value: flags.marketLimit,
     fallback: DEFAULT_MARKET_LIMIT,
@@ -312,7 +314,7 @@ function parseOptions(args: string[]): BackfillOptions {
   const includeNonScanner = flags.includeNonScanner === "true";
   const targetCount = parseInteger({
     value: flags.targetCount,
-    fallback: DEFAULT_TARGET_COUNT,
+    fallback: getDefaultTargetCount(timeframe),
     min: 1,
     max: MAX_TARGET_COUNT,
     name: "targetCount",
@@ -334,7 +336,7 @@ function parseOptions(args: string[]): BackfillOptions {
 
   return {
     symbols,
-    timeframe: parseTimeframe(flags.timeframe),
+    timeframe,
     targetCount,
     batchLimit: parseInteger({
       value: flags.batchLimit ?? flags.limit,
@@ -364,6 +366,14 @@ function parseOptions(args: string[]): BackfillOptions {
     confirmLargeSync,
     baseUrl: getBinancePublicBaseUrl(),
   };
+}
+
+function getDefaultTargetCount(timeframe: MarketDataTimeframe) {
+  if (timeframe === "1d") {
+    return DEFAULT_DAILY_TARGET_COUNT;
+  }
+
+  return DEFAULT_TARGET_COUNT;
 }
 
 function parseFlags(args: string[]) {

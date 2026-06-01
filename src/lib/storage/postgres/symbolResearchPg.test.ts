@@ -52,10 +52,95 @@ describe("PgSymbolResearchStore", () => {
     expect(latest.scanRun?.id).toBe("full-run");
     expect(latest.signal?.scanRunId).toBe("full-run");
     expect(paramsList[1]).toEqual(["4h", 300, "crypto"]);
-    expect(queries[1]).toContain("symbols_total >= $2 OR symbols_scanned >= $2");
+    expect(queries[1]).toContain("symbols_total >= $2");
+    expect(queries[1]).toContain("universe = 'all-symbols'");
     expect(queries[1]).not.toMatch(/max\(scan_time\)/i);
     expect(queries[2]).toContain("ss.scan_run_id = $1");
+    expect(queries[2]).toContain("ss.timeframe = $5");
     expect(queries[2]).not.toMatch(/max\(scan_time\)/i);
+  });
+
+  it("selects the current signal from the requested daily or weekly full-universe run", async () => {
+    const paramsList: unknown[][] = [];
+    const store = new PgSymbolResearchStore(
+      makePool((sql, params, callIndex) => {
+        paramsList.push(params);
+
+        if (callIndex === 0 || callIndex === 3) {
+          return { rows: [makeSymbolRow("SEIUSDT")] };
+        }
+
+        if (callIndex === 1 || callIndex === 4) {
+          const timeframe = params[0] as string;
+          return {
+            rows: [
+              makeRunRow(`full-${timeframe}`, {
+                timeframe,
+                symbols_total: 413,
+                symbols_scanned: timeframe === "1w" ? 221 : 409,
+                signals_created: timeframe === "1w" ? 221 : 409,
+                symbols_skipped: timeframe === "1w" ? 192 : 4,
+                params: { assetClass: "crypto", allSymbols: true },
+              }),
+            ],
+          };
+        }
+
+        const timeframe = params[4] as string;
+        return {
+          rows: [
+            makeSignalRow({
+              id: `signal-${timeframe}`,
+              scan_run_id: `full-${timeframe}`,
+              symbol: "SEIUSDT",
+              timeframe,
+            }),
+          ],
+        };
+      }),
+    );
+
+    const daily = await store.getSymbolResearchLatestSignalPg({
+      exchange: "binance",
+      market: "spot",
+      symbol: "SEIUSDT",
+      timeframe: "1d",
+    });
+    const weekly = await store.getSymbolResearchLatestSignalPg({
+      exchange: "binance",
+      market: "spot",
+      symbol: "SEIUSDT",
+      timeframe: "1w",
+    });
+
+    expect(daily.scanRun?.id).toBe("full-1d");
+    expect(daily.signal).toMatchObject({
+      id: "signal-1d",
+      scanRunId: "full-1d",
+      timeframe: "1d",
+    });
+    expect(weekly.scanRun?.id).toBe("full-1w");
+    expect(weekly.signal).toMatchObject({
+      id: "signal-1w",
+      scanRunId: "full-1w",
+      timeframe: "1w",
+    });
+    expect(paramsList[1]).toEqual(["1d", 300, "crypto"]);
+    expect(paramsList[2].slice(0, 5)).toEqual([
+      "full-1d",
+      "binance",
+      "spot",
+      "SEIUSDT",
+      "1d",
+    ]);
+    expect(paramsList[4]).toEqual(["1w", 300, "crypto"]);
+    expect(paramsList[5].slice(0, 5)).toEqual([
+      "full-1w",
+      "binance",
+      "spot",
+      "SEIUSDT",
+      "1w",
+    ]);
   });
 
   it("returns a clean null signal when the selected latest run has no symbol row", async () => {
@@ -245,13 +330,13 @@ function makeRunRow(id: string, overrides: Partial<Record<string, unknown>> = {}
     exchange: "binance",
     market: "spot",
     mode: "single",
-    timeframe: "4h",
+    timeframe: overrides.timeframe ?? "4h",
     universe: "all-symbols",
     status: "success",
     symbols_total: overrides.symbols_total ?? 413,
     symbols_scanned: overrides.symbols_scanned ?? 409,
     signals_created: overrides.signals_created ?? 409,
-    symbols_skipped: 4,
+    symbols_skipped: overrides.symbols_skipped ?? 4,
     failed_symbols: 0,
     params: overrides.params ?? {},
     error_message: null,

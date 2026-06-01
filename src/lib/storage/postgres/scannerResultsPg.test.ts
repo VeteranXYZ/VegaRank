@@ -62,10 +62,56 @@ describe("PgScannerResultsStore latest scan queries", () => {
 
     expect(run?.id).toBe("full-run");
     expect(queries).toHaveLength(1);
-    expect(queries[0]).toContain("symbols_total >= $2 OR symbols_scanned >= $2");
-    expect(queries[0]).toContain("signals_created IS NULL OR signals_created >= $2");
+    expect(queries[0]).toContain("symbols_total >= $2");
+    expect(queries[0]).toContain("symbols_scanned + symbols_skipped >= $2");
     expect(queries[0]).toContain("params ? 'assetClass'");
-    expect(queries[0]).toContain("params ? 'allSymbols'");
+    expect(queries[0]).toContain("universe = 'all-symbols'");
+  });
+
+  it("keeps full-universe selection timeframe-specific for daily and weekly runs", async () => {
+    const queries: string[] = [];
+    const paramsList: unknown[][] = [];
+    const store = new PgScannerResultsStore(
+      makePool((sql, params) => {
+        queries.push(sql);
+        paramsList.push(params);
+        return {
+          rows: [
+            makeRunRow(`full-${params[0]}`, {
+              timeframe: params[0],
+              symbols_total: 413,
+              symbols_scanned: params[0] === "1w" ? 221 : 409,
+              signals_created: params[0] === "1w" ? 221 : 409,
+              symbols_skipped: params[0] === "1w" ? 192 : 4,
+              params: { assetClass: "crypto", allSymbols: true },
+            }),
+          ],
+        };
+      }),
+    );
+
+    const dailyRun = await store.getLatestScanRun({
+      timeframe: "1d",
+      assetClass: "crypto",
+      preferFullUniverse: true,
+    });
+    const weeklyRun = await store.getLatestScanRun({
+      timeframe: "1w",
+      assetClass: "crypto",
+      preferFullUniverse: true,
+    });
+
+    expect(dailyRun?.id).toBe("full-1d");
+    expect(dailyRun?.timeframe).toBe("1d");
+    expect(weeklyRun?.id).toBe("full-1w");
+    expect(weeklyRun?.timeframe).toBe("1w");
+    expect(paramsList).toEqual([
+      ["1d", 300, "crypto"],
+      ["1w", 300, "crypto"],
+    ]);
+    expect(queries.every((query) => query.includes("WHERE timeframe = $1"))).toBe(
+      true,
+    );
   });
 
   it("falls back to the latest successful run when no full crypto run exists", async () => {
@@ -117,16 +163,28 @@ describe("PgScannerResultsStore latest scan queries", () => {
 
     expect(run?.id).toBe("stable-run");
     expect(queries).toHaveLength(1);
-    expect(queries[0]).not.toContain("symbols_total >= $2 OR symbols_scanned >= $2");
+    expect(queries[0]).not.toContain("symbols_total >= $2");
   });
 
-  it("marks only sufficiently large crypto scanner runs as likely full universe", () => {
+  it("marks full crypto universe runs as likely full universe even when weekly signals are skipped", () => {
     expect(
       isLikelyFullUniverseRun({
         run: makeRunRecord("full-run", {
           symbolsTotal: 413,
           symbolsScanned: 409,
           signalsCreated: 409,
+          params: { assetClass: "crypto", allSymbols: true },
+        }),
+        assetClass: "crypto",
+      }),
+    ).toBe(true);
+    expect(
+      isLikelyFullUniverseRun({
+        run: makeRunRecord("weekly-full-run", {
+          symbolsTotal: 413,
+          symbolsScanned: 221,
+          symbolsSkipped: 192,
+          signalsCreated: 221,
           params: { assetClass: "crypto", allSymbols: true },
         }),
         assetClass: "crypto",
@@ -190,6 +248,7 @@ describe("PgScannerResultsStore latest scan queries", () => {
       new Set(["run-1"]),
     );
     expect(queries[0]).toContain("ss.scan_run_id = $1");
+    expect(queries[0]).toContain("ss.timeframe = $2");
     expect(queries[0]).not.toMatch(/scan_time\s*=\s*\(/i);
     expect(queries[0]).not.toMatch(/max\(scan_time\)/i);
   });
@@ -210,13 +269,13 @@ function makeRunRow(id: string, overrides: Partial<Record<string, unknown>> = {}
     exchange: "binance",
     market: "spot",
     mode: "single",
-    timeframe: "4h",
+    timeframe: overrides.timeframe ?? "4h",
     universe: "all-symbols",
     status: "success",
     symbols_total: overrides.symbols_total ?? 2,
     symbols_scanned: overrides.symbols_scanned ?? 2,
     signals_created: overrides.signals_created ?? 2,
-    symbols_skipped: 0,
+    symbols_skipped: overrides.symbols_skipped ?? 0,
     failed_symbols: 0,
     params: overrides.params ?? {},
     error_message: null,
@@ -231,6 +290,7 @@ function makeRunRecord(
     symbolsTotal: number;
     symbolsScanned: number;
     signalsCreated: number;
+    symbolsSkipped: number;
     params: Record<string, unknown>;
   }> = {},
 ) {
@@ -245,7 +305,7 @@ function makeRunRecord(
     symbolsTotal: overrides.symbolsTotal ?? 2,
     symbolsScanned: overrides.symbolsScanned ?? 2,
     signalsCreated: overrides.signalsCreated ?? 2,
-    symbolsSkipped: 0,
+    symbolsSkipped: overrides.symbolsSkipped ?? 0,
     failedSymbols: 0,
     params: overrides.params ?? {},
     errorMessage: null,

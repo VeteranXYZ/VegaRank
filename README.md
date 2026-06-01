@@ -463,6 +463,75 @@ where scan_run_id = (select id from latest_run);
 The current PostgreSQL run counters are `symbols_total`, `symbols_scanned`,
 `symbols_skipped`, and `failed_symbols`.
 
+### Multi-timeframe Production Update
+
+Use the PostgreSQL-backed backfill and scanner commands for production
+multi-timeframe coverage. The `--limit` flag on `market:backfill:pg` is the
+Binance page size; `1d` backfills target `1000` stored candles by default and
+`1w` backfills target `500` weekly candles or as much history as Binance has.
+
+1. Backfill 1d candles:
+
+```bash
+pnpm market:backfill:pg -- --timeframe 1d --all-symbols --asset-class crypto --limit 500 --confirm-large-sync
+```
+
+2. Run the 1d scanner:
+
+```bash
+pnpm scanner:run:pg -- --timeframe 1d --all-symbols --asset-class crypto --limit 500 --confirm-large-sync
+```
+
+3. Verify latest 1d results:
+
+```bash
+curl 'https://api.auere.com/api/scan/latest?timeframe=1d&assetClass=crypto&limit=100' \
+  | jq '{ok, count, run: {timeframe: .run.timeframe, symbolsTotal: .run.symbolsTotal, symbolsScanned: .run.symbolsScanned, signalsCreated: .run.signalsCreated}, latestRunSelection: .summary.latestRunSelection, totalByGroup: .summary.totalByGroup}'
+```
+
+4. Backfill 1w candles:
+
+```bash
+pnpm market:backfill:pg -- --timeframe 1w --all-symbols --asset-class crypto --limit 500 --confirm-large-sync
+```
+
+5. Run the 1w scanner:
+
+```bash
+pnpm scanner:run:pg -- --timeframe 1w --all-symbols --asset-class crypto --limit 500 --confirm-large-sync
+```
+
+6. Verify latest 1w results:
+
+```bash
+curl 'https://api.auere.com/api/scan/latest?timeframe=1w&assetClass=crypto&limit=100' \
+  | jq '{ok, count, run: {timeframe: .run.timeframe, symbolsTotal: .run.symbolsTotal, symbolsScanned: .run.symbolsScanned, signalsCreated: .run.signalsCreated}, latestRunSelection: .summary.latestRunSelection, totalByGroup: .summary.totalByGroup}'
+```
+
+7. Verify Symbol Research for both timeframes:
+
+```bash
+curl 'https://api.auere.com/api/symbol/research?exchange=binance&symbol=SEIUSDT&timeframe=1d' \
+  | jq '{ok, timeframe, latest: {scanTime: .latest.signal.scanTime, resultGroup: .latest.signal.resultGroup, isSelectedCurrentRun: .latest.signal.isSelectedCurrentRun, sourceRunIsLikelyFullUniverse: .latest.signal.sourceRunIsLikelyFullUniverse}, candles: {count: .candles.count, rowsCount: (.candles.rows | length)}, historyCount: (.history | length)}'
+
+curl 'https://api.auere.com/api/symbol/research?exchange=binance&symbol=SEIUSDT&timeframe=1w' \
+  | jq '{ok, timeframe, latest: {scanTime: .latest.signal.scanTime, resultGroup: .latest.signal.resultGroup, isSelectedCurrentRun: .latest.signal.isSelectedCurrentRun, sourceRunIsLikelyFullUniverse: .latest.signal.sourceRunIsLikelyFullUniverse}, candles: {count: .candles.count, rowsCount: (.candles.rows | length)}, historyCount: (.history | length)}'
+```
+
+8. Restart the public API after code changes:
+
+```bash
+pm2 restart trade-api --update-env
+```
+
+Expected caveats:
+
+- `1w` may skip newer or recently listed symbols because there are fewer weekly
+  candles. Those skips are counted in `symbols_skipped`; fake signals are not
+  created for insufficient history.
+- `1h` is not part of this production coverage phase unless explicitly enabled
+  in a later runbook.
+
 ### VPS Evaluation Scheduling
 
 Do not deploy these examples directly from this repository state; they are reference
@@ -585,7 +654,8 @@ where larger local datasets should be accumulated.
 - The cache is in-memory and not shared across server instances.
 - Scoring rules are MVP heuristics and should be tuned with observation.
 - The scanner only supports Binance Spot USDT markets.
-- Symbol detail supports 4h and 1d in the UI.
+- Symbol Research depends on PostgreSQL scan coverage for the requested
+  timeframe; `4h`, `1d`, and `1w` are the production coverage targets.
 - Signal research storage is local SQLite/JSONL research infrastructure, not trading advice or portfolio/PnL simulation.
 - The selected-symbol historical behavior review is per-symbol, lazy-loaded, no-database, and research-only.
 - There are no user accounts or saved watchlists.

@@ -63,6 +63,58 @@ describe("Oracle VPS stage 1 CLI safety", () => {
   });
 });
 
+describe("PostgreSQL market-data CLI timeframe parsing", () => {
+  it.each(["1d", "1w"])(
+    "accepts %s for full-universe market backfills before external locks",
+    async (timeframe) => {
+      const result = await runNodeScript(
+        [
+          "scripts/run-ts.mjs",
+          "scripts/market-backfill-pg.ts",
+          "--timeframe",
+          timeframe,
+          "--all-symbols",
+          "--asset-class",
+          "crypto",
+          "--limit",
+          "500",
+          "--confirm-large-sync",
+        ],
+        { REDIS_URL: "", DATABASE_URL: "" },
+      );
+
+      expect(result.status).toBe(1);
+      expect(result.stderr).toContain("REDIS_URL is required for Redis locks.");
+      expect(result.stderr).not.toContain("timeframe must be one of");
+    },
+  );
+
+  it.each(["1d", "1w"])(
+    "accepts %s for full-universe scanner runs before external locks",
+    async (timeframe) => {
+      const result = await runNodeScript(
+        [
+          "scripts/run-ts.mjs",
+          "scripts/scanner-run-pg.ts",
+          "--timeframe",
+          timeframe,
+          "--all-symbols",
+          "--asset-class",
+          "crypto",
+          "--limit",
+          "500",
+          "--confirm-large-sync",
+        ],
+        { REDIS_URL: "", DATABASE_URL: "" },
+      );
+
+      expect(result.status).toBe(1);
+      expect(result.stderr).toContain("REDIS_URL is required for Redis locks.");
+      expect(result.stderr).not.toContain("timeframe must be one of");
+    },
+  );
+});
+
 function runNodeScript(
   args: string[],
   env: Record<string, string> = {},
