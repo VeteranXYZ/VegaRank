@@ -15,6 +15,7 @@ export function Header() {
         <nav className="flex flex-wrap items-center justify-end gap-x-3 gap-y-1 text-xs text-[var(--muted)]">
           <Link href="/scanner">{t.nav.scanner}</Link>
           <Link href="/screener">Screener</Link>
+          <Link href="/watchlist">Watchlist</Link>
           <Link href="/history">{t.nav.history}</Link>
           <Link href="/symbol/binance/BTCUSDT">{t.nav.btc}</Link>
           <LanguageToggle />
