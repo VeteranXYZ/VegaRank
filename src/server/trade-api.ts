@@ -19,6 +19,8 @@ import {
   LATEST_SCAN_FULL_UNIVERSE_MIN_SYMBOLS,
   PgScannerResultsStore,
   isLikelyFullUniverseRun,
+  type LatestScanSignalRecord,
+  type ScanRunRecord,
 } from "@/lib/storage/postgres/scannerResultsPg";
 import {
   PgSymbolResearchStore,
@@ -44,10 +46,30 @@ const serviceName = "trade-api" as const;
 const defaultHost = "127.0.0.1";
 const defaultPort = "3000";
 const SYMBOL_RESEARCH_REQUIRED_CANDLES = 200;
+const MTF_LATEST_TIMEFRAMES = ["1h", "4h", "1d", "1w"] as const;
 const allowedOrigins = new Set([
   "https://s.bitcoinmind.com",
   "http://localhost:3000",
 ]);
+
+type MtfLatestTimeframe = (typeof MTF_LATEST_TIMEFRAMES)[number];
+type MtfLatestSignalItem = ReturnType<typeof buildMtfLatestSignalItem>;
+type MtfLatestTimeframeMap<T> = Record<MtfLatestTimeframe, T>;
+type MtfLatestRunMetadata = Pick<
+  ScanRunRecord,
+  | "id"
+  | "timeframe"
+  | "status"
+  | "symbolsTotal"
+  | "symbolsScanned"
+  | "symbolsSkipped"
+  | "signalsCreated"
+  | "startedAt"
+  | "finishedAt"
+> & {
+  isLikelyFullUniverse: boolean;
+  latestRunSelection: ReturnType<typeof buildLatestRunSelectionMetadata>;
+};
 
 export function createTradeApiServer() {
   return http.createServer(handleTradeApiRequest);
@@ -133,6 +155,11 @@ export async function handleTradeApiRequest(
 
     if (url.pathname === "/api/scan/latest") {
       await handleLatestScan(response, url);
+      return;
+    }
+
+    if (url.pathname === "/api/scan/mtf-latest") {
+      await handleMtfLatestScan(response, url);
       return;
     }
 
@@ -867,6 +894,141 @@ async function handleLatestScan(response: http.ServerResponse, url: URL) {
   }
 }
 
+async function handleMtfLatestScan(response: http.ServerResponse, url: URL) {
+  const assetClass = parseAssetClassParam(url.searchParams.get("assetClass"));
+  const includeNonScanner = parseBooleanParam(url.searchParams.get("includeNonScanner"));
+  const includeMarketContext = parseBooleanParam(
+    url.searchParams.get("includeMarketContext"),
+  );
+
+  if (!assetClass.valid) {
+    sendJson(response, 400, {
+      ok: false,
+      service: serviceName,
+      error: "INVALID_ASSET_CLASS",
+    });
+    return;
+  }
+
+  const store = new PgScannerResultsStore();
+  const preferFullUniverse = shouldPreferFullUniverseLatestRun({
+    assetClass: assetClass.value,
+    includeNonScanner,
+  });
+
+  try {
+    const timeframeResults = await Promise.all(
+      MTF_LATEST_TIMEFRAMES.map(async (timeframe) => {
+        const run = await store.getLatestScanRun({
+          timeframe,
+          assetClass: assetClass.value,
+          preferFullUniverse,
+          minExpectedSymbols: LATEST_SCAN_FULL_UNIVERSE_MIN_SYMBOLS,
+        });
+
+        if (!run) {
+          return {
+            timeframe,
+            run: null,
+            items: [],
+          };
+        }
+
+        const signals = await store.listLatestScanSignalsForRun({
+          scanRunId: run.id,
+          timeframe,
+          assetClass: assetClass.value,
+          includeNonScanner,
+          includeMarketContext,
+        });
+
+        return {
+          timeframe,
+          run: buildMtfLatestRunMetadata({
+            run,
+            assetClass: assetClass.value,
+            preferredFullUniverse: preferFullUniverse,
+          }),
+          items: signals.map((signal) =>
+            buildMtfLatestSignalItem(signal, timeframe),
+          ),
+        };
+      }),
+    );
+    const runs = createMtfTimeframeMap<MtfLatestRunMetadata | null>(null);
+    const signalCounts = createMtfTimeframeMap<number>(0);
+    const rowsBySymbol = new Map<
+      string,
+      {
+        symbol: string;
+        exchange: string;
+        market: string;
+        assetClass: string;
+        timeframes: MtfLatestTimeframeMap<MtfLatestSignalItem | null>;
+      }
+    >();
+
+    for (const result of timeframeResults) {
+      runs[result.timeframe] = result.run;
+      signalCounts[result.timeframe] = result.items.length;
+
+      for (const item of result.items) {
+        const symbol = item.symbol.trim().toUpperCase();
+
+        if (!symbol) {
+          continue;
+        }
+
+        const existing = rowsBySymbol.get(symbol) ?? {
+          symbol,
+          exchange: item.exchange,
+          market: item.market,
+          assetClass: item.assetClass,
+          timeframes: createMtfTimeframeMap<MtfLatestSignalItem | null>(null),
+        };
+
+        existing.timeframes[result.timeframe] = item;
+        rowsBySymbol.set(symbol, existing);
+      }
+    }
+
+    const rows = [...rowsBySymbol.values()].sort((left, right) =>
+      left.symbol.localeCompare(right.symbol),
+    );
+    const missingCounts = createMtfTimeframeMap<number>(0);
+
+    for (const timeframe of MTF_LATEST_TIMEFRAMES) {
+      missingCounts[timeframe] = rows.filter(
+        (row) => row.timeframes[timeframe] === null,
+      ).length;
+    }
+
+    sendJson(response, 200, {
+      ok: true,
+      service: serviceName,
+      source: "postgres",
+      assetClass: assetClass.value,
+      includeNonScanner,
+      includeMarketContext,
+      timeframes: MTF_LATEST_TIMEFRAMES,
+      runs,
+      signalCounts,
+      missingCounts,
+      count: rows.length,
+      rows,
+    });
+  } catch (error) {
+    sendJson(response, 503, {
+      ok: false,
+      service: serviceName,
+      source: "postgres",
+      error: sanitizeConnectionError(error, "POSTGRES_UNAVAILABLE"),
+    });
+  } finally {
+    await store.close().catch(() => undefined);
+  }
+}
+
 function shouldPreferFullUniverseLatestRun({
   assetClass,
   includeNonScanner,
@@ -906,6 +1068,69 @@ function buildLatestRunSelectionMetadata({
     isLikelyFullUniverse,
     minExpectedSymbols: LATEST_SCAN_FULL_UNIVERSE_MIN_SYMBOLS,
     fallbackUsed: preferredFullUniverse && !isLikelyFullUniverse,
+  };
+}
+
+function buildMtfLatestRunMetadata({
+  run,
+  assetClass,
+  preferredFullUniverse,
+}: {
+  run: ScanRunRecord;
+  assetClass: SymbolAssetClassFilter;
+  preferredFullUniverse: boolean;
+}): MtfLatestRunMetadata {
+  const latestRunSelection = buildLatestRunSelectionMetadata({
+    run,
+    assetClass,
+    preferredFullUniverse,
+  });
+
+  return {
+    id: run.id,
+    timeframe: run.timeframe,
+    status: run.status,
+    symbolsTotal: run.symbolsTotal,
+    symbolsScanned: run.symbolsScanned,
+    symbolsSkipped: run.symbolsSkipped,
+    signalsCreated: run.signalsCreated,
+    startedAt: run.startedAt,
+    finishedAt: run.finishedAt,
+    isLikelyFullUniverse: latestRunSelection.isLikelyFullUniverse,
+    latestRunSelection,
+  };
+}
+
+function buildMtfLatestSignalItem(
+  signal: LatestScanSignalRecord,
+  timeframe: MtfLatestTimeframe,
+) {
+  const quality = getSymbolQuality(signal.symbol, {
+    assetClass: signal.assetClass,
+    candleCount: signal.candleCount,
+    firstOpenTime: signal.firstOpenTime,
+  });
+  const resultGroup = classifyScanResultGroup(signal);
+  const review = getScanResultReview({ ...signal, resultGroup });
+
+  return {
+    ...signal,
+    ...quality,
+    timeframe,
+    group: resultGroup,
+    resultGroup,
+    action: review.statusNote,
+    setupType: signal.primaryStructure,
+    ...review,
+  };
+}
+
+function createMtfTimeframeMap<T>(value: T): MtfLatestTimeframeMap<T> {
+  return {
+    "1h": value,
+    "4h": value,
+    "1d": value,
+    "1w": value,
   };
 }
 

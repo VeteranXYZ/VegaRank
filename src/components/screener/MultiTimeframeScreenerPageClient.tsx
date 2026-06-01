@@ -9,7 +9,7 @@ import {
 } from "@/components/scanner/latestScanUi";
 import {
   MTF_SCREENER_TIMEFRAMES,
-  buildMtfScreenerRows,
+  buildMtfScreenerRowsFromResponse,
   buildMtfSymbolResearchHref,
   defaultMtfScreenerFilters,
   filterMtfScreenerRows,
@@ -17,20 +17,15 @@ import {
   formatMtfRank,
   getMtfPrimarySignal,
   getMtfRiskNotes,
-  getMtfRunFinishedAt,
-  mtfScreenerGroupFilterOptions,
   mtfScreenerPresets,
-  type MtfLatestScanResponse,
+  mtfScreenerGroupFilterOptions,
+  type MtfLatestScreenerResponse,
   type MtfScreenerFilters,
   type MtfScreenerGroupFilter,
   type MtfScreenerPresetId,
   type MtfScreenerRow,
   type MtfScreenerTimeframe,
 } from "./multiTimeframeScreenerUi";
-
-type LatestScanResponsesByTimeframe = Partial<
-  Record<MtfScreenerTimeframe, MtfLatestScanResponse>
->;
 
 const assetClass = "crypto";
 
@@ -47,7 +42,7 @@ export function MultiTimeframeScreenerPageClient() {
     staleTime: 60_000,
   });
   const rows = useMemo(
-    () => buildMtfScreenerRows(latestQuery.data ?? {}),
+    () => buildMtfScreenerRowsFromResponse(latestQuery.data),
     [latestQuery.data],
   );
   const filteredRows = useMemo(
@@ -235,46 +230,31 @@ async function fetchMtfLatestScans({
   signal,
 }: {
   signal?: AbortSignal;
-}): Promise<LatestScanResponsesByTimeframe> {
-  const entries = await Promise.all(
-    MTF_SCREENER_TIMEFRAMES.map(async (timeframe) => {
-      const response = await fetch(
-        buildMtfLatestScanUrl({ timeframe, assetClass, limit: 500 }),
-        { signal },
-      );
+}): Promise<MtfLatestScreenerResponse> {
+  const response = await fetch(buildMtfLatestScanUrl({ assetClass }), { signal });
 
-      if (!response.ok) {
-        throw new Error(
-          `Failed to load ${timeframe} latest scan data (${response.status}).`,
-        );
-      }
+  if (!response.ok) {
+    throw new Error(
+      `Failed to load multi-timeframe latest scan data (${response.status}).`,
+    );
+  }
 
-      return [timeframe, (await response.json()) as MtfLatestScanResponse] as const;
-    }),
-  );
-
-  return Object.fromEntries(entries) as LatestScanResponsesByTimeframe;
+  return (await response.json()) as MtfLatestScreenerResponse;
 }
 
 export function buildMtfLatestScanUrl({
-  timeframe,
   assetClass,
-  limit,
   tradeApiBaseUrl = process.env.NEXT_PUBLIC_TRADE_API_BASE_URL,
 }: {
-  timeframe: MtfScreenerTimeframe;
   assetClass: string;
-  limit: number;
   tradeApiBaseUrl?: string;
 }) {
   const params = new URLSearchParams({
-    timeframe,
     assetClass,
-    limit: String(limit),
   });
   const baseUrl = tradeApiBaseUrl?.trim().replace(/\/+$/, "") ?? "";
 
-  return `${baseUrl}/api/scan/latest?${params.toString()}`;
+  return `${baseUrl}/api/scan/mtf-latest?${params.toString()}`;
 }
 
 function MtfScreenerControls({
@@ -414,7 +394,7 @@ function MtfScreenerSourcePanel({
   totalRows,
   filteredRows,
 }: {
-  data: LatestScanResponsesByTimeframe | undefined;
+  data: MtfLatestScreenerResponse | undefined;
   totalRows: number;
   filteredRows: number;
 }) {
@@ -426,7 +406,8 @@ function MtfScreenerSourcePanel({
             Data Source
           </h2>
           <p className="mt-1 text-[11px] text-[var(--muted)]">
-            Existing latest scan API, asset class crypto, limit 500 per timeframe.
+            Full latest-run screener API, asset class crypto, joined across 1h,
+            4h, 1d, and 1w.
           </p>
         </div>
         <div className="text-[11px] text-[var(--muted)]">
@@ -435,7 +416,9 @@ function MtfScreenerSourcePanel({
       </div>
       <div className="mt-2 grid gap-2 md:grid-cols-4">
         {MTF_SCREENER_TIMEFRAMES.map((timeframe) => {
-          const response = data?.[timeframe];
+          const run = data?.runs[timeframe];
+          const signalCount = data?.signalCounts[timeframe] ?? 0;
+          const missingCount = data?.missingCounts[timeframe] ?? 0;
 
           return (
             <div
@@ -446,8 +429,8 @@ function MtfScreenerSourcePanel({
                 {timeframe}
               </div>
               <div className="mt-1 text-[11px] text-[var(--muted)]">
-                {response?.run
-                  ? `${formatDateTime(getMtfRunFinishedAt(response))} - ${response.count} rows`
+                {run
+                  ? `${formatDateTime(run.finishedAt ?? run.startedAt)} - ${signalCount} signals, ${missingCount} missing`
                   : "No selected latest run"}
               </div>
             </div>

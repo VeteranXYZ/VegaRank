@@ -321,6 +321,182 @@ describe("trade-api latest scan run selection", () => {
       minExpectedSymbols: 300,
     });
   });
+
+  it("keeps latest scan responses limited for scanner UI visibility", async () => {
+    getLatestScanRunMock.mockResolvedValue(
+      makeRun("full-run", {
+        symbolsTotal: 413,
+        symbolsScanned: 409,
+        signalsCreated: 3,
+        params: { assetClass: "crypto", allSymbols: true },
+      }),
+    );
+    listLatestScanSignalsForRunMock.mockResolvedValue([
+      makeResearchSignal({ id: "signal-btc", symbol: "BTCUSDT", rankScore: 92 }),
+      makeResearchSignal({ id: "signal-eth", symbol: "ETHUSDT", rankScore: 88 }),
+      makeResearchSignal({ id: "signal-sei", symbol: "SEIUSDT", rankScore: 84 }),
+    ]);
+
+    const response = await requestTradeApi(
+      "/api/scan/latest?timeframe=4h&assetClass=crypto&limit=1",
+    );
+    const body = JSON.parse(response.body);
+
+    expect(response.status).toBe(200);
+    expect(body.count).toBe(1);
+    expect(body.items).toHaveLength(1);
+    expect(body.summary).toMatchObject({
+      totalSignals: 3,
+      returnedItems: 1,
+    });
+  });
+});
+
+describe("trade-api multi-timeframe latest screener", () => {
+  beforeEach(() => {
+    resetScannerMocks();
+    resetSymbolResearchMocks();
+  });
+
+  it("returns full selected-run signals joined by symbol across screener timeframes", async () => {
+    getLatestScanRunMock.mockImplementation(({ timeframe }: { timeframe: string }) =>
+      Promise.resolve(
+        timeframe === "1w"
+          ? null
+          : makeRun(`full-${timeframe}`, {
+              timeframe,
+              symbolsTotal: 413,
+              symbolsScanned: 409,
+              signalsCreated: timeframe === "1d" ? 1 : 2,
+              params: { assetClass: "crypto", allSymbols: true },
+            }),
+      ),
+    );
+    listLatestScanSignalsForRunMock.mockImplementation(
+      ({ timeframe }: { timeframe: string }) => {
+        const signalsByTimeframe = {
+          "1h": [
+            makeResearchSignal({
+              id: "1h-btc",
+              scanRunId: "full-1h",
+              symbol: "BTCUSDT",
+              timeframe: "1h",
+              rankScore: 92,
+            }),
+            makeResearchSignal({
+              id: "1h-sei",
+              scanRunId: "full-1h",
+              symbol: "SEIUSDT",
+              timeframe: "1h",
+              rankScore: 72,
+              signalLabel: "watch",
+              actionBias: "watch_only",
+            }),
+          ],
+          "4h": [
+            makeResearchSignal({
+              id: "4h-btc",
+              scanRunId: "full-4h",
+              symbol: "BTCUSDT",
+              timeframe: "4h",
+              rankScore: 82,
+            }),
+            makeResearchSignal({
+              id: "4h-eth",
+              scanRunId: "full-4h",
+              symbol: "ETHUSDT",
+              timeframe: "4h",
+              rankScore: 80,
+            }),
+          ],
+          "1d": [
+            makeResearchSignal({
+              id: "1d-sei",
+              scanRunId: "full-1d",
+              symbol: "SEIUSDT",
+              timeframe: "1d",
+              rankScore: 18,
+              signalLabel: "breakdown_risk",
+              actionBias: "avoid",
+              primaryStructure: "trend_breakdown",
+            }),
+          ],
+          "1w": [],
+        } satisfies Record<string, ReturnType<typeof makeResearchSignal>[]>;
+
+        return Promise.resolve(signalsByTimeframe[timeframe] ?? []);
+      },
+    );
+
+    const response = await requestTradeApi(
+      "/api/scan/mtf-latest?assetClass=crypto",
+    );
+    const body = JSON.parse(response.body);
+    const btc = body.rows.find((row: { symbol: string }) => row.symbol === "BTCUSDT");
+    const sei = body.rows.find((row: { symbol: string }) => row.symbol === "SEIUSDT");
+    const eth = body.rows.find((row: { symbol: string }) => row.symbol === "ETHUSDT");
+
+    expect(response.status).toBe(200);
+    expect(body.ok).toBe(true);
+    expect(body.service).toBe("trade-api");
+    expect(body.source).toBe("postgres");
+    expect(body.timeframes).toEqual(["1h", "4h", "1d", "1w"]);
+    expect(body.signalCounts).toEqual({ "1h": 2, "4h": 2, "1d": 1, "1w": 0 });
+    expect(body.missingCounts).toEqual({ "1h": 1, "4h": 1, "1d": 2, "1w": 3 });
+    expect(body.count).toBe(3);
+    expect(body.runs["1h"]).toMatchObject({
+      id: "full-1h",
+      timeframe: "1h",
+      status: "success",
+      isLikelyFullUniverse: true,
+      latestRunSelection: {
+        preferredFullUniverse: true,
+        isLikelyFullUniverse: true,
+        fallbackUsed: false,
+      },
+    });
+    expect(body.runs["1w"]).toBeNull();
+    expect(btc.timeframes["1h"]).toMatchObject({
+      id: "1h-btc",
+      symbol: "BTCUSDT",
+      resultGroup: "eligible",
+      group: "eligible",
+      action: "Manual review",
+      setupType: "strong_trend",
+      scanTime: "2026-05-31T00:00:01.000Z",
+    });
+    expect(btc.timeframes["4h"]).toMatchObject({ id: "4h-btc" });
+    expect(btc.timeframes["1d"]).toBeNull();
+    expect(btc.timeframes["1w"]).toBeNull();
+    expect(sei.timeframes["1d"]).toMatchObject({
+      id: "1d-sei",
+      resultGroup: "risk",
+    });
+    expect(eth.timeframes["1h"]).toBeNull();
+    expect(eth.timeframes["4h"]).toMatchObject({ id: "4h-eth" });
+    expect(getLatestScanRunMock).toHaveBeenNthCalledWith(1, {
+      timeframe: "1h",
+      assetClass: "crypto",
+      preferFullUniverse: true,
+      minExpectedSymbols: 300,
+    });
+    expect(getLatestScanRunMock).toHaveBeenNthCalledWith(4, {
+      timeframe: "1w",
+      assetClass: "crypto",
+      preferFullUniverse: true,
+      minExpectedSymbols: 300,
+    });
+    expect(listLatestScanSignalsForRunMock).not.toHaveBeenCalledWith(
+      expect.objectContaining({ timeframe: "1w" }),
+    );
+    expect(listLatestScanSignalsForRunMock).toHaveBeenCalledWith({
+      scanRunId: "full-1h",
+      timeframe: "1h",
+      assetClass: "crypto",
+      includeNonScanner: false,
+      includeMarketContext: false,
+    });
+  });
 });
 
 describe("trade-api symbol research", () => {

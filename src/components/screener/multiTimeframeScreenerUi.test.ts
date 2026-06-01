@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   buildMtfScreenerRows,
+  buildMtfScreenerRowsFromResponse,
   buildMtfSymbolResearchHref,
   defaultMtfScreenerFilters,
   doesMtfRowMatchPreset,
@@ -38,6 +39,80 @@ describe("multi-timeframe screener helpers", () => {
     expect(btc?.snapshots["4h"]?.resultGroup).toBe("watch");
     expect(btc?.snapshots["1d"]?.resultGroup).toBe("neutral");
     expect(sei?.snapshots["4h"]).toBeUndefined();
+  });
+
+  it("joins the full multi-timeframe latest API response by symbol", () => {
+    const rows = buildMtfScreenerRowsFromResponse({
+      ok: true,
+      assetClass: "crypto",
+      timeframes: ["1h", "4h", "1d", "1w"],
+      runs: {
+        "1h": makeRun("1h", 2),
+        "4h": makeRun("4h", 1),
+        "1d": makeRun("1d", 1),
+        "1w": null,
+      },
+      signalCounts: { "1h": 2, "4h": 1, "1d": 1, "1w": 0 },
+      missingCounts: { "1h": 0, "4h": 1, "1d": 1, "1w": 2 },
+      count: 2,
+      rows: [
+        {
+          symbol: "btcusdt",
+          exchange: "binance",
+          market: "spot",
+          assetClass: "crypto",
+          timeframes: {
+            "1h": makeItem({
+              symbol: "BTCUSDT",
+              timeframe: "1h",
+              resultGroup: "eligible",
+              rankScore: 92,
+            }),
+            "4h": makeItem({
+              symbol: "BTCUSDT",
+              timeframe: "4h",
+              resultGroup: "watch",
+              rankScore: 67,
+            }),
+            "1d": null,
+            "1w": null,
+          },
+        },
+        {
+          symbol: "SEIUSDT",
+          exchange: "binance",
+          market: "spot",
+          assetClass: "crypto",
+          timeframes: {
+            "1h": makeItem({
+              symbol: "SEIUSDT",
+              timeframe: "1h",
+              resultGroup: "watch",
+              rankScore: 72,
+            }),
+            "4h": null,
+            "1d": makeItem({
+              symbol: "SEIUSDT",
+              timeframe: "1d",
+              group: "risk",
+              resultGroup: null,
+              rankScore: 18,
+            }),
+            "1w": null,
+          },
+        },
+      ],
+    });
+
+    const btc = rows.find((row) => row.symbol === "BTCUSDT");
+    const sei = rows.find((row) => row.symbol === "SEIUSDT");
+
+    expect(rows.map((row) => row.symbol)).toEqual(["BTCUSDT", "SEIUSDT"]);
+    expect(btc?.snapshots["1h"]?.resultGroup).toBe("eligible");
+    expect(btc?.snapshots["4h"]?.resultGroup).toBe("watch");
+    expect(btc?.snapshots["1d"]).toBeUndefined();
+    expect(sei?.snapshots["1d"]?.resultGroup).toBe("risk");
+    expect(sei?.snapshots["1w"]).toBeUndefined();
   });
 
   it("filters by group, minimum rank, and higher-timeframe risk exclusions", () => {
@@ -157,6 +232,21 @@ function makeResponse(
   };
 }
 
+function makeRun(timeframe: MtfScreenerTimeframe, signalsCreated: number) {
+  return {
+    id: `run-${timeframe}`,
+    timeframe,
+    status: "success",
+    symbolsTotal: 400,
+    symbolsScanned: 400,
+    signalsCreated,
+    symbolsSkipped: 0,
+    startedAt: "2026-06-01T00:00:00.000Z",
+    finishedAt: "2026-06-01T00:05:00.000Z",
+    isLikelyFullUniverse: true,
+  };
+}
+
 function findRow(
   rows: ReturnType<typeof buildMtfScreenerRows>,
   symbol: string,
@@ -183,7 +273,8 @@ function makeItem(
     market: "spot",
     symbol: overrides.symbol,
     timeframe: overrides.timeframe,
-    resultGroup: overrides.resultGroup ?? "neutral",
+    group: overrides.group,
+    resultGroup: overrides.resultGroup === undefined ? "neutral" : overrides.resultGroup,
     rankScore: overrides.rankScore ?? 0,
     signalLabel: overrides.signalLabel ?? "watch",
     actionBias: "watch_only",

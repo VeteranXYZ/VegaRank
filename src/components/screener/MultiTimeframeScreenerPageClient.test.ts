@@ -1,10 +1,25 @@
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
-import { MtfScreenerTable } from "./MultiTimeframeScreenerPageClient";
-import { buildMtfScreenerRows, type MtfLatestScanResponse } from "./multiTimeframeScreenerUi";
+import {
+  buildMtfLatestScanUrl,
+  MtfScreenerTable,
+} from "./MultiTimeframeScreenerPageClient";
+import {
+  buildMtfScreenerRows,
+  type MtfLatestScanResponse,
+} from "./multiTimeframeScreenerUi";
 
 describe("MultiTimeframeScreenerTable", () => {
+  it("uses the full multi-timeframe latest API endpoint", () => {
+    expect(
+      buildMtfLatestScanUrl({
+        assetClass: "crypto",
+        tradeApiBaseUrl: "https://api.auere.com/",
+      }),
+    ).toBe("https://api.auere.com/api/scan/mtf-latest?assetClass=crypto");
+  });
+
   it("renders missing timeframes and symbol research links", () => {
     const rows = buildMtfScreenerRows({
       "1h": {

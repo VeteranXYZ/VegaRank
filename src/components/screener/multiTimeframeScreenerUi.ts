@@ -49,6 +49,7 @@ export type MtfLatestScanRun = {
   symbolsSkipped: number;
   startedAt: string;
   finishedAt: string | null;
+  isLikelyFullUniverse?: boolean | null;
 };
 
 export type MtfLatestScanSummary = {
@@ -62,16 +63,21 @@ export type MtfLatestScanItem = {
   scanRunId?: string;
   exchange?: string | null;
   market?: string | null;
+  assetClass?: string | null;
   symbol: string;
   timeframe: string;
+  group?: string | null;
   resultGroup?: string | null;
   rankScore: number | null;
   signalLabel?: string | null;
+  action?: string | null;
   actionBias?: string | null;
   reviewTier?: string | null;
   statusNote?: string | null;
   statusReasons?: string[];
+  setupType?: string | null;
   primaryStructure?: string | null;
+  scanTime?: string | null;
   detectedRiskTypes?: unknown;
 };
 
@@ -83,6 +89,25 @@ export type MtfLatestScanResponse = {
   summary: MtfLatestScanSummary | null;
   items: MtfLatestScanItem[];
   count: number;
+};
+
+export type MtfLatestScreenerApiRow = {
+  symbol: string;
+  exchange?: string | null;
+  market?: string | null;
+  assetClass?: string | null;
+  timeframes: Record<MtfScreenerTimeframe, MtfLatestScanItem | null>;
+};
+
+export type MtfLatestScreenerResponse = {
+  ok: boolean;
+  assetClass: string;
+  timeframes: readonly MtfScreenerTimeframe[];
+  runs: Record<MtfScreenerTimeframe, MtfLatestScanRun | null>;
+  signalCounts: Record<MtfScreenerTimeframe, number>;
+  missingCounts: Record<MtfScreenerTimeframe, number>;
+  count: number;
+  rows: MtfLatestScreenerApiRow[];
 };
 
 export type MtfScreenerSnapshot = MtfLatestScanItem & {
@@ -178,6 +203,48 @@ export function buildMtfScreenerRows(
       };
       rowsBySymbol.set(symbol, existing);
     }
+  }
+
+  return [...rowsBySymbol.values()].sort(compareMtfScreenerRows);
+}
+
+export function buildMtfScreenerRowsFromResponse(
+  response: MtfLatestScreenerResponse | undefined,
+) {
+  const rowsBySymbol = new Map<string, MtfScreenerRow>();
+
+  for (const apiRow of response?.rows ?? []) {
+    const symbol = apiRow.symbol.trim().toUpperCase();
+
+    if (!symbol) {
+      continue;
+    }
+
+    const row: MtfScreenerRow = {
+      symbol,
+      exchange: apiRow.exchange ?? "binance",
+      market: apiRow.market ?? "spot",
+      snapshots: {},
+    };
+
+    for (const timeframe of MTF_SCREENER_TIMEFRAMES) {
+      const snapshot = apiRow.timeframes[timeframe];
+
+      if (!snapshot) {
+        continue;
+      }
+
+      row.snapshots[timeframe] = {
+        ...snapshot,
+        symbol,
+        exchange: snapshot.exchange ?? apiRow.exchange ?? "binance",
+        market: snapshot.market ?? apiRow.market ?? "spot",
+        timeframe,
+        resultGroup: normalizeGroupKey(snapshot.resultGroup ?? snapshot.group),
+      };
+    }
+
+    rowsBySymbol.set(symbol, row);
   }
 
   return [...rowsBySymbol.values()].sort(compareMtfScreenerRows);
