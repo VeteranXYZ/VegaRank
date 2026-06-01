@@ -3,11 +3,13 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import {
   WatchlistSummaryCards,
+  WatchlistResearchSummaryPanel,
   WatchlistTable,
   buildWatchlistMtfLatestScanUrl,
 } from "./WatchlistPageClient";
 import {
   DEFAULT_WATCHLIST_SYMBOLS,
+  buildWatchlistResearchSummary,
   buildWatchlistRows,
   getWatchlistSummary,
 } from "./watchlistUi";
@@ -47,11 +49,16 @@ describe("WatchlistPageClient", () => {
         createElement(WatchlistSummaryCards, {
           summary: getWatchlistSummary(rows),
         }),
+        createElement(WatchlistResearchSummaryPanel, {
+          summary: buildWatchlistResearchSummary(rows),
+        }),
         createElement(WatchlistTable, { rows }),
       ),
     );
 
     expect(html).toContain("Total selected symbols");
+    expect(html).toContain("Watchlist Research Summary");
+    expect(html).toContain("Research posture");
     expect(html).toContain("Selected Symbols");
     expect(html).toContain("BTCUSDT");
     expect(html).toContain("SEIUSDT");
@@ -93,6 +100,58 @@ describe("WatchlistPageClient", () => {
     expect(html).toContain(
       'href="/symbol/binance/SEIUSDT?timeframe=1h&amp;assetClass=crypto&amp;from=watchlist"',
     );
+  });
+
+  it("renders all table rows by default without show-more behavior", () => {
+    const symbols = ["AAA", "BBB", "CCC", "DDD", "EEE", "FFF", "GGG", "HHH"];
+    const rows = buildWatchlistRows(
+      symbols,
+      buildMtfScreenerRows({
+        "4h": makeResponse(
+          "4h",
+          symbols.map((symbol, index) =>
+            makeItem({
+              symbol: `${symbol}USDT`,
+              timeframe: "4h",
+              resultGroup: index % 2 === 0 ? "watch" : "neutral",
+              rankScore: 60 + index,
+            }),
+          ),
+        ),
+      }),
+    );
+    const html = renderToStaticMarkup(
+      createElement(WatchlistTable, { rows }),
+    );
+
+    for (const symbol of symbols) {
+      expect(html).toContain(`${symbol}USDT`);
+    }
+
+    expect(html).toContain("8 watchlist rows");
+    expect(html).not.toContain("Show More");
+    expect(html).not.toContain("show more");
+  });
+
+  it("renders compact remove actions when a row removal handler is provided", () => {
+    const rows = buildWatchlistRows(
+      ["BTC", "ETH"],
+      buildMtfScreenerRows({
+        "4h": makeResponse("4h", [
+          makeItem({ symbol: "BTCUSDT", timeframe: "4h" }),
+          makeItem({ symbol: "ETHUSDT", timeframe: "4h" }),
+        ]),
+      }),
+    );
+    const html = renderToStaticMarkup(
+      createElement(WatchlistTable, {
+        rows,
+        onRemoveSymbol: () => undefined,
+      }),
+    );
+
+    expect(html).toContain("Action");
+    expect(html.match(/Remove/g)).toHaveLength(2);
   });
 });
 

@@ -2,16 +2,25 @@ import { describe, expect, it } from "vitest";
 import {
   DEFAULT_WATCHLIST_SYMBOLS,
   WATCHLIST_STORAGE_KEY,
+  addWatchlistSymbol,
+  addWatchlistSymbolToStorage,
+  applyWatchlistPreset,
+  buildWatchlistExportText,
+  buildWatchlistResearchSummary,
   buildWatchlistResearchHref,
   buildWatchlistRows,
   defaultWatchlistFilters,
   filterWatchlistRows,
   getWatchlistResearchTimeframe,
   getWatchlistSummary,
+  importWatchlistSymbols,
+  isSymbolInWatchlist,
   loadWatchlistSymbols,
   parseWatchlistSymbols,
+  removeWatchlistSymbol,
   saveWatchlistSymbols,
   sortWatchlistRows,
+  watchlistPresets,
   type WatchlistStorage,
 } from "./watchlistUi";
 import {
@@ -59,6 +68,72 @@ describe("watchlist localStorage helpers", () => {
 
   it("preserves an intentionally cleared watchlist", () => {
     expect(loadWatchlistSymbols(makeStorage("[]"))).toEqual([]);
+  });
+
+  it("adds symbols to storage without duplicates and handles unavailable storage", () => {
+    const storage = makeStorage(JSON.stringify(["BTCUSDT"]));
+
+    expect(addWatchlistSymbolToStorage({ storage, symbol: "eth" })).toEqual({
+      symbol: "ETHUSDT",
+      symbols: ["BTCUSDT", "ETHUSDT"],
+      added: true,
+    });
+    expect(addWatchlistSymbolToStorage({ storage, symbol: "ETHUSDT" })).toEqual({
+      symbol: "ETHUSDT",
+      symbols: ["BTCUSDT", "ETHUSDT"],
+      added: false,
+    });
+
+    const unavailable = makeThrowingStorage();
+
+    expect(() =>
+      addWatchlistSymbolToStorage({ storage: unavailable, symbol: "sei" }),
+    ).not.toThrow();
+  });
+});
+
+describe("watchlist preset and import/export helpers", () => {
+  it("applies built-in presets as normalized editable symbol lists", () => {
+    expect(watchlistPresets.map((preset) => preset.label)).toEqual([
+      "Majors",
+      "AI",
+      "DeFi",
+      "Meme",
+      "Layer 1 / Infra",
+    ]);
+    expect(applyWatchlistPreset("majors")).toEqual([
+      "BTCUSDT",
+      "ETHUSDT",
+      "SOLUSDT",
+      "BNBUSDT",
+      "XRPUSDT",
+      "LINKUSDT",
+      "ADAUSDT",
+      "DOGEUSDT",
+    ]);
+  });
+
+  it("normalizes imported symbols and export text", () => {
+    const imported = importWatchlistSymbols(" btc, eth\nSEI  btcusdt  ");
+
+    expect(imported).toEqual(["BTCUSDT", "ETHUSDT", "SEIUSDT"]);
+    expect(buildWatchlistExportText(imported)).toBe(
+      "BTCUSDT, ETHUSDT, SEIUSDT",
+    );
+    expect(importWatchlistSymbols(" , \n ")).toEqual([]);
+  });
+
+  it("adds, removes, and checks watchlist symbols with normalization", () => {
+    expect(addWatchlistSymbol(["BTCUSDT"], "eth")).toEqual([
+      "BTCUSDT",
+      "ETHUSDT",
+    ]);
+    expect(addWatchlistSymbol(["BTCUSDT"], "btc")).toEqual(["BTCUSDT"]);
+    expect(removeWatchlistSymbol(["BTCUSDT", "ETHUSDT"], "btc")).toEqual([
+      "ETHUSDT",
+    ]);
+    expect(isSymbolInWatchlist(["BTCUSDT"], "btc")).toBe(true);
+    expect(isSymbolInWatchlist(["BTCUSDT"], "eth")).toBe(false);
   });
 });
 
@@ -214,6 +289,156 @@ describe("watchlist row handling", () => {
   });
 });
 
+describe("watchlist research summary", () => {
+  it("summarizes a broad risk watchlist", () => {
+    const rows = buildWatchlistRows(
+      ["AAA", "BBB", "CCC"],
+      buildMtfScreenerRows({
+        "4h": makeResponse("4h", [
+          makeItem({ symbol: "AAAUSDT", timeframe: "4h", resultGroup: "risk" }),
+          makeItem({ symbol: "BBBUSDT", timeframe: "4h", resultGroup: "risk" }),
+          makeItem({ symbol: "CCCUSDT", timeframe: "4h", resultGroup: "watch" }),
+        ]),
+        "1d": makeResponse("1d", [
+          makeItem({ symbol: "AAAUSDT", timeframe: "1d", resultGroup: "risk" }),
+          makeItem({ symbol: "BBBUSDT", timeframe: "1d", resultGroup: "watch" }),
+          makeItem({ symbol: "CCCUSDT", timeframe: "1d", resultGroup: "neutral" }),
+        ]),
+        "1w": makeResponse("1w", [
+          makeItem({ symbol: "AAAUSDT", timeframe: "1w", resultGroup: "watch" }),
+          makeItem({ symbol: "BBBUSDT", timeframe: "1w", resultGroup: "risk" }),
+          makeItem({ symbol: "CCCUSDT", timeframe: "1w", resultGroup: "neutral" }),
+        ]),
+      }),
+    );
+    const summary = buildWatchlistResearchSummary(rows);
+
+    expect(summary.conditionLabel).toBe("Broad risk");
+    expect(summary.researchPosture).toBe("Defensive review");
+    expect(summary.counts.broadRiskSymbols).toBe(2);
+    expect(summary.highestRiskSymbols.map((item) => item.symbol)).toContain(
+      "AAAUSDT",
+    );
+  });
+
+  it("summarizes short-term repair inside higher-timeframe risk", () => {
+    const rows = buildWatchlistRows(
+      ["REPAIR"],
+      buildMtfScreenerRows({
+        "1h": makeResponse("1h", [
+          makeItem({
+            symbol: "REPAIRUSDT",
+            timeframe: "1h",
+            resultGroup: "eligible",
+            rankScore: 84,
+          }),
+        ]),
+        "1d": makeResponse("1d", [
+          makeItem({
+            symbol: "REPAIRUSDT",
+            timeframe: "1d",
+            resultGroup: "risk",
+          }),
+        ]),
+        "1w": makeResponse("1w", [
+          makeItem({
+            symbol: "REPAIRUSDT",
+            timeframe: "1w",
+            resultGroup: "neutral",
+          }),
+        ]),
+      }),
+    );
+    const summary = buildWatchlistResearchSummary(rows);
+
+    expect(summary.conditionLabel).toBe(
+      "Short-term repair inside higher-timeframe risk",
+    );
+    expect(summary.researchPosture).toBe("Repair candidates only");
+    expect(summary.counts.repairInsideRiskSymbols).toBe(1);
+    expect(summary.bestResearchCandidates[0]).toMatchObject({
+      symbol: "REPAIRUSDT",
+      timeframe: "1h",
+    });
+    expect(summary.bestResearchCandidates[0]?.reason).toContain(
+      "1d risk remains",
+    );
+  });
+
+  it("detects cleaner research candidates without over-penalizing missing 1w data", () => {
+    const rows = buildWatchlistRows(
+      ["CLEAN"],
+      buildMtfScreenerRows({
+        "4h": makeResponse("4h", [
+          makeItem({
+            symbol: "CLEANUSDT",
+            timeframe: "4h",
+            resultGroup: "watch",
+            rankScore: 72,
+          }),
+        ]),
+        "1d": makeResponse("1d", [
+          makeItem({
+            symbol: "CLEANUSDT",
+            timeframe: "1d",
+            resultGroup: "neutral",
+          }),
+        ]),
+      }),
+    );
+    const summary = buildWatchlistResearchSummary(rows);
+
+    expect(summary.conditionLabel).toBe("Higher-timeframe improving");
+    expect(summary.researchPosture).toBe("Selective watchlist review");
+    expect(summary.bestResearchCandidates[0]).toMatchObject({
+      symbol: "CLEANUSDT",
+      timeframe: "4h",
+    });
+    expect(summary.bestResearchCandidates[0]?.reason).toContain(
+      "1w not returned",
+    );
+  });
+
+  it("lists missing 1d and 1w data separately from not-found symbols", () => {
+    const rows = buildWatchlistRows(
+      ["PARTIAL", "MISSING"],
+      buildMtfScreenerRows({
+        "1h": makeResponse("1h", [
+          makeItem({ symbol: "PARTIALUSDT", timeframe: "1h" }),
+        ]),
+      }),
+    );
+    const summary = buildWatchlistResearchSummary(rows);
+
+    expect(summary.counts.missingImportantDataSymbols).toBe(2);
+    expect(summary.missingDataSymbols).toEqual([
+      {
+        symbol: "PARTIALUSDT",
+        timeframe: "1h",
+        reason: "Missing 1d and 1w data.",
+        rankScore: null,
+      },
+      {
+        symbol: "MISSINGUSDT",
+        timeframe: null,
+        reason: "Not found in latest MTF response.",
+        rankScore: null,
+      },
+    ]);
+  });
+
+  it("handles an empty watchlist as insufficient data", () => {
+    const summary = buildWatchlistResearchSummary([]);
+
+    expect(summary.conditionLabel).toBe("Insufficient data");
+    expect(summary.researchPosture).toBe("Data incomplete");
+    expect(summary.counts.totalSelectedSymbols).toBe(0);
+    expect(summary.bestResearchCandidates).toEqual([]);
+    expect(summary.highestRiskSymbols).toEqual([]);
+    expect(summary.missingDataSymbols).toEqual([]);
+  });
+});
+
 function makeStorage(initialValue: string | null): WatchlistStorage {
   let value = initialValue;
 
@@ -223,6 +448,17 @@ function makeStorage(initialValue: string | null): WatchlistStorage {
       if (key === WATCHLIST_STORAGE_KEY) {
         value = nextValue;
       }
+    },
+  };
+}
+
+function makeThrowingStorage(): WatchlistStorage {
+  return {
+    getItem: () => {
+      throw new Error("Storage unavailable");
+    },
+    setItem: () => {
+      throw new Error("Storage unavailable");
     },
   };
 }

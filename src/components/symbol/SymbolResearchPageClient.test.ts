@@ -26,7 +26,9 @@ import {
   getTradeApiBaseUrl,
   normalizeSymbolResearchInputSymbol,
   SymbolResearchPageClient,
+  SymbolWatchlistControl,
 } from "./SymbolResearchPageClient";
+import type { WatchlistStorage } from "@/components/watchlist/watchlistUi";
 
 const ORIGINAL_ENV = { ...process.env };
 
@@ -349,6 +351,8 @@ describe("SymbolResearchPageClient success state", () => {
     expect(html).toContain("Current context");
     expect(html).toContain("Recent outcomes");
     expect(html).toContain("Most recent prior observations with available forward returns.");
+    expect(html).toContain("In Watchlist");
+    expect(html).toContain('href="/watchlist"');
   });
 
   it("renders the Signal Evaluation card from the broad-market response", () => {
@@ -398,6 +402,46 @@ describe("SymbolResearchPageClient success state", () => {
       signalLabel: "breakdown_risk",
     });
     expect(signalEvaluationCall?.[0].queryKey[1]).not.toHaveProperty("symbol");
+  });
+});
+
+describe("SymbolWatchlistControl", () => {
+  it("renders Add to Watchlist when the symbol is not saved", () => {
+    const html = renderToStaticMarkup(
+      createElement(SymbolWatchlistControl, {
+        symbol: "SEIUSDT",
+        storage: makeWatchlistStorage(JSON.stringify(["BTCUSDT"])),
+      }),
+    );
+
+    expect(html).toContain("Add to Watchlist");
+    expect(html).toContain("Open Watchlist");
+    expect(html).toContain('href="/watchlist"');
+    expect(html).not.toContain("In Watchlist");
+  });
+
+  it("renders In Watchlist when the symbol is already saved", () => {
+    const html = renderToStaticMarkup(
+      createElement(SymbolWatchlistControl, {
+        symbol: "sei",
+        storage: makeWatchlistStorage(JSON.stringify(["SEIUSDT"])),
+      }),
+    );
+
+    expect(html).toContain("In Watchlist");
+    expect(html).toContain("Open Watchlist");
+    expect(html).not.toContain("Add to Watchlist");
+  });
+
+  it("fails gracefully when storage is unavailable", () => {
+    expect(() =>
+      renderToStaticMarkup(
+        createElement(SymbolWatchlistControl, {
+          symbol: "AAVEUSDT",
+          storage: makeThrowingWatchlistStorage(),
+        }),
+      ),
+    ).not.toThrow();
   });
 });
 
@@ -645,5 +689,27 @@ function makeSignalEvaluationHorizon(
     bestReturnPct: 8,
     worstReturnPct: -12,
     ...overrides,
+  };
+}
+
+function makeWatchlistStorage(initialValue: string | null): WatchlistStorage {
+  let value = initialValue;
+
+  return {
+    getItem: () => value,
+    setItem: (_key: string, nextValue: string) => {
+      value = nextValue;
+    },
+  };
+}
+
+function makeThrowingWatchlistStorage(): WatchlistStorage {
+  return {
+    getItem: () => {
+      throw new Error("Storage unavailable");
+    },
+    setItem: () => {
+      throw new Error("Storage unavailable");
+    },
   };
 }

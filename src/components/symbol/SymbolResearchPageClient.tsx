@@ -3,10 +3,18 @@
 import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useMemo, useState, type FormEvent, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from "react";
 import { SymbolBehaviorPanel } from "./SymbolBehaviorPanel";
 import { SymbolResearchChart } from "./SymbolResearchChart";
 import { SymbolSignalTimeline } from "./SymbolSignalTimeline";
+import {
+  addWatchlistSymbol,
+  isSymbolInWatchlist,
+  loadWatchlistSymbols,
+  normalizeWatchlistSymbol,
+  saveWatchlistSymbols,
+  type WatchlistStorage,
+} from "@/components/watchlist/watchlistUi";
 import {
   buildBehaviorReadout,
   buildBehaviorSampleQuality,
@@ -588,6 +596,7 @@ export function SymbolResearchPageClient({
             </p>
           </div>
           <div className="text-left text-sm text-[var(--muted)] md:text-right">
+            <SymbolWatchlistControl symbol={data.symbol.symbol} />
             <div>
               Quality:{" "}
               <span className="font-semibold text-[var(--foreground)]">
@@ -1157,6 +1166,92 @@ function SymbolResearchNavigation({
       </nav>
     </section>
   );
+}
+
+export function SymbolWatchlistControl({
+  symbol,
+  storage,
+}: {
+  symbol: string;
+  storage?: WatchlistStorage | null;
+}) {
+  const normalizedSymbol = normalizeWatchlistSymbol(symbol) ?? symbol.toUpperCase();
+  const initialStorage = storage === undefined ? null : storage;
+  const [watchlistSymbols, setWatchlistSymbols] = useState(() =>
+    loadWatchlistSymbols(initialStorage),
+  );
+  const [statusMessage, setStatusMessage] = useState<string | null>(null);
+  const inWatchlist = isSymbolInWatchlist(watchlistSymbols, normalizedSymbol);
+
+  useEffect(() => {
+    const loadedSymbols = loadWatchlistSymbols(
+      resolveSymbolWatchlistStorage(storage),
+    );
+    let cancelled = false;
+
+    queueMicrotask(() => {
+      if (!cancelled) {
+        setWatchlistSymbols(loadedSymbols);
+      }
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [storage]);
+
+  const addToWatchlist = () => {
+    const targetStorage = resolveSymbolWatchlistStorage(storage);
+    const currentSymbols = loadWatchlistSymbols(targetStorage);
+    const nextSymbols = addWatchlistSymbol(currentSymbols, normalizedSymbol);
+
+    setWatchlistSymbols(nextSymbols);
+    saveWatchlistSymbols(targetStorage, nextSymbols);
+    setStatusMessage(
+      targetStorage
+        ? "Added to watchlist."
+        : "Storage unavailable. Added in this view only.",
+    );
+  };
+
+  return (
+    <div className="mb-2 flex flex-wrap items-center gap-2 md:justify-end">
+      {inWatchlist ? (
+        <span className="border border-emerald-500/40 px-2 py-1 text-[11px] font-semibold text-emerald-200">
+          In Watchlist
+        </span>
+      ) : (
+        <button
+          type="button"
+          onClick={addToWatchlist}
+          className="border border-[var(--border)] px-2 py-1 text-[11px] font-semibold text-[var(--foreground)] hover:border-[var(--info)]"
+        >
+          Add to Watchlist
+        </button>
+      )}
+      <Link
+        href="/watchlist"
+        className="border border-[var(--border)] px-2 py-1 text-[11px] font-semibold text-[var(--foreground)] hover:border-[var(--info)]"
+      >
+        Open Watchlist
+      </Link>
+      {statusMessage ? (
+        <span className="basis-full text-[11px] text-[var(--muted)] md:text-right">
+          {statusMessage}
+        </span>
+      ) : null}
+    </div>
+  );
+}
+
+function resolveSymbolWatchlistStorage(
+  storage: WatchlistStorage | null | undefined,
+) {
+  if (storage !== undefined) {
+    return storage;
+  }
+
+  return typeof window === "undefined" ? null : window.localStorage;
 }
 
 function TimeframeAvailabilityPanel({

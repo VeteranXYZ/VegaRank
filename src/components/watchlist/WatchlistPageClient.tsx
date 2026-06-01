@@ -17,6 +17,9 @@ import {
 } from "@/components/screener/multiTimeframeScreenerUi";
 import {
   DEFAULT_WATCHLIST_SYMBOLS,
+  applyWatchlistPreset,
+  buildWatchlistExportText,
+  buildWatchlistResearchSummary,
   buildWatchlistResearchHref,
   buildWatchlistRows,
   defaultWatchlistFilters,
@@ -25,12 +28,18 @@ import {
   formatWatchlistInput,
   getWatchlistResearchTimeframe,
   getWatchlistSummary,
+  importWatchlistSymbols,
   loadWatchlistSymbols,
   parseWatchlistSymbols,
+  removeWatchlistSymbol,
   saveWatchlistSymbols,
   sortWatchlistRows,
+  watchlistPresets,
   watchlistSortOptions,
   type WatchlistFilters,
+  type WatchlistPresetId,
+  type WatchlistResearchSummary,
+  type WatchlistResearchSummaryItem,
   type WatchlistRow,
   type WatchlistSortDirection,
   type WatchlistSortField,
@@ -47,6 +56,9 @@ export function WatchlistPageClient() {
   const [draftInput, setDraftInput] = useState(
     formatWatchlistInput(DEFAULT_WATCHLIST_SYMBOLS),
   );
+  const [importInput, setImportInput] = useState("");
+  const [importStatus, setImportStatus] = useState<string | null>(null);
+  const [exportStatus, setExportStatus] = useState<string | null>(null);
   const [filters, setFilters] = useState<WatchlistFilters>(
     defaultWatchlistFilters,
   );
@@ -90,6 +102,10 @@ export function WatchlistPageClient() {
     () => getWatchlistSummary(watchlistRows),
     [watchlistRows],
   );
+  const researchSummary = useMemo(
+    () => buildWatchlistResearchSummary(watchlistRows),
+    [watchlistRows],
+  );
   const filteredRows = useMemo(
     () => filterWatchlistRows(watchlistRows, filters),
     [filters, watchlistRows],
@@ -98,12 +114,18 @@ export function WatchlistPageClient() {
     () => sortWatchlistRows(filteredRows, sortState),
     [filteredRows, sortState],
   );
+  const exportText = useMemo(
+    () => buildWatchlistExportText(parseWatchlistSymbols(draftInput)),
+    [draftInput],
+  );
 
   const saveWatchlist = () => {
     const nextSymbols = parseWatchlistSymbols(draftInput);
 
     setSymbols(nextSymbols);
     setDraftInput(formatWatchlistInput(nextSymbols));
+    setImportStatus(null);
+    setExportStatus(null);
     saveWatchlistSymbols(getBrowserStorage(), nextSymbols);
   };
   const resetDefault = () => {
@@ -111,12 +133,61 @@ export function WatchlistPageClient() {
 
     setSymbols(nextSymbols);
     setDraftInput(formatWatchlistInput(nextSymbols));
+    setImportInput("");
+    setImportStatus(null);
+    setExportStatus(null);
     saveWatchlistSymbols(getBrowserStorage(), nextSymbols);
   };
   const clearWatchlist = () => {
     setSymbols([]);
     setDraftInput("");
+    setImportInput("");
+    setImportStatus(null);
+    setExportStatus(null);
     saveWatchlistSymbols(getBrowserStorage(), []);
+  };
+  const applyPreset = (presetId: WatchlistPresetId) => {
+    const presetSymbols = applyWatchlistPreset(presetId);
+
+    setDraftInput(formatWatchlistInput(presetSymbols));
+    setImportStatus("Preset loaded into the editor. Save Watchlist to apply.");
+    setExportStatus(null);
+  };
+  const importSymbols = () => {
+    const importedSymbols = importWatchlistSymbols(importInput);
+
+    if (importedSymbols.length === 0) {
+      setImportStatus("Imported list has no valid symbols.");
+      return;
+    }
+
+    setDraftInput(formatWatchlistInput(importedSymbols));
+    setImportStatus(
+      `Imported ${importedSymbols.length} normalized symbols into the editor. Save Watchlist to apply.`,
+    );
+    setExportStatus(null);
+  };
+  const copyExportText = async () => {
+    if (!exportText) {
+      setExportStatus("No valid symbols to export.");
+      return;
+    }
+
+    try {
+      await navigator.clipboard.writeText(exportText);
+      setExportStatus("Copied normalized watchlist text.");
+    } catch {
+      setExportStatus("Copy unavailable. Select and copy the export text.");
+    }
+  };
+  const removeSymbol = (symbol: string) => {
+    const nextSymbols = removeWatchlistSymbol(symbols, symbol);
+
+    setSymbols(nextSymbols);
+    setDraftInput(formatWatchlistInput(nextSymbols));
+    setImportStatus(null);
+    setExportStatus(null);
+    saveWatchlistSymbols(getBrowserStorage(), nextSymbols);
   };
   const updateFilter = <Key extends keyof WatchlistFilters>(
     key: Key,
@@ -158,12 +229,20 @@ export function WatchlistPageClient() {
       <div className="grid min-h-0 flex-1 gap-2 xl:grid-cols-[300px_minmax(0,1fr)]">
         <WatchlistControls
           draftInput={draftInput}
+          importInput={importInput}
+          importStatus={importStatus}
+          exportText={exportText}
+          exportStatus={exportStatus}
           filters={filters}
           sortState={sortState}
           onDraftInputChange={setDraftInput}
+          onImportInputChange={setImportInput}
           onSave={saveWatchlist}
           onResetDefault={resetDefault}
           onClear={clearWatchlist}
+          onPreset={applyPreset}
+          onImport={importSymbols}
+          onCopyExport={copyExportText}
           onFilterChange={updateFilter}
           onSortFieldChange={updateSortField}
           onSortDirectionChange={updateSortDirection}
@@ -176,6 +255,11 @@ export function WatchlistPageClient() {
             totalRows={watchlistRows.length}
             filteredRows={sortedRows.length}
           />
+          <WatchlistStatusNotice
+            summary={summary}
+            isLoading={latestQuery.isLoading}
+          />
+          <WatchlistResearchSummaryPanel summary={researchSummary} />
 
           {latestQuery.isLoading ? (
             <WatchlistStatePanel message="Loading watchlist multi-timeframe data..." />
@@ -184,10 +268,10 @@ export function WatchlistPageClient() {
               <WatchlistStatePanel
                 message={getWatchlistErrorMessage(latestQuery.error)}
               />
-              <WatchlistTable rows={sortedRows} />
+              <WatchlistTable rows={sortedRows} onRemoveSymbol={removeSymbol} />
             </>
           ) : (
-            <WatchlistTable rows={sortedRows} />
+            <WatchlistTable rows={sortedRows} onRemoveSymbol={removeSymbol} />
           )}
 
           <footer className="border border-[var(--border)] bg-[var(--panel)] px-3 py-2 text-[11px] text-[var(--muted)]">
@@ -199,10 +283,16 @@ export function WatchlistPageClient() {
   );
 }
 
-export function WatchlistTable({ rows }: { rows: WatchlistRow[] }) {
+export function WatchlistTable({
+  rows,
+  onRemoveSymbol,
+}: {
+  rows: WatchlistRow[];
+  onRemoveSymbol?: (symbol: string) => void;
+}) {
   if (rows.length === 0) {
     return (
-      <WatchlistStatePanel message="No watchlist symbols match the selected filters." />
+      <WatchlistStatePanel message="Watchlist is empty or no selected symbols match the current filters. Add symbols, use a preset, or import a list to continue research." />
     );
   }
 
@@ -217,7 +307,7 @@ export function WatchlistTable({ rows }: { rows: WatchlistRow[] }) {
         </span>
       </div>
       <div className="overflow-x-auto">
-        <table className="min-w-[1320px] table-fixed text-left text-xs">
+        <table className="min-w-[1400px] table-fixed text-left text-xs">
           <thead className="bg-[#080d12] text-[11px] uppercase text-[var(--muted)]">
             <tr>
               <HeaderCell className="w-[118px]">Symbol</HeaderCell>
@@ -234,6 +324,9 @@ export function WatchlistTable({ rows }: { rows: WatchlistRow[] }) {
               <HeaderCell className="w-[180px]">Primary Signal</HeaderCell>
               <HeaderCell className="w-[275px]">Risk Notes</HeaderCell>
               <HeaderCell className="w-[132px]">Research</HeaderCell>
+              {onRemoveSymbol ? (
+                <HeaderCell className="w-[86px]">Action</HeaderCell>
+              ) : null}
             </tr>
           </thead>
           <tbody>
@@ -275,6 +368,17 @@ export function WatchlistTable({ rows }: { rows: WatchlistRow[] }) {
                 <BodyCell>
                   <ResearchLink row={row} />
                 </BodyCell>
+                {onRemoveSymbol ? (
+                  <BodyCell>
+                    <button
+                      type="button"
+                      onClick={() => onRemoveSymbol(row.symbol)}
+                      className="border border-[var(--border)] px-2 py-1 text-[11px] font-semibold text-[var(--foreground)] hover:border-[var(--warning)]"
+                    >
+                      Remove
+                    </button>
+                  </BodyCell>
+                ) : null}
               </tr>
             ))}
           </tbody>
@@ -314,6 +418,81 @@ export function WatchlistSummaryCards({
   );
 }
 
+export function WatchlistResearchSummaryPanel({
+  summary,
+}: {
+  summary: WatchlistResearchSummary;
+}) {
+  const countItems = [
+    ["Selected", summary.counts.totalSelectedSymbols],
+    ["Found", summary.counts.foundSymbols],
+    ["Missing", summary.counts.missingSymbols],
+    ["1d risk", summary.counts.oneDayRiskSymbols],
+    ["1w risk", summary.counts.oneWeekRiskSymbols],
+    ["1h/4h watch", summary.counts.shortTermWatchSymbols],
+    ["Repair inside risk", summary.counts.repairInsideRiskSymbols],
+    ["Broad risk", summary.counts.broadRiskSymbols],
+    ["Data gaps", summary.counts.missingImportantDataSymbols],
+  ] as const;
+
+  return (
+    <section className="border border-[var(--border)] bg-[var(--panel)] px-3 py-3">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <div className="flex flex-wrap items-center gap-2">
+            <h2 className="text-xs font-semibold text-[var(--foreground)]">
+              Watchlist Research Summary
+            </h2>
+            <span className="border border-[var(--border)] px-1.5 py-0.5 text-[11px] font-semibold text-[var(--foreground)]">
+              {summary.conditionLabel}
+            </span>
+          </div>
+          <p className="mt-1 max-w-3xl text-[11px] leading-5 text-[var(--muted)]">
+            {summary.conditionText}
+          </p>
+        </div>
+        <div className="text-left sm:text-right">
+          <div className="text-[10px] uppercase text-[var(--muted)]">
+            Research posture
+          </div>
+          <div className="mt-1 text-xs font-semibold text-[var(--foreground)]">
+            {summary.researchPosture}
+          </div>
+        </div>
+      </div>
+
+      <dl className="mt-3 grid gap-x-4 gap-y-1 border-t border-[var(--border)] pt-2 text-[11px] sm:grid-cols-3 xl:grid-cols-9">
+        {countItems.map(([label, value]) => (
+          <div key={label} className="flex items-center justify-between gap-2">
+            <dt className="text-[var(--muted)]">{label}</dt>
+            <dd className="font-mono font-semibold tabular-nums text-[var(--foreground)]">
+              {value}
+            </dd>
+          </div>
+        ))}
+      </dl>
+
+      <div className="mt-3 grid gap-4 border-t border-[var(--border)] pt-3 lg:grid-cols-3">
+        <ResearchSummaryList
+          title="Best Research Candidates"
+          emptyText="No clear short-term watch states."
+          items={summary.bestResearchCandidates}
+        />
+        <ResearchSummaryList
+          title="Highest Risk / Avoid-First"
+          emptyText="No concentrated risk flags."
+          items={summary.highestRiskSymbols}
+        />
+        <ResearchSummaryList
+          title="Data Gaps"
+          emptyText="No important 1d or 1w gaps."
+          items={summary.missingDataSymbols}
+        />
+      </div>
+    </section>
+  );
+}
+
 async function fetchWatchlistMtfLatestScans({
   signal,
 }: {
@@ -347,23 +526,39 @@ export function buildWatchlistMtfLatestScanUrl({
 
 function WatchlistControls({
   draftInput,
+  importInput,
+  importStatus,
+  exportText,
+  exportStatus,
   filters,
   sortState,
   onDraftInputChange,
+  onImportInputChange,
   onSave,
   onResetDefault,
   onClear,
+  onPreset,
+  onImport,
+  onCopyExport,
   onFilterChange,
   onSortFieldChange,
   onSortDirectionChange,
 }: {
   draftInput: string;
+  importInput: string;
+  importStatus: string | null;
+  exportText: string;
+  exportStatus: string | null;
   filters: WatchlistFilters;
   sortState: WatchlistSortState;
   onDraftInputChange: (value: string) => void;
+  onImportInputChange: (value: string) => void;
   onSave: () => void;
   onResetDefault: () => void;
   onClear: () => void;
+  onPreset: (presetId: WatchlistPresetId) => void;
+  onImport: () => void;
+  onCopyExport: () => void;
   onFilterChange: <Key extends keyof WatchlistFilters>(
     key: Key,
     value: WatchlistFilters[Key],
@@ -396,6 +591,72 @@ function WatchlistControls({
             Clear
           </button>
         </div>
+      </section>
+
+      <section className="mt-4 space-y-2">
+        <h2 className="text-[11px] font-semibold uppercase text-[var(--muted)]">
+          Presets
+        </h2>
+        <div className="grid grid-cols-2 gap-2">
+          {watchlistPresets.map((preset) => (
+            <button
+              key={preset.id}
+              type="button"
+              onClick={() => onPreset(preset.id)}
+              className="border border-[var(--border)] px-2 py-1.5 text-left text-[11px] text-[var(--foreground)] hover:border-[var(--info)]"
+              title={preset.symbols.join(", ")}
+            >
+              <span className="block font-semibold">{preset.label}</span>
+              <span className="block text-[10px] text-[var(--muted)]">
+                Use Preset
+              </span>
+            </button>
+          ))}
+        </div>
+      </section>
+
+      <section className="mt-4 space-y-2">
+        <h2 className="text-[11px] font-semibold uppercase text-[var(--muted)]">
+          Import / Export
+        </h2>
+        <label className="block">
+          <span className="mb-1 block text-[11px] text-[var(--muted)]">
+            Import Symbols
+          </span>
+          <textarea
+            value={importInput}
+            onChange={(event) => onImportInputChange(event.target.value)}
+            className={`${controlClass} h-24 resize-y py-2 leading-5`}
+            placeholder="BTC, ETH, SEI"
+          />
+        </label>
+        <button type="button" onClick={onImport} className={buttonClass}>
+          Import to Editor
+        </button>
+        {importStatus ? (
+          <p className="text-[11px] leading-4 text-[var(--muted)]">
+            {importStatus}
+          </p>
+        ) : null}
+        <label className="block">
+          <span className="mb-1 block text-[11px] text-[var(--muted)]">
+            Export Text
+          </span>
+          <textarea
+            readOnly
+            value={exportText}
+            className={`${controlClass} h-20 resize-y py-2 leading-5`}
+            placeholder="No valid symbols to export"
+          />
+        </label>
+        <button type="button" onClick={onCopyExport} className={buttonClass}>
+          Copy Export Text
+        </button>
+        {exportStatus ? (
+          <p className="text-[11px] leading-4 text-[var(--muted)]">
+            {exportStatus}
+          </p>
+        ) : null}
       </section>
 
       <section className="mt-4 space-y-3">
@@ -557,6 +818,92 @@ function WatchlistSourcePanel({
   );
 }
 
+function ResearchSummaryList({
+  title,
+  emptyText,
+  items,
+}: {
+  title: string;
+  emptyText: string;
+  items: WatchlistResearchSummaryItem[];
+}) {
+  return (
+    <section>
+      <h3 className="text-[11px] font-semibold uppercase text-[var(--muted)]">
+        {title}
+      </h3>
+      {items.length === 0 ? (
+        <p className="mt-2 text-[11px] text-[var(--muted)]">{emptyText}</p>
+      ) : (
+        <ul className="mt-1 divide-y divide-[var(--border)]">
+          {items.map((item) => (
+            <li key={item.symbol} className="py-1.5">
+              <div className="flex items-center justify-between gap-2">
+                <span className="font-mono text-xs font-semibold text-[var(--foreground)]">
+                  {item.symbol}
+                </span>
+                <span className="text-[10px] uppercase text-[var(--muted)]">
+                  {item.timeframe ? `${item.timeframe} research` : "Research only"}
+                </span>
+              </div>
+              <p className="mt-0.5 text-[11px] leading-4 text-[var(--muted)]">
+                {item.reason}
+              </p>
+              {item.rankScore !== null ? (
+                <div className="mt-0.5 font-mono text-[10px] tabular-nums text-[var(--muted)]">
+                  Rank {formatSummaryRank(item.rankScore)}
+                </div>
+              ) : null}
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
+  );
+}
+
+function WatchlistStatusNotice({
+  summary,
+  isLoading,
+}: {
+  summary: WatchlistSummary;
+  isLoading: boolean;
+}) {
+  if (summary.totalSelectedSymbols === 0) {
+    return (
+      <CompactNotice message="Watchlist is empty. Add symbols, use a preset, or import a list to begin research." />
+    );
+  }
+
+  if (isLoading) {
+    return null;
+  }
+
+  if (summary.foundSymbols === 0) {
+    return (
+      <CompactNotice message="All selected symbols are currently missing from the latest MTF API response. Check spelling, quote asset, or latest scan coverage." />
+    );
+  }
+
+  if (summary.missingSymbols > 0) {
+    return (
+      <CompactNotice
+        message={`${summary.missingSymbols} selected symbols are not returned by the latest MTF API and will show Not found until data is available.`}
+      />
+    );
+  }
+
+  return null;
+}
+
+function CompactNotice({ message }: { message: string }) {
+  return (
+    <section className="border border-[var(--border)] bg-[#080d12] px-3 py-2 text-[11px] leading-4 text-[var(--muted)]">
+      {message}
+    </section>
+  );
+}
+
 function WatchlistStatePanel({ message }: { message: string }) {
   return (
     <section className="border border-[var(--border)] bg-[var(--panel)] px-3 py-8 text-center text-sm text-[var(--muted)]">
@@ -695,6 +1042,10 @@ function getWatchlistErrorMessage(error: unknown) {
 
 function getBrowserStorage() {
   return typeof window === "undefined" ? null : window.localStorage;
+}
+
+function formatSummaryRank(value: number) {
+  return Number.isFinite(value) ? value.toFixed(1) : "-";
 }
 
 const controlClass =

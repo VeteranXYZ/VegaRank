@@ -1,9 +1,11 @@
 import {
   MTF_SCREENER_TIMEFRAMES,
   getMtfHigherTimeframeHealth,
+  getMtfRiskNoteItems,
   type MtfScreenerRow,
   type MtfScreenerTimeframe,
 } from "@/components/screener/multiTimeframeScreenerUi";
+import { formatGroupLabel, formatScore } from "@/components/scanner/latestScanUi";
 
 export const WATCHLIST_STORAGE_KEY = "trade-scanner.watchlist.symbols";
 export const DEFAULT_WATCHLIST_SYMBOLS = [
@@ -15,6 +17,80 @@ export const DEFAULT_WATCHLIST_SYMBOLS = [
   "LINKUSDT",
   "SEIUSDT",
 ] as const;
+
+export const watchlistPresets = [
+  {
+    id: "majors",
+    label: "Majors",
+    symbols: [
+      "BTCUSDT",
+      "ETHUSDT",
+      "SOLUSDT",
+      "BNBUSDT",
+      "XRPUSDT",
+      "LINKUSDT",
+      "ADAUSDT",
+      "DOGEUSDT",
+    ],
+  },
+  {
+    id: "ai",
+    label: "AI",
+    symbols: [
+      "FETUSDT",
+      "RENDERUSDT",
+      "TAOUSDT",
+      "WLDUSDT",
+      "AIXBTUSDT",
+      "VIRTUALUSDT",
+      "CGPTUSDT",
+    ],
+  },
+  {
+    id: "defi",
+    label: "DeFi",
+    symbols: [
+      "UNIUSDT",
+      "AAVEUSDT",
+      "CRVUSDT",
+      "PENDLEUSDT",
+      "LDOUSDT",
+      "CAKEUSDT",
+      "ENAUSDT",
+    ],
+  },
+  {
+    id: "meme",
+    label: "Meme",
+    symbols: [
+      "DOGEUSDT",
+      "SHIBUSDT",
+      "PEPEUSDT",
+      "BONKUSDT",
+      "FLOKIUSDT",
+      "WIFUSDT",
+      "PENGUUSDT",
+    ],
+  },
+  {
+    id: "layer1_infra",
+    label: "Layer 1 / Infra",
+    symbols: [
+      "BTCUSDT",
+      "ETHUSDT",
+      "SOLUSDT",
+      "BNBUSDT",
+      "ADAUSDT",
+      "AVAXUSDT",
+      "SUIUSDT",
+      "NEARUSDT",
+      "SEIUSDT",
+      "TONUSDT",
+    ],
+  },
+] as const;
+
+export type WatchlistPresetId = (typeof watchlistPresets)[number]["id"];
 
 export const watchlistSortOptions = [
   { field: "symbol", label: "Symbol" },
@@ -54,6 +130,49 @@ export type WatchlistSummary = {
   missingSymbols: number;
   higherTimeframeRiskSymbols: number;
   shortTermWatchSymbols: number;
+};
+
+export type WatchlistResearchCondition =
+  | "Broad risk"
+  | "Short-term repair inside higher-timeframe risk"
+  | "Mixed / selective"
+  | "Higher-timeframe improving"
+  | "Insufficient data";
+
+export type WatchlistResearchPosture =
+  | "Defensive review"
+  | "Selective watchlist review"
+  | "Repair candidates only"
+  | "Mostly wait"
+  | "Data incomplete";
+
+export type WatchlistResearchSummaryCounts = {
+  totalSelectedSymbols: number;
+  foundSymbols: number;
+  missingSymbols: number;
+  oneDayRiskSymbols: number;
+  oneWeekRiskSymbols: number;
+  shortTermWatchSymbols: number;
+  repairInsideRiskSymbols: number;
+  broadRiskSymbols: number;
+  missingImportantDataSymbols: number;
+};
+
+export type WatchlistResearchSummaryItem = {
+  symbol: string;
+  timeframe: MtfScreenerTimeframe | null;
+  reason: string;
+  rankScore: number | null;
+};
+
+export type WatchlistResearchSummary = {
+  conditionLabel: WatchlistResearchCondition;
+  conditionText: string;
+  researchPosture: WatchlistResearchPosture;
+  counts: WatchlistResearchSummaryCounts;
+  bestResearchCandidates: WatchlistResearchSummaryItem[];
+  highestRiskSymbols: WatchlistResearchSummaryItem[];
+  missingDataSymbols: WatchlistResearchSummaryItem[];
 };
 
 export type WatchlistStorage = Pick<Storage, "getItem" | "setItem">;
@@ -100,7 +219,25 @@ export function normalizeWatchlistSymbol(value: string) {
 }
 
 export function formatWatchlistInput(symbols: readonly string[]) {
-  return symbols.join(", ");
+  return normalizeWatchlistSymbols(symbols).join(", ");
+}
+
+export function getWatchlistPresetSymbols(presetId: WatchlistPresetId) {
+  return (
+    watchlistPresets.find((preset) => preset.id === presetId)?.symbols ?? []
+  );
+}
+
+export function applyWatchlistPreset(presetId: WatchlistPresetId) {
+  return normalizeWatchlistSymbols(getWatchlistPresetSymbols(presetId));
+}
+
+export function buildWatchlistExportText(symbols: readonly string[]) {
+  return formatWatchlistInput(symbols);
+}
+
+export function importWatchlistSymbols(input: string) {
+  return parseWatchlistSymbols(input);
 }
 
 export function loadWatchlistSymbols(
@@ -158,6 +295,65 @@ export function saveWatchlistSymbols(
   }
 }
 
+export function isSymbolInWatchlist(
+  symbols: readonly string[],
+  symbol: string,
+) {
+  const normalizedSymbol = normalizeWatchlistSymbol(symbol);
+
+  return normalizedSymbol
+    ? normalizeWatchlistSymbols(symbols).includes(normalizedSymbol)
+    : false;
+}
+
+export function addWatchlistSymbol(
+  symbols: readonly string[],
+  symbol: string,
+) {
+  const normalizedSymbol = normalizeWatchlistSymbol(symbol);
+  const normalizedSymbols = normalizeWatchlistSymbols(symbols);
+
+  if (!normalizedSymbol || normalizedSymbols.includes(normalizedSymbol)) {
+    return normalizedSymbols;
+  }
+
+  return [...normalizedSymbols, normalizedSymbol];
+}
+
+export function removeWatchlistSymbol(
+  symbols: readonly string[],
+  symbol: string,
+) {
+  const normalizedSymbol = normalizeWatchlistSymbol(symbol);
+
+  if (!normalizedSymbol) {
+    return normalizeWatchlistSymbols(symbols);
+  }
+
+  return normalizeWatchlistSymbols(symbols).filter(
+    (currentSymbol) => currentSymbol !== normalizedSymbol,
+  );
+}
+
+export function addWatchlistSymbolToStorage({
+  storage,
+  symbol,
+}: {
+  storage: WatchlistStorage | null | undefined;
+  symbol: string;
+}) {
+  const currentSymbols = loadWatchlistSymbols(storage);
+  const nextSymbols = addWatchlistSymbol(currentSymbols, symbol);
+
+  saveWatchlistSymbols(storage, nextSymbols);
+
+  return {
+    symbol: normalizeWatchlistSymbol(symbol),
+    symbols: nextSymbols,
+    added: nextSymbols.length > currentSymbols.length,
+  };
+}
+
 export function buildWatchlistRows(
   symbols: readonly string[],
   mtfRows: readonly MtfScreenerRow[],
@@ -182,6 +378,55 @@ export function getWatchlistSummary(
     missingSymbols: rows.filter((row) => !row.mtfRow).length,
     higherTimeframeRiskSymbols: rows.filter(hasHigherTimeframeRisk).length,
     shortTermWatchSymbols: rows.filter(hasShortTermWatchState).length,
+  };
+}
+
+export function buildWatchlistResearchSummary(
+  rows: readonly WatchlistRow[],
+  limit = 5,
+): WatchlistResearchSummary {
+  const safeLimit = Math.max(1, Math.floor(limit));
+  const foundRows = rows.filter((row) => row.mtfRow);
+  const cleanerCandidateRows = rows.filter(isCleanerCandidate);
+  const counts: WatchlistResearchSummaryCounts = {
+    totalSelectedSymbols: rows.length,
+    foundSymbols: foundRows.length,
+    missingSymbols: rows.length - foundRows.length,
+    oneDayRiskSymbols: rows.filter((row) => hasTimeframeRisk(row, "1d")).length,
+    oneWeekRiskSymbols: rows.filter((row) => hasTimeframeRisk(row, "1w")).length,
+    shortTermWatchSymbols: rows.filter(hasShortTermWatchState).length,
+    repairInsideRiskSymbols: rows.filter(isRepairInsideRisk).length,
+    broadRiskSymbols: rows.filter(isBroadRisk).length,
+    missingImportantDataSymbols: rows.filter(hasMissingImportantData).length,
+  };
+  const conditionLabel = getResearchConditionLabel({
+    counts,
+    cleanerCandidateCount: cleanerCandidateRows.length,
+  });
+
+  return {
+    conditionLabel,
+    conditionText: getResearchConditionText(conditionLabel),
+    researchPosture: getResearchPosture({
+      conditionLabel,
+      counts,
+      cleanerCandidateCount: cleanerCandidateRows.length,
+    }),
+    counts,
+    bestResearchCandidates: rows
+      .filter(hasShortTermWatchState)
+      .sort(compareResearchCandidates)
+      .slice(0, safeLimit)
+      .map(buildResearchCandidateItem),
+    highestRiskSymbols: rows
+      .filter(hasRiskReviewReason)
+      .sort(compareRiskRows)
+      .slice(0, safeLimit)
+      .map(buildHighestRiskItem),
+    missingDataSymbols: rows
+      .filter(hasMissingImportantData)
+      .slice(0, safeLimit)
+      .map(buildMissingDataItem),
   };
 }
 
@@ -275,6 +520,10 @@ export function hasShortTermWatchState(row: WatchlistRow) {
   );
 }
 
+export function hasBroadRisk(row: WatchlistRow) {
+  return isBroadRisk(row);
+}
+
 export function getWatchlistRank(
   row: WatchlistRow,
   timeframe: MtfScreenerTimeframe,
@@ -294,7 +543,329 @@ export function getBestShortTermRank(row: WatchlistRow) {
   return ranks.length > 0 ? Math.max(...ranks) : null;
 }
 
-function normalizeWatchlistSymbols(symbols: readonly string[]) {
+function getResearchConditionLabel({
+  counts,
+  cleanerCandidateCount,
+}: {
+  counts: WatchlistResearchSummaryCounts;
+  cleanerCandidateCount: number;
+}): WatchlistResearchCondition {
+  if (counts.totalSelectedSymbols === 0 || counts.foundSymbols === 0) {
+    return "Insufficient data";
+  }
+
+  if (
+    counts.broadRiskSymbols > 0 &&
+    counts.broadRiskSymbols >= Math.ceil(counts.foundSymbols / 2)
+  ) {
+    return "Broad risk";
+  }
+
+  if (counts.repairInsideRiskSymbols > 0) {
+    return "Short-term repair inside higher-timeframe risk";
+  }
+
+  if (cleanerCandidateCount > 0) {
+    return "Higher-timeframe improving";
+  }
+
+  return "Mixed / selective";
+}
+
+function getResearchConditionText(conditionLabel: WatchlistResearchCondition) {
+  switch (conditionLabel) {
+    case "Broad risk":
+      return "Multiple selected symbols carry risk across 4h, 1d, or 1w, so review defensively.";
+    case "Short-term repair inside higher-timeframe risk":
+      return "Some 1h or 4h repair is present, but higher-timeframe risk remains the main context.";
+    case "Higher-timeframe improving":
+      return "Selected symbols include cleaner 4h watch states with limited higher-timeframe risk.";
+    case "Mixed / selective":
+      return "The watchlist is mixed; use symbol research for selective manual review.";
+    case "Insufficient data":
+      return "Not enough selected symbols have latest multi-timeframe data to summarize.";
+  }
+}
+
+function getResearchPosture({
+  conditionLabel,
+  counts,
+  cleanerCandidateCount,
+}: {
+  conditionLabel: WatchlistResearchCondition;
+  counts: WatchlistResearchSummaryCounts;
+  cleanerCandidateCount: number;
+}): WatchlistResearchPosture {
+  if (
+    conditionLabel === "Insufficient data" ||
+    counts.missingSymbols === counts.totalSelectedSymbols
+  ) {
+    return "Data incomplete";
+  }
+
+  if (conditionLabel === "Broad risk") {
+    return "Defensive review";
+  }
+
+  if (
+    counts.repairInsideRiskSymbols > 0 &&
+    cleanerCandidateCount === 0
+  ) {
+    return "Repair candidates only";
+  }
+
+  if (cleanerCandidateCount > 0 || counts.shortTermWatchSymbols > 0) {
+    return "Selective watchlist review";
+  }
+
+  return "Mostly wait";
+}
+
+function buildResearchCandidateItem(
+  row: WatchlistRow,
+): WatchlistResearchSummaryItem {
+  const timeframe = getPrimaryShortTermTimeframe(row);
+
+  return {
+    symbol: row.symbol,
+    timeframe,
+    reason: buildResearchCandidateReason(row, timeframe),
+    rankScore: timeframe ? getWatchlistRank(row, timeframe) : null,
+  };
+}
+
+function buildHighestRiskItem(row: WatchlistRow): WatchlistResearchSummaryItem {
+  const timeframe = getPrimaryRiskTimeframe(row);
+
+  return {
+    symbol: row.symbol,
+    timeframe,
+    reason: buildHighestRiskReason(row),
+    rankScore: timeframe ? getWatchlistRank(row, timeframe) : null,
+  };
+}
+
+function buildMissingDataItem(row: WatchlistRow): WatchlistResearchSummaryItem {
+  return {
+    symbol: row.symbol,
+    timeframe: getWatchlistResearchTimeframe(row),
+    reason: buildMissingDataReason(row),
+    rankScore: null,
+  };
+}
+
+function buildResearchCandidateReason(
+  row: WatchlistRow,
+  timeframe: MtfScreenerTimeframe | null,
+) {
+  const primaryText = timeframe
+    ? `${timeframe} ${getTimeframeGroupLabel(row, timeframe)}`
+    : "Short-term watch state";
+  const context = getHigherTimeframeContext(row);
+
+  return `${primaryText} with ${context}.`;
+}
+
+function buildHighestRiskReason(row: WatchlistRow) {
+  const riskGroups = MTF_SCREENER_TIMEFRAMES.filter((timeframe) =>
+    hasTimeframeRisk(row, timeframe),
+  ).map((timeframe) => `${timeframe} risk`);
+  const lowRanks = MTF_SCREENER_TIMEFRAMES.flatMap((timeframe) => {
+    const rank = getWatchlistRank(row, timeframe);
+
+    return typeof rank === "number" && rank <= 0
+      ? [`${timeframe} rank ${formatScore(rank)}`]
+      : [];
+  });
+  const riskNotes = row.mtfRow ? getMtfRiskNoteItems(row.mtfRow) : [];
+  const reasonParts = [
+    ...riskGroups,
+    ...lowRanks,
+    ...(riskNotes.length > 0 ? ["detected risk notes present"] : []),
+  ];
+
+  return `${
+    uniqueStrings(reasonParts).slice(0, 3).join("; ") || "Manual risk review"
+  }.`;
+}
+
+function buildMissingDataReason(row: WatchlistRow) {
+  if (!row.mtfRow) {
+    return "Not found in latest MTF response.";
+  }
+
+  const missing = (["1d", "1w"] as const).filter(
+    (timeframe) => !row.mtfRow?.snapshots[timeframe],
+  );
+
+  return `Missing ${missing.join(" and ")} data.`;
+}
+
+function getHigherTimeframeContext(row: WatchlistRow) {
+  const parts = (["1d", "1w"] as const).map((timeframe) => {
+    const snapshot = row.mtfRow?.snapshots[timeframe];
+
+    if (!snapshot) {
+      return `${timeframe} not returned`;
+    }
+
+    if (snapshot.resultGroup === "risk") {
+      return `${timeframe} risk remains`;
+    }
+
+    return `${timeframe} ${formatGroupLabel(snapshot.resultGroup)}`;
+  });
+
+  return parts.join(" and ");
+}
+
+function getPrimaryShortTermTimeframe(row: WatchlistRow) {
+  if (hasTimeframeGroup(row, "4h", ["eligible", "watch"])) {
+    return "4h";
+  }
+
+  if (hasTimeframeGroup(row, "1h", ["eligible", "watch"])) {
+    return "1h";
+  }
+
+  return null;
+}
+
+function getPrimaryRiskTimeframe(row: WatchlistRow) {
+  const preferredRiskTimeframes: MtfScreenerTimeframe[] = [
+    "4h",
+    "1d",
+    "1w",
+    "1h",
+  ];
+
+  return (
+    preferredRiskTimeframes.find((timeframe) =>
+      hasTimeframeRisk(row, timeframe),
+    ) ??
+    getWatchlistResearchTimeframe(row)
+  );
+}
+
+function getTimeframeGroupLabel(
+  row: WatchlistRow,
+  timeframe: MtfScreenerTimeframe,
+) {
+  const group = row.mtfRow?.snapshots[timeframe]?.resultGroup;
+
+  return group ? formatGroupLabel(group) : "Not returned";
+}
+
+function isCleanerCandidate(row: WatchlistRow) {
+  return (
+    hasTimeframeGroup(row, "4h", ["eligible", "watch"]) &&
+    !hasTimeframeRisk(row, "1d") &&
+    !hasTimeframeRisk(row, "1w")
+  );
+}
+
+function isRepairInsideRisk(row: WatchlistRow) {
+  return hasShortTermWatchState(row) && hasHigherTimeframeRisk(row);
+}
+
+function isBroadRisk(row: WatchlistRow) {
+  const riskCount = (["4h", "1d", "1w"] as const).filter((timeframe) =>
+    hasTimeframeRisk(row, timeframe),
+  ).length;
+
+  return (
+    riskCount >= 2 ||
+    (hasTimeframeRisk(row, "4h") && hasTimeframeRisk(row, "1d"))
+  );
+}
+
+function hasRiskReviewReason(row: WatchlistRow) {
+  if (!row.mtfRow) {
+    return false;
+  }
+
+  return (
+    isBroadRisk(row) ||
+    (hasTimeframeRisk(row, "4h") && hasHigherTimeframeRisk(row)) ||
+    MTF_SCREENER_TIMEFRAMES.some((timeframe) => {
+      const rank = getWatchlistRank(row, timeframe);
+
+      return typeof rank === "number" && rank <= 0;
+    }) ||
+    getMtfRiskNoteItems(row.mtfRow).length > 0
+  );
+}
+
+function hasMissingImportantData(row: WatchlistRow) {
+  return (
+    !row.mtfRow || !row.mtfRow.snapshots["1d"] || !row.mtfRow.snapshots["1w"]
+  );
+}
+
+function compareResearchCandidates(left: WatchlistRow, right: WatchlistRow) {
+  const scoreDelta =
+    getResearchCandidateScore(right) - getResearchCandidateScore(left);
+
+  if (scoreDelta !== 0) {
+    return scoreDelta;
+  }
+
+  return (
+    left.inputIndex - right.inputIndex ||
+    left.symbol.localeCompare(right.symbol)
+  );
+}
+
+function getResearchCandidateScore(row: WatchlistRow) {
+  return (
+    (isCleanerCandidate(row) ? 100 : 0) +
+    (isRepairInsideRisk(row) ? 45 : 0) +
+    (hasTimeframeGroup(row, "4h", ["eligible"]) ? 35 : 0) +
+    (hasTimeframeGroup(row, "4h", ["watch"]) ? 25 : 0) +
+    (hasTimeframeGroup(row, "1h", ["eligible"]) ? 20 : 0) +
+    (hasTimeframeGroup(row, "1h", ["watch"]) ? 10 : 0) +
+    (getBestShortTermRank(row) ?? 0) / 10
+  );
+}
+
+function compareRiskRows(left: WatchlistRow, right: WatchlistRow) {
+  const scoreDelta = getRiskReviewScore(right) - getRiskReviewScore(left);
+
+  if (scoreDelta !== 0) {
+    return scoreDelta;
+  }
+
+  return (
+    left.inputIndex - right.inputIndex ||
+    left.symbol.localeCompare(right.symbol)
+  );
+}
+
+function getRiskReviewScore(row: WatchlistRow) {
+  const riskGroupScore = MTF_SCREENER_TIMEFRAMES.filter((timeframe) =>
+    hasTimeframeRisk(row, timeframe),
+  ).length * 40;
+  const lowRankScore = MTF_SCREENER_TIMEFRAMES.reduce((total, timeframe) => {
+    const rank = getWatchlistRank(row, timeframe);
+
+    return typeof rank === "number" && rank <= 0
+      ? total + Math.abs(rank)
+      : total;
+  }, 0);
+  const riskNoteScore = row.mtfRow
+    ? getMtfRiskNoteItems(row.mtfRow).length * 10
+    : 0;
+
+  return (
+    riskGroupScore +
+    (isBroadRisk(row) ? 40 : 0) +
+    (hasTimeframeRisk(row, "4h") ? 20 : 0) +
+    lowRankScore +
+    riskNoteScore
+  );
+}
+
+export function normalizeWatchlistSymbols(symbols: readonly string[]) {
   const seen = new Set<string>();
   const normalizedSymbols: string[] = [];
 
@@ -409,6 +980,22 @@ function compareNullableNumbers(
   const delta = left - right;
 
   return direction === "asc" ? delta : -delta;
+}
+
+function uniqueStrings(values: string[]) {
+  const seen = new Set<string>();
+  const unique: string[] = [];
+
+  for (const value of values) {
+    const key = value.toLowerCase();
+
+    if (!seen.has(key)) {
+      seen.add(key);
+      unique.push(value);
+    }
+  }
+
+  return unique;
 }
 
 export { MTF_SCREENER_TIMEFRAMES };
