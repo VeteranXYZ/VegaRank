@@ -1,4 +1,20 @@
 import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
+
+const useQueryMock = vi.hoisted(() => vi.fn());
+const pushMock = vi.hoisted(() => vi.fn());
+const searchParamsMock = vi.hoisted(() => vi.fn());
+
+vi.mock("@tanstack/react-query", () => ({
+  useQuery: useQueryMock,
+}));
+
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ push: pushMock }),
+  useSearchParams: () => searchParamsMock(),
+}));
+
 import {
   buildScannerReturnHref,
   buildSymbolResearchSwitchHref,
@@ -8,6 +24,7 @@ import {
   getSymbolResearchApiOriginLabel,
   getTradeApiBaseUrl,
   normalizeSymbolResearchInputSymbol,
+  SymbolResearchPageClient,
 } from "./SymbolResearchPageClient";
 
 const ORIGINAL_ENV = { ...process.env };
@@ -90,7 +107,9 @@ describe("symbol research API URL builder", () => {
         ok: false,
         error: "NO_LATEST_SIGNAL",
       }),
-    ).toBe("No selected latest signal found for this symbol/timeframe.");
+    ).toBe(
+      "No scanner signal is available for this symbol/timeframe from the selected latest run.",
+    );
     expect(
       formatSymbolResearchApiError(404, {
         ok: false,
@@ -160,5 +179,76 @@ describe("symbol research navigation helpers", () => {
         searchParams: new URLSearchParams("assetClass=crypto&limit=100&from=scanner"),
       }),
     ).toBe("/symbol/binance/ETHUSDT?timeframe=4h&assetClass=crypto&limit=100&from=scanner");
+  });
+});
+
+describe("SymbolResearchPageClient unavailable state", () => {
+  beforeEach(() => {
+    pushMock.mockReset();
+    searchParamsMock.mockReset();
+    searchParamsMock.mockReturnValue(
+      new URLSearchParams("timeframe=1w&assetClass=crypto&from=scanner"),
+    );
+    useQueryMock.mockReset();
+  });
+
+  it("renders insufficient-history unavailable copy with navigation controls", () => {
+    useQueryMock.mockReturnValue({
+      isLoading: false,
+      isError: false,
+      isFetching: false,
+      refetch: vi.fn(),
+      data: {
+        ok: false,
+        error: "NO_LATEST_SIGNAL",
+        errorCode: "NO_LATEST_SIGNAL",
+        unavailableReason: "insufficient_history",
+        message:
+          "No 1w scanner signal for SEIUSDT. The latest full-universe 1w scan ran successfully, but SEIUSDT was skipped because it has only 145 weekly candles. The scanner currently requires 200 candles.",
+        timeframe: "1w",
+        symbol: {
+          exchange: "binance",
+          market: "spot",
+          symbol: "SEIUSDT",
+          assetClass: "crypto",
+        },
+        selectedRun: {
+          id: "full-1w",
+          timeframe: "1w",
+          status: "success",
+          symbolsTotal: 413,
+          symbolsScanned: 192,
+          symbolsSkipped: 221,
+          signalsCreated: 192,
+          finishedAt: "2026-06-01T04:00:00.000Z",
+          isLikelyFullUniverse: true,
+        },
+        symbolCoverage: {
+          timeframe: "1w",
+          candleCount: 145,
+          requiredCandles: 200,
+        },
+      },
+    });
+
+    const html = renderToStaticMarkup(
+      createElement(SymbolResearchPageClient, {
+        exchange: "binance",
+        symbol: "SEIUSDT",
+      }),
+    );
+
+    expect(html).toContain("Timeframe unavailable for this symbol");
+    expect(html).toContain("No 1w scanner signal for SEIUSDT");
+    expect(html).toContain("145 / 200");
+    expect(html).toContain("Success full-universe run, scanned 192 / 413, skipped 221");
+    expect(html).toContain("Use 4h or 1d for SEIUSDT.");
+    expect(html).toContain("Try older symbols such as BTCUSDT or ETHUSDT for 1w research.");
+    expect(html).toContain("Back to Scanner");
+    expect(html).toContain("Refresh");
+    expect(html).toContain("Open Symbol");
+    expect(html).toContain('href="/symbol/binance/SEIUSDT?timeframe=4h');
+    expect(html).toContain('href="/symbol/binance/SEIUSDT?timeframe=1d');
+    expect(html).toContain('href="/symbol/binance/SEIUSDT?timeframe=1w');
   });
 });

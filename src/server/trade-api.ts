@@ -22,6 +22,7 @@ import {
 } from "@/lib/storage/postgres/scannerResultsPg";
 import {
   PgSymbolResearchStore,
+  type SymbolResearchCandleCoverageRecord,
   type SymbolResearchCandleRecord,
   type SymbolResearchSignalRecord,
 } from "@/lib/storage/postgres/symbolResearchPg";
@@ -42,6 +43,7 @@ type StatusResponse = {
 const serviceName = "trade-api" as const;
 const defaultHost = "127.0.0.1";
 const defaultPort = "3000";
+const SYMBOL_RESEARCH_REQUIRED_CANDLES = 200;
 const allowedOrigins = new Set([
   "https://s.bitcoinmind.com",
   "http://localhost:3000",
@@ -489,11 +491,25 @@ async function handleSymbolResearch(response: http.ServerResponse, url: URL) {
     }
 
     if (!latest.signal) {
+      const unavailable = await buildSymbolResearchUnavailableMetadata({
+        store,
+        latest,
+        exchange,
+        market,
+        symbol,
+        timeframe,
+        assetClass: assetClass.value,
+        preferredFullUniverse: preferFullUniverse,
+      });
+
       sendJson(response, 404, {
         ok: false,
         service: serviceName,
         source: "postgres",
         error: "NO_LATEST_SIGNAL",
+        errorCode: "NO_LATEST_SIGNAL",
+        unavailableReason: unavailable.unavailableReason,
+        message: unavailable.message,
         symbol: {
           exchange: latest.symbol.exchange,
           market: latest.symbol.market,
@@ -505,6 +521,8 @@ async function handleSymbolResearch(response: http.ServerResponse, url: URL) {
           signal: null,
         },
         currentSelection,
+        selectedRun: unavailable.selectedRun,
+        symbolCoverage: unavailable.symbolCoverage,
       });
       return;
     }
@@ -937,6 +955,173 @@ function buildSymbolResearchCurrentSelectionMetadata({
     selectedRunFinishedAt: run?.finishedAt ?? null,
     selectedSignalScanTime: signal?.scanTime ?? null,
   };
+}
+
+type SymbolResearchUnavailableReason =
+  | "insufficient_history"
+  | "no_selected_run"
+  | "no_signal"
+  | "unknown";
+
+async function buildSymbolResearchUnavailableMetadata({
+  store,
+  latest,
+  exchange,
+  market,
+  symbol,
+  timeframe,
+  assetClass,
+  preferredFullUniverse,
+}: {
+  store: PgSymbolResearchStore;
+  latest: Awaited<
+    ReturnType<PgSymbolResearchStore["getSymbolResearchLatestSignalPg"]>
+  >;
+  exchange: string;
+  market: string;
+  symbol: string;
+  timeframe: string;
+  assetClass: SymbolAssetClassFilter;
+  preferredFullUniverse: boolean;
+}) {
+  const coverage = await store.getSymbolCandleCoveragePg({
+    exchange,
+    market,
+    symbol,
+    timeframe,
+  });
+  const selectedRun = buildSymbolResearchUnavailableSelectedRun({
+    run: latest.scanRun,
+    assetClass,
+    preferredFullUniverse,
+  });
+  const unavailableReason = getSymbolResearchUnavailableReason({
+    scanRun: latest.scanRun,
+    coverage,
+  });
+  const symbolCoverage = {
+    timeframe,
+    candleCount: coverage.candleCount,
+    requiredCandles: SYMBOL_RESEARCH_REQUIRED_CANDLES,
+    firstOpenTime: coverage.firstOpenTime,
+    latestOpenTime: coverage.latestOpenTime,
+    latestCloseTime: coverage.latestCloseTime,
+  };
+
+  return {
+    unavailableReason,
+    message: getSymbolResearchUnavailableMessage({
+      symbol: latest.symbol?.symbol ?? symbol.toUpperCase(),
+      timeframe,
+      unavailableReason,
+      selectedRun,
+      symbolCoverage,
+    }),
+    selectedRun,
+    symbolCoverage,
+  };
+}
+
+function buildSymbolResearchUnavailableSelectedRun({
+  run,
+  assetClass,
+  preferredFullUniverse,
+}: {
+  run: Awaited<ReturnType<PgScannerResultsStore["getLatestScanRun"]>>;
+  assetClass: SymbolAssetClassFilter;
+  preferredFullUniverse: boolean;
+}) {
+  if (!run) {
+    return null;
+  }
+
+  const latestRunSelection = buildLatestRunSelectionMetadata({
+    run,
+    assetClass,
+    preferredFullUniverse,
+  });
+
+  return {
+    id: run.id,
+    timeframe: run.timeframe,
+    status: run.status,
+    symbolsTotal: run.symbolsTotal,
+    symbolsScanned: run.symbolsScanned,
+    symbolsSkipped: run.symbolsSkipped,
+    signalsCreated: run.signalsCreated,
+    startedAt: run.startedAt,
+    finishedAt: run.finishedAt,
+    isLikelyFullUniverse: latestRunSelection.isLikelyFullUniverse,
+  };
+}
+
+function getSymbolResearchUnavailableReason({
+  scanRun,
+  coverage,
+}: {
+  scanRun: Awaited<ReturnType<PgScannerResultsStore["getLatestScanRun"]>>;
+  coverage: SymbolResearchCandleCoverageRecord;
+}): SymbolResearchUnavailableReason {
+  if (!scanRun) {
+    return "no_selected_run";
+  }
+
+  if (coverage.candleCount < SYMBOL_RESEARCH_REQUIRED_CANDLES) {
+    return "insufficient_history";
+  }
+
+  return "no_signal";
+}
+
+function getSymbolResearchUnavailableMessage({
+  symbol,
+  timeframe,
+  unavailableReason,
+  selectedRun,
+  symbolCoverage,
+}: {
+  symbol: string;
+  timeframe: string;
+  unavailableReason: SymbolResearchUnavailableReason;
+  selectedRun: ReturnType<typeof buildSymbolResearchUnavailableSelectedRun>;
+  symbolCoverage: {
+    candleCount: number;
+    requiredCandles: number;
+  };
+}) {
+  if (unavailableReason === "insufficient_history") {
+    const runDescription = selectedRun?.isLikelyFullUniverse
+      ? `The latest full-universe ${timeframe} scan ran successfully`
+      : `The selected ${timeframe} scan ran`;
+    const candleLabel = getSymbolResearchCandleLabel(timeframe);
+
+    return `No ${timeframe} scanner signal for ${symbol}. ${runDescription}, but ${symbol} was skipped because it has only ${symbolCoverage.candleCount} ${candleLabel}. The scanner currently requires ${symbolCoverage.requiredCandles} candles.`;
+  }
+
+  if (unavailableReason === "no_selected_run") {
+    return `No selected latest ${timeframe} scanner run is available yet.`;
+  }
+
+  if (unavailableReason === "no_signal") {
+    return "No scanner signal is available for this symbol/timeframe from the selected latest run.";
+  }
+
+  return "No scanner signal is available for this symbol/timeframe.";
+}
+
+function getSymbolResearchCandleLabel(timeframe: string) {
+  switch (timeframe) {
+    case "1w":
+      return "weekly candles";
+    case "1d":
+      return "daily candles";
+    case "4h":
+      return "4h candles";
+    case "1h":
+      return "hourly candles";
+    default:
+      return "candles";
+  }
 }
 
 function getSymbolResearchSourceRunLikelyFullUniverse({

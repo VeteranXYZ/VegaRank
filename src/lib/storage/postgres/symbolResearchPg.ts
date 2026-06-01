@@ -57,6 +57,14 @@ export type SymbolResearchCandleRecord = {
   quoteVolume: number | null;
 };
 
+export type SymbolResearchCandleCoverageRecord = {
+  timeframe: string;
+  candleCount: number;
+  firstOpenTime: string | null;
+  latestOpenTime: string | null;
+  latestCloseTime: string | null;
+};
+
 export type SymbolResearchLatestSignalResult = {
   symbol: SymbolResearchSymbolRecord | null;
   scanRun: ScanRunRecord | null;
@@ -156,6 +164,13 @@ type CandleRow = {
   close: number | string;
   volume: number | string;
   quote_volume: number | string | null;
+};
+
+type CandleCoverageRow = {
+  candle_count: string;
+  first_open_time: Date | string | null;
+  latest_open_time: Date | string | null;
+  latest_close_time: Date | string | null;
 };
 
 export class PgSymbolResearchStore {
@@ -404,6 +419,38 @@ export class PgSymbolResearchStore {
     return result.rows.map(toSymbolResearchCandleRecord);
   }
 
+  async getSymbolCandleCoveragePg({
+    exchange,
+    market,
+    symbol,
+    timeframe,
+  }: SymbolResearchIdentity & {
+    timeframe: string;
+  }): Promise<SymbolResearchCandleCoverageRecord> {
+    const result = await this.pool.query<CandleCoverageRow>(
+      `
+        SELECT
+          COUNT(*) AS candle_count,
+          MIN(open_time) AS first_open_time,
+          MAX(open_time) AS latest_open_time,
+          MAX(close_time) AS latest_close_time
+        FROM market_candles
+        WHERE exchange = $1
+          AND market = $2
+          AND symbol = $3
+          AND timeframe = $4
+      `,
+      [
+        exchange.toLowerCase(),
+        market.toLowerCase(),
+        symbol.toUpperCase(),
+        timeframe,
+      ],
+    );
+
+    return toSymbolResearchCandleCoverageRecord(result.rows[0], timeframe);
+  }
+
   private async getSymbol({
     exchange,
     market,
@@ -628,6 +675,25 @@ function toSymbolResearchCandleRecord(row: CandleRow): SymbolResearchCandleRecor
     close: Number(row.close),
     volume: Number(row.volume),
     quoteVolume: toNullableNumber(row.quote_volume),
+  };
+}
+
+function toSymbolResearchCandleCoverageRecord(
+  row: CandleCoverageRow | undefined,
+  timeframe: string,
+): SymbolResearchCandleCoverageRecord {
+  return {
+    timeframe,
+    candleCount: Number(row?.candle_count ?? 0),
+    firstOpenTime: row?.first_open_time
+      ? new Date(row.first_open_time).toISOString()
+      : null,
+    latestOpenTime: row?.latest_open_time
+      ? new Date(row.latest_open_time).toISOString()
+      : null,
+    latestCloseTime: row?.latest_close_time
+      ? new Date(row.latest_close_time).toISOString()
+      : null,
   };
 }
 

@@ -9,6 +9,7 @@ const getSymbolResearchLatestSignalPgMock = vi.hoisted(() => vi.fn());
 const getSymbolSignalHistoryPgMock = vi.hoisted(() => vi.fn());
 const getSymbolLatestSignalsByTimeframesPgMock = vi.hoisted(() => vi.fn());
 const getSymbolCandlesPgMock = vi.hoisted(() => vi.fn());
+const getSymbolCandleCoveragePgMock = vi.hoisted(() => vi.fn());
 const closeSymbolResearchMock = vi.hoisted(() => vi.fn());
 const pgScannerResultsStoreMock = vi.hoisted(() =>
   vi.fn(function PgScannerResultsStore() {
@@ -26,6 +27,7 @@ const pgSymbolResearchStoreMock = vi.hoisted(() =>
       getSymbolSignalHistoryPg: getSymbolSignalHistoryPgMock,
       getSymbolLatestSignalsByTimeframesPg: getSymbolLatestSignalsByTimeframesPgMock,
       getSymbolCandlesPg: getSymbolCandlesPgMock,
+      getSymbolCandleCoveragePg: getSymbolCandleCoveragePgMock,
       close: closeSymbolResearchMock,
     };
   }),
@@ -573,6 +575,66 @@ describe("trade-api symbol research", () => {
     expect(getSymbolSignalHistoryPgMock).not.toHaveBeenCalled();
     expect(getSymbolCandlesPgMock).not.toHaveBeenCalled();
   });
+
+  it("returns insufficient-history metadata when a sparse weekly symbol was skipped", async () => {
+    getSymbolResearchLatestSignalPgMock.mockResolvedValue({
+      symbol: makeResearchSymbol("SEIUSDT"),
+      scanRun: makeRun("full-1w", {
+        timeframe: "1w",
+        symbolsTotal: 413,
+        symbolsScanned: 192,
+        symbolsSkipped: 221,
+        signalsCreated: 192,
+        params: { assetClass: "crypto", allSymbols: true },
+      }),
+      signal: null,
+    });
+    getSymbolCandleCoveragePgMock.mockResolvedValue({
+      timeframe: "1w",
+      candleCount: 145,
+      firstOpenTime: "2023-08-14T00:00:00.000Z",
+      latestOpenTime: "2026-05-25T00:00:00.000Z",
+      latestCloseTime: "2026-05-31T23:59:59.999Z",
+    });
+
+    const response = await requestTradeApi(
+      "/api/symbol/research?exchange=binance&symbol=SEIUSDT&timeframe=1w",
+    );
+    const body = JSON.parse(response.body);
+
+    expect(response.status).toBe(404);
+    expect(body).toMatchObject({
+      ok: false,
+      error: "NO_LATEST_SIGNAL",
+      errorCode: "NO_LATEST_SIGNAL",
+      unavailableReason: "insufficient_history",
+      message:
+        "No 1w scanner signal for SEIUSDT. The latest full-universe 1w scan ran successfully, but SEIUSDT was skipped because it has only 145 weekly candles. The scanner currently requires 200 candles.",
+      selectedRun: {
+        id: "full-1w",
+        timeframe: "1w",
+        status: "success",
+        symbolsTotal: 413,
+        symbolsScanned: 192,
+        symbolsSkipped: 221,
+        signalsCreated: 192,
+        isLikelyFullUniverse: true,
+      },
+      symbolCoverage: {
+        timeframe: "1w",
+        candleCount: 145,
+        requiredCandles: 200,
+      },
+    });
+    expect(getSymbolCandleCoveragePgMock).toHaveBeenCalledWith({
+      exchange: "binance",
+      market: "spot",
+      symbol: "SEIUSDT",
+      timeframe: "1w",
+    });
+    expect(getSymbolSignalHistoryPgMock).not.toHaveBeenCalled();
+    expect(getSymbolCandlesPgMock).not.toHaveBeenCalled();
+  });
 });
 
 async function requestTradeApi(
@@ -677,6 +739,14 @@ function resetSymbolResearchMocks() {
   getSymbolLatestSignalsByTimeframesPgMock.mockResolvedValue([]);
   getSymbolCandlesPgMock.mockReset();
   getSymbolCandlesPgMock.mockResolvedValue([]);
+  getSymbolCandleCoveragePgMock.mockReset();
+  getSymbolCandleCoveragePgMock.mockResolvedValue({
+    timeframe: "4h",
+    candleCount: 0,
+    firstOpenTime: null,
+    latestOpenTime: null,
+    latestCloseTime: null,
+  });
   closeSymbolResearchMock.mockReset();
   closeSymbolResearchMock.mockResolvedValue(undefined);
   pgSymbolResearchStoreMock.mockClear();

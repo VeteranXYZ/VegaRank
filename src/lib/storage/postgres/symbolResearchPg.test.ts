@@ -282,6 +282,45 @@ describe("PgSymbolResearchStore", () => {
     expect(queries[0]).toContain("ORDER BY open_time DESC");
     expect(queries[0]).toContain("ORDER BY open_time_ms ASC");
   });
+
+  it("loads candle coverage for unavailable sparse timeframes", async () => {
+    const queries: string[] = [];
+    const paramsList: unknown[][] = [];
+    const store = new PgSymbolResearchStore(
+      makePool((sql, params) => {
+        queries.push(sql);
+        paramsList.push(params);
+        return {
+          rows: [
+            {
+              candle_count: "145",
+              first_open_time: "2023-08-14T00:00:00.000Z",
+              latest_open_time: "2026-05-25T00:00:00.000Z",
+              latest_close_time: "2026-05-31T23:59:59.999Z",
+            },
+          ],
+        };
+      }),
+    );
+
+    const coverage = await store.getSymbolCandleCoveragePg({
+      exchange: "binance",
+      market: "spot",
+      symbol: "seiusdt",
+      timeframe: "1w",
+    });
+
+    expect(coverage).toEqual({
+      timeframe: "1w",
+      candleCount: 145,
+      firstOpenTime: "2023-08-14T00:00:00.000Z",
+      latestOpenTime: "2026-05-25T00:00:00.000Z",
+      latestCloseTime: "2026-05-31T23:59:59.999Z",
+    });
+    expect(paramsList[0]).toEqual(["binance", "spot", "SEIUSDT", "1w"]);
+    expect(queries[0]).toContain("COUNT(*) AS candle_count");
+    expect(queries[0]).toContain("FROM market_candles");
+  });
 });
 
 function makePool(

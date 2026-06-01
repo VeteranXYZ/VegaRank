@@ -13,6 +13,7 @@ import {
 import {
   buildSymbolResearchDiagnostics,
   buildSymbolResearchSummary,
+  buildSymbolResearchUnavailableContent,
   formatSymbolResearchAction,
   formatSymbolResearchDateTime,
   formatSymbolResearchGroup,
@@ -28,6 +29,7 @@ import {
   getSymbolResearchScoreRows,
   hasNewerSymbolResearchHistoryRows,
   toTitleCase,
+  type SymbolResearchUnavailableReason,
 } from "./symbolResearchUi";
 
 type BuildSymbolResearchUrlParams = {
@@ -114,7 +116,29 @@ type SymbolResearchCurrentSelection = {
   fallbackUsed: boolean;
 };
 
-type SymbolResearchResponse = {
+type SymbolResearchSelectedRun = {
+  id?: string;
+  timeframe?: string;
+  status?: string;
+  symbolsTotal?: number;
+  symbolsScanned?: number;
+  symbolsSkipped?: number;
+  signalsCreated?: number;
+  startedAt?: string | null;
+  finishedAt?: string | null;
+  isLikelyFullUniverse?: boolean;
+};
+
+type SymbolResearchSymbolCoverage = {
+  timeframe: string;
+  candleCount: number;
+  requiredCandles: number;
+  firstOpenTime?: string | null;
+  latestOpenTime?: string | null;
+  latestCloseTime?: string | null;
+};
+
+type SymbolResearchSuccessResponse = {
   ok: true;
   timeframe?: string;
   symbol: {
@@ -157,11 +181,39 @@ type SymbolResearchResponse = {
   candles?: SymbolResearchCandles;
 };
 
+type SymbolResearchUnavailableResponse = {
+  ok: false;
+  error?: string;
+  errorCode?: string;
+  unavailableReason?: SymbolResearchUnavailableReason | string | null;
+  message?: string;
+  timeframe?: string;
+  symbol?: {
+    exchange?: string;
+    market?: string;
+    symbol: string;
+    assetClass?: string;
+  };
+  latest?: {
+    scanRun: SymbolResearchRun | null;
+    signal?: null;
+  } | null;
+  currentSelection?: SymbolResearchCurrentSelection;
+  selectedRun?: SymbolResearchSelectedRun | null;
+  symbolCoverage?: SymbolResearchSymbolCoverage | null;
+};
+
+type SymbolResearchResponse =
+  | SymbolResearchSuccessResponse
+  | SymbolResearchUnavailableResponse;
+
 type SymbolResearchApiErrorBody = {
   ok?: false;
   error?: string | { code?: string; message?: string };
   code?: string;
+  errorCode?: string;
   message?: string;
+  unavailableReason?: string | null;
 };
 
 type QueryStateInput =
@@ -298,6 +350,40 @@ export function SymbolResearchPageClient({
           message="No research data available."
           apiOrigin={apiOrigin}
           scannerReturnHref={scannerReturnHref}
+        />
+      </main>
+    );
+  }
+
+  if (!data.ok) {
+    const content = buildSymbolResearchUnavailableContent({
+      symbol: data.symbol?.symbol ?? normalizedSymbol,
+      timeframe: data.timeframe ?? timeframe,
+      unavailableReason: data.unavailableReason,
+      message: data.message,
+      selectedRun: data.selectedRun,
+      symbolCoverage: data.symbolCoverage,
+    });
+
+    return (
+      <main className="mx-auto w-full max-w-7xl px-4 py-6 text-[var(--foreground)]">
+        <SymbolResearchNavigation
+          key={data.symbol?.symbol ?? normalizedSymbol}
+          exchange={exchange}
+          symbol={data.symbol?.symbol ?? normalizedSymbol}
+          timeframe={timeframe}
+          assetClass={data.symbol?.assetClass ?? assetClass}
+          scannerReturnHref={scannerReturnHref}
+          searchParams={searchParams}
+          isFetching={query.isFetching}
+          onSymbolSubmit={handleSymbolSubmit}
+          onRefresh={() => void query.refetch()}
+        />
+        <SymbolResearchUnavailableState
+          content={content}
+          apiOrigin={apiOrigin}
+          selectedRun={data.selectedRun}
+          symbolCoverage={data.symbolCoverage}
         />
       </main>
     );
@@ -605,6 +691,10 @@ async function fetchSymbolResearch({
     | SymbolResearchApiErrorBody
     | null;
 
+  if (isSymbolResearchUnavailableResponse(body)) {
+    return body;
+  }
+
   if (!response.ok) {
     throw new Error(formatSymbolResearchApiError(response.status, body));
   }
@@ -888,6 +978,42 @@ function ResearchState({
   );
 }
 
+function SymbolResearchUnavailableState({
+  content,
+  apiOrigin,
+}: {
+  content: ReturnType<typeof buildSymbolResearchUnavailableContent>;
+  apiOrigin?: string;
+  selectedRun?: SymbolResearchSelectedRun | null;
+  symbolCoverage?: SymbolResearchSymbolCoverage | null;
+}) {
+  return (
+    <section className="border border-[var(--border)] bg-[var(--panel)] px-4 py-5">
+      <p className="text-xs uppercase tracking-wide text-[var(--muted)]">
+        Symbol Research
+      </p>
+      <h1 className="mt-1 text-xl font-semibold">{content.title}</h1>
+      <p className="mt-2 max-w-3xl text-sm text-[var(--muted)]">{content.message}</p>
+
+      <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        {content.details.map((detail) => (
+          <Fact key={detail.label} label={detail.label} value={detail.value} />
+        ))}
+        {apiOrigin ? <Fact label="API Origin" value={apiOrigin} /> : null}
+      </div>
+
+      <div className="mt-5 border border-[var(--border)] bg-[#080d12] px-3 py-3">
+        <h2 className="text-sm font-semibold">Suggested next checks</h2>
+        <ul className="mt-2 space-y-1.5 text-sm text-[var(--muted)]">
+          {content.suggestions.map((suggestion) => (
+            <li key={suggestion}>{suggestion}</li>
+          ))}
+        </ul>
+      </div>
+    </section>
+  );
+}
+
 function Panel({
   title,
   className = "",
@@ -1009,7 +1135,7 @@ function ResponsiveTable({
 }
 
 function getSymbolResearchInterpretation(
-  data: SymbolResearchResponse,
+  data: SymbolResearchSuccessResponse,
   latestSignal: SymbolResearchSignal,
 ) {
   return {
@@ -1031,7 +1157,7 @@ function getSymbolResearchInterpretation(
 }
 
 function getSymbolResearchScoreBreakdown(
-  data: SymbolResearchResponse,
+  data: SymbolResearchSuccessResponse,
   latestSignal: SymbolResearchSignal,
 ) {
   return {
@@ -1169,12 +1295,24 @@ function getKnownSymbolResearchErrorMessage(errorCode: string | null) {
     case "SYMBOL_NOT_FOUND":
       return "Symbol not found in scanner universe.";
     case "NO_LATEST_SIGNAL":
-      return "No selected latest signal found for this symbol/timeframe.";
+      return "No scanner signal is available for this symbol/timeframe from the selected latest run.";
     case "INVALID_TIMEFRAME":
       return "Invalid timeframe. Try 1h, 4h, 1d, or 1w.";
     default:
       return null;
   }
+}
+
+function isSymbolResearchUnavailableResponse(
+  body: SymbolResearchResponse | SymbolResearchApiErrorBody | null,
+): body is SymbolResearchUnavailableResponse {
+  return Boolean(
+    body &&
+      "ok" in body &&
+      body.ok === false &&
+      (("unavailableReason" in body && body.unavailableReason) ||
+        getSymbolResearchErrorCode(body) === "NO_LATEST_SIGNAL"),
+  );
 }
 
 function isSymbolResearchApiErrorBody(
@@ -1195,7 +1333,15 @@ function getSymbolResearchErrorCode(
   }
 
   if ("error" in body && typeof body.error === "object") {
-    return body.error.code ?? body.code ?? null;
+    return (
+      body.error.code ??
+      body.errorCode ??
+      ("code" in body ? body.code ?? null : null)
+    );
+  }
+
+  if ("errorCode" in body && body.errorCode) {
+    return body.errorCode;
   }
 
   return "code" in body ? body.code ?? null : null;

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   buildSymbolResearchDiagnostics,
   buildSymbolResearchSummary,
+  buildSymbolResearchUnavailableContent,
   formatSymbolResearchAction,
   formatSymbolResearchDateTime,
   formatSymbolResearchGroup,
@@ -192,6 +193,78 @@ describe("symbol research UI helpers", () => {
       "Newer secondary runs exist. Current classification uses selected full-universe run.",
     );
     expect(diagnostics.hasWarning).toBe(true);
+  });
+
+  it("formats insufficient-history unavailable state without hiding the timeframe", () => {
+    const content = buildSymbolResearchUnavailableContent({
+      symbol: "SEIUSDT",
+      timeframe: "1w",
+      unavailableReason: "insufficient_history",
+      message:
+        "No 1w scanner signal for SEIUSDT. The latest full-universe 1w scan ran successfully, but SEIUSDT was skipped because it has only 145 candles. The scanner currently requires 200 candles.",
+      selectedRun: {
+        status: "success",
+        timeframe: "1w",
+        symbolsTotal: 413,
+        symbolsScanned: 192,
+        symbolsSkipped: 221,
+        signalsCreated: 192,
+        finishedAt: "2026-06-01T04:00:00.000Z",
+        isLikelyFullUniverse: true,
+      },
+      symbolCoverage: {
+        timeframe: "1w",
+        candleCount: 145,
+        requiredCandles: 200,
+      },
+    });
+
+    expect(content.title).toBe("Timeframe unavailable for this symbol");
+    expect(content.isInsufficientHistory).toBe(true);
+    expect(content.message).toContain("No 1w scanner signal for SEIUSDT");
+    expect(content.details).toEqual(
+      expect.arrayContaining([
+        { label: "Symbol", value: "SEIUSDT" },
+        { label: "Timeframe", value: "1w" },
+        { label: "Candles", value: "145 / 200" },
+        {
+          label: "Selected Run",
+          value: "Success full-universe run, scanned 192 / 413, skipped 221",
+        },
+        { label: "Signals Created", value: "192" },
+      ]),
+    );
+    expect(content.suggestions).toEqual([
+      "Use 4h or 1d for SEIUSDT.",
+      "Try older symbols such as BTCUSDT or ETHUSDT for 1w research.",
+    ]);
+  });
+
+  it("uses conservative copy for generic no-signal unavailable state", () => {
+    const content = buildSymbolResearchUnavailableContent({
+      symbol: "ABCUSDT",
+      timeframe: "1d",
+      unavailableReason: "no_signal",
+      selectedRun: {
+        status: "success",
+        symbolsTotal: 413,
+        symbolsScanned: 413,
+        symbolsSkipped: 0,
+        signalsCreated: 412,
+        isLikelyFullUniverse: true,
+      },
+      symbolCoverage: {
+        timeframe: "1d",
+        candleCount: 500,
+        requiredCandles: 200,
+      },
+    });
+
+    expect(content.title).toBe("No scanner signal available");
+    expect(content.isInsufficientHistory).toBe(false);
+    expect(content.message).toBe(
+      "No scanner signal is available for this symbol/timeframe from the selected latest run.",
+    );
   });
 
   it("avoids multi-timeframe wording when only one snapshot exists", () => {

@@ -73,6 +73,42 @@ type ResearchDiagnosticsInput = {
   history?: RunContextInput[] | null;
 };
 
+export type SymbolResearchUnavailableReason =
+  | "insufficient_history"
+  | "no_selected_run"
+  | "no_signal"
+  | "unknown";
+
+export type SymbolResearchUnavailableInput = {
+  symbol?: string | null;
+  timeframe?: string | null;
+  unavailableReason?: SymbolResearchUnavailableReason | string | null;
+  message?: string | null;
+  selectedRun?: {
+    status?: string | null;
+    timeframe?: string | null;
+    symbolsTotal?: number | null;
+    symbolsScanned?: number | null;
+    symbolsSkipped?: number | null;
+    signalsCreated?: number | null;
+    finishedAt?: string | null;
+    isLikelyFullUniverse?: boolean | null;
+  } | null;
+  symbolCoverage?: {
+    timeframe?: string | null;
+    candleCount?: number | null;
+    requiredCandles?: number | null;
+  } | null;
+};
+
+export type SymbolResearchUnavailableContent = {
+  title: string;
+  message: string;
+  details: Array<{ label: string; value: string }>;
+  suggestions: string[];
+  isInsufficientHistory: boolean;
+};
+
 export type SymbolResearchSummary = {
   stance: string;
   why: string[];
@@ -353,12 +389,93 @@ export function buildSymbolResearchDiagnostics({
   };
 }
 
+export function buildSymbolResearchUnavailableContent(
+  input: SymbolResearchUnavailableInput,
+): SymbolResearchUnavailableContent {
+  const symbol = input.symbol?.trim() || "This symbol";
+  const timeframe = input.timeframe?.trim() || "selected timeframe";
+  const candleCount = input.symbolCoverage?.candleCount ?? null;
+  const requiredCandles = input.symbolCoverage?.requiredCandles ?? null;
+  const isInsufficientHistory = input.unavailableReason === "insufficient_history";
+  const title = isInsufficientHistory
+    ? "Timeframe unavailable for this symbol"
+    : "No scanner signal available";
+  const message =
+    input.message?.trim() ||
+    (isInsufficientHistory && candleCount !== null && requiredCandles !== null
+      ? `No ${timeframe} scanner signal for ${symbol}. The selected scan ran successfully, but ${symbol} has only ${candleCount} candles and the scanner currently requires ${requiredCandles}.`
+      : "No scanner signal is available for this symbol/timeframe from the selected latest run.");
+  const details = [
+    { label: "Symbol", value: symbol },
+    { label: "Timeframe", value: timeframe },
+    {
+      label: "Candles",
+      value:
+        candleCount === null
+          ? "Not available"
+          : requiredCandles === null
+            ? String(candleCount)
+            : `${candleCount} / ${requiredCandles}`,
+    },
+    {
+      label: "Selected Run",
+      value: formatUnavailableSelectedRun(input.selectedRun),
+    },
+    {
+      label: "Signals Created",
+      value: formatNullableInteger(input.selectedRun?.signalsCreated),
+    },
+    {
+      label: "Run Finished",
+      value: formatSymbolResearchDateTime(input.selectedRun?.finishedAt),
+    },
+  ];
+
+  return {
+    title,
+    message,
+    details,
+    suggestions: isInsufficientHistory
+      ? [
+          `Use 4h or 1d for ${symbol}.`,
+          "Try older symbols such as BTCUSDT or ETHUSDT for 1w research.",
+        ]
+      : [
+          "Try 4h or 1d for this symbol.",
+          "Refresh after the next scanner run if this timeframe should have coverage.",
+        ],
+    isInsufficientHistory,
+  };
+}
+
 export function toTitleCase(value: string) {
   return value
     .split(/[_\s-]+/)
     .filter(Boolean)
     .map((part) => part.charAt(0).toUpperCase() + part.slice(1).toLowerCase())
     .join(" ");
+}
+
+function formatUnavailableSelectedRun(
+  selectedRun: SymbolResearchUnavailableInput["selectedRun"],
+) {
+  if (!selectedRun) {
+    return "No selected run";
+  }
+
+  const runType = selectedRun.isLikelyFullUniverse
+    ? "full-universe"
+    : "selected";
+  const status = selectedRun.status ? toTitleCase(selectedRun.status) : "Unknown";
+  const scanned = formatNullableInteger(selectedRun.symbolsScanned);
+  const total = formatNullableInteger(selectedRun.symbolsTotal);
+  const skipped = formatNullableInteger(selectedRun.symbolsSkipped);
+
+  return `${status} ${runType} run, scanned ${scanned} / ${total}, skipped ${skipped}`;
+}
+
+function formatNullableInteger(value: number | null | undefined) {
+  return typeof value === "number" && Number.isFinite(value) ? String(value) : "Not available";
 }
 
 function isSymbolResearchGroup(value: unknown): value is SymbolResearchGroup {
