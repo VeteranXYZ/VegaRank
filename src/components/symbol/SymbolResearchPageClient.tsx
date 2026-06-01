@@ -18,6 +18,7 @@ import {
   type SymbolResearchCandles,
 } from "./symbolChartUi";
 import {
+  buildSignalEvaluationReadout,
   buildResearchDecisionSummary,
   buildSymbolResearchDiagnostics,
   buildSymbolResearchSummary,
@@ -39,6 +40,8 @@ import {
   getSymbolResearchScoreRows,
   hasNewerSymbolResearchHistoryRows,
   toTitleCase,
+  type SignalEvaluationReadout,
+  type SignalEvaluationResponse,
   type SymbolResearchTimeframeAvailabilityRow,
   type SymbolResearchTimeframeNavigationOption,
   type SymbolResearchUnavailableReason,
@@ -54,6 +57,16 @@ type BuildSymbolResearchUrlParams = {
   candleLimit?: number;
   includeCandles?: boolean;
   assetClass?: string;
+  tradeApiBaseUrl?: string | null;
+};
+
+type BuildSignalEvaluationUrlParams = {
+  exchange?: string;
+  market?: string;
+  timeframe?: string;
+  assetClass?: string;
+  group?: string | null;
+  signalLabel?: string | null;
   tradeApiBaseUrl?: string | null;
 };
 
@@ -274,6 +287,25 @@ export function SymbolResearchPageClient({
   const query = useQuery({
     queryKey: ["symbol-research", queryParams],
     queryFn: ({ signal }) => fetchSymbolResearch({ ...queryParams, signal }),
+    staleTime: 60_000,
+  });
+  const signalEvaluationParams = useMemo(
+    () => buildSignalEvaluationParams(query.data, {
+      exchange,
+      market,
+      fallbackTimeframe: timeframe,
+      fallbackAssetClass: assetClass,
+      tradeApiBaseUrl,
+    }),
+    [assetClass, exchange, market, query.data, timeframe, tradeApiBaseUrl],
+  );
+  const signalEvaluationQuery = useQuery({
+    queryKey: ["signal-evaluation", signalEvaluationParams],
+    queryFn: ({ signal }) =>
+      signalEvaluationParams
+        ? fetchSignalEvaluation({ ...signalEvaluationParams, signal })
+        : Promise.resolve(null),
+    enabled: Boolean(signalEvaluationParams),
     staleTime: 60_000,
   });
 
@@ -517,6 +549,14 @@ export function SymbolResearchPageClient({
     behaviorDiagnostics: data.behaviorDiagnostics,
     sampleQuality: behaviorSampleQuality,
   });
+  const signalEvaluationReadout = buildSignalEvaluationReadout(
+    signalEvaluationQuery.data,
+    {
+      currentGroup: latestSignal.resultGroup,
+      currentSignalLabel: latestSignal.signalLabel,
+      timeframe: selectedTimeframe,
+    },
+  );
   const candleRowsNotice = getCandleRowsNotice(candles);
 
   return (
@@ -611,6 +651,15 @@ export function SymbolResearchPageClient({
       </div>
 
       <ResearchDecisionSummaryPanel summary={decisionSummary} />
+
+      <SignalEvaluationPanel
+        readout={signalEvaluationReadout}
+        isLoading={
+          signalEvaluationQuery.isLoading ||
+          (signalEvaluationQuery.isFetching && !signalEvaluationQuery.data)
+        }
+        isError={signalEvaluationQuery.isError}
+      />
 
       <div className="mt-4 grid gap-4 xl:grid-cols-[minmax(0,1.35fr)_minmax(320px,0.65fr)]">
         <Panel title="Research Summary">
@@ -794,6 +843,34 @@ async function fetchSymbolResearch({
   return body as SymbolResearchResponse;
 }
 
+async function fetchSignalEvaluation({
+  signal,
+  ...params
+}: BuildSignalEvaluationUrlParams & { signal?: AbortSignal }) {
+  const url = buildSignalEvaluationUrl(params);
+  let response: Response;
+
+  try {
+    response = await fetch(url, { signal });
+  } catch (error) {
+    if (error instanceof DOMException && error.name === "AbortError") {
+      throw error;
+    }
+
+    throw new Error("Failed to reach trade API for signal evaluation.");
+  }
+
+  const body = (await response.json().catch(() => null)) as
+    | SignalEvaluationResponse
+    | null;
+
+  if (!response.ok) {
+    throw new Error("Signal evaluation is currently unavailable.");
+  }
+
+  return body;
+}
+
 export function buildSymbolResearchUrl({
   exchange,
   market = "spot",
@@ -817,6 +894,35 @@ export function buildSymbolResearchUrl({
   });
 
   return `${getTradeApiBaseUrl(tradeApiBaseUrl)}/api/symbol/research?${params.toString()}`;
+}
+
+export function buildSignalEvaluationUrl({
+  exchange = "binance",
+  market = "spot",
+  timeframe = defaultTimeframe,
+  assetClass = "crypto",
+  group,
+  signalLabel,
+  tradeApiBaseUrl,
+}: BuildSignalEvaluationUrlParams) {
+  const params = new URLSearchParams({
+    exchange: exchange.toLowerCase(),
+    market: market.toLowerCase(),
+    timeframe,
+    assetClass,
+  });
+  const normalizedGroup = group?.trim();
+  const normalizedSignalLabel = signalLabel?.trim();
+
+  if (normalizedGroup) {
+    params.set("group", normalizedGroup);
+  }
+
+  if (normalizedSignalLabel) {
+    params.set("signalLabel", normalizedSignalLabel);
+  }
+
+  return `${getTradeApiBaseUrl(tradeApiBaseUrl)}/api/signal/evaluation?${params.toString()}`;
 }
 
 export function getTradeApiBaseUrl(
@@ -1229,6 +1335,65 @@ function ResearchDecisionSummaryPanel({
   );
 }
 
+function SignalEvaluationPanel({
+  readout,
+  isLoading,
+  isError,
+}: {
+  readout: SignalEvaluationReadout;
+  isLoading?: boolean;
+  isError?: boolean;
+}) {
+  return (
+    <Panel title="Signal Evaluation" className="mt-4">
+      <p className="mb-4 max-w-3xl text-sm text-[var(--muted)]">
+        How this type of scanner signal behaved across the broader market. Separate
+        from this symbol&apos;s own history.
+      </p>
+      {isLoading ? (
+        <p className="text-sm text-[var(--muted)]">
+          Loading broad-market signal evaluation...
+        </p>
+      ) : (
+        <>
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            <Fact
+              label="Expected Direction"
+              value={readout.expectedDirectionLabel}
+            />
+            <Fact label="Sample Quality" value={readout.sampleQualityLabel} />
+            <Fact label="Source Signals" value={readout.sourceSignals} />
+            <Fact label="Completed Signals" value={readout.completedSignals} />
+            <Fact label="Selected Horizon" value={readout.selectedHorizonLabel} />
+            <Fact label="Median Return" value={readout.medianReturn} />
+            <Fact label="Direction Match" value={readout.directionMatchRate} />
+            <Fact label="Positive Rate" value={readout.positiveRate} />
+          </div>
+          <div
+            className={`mt-4 border px-3 py-3 text-sm ${
+              isError || !readout.available
+                ? "border-[var(--border)] bg-[#080d12] text-[var(--muted)]"
+                : "border-[var(--border)] bg-[#07131a] text-[var(--foreground)]"
+            }`}
+          >
+            <div className="text-[11px] uppercase text-[var(--muted)]">
+              Main Interpretation
+            </div>
+            <p className="mt-1">{readout.mainInterpretation}</p>
+          </div>
+          {readout.warnings.length > 0 ? (
+            <ul className="mt-3 space-y-1.5 text-xs text-[var(--muted)]">
+              {readout.warnings.map((warning) => (
+                <li key={warning}>{warning}</li>
+              ))}
+            </ul>
+          ) : null}
+        </>
+      )}
+    </Panel>
+  );
+}
+
 function Panel({
   title,
   className = "",
@@ -1401,6 +1566,43 @@ function getSymbolResearchScoreBreakdown(
     volumeScore: data.scoreBreakdown?.volumeScore ?? latestSignal.volumeScore,
     structureScore:
       data.scoreBreakdown?.structureScore ?? latestSignal.structureScore,
+  };
+}
+
+function buildSignalEvaluationParams(
+  data: SymbolResearchResponse | undefined,
+  {
+    exchange,
+    market,
+    fallbackTimeframe,
+    fallbackAssetClass,
+    tradeApiBaseUrl,
+  }: {
+    exchange: string;
+    market: string;
+    fallbackTimeframe: string;
+    fallbackAssetClass: string;
+    tradeApiBaseUrl: string;
+  },
+): BuildSignalEvaluationUrlParams | null {
+  if (!data?.ok) {
+    return null;
+  }
+
+  const latestSignal = data.latest?.signal ?? null;
+
+  if (!latestSignal) {
+    return null;
+  }
+
+  return {
+    exchange,
+    market,
+    timeframe: data.timeframe ?? latestSignal.timeframe ?? fallbackTimeframe,
+    assetClass: data.symbol.assetClass || fallbackAssetClass,
+    group: latestSignal.resultGroup ?? data.interpretation?.group ?? null,
+    signalLabel: latestSignal.signalLabel,
+    tradeApiBaseUrl,
   };
 }
 

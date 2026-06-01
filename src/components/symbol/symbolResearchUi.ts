@@ -213,6 +213,81 @@ export type ResearchDecisionSummary = {
   suggestedResearchPosture: ResearchDecisionPosture;
 };
 
+export type SignalEvaluationExpectedDirection =
+  | "up"
+  | "down"
+  | "none"
+  | "cautious";
+
+export type SignalEvaluationSampleQuality =
+  | "none"
+  | "very_limited"
+  | "limited"
+  | "moderate"
+  | "strong";
+
+export type SignalEvaluationHorizonStats = {
+  sampleSize?: number | null;
+  avgReturnPct?: number | null;
+  medianReturnPct?: number | null;
+  positiveRatePct?: number | null;
+  directionMatchRatePct?: number | null;
+  bestReturnPct?: number | null;
+  worstReturnPct?: number | null;
+};
+
+export type SignalEvaluationResponse = {
+  ok?: boolean;
+  filters?: {
+    assetClass?: string | null;
+    exchange?: string | null;
+    market?: string | null;
+    timeframe?: string | null;
+    symbol?: string | null;
+    group?: string | null;
+    signalLabel?: string | null;
+    primaryStructure?: string | null;
+    setupType?: string | null;
+    horizons?: number[] | null;
+  } | null;
+  sample?: {
+    sourceSignals?: number | null;
+    completedSignals?: number | null;
+    skippedSignals?: number | null;
+    sampleQuality?: SignalEvaluationSampleQuality | string | null;
+    warnings?: string[] | null;
+  } | null;
+  expectedDirection?: SignalEvaluationExpectedDirection | string | null;
+  horizons?: Record<string, SignalEvaluationHorizonStats | null | undefined> | null;
+  interpretation?: {
+    summary?: string | null;
+    confidence?: string | null;
+    researchOnly?: boolean | null;
+  } | null;
+};
+
+export type SignalEvaluationReadout = {
+  available: boolean;
+  statusLabel: string;
+  expectedDirectionLabel: string;
+  sampleQualityLabel: string;
+  sourceSignals: string;
+  completedSignals: string;
+  selectedHorizonLabel: string;
+  medianReturn: string;
+  directionMatchRate: string;
+  positiveRate: string;
+  mainInterpretation: string;
+  warnings: string[];
+  contradictionMessage: string | null;
+};
+
+type SignalEvaluationReadoutContext = {
+  currentGroup?: string | null;
+  currentSignalLabel?: string | null;
+  timeframe?: string | null;
+};
+
 export function formatSymbolResearchScore(
   value: number | null | undefined,
   decimals = 1,
@@ -468,6 +543,96 @@ export function buildResearchDecisionSummary({
       sampleQuality,
     }),
     suggestedResearchPosture,
+  };
+}
+
+export function buildSignalEvaluationReadout(
+  evaluation: SignalEvaluationResponse | null | undefined,
+  context: SignalEvaluationReadoutContext = {},
+): SignalEvaluationReadout {
+  if (!evaluation || evaluation.ok !== true) {
+    return unavailableSignalEvaluationReadout(
+      "Signal evaluation is currently unavailable.",
+    );
+  }
+
+  const horizons = evaluation.horizons ?? null;
+  const sample = evaluation.sample ?? null;
+  const selectedHorizon = selectSignalEvaluationHorizon(horizons);
+
+  if (!horizons || !sample || selectedHorizon === null) {
+    return unavailableSignalEvaluationReadout(
+      "No completed broad-market signal evaluation sample is available yet.",
+    );
+  }
+
+  const selectedStats = horizons[String(selectedHorizon)] ?? null;
+
+  if (!selectedStats || toFiniteNumber(selectedStats.sampleSize) <= 0) {
+    return unavailableSignalEvaluationReadout(
+      "No completed broad-market signal evaluation sample is available yet.",
+    );
+  }
+
+  const group = normalizeResearchGroup(
+    evaluation.filters?.group ?? context.currentGroup,
+  );
+  const signalLabel =
+    evaluation.filters?.signalLabel?.trim() ||
+    context.currentSignalLabel?.trim() ||
+    null;
+  const expectedDirection = normalizeSignalEvaluationDirection(
+    evaluation.expectedDirection,
+  );
+  const sampleQuality = normalizeSignalEvaluationSampleQuality(
+    sample.sampleQuality,
+  );
+  const medianReturn = toNullableFiniteNumber(selectedStats.medianReturnPct);
+  const avgReturn = toNullableFiniteNumber(selectedStats.avgReturnPct);
+  const directionMatchRate = toNullableFiniteNumber(
+    selectedStats.directionMatchRatePct,
+  );
+  const positiveRate = toNullableFiniteNumber(selectedStats.positiveRatePct);
+  const status = getSignalEvaluationStatus({
+    expectedDirection,
+    medianReturn,
+    directionMatchRate,
+  });
+  const isLimitedSample =
+    sampleQuality === "very_limited" ||
+    sampleQuality === "limited" ||
+    toFiniteNumber(sample.completedSignals) < 10;
+  const contradictionMessage = getSignalEvaluationContradiction({
+    status,
+    expectedDirection,
+    group,
+    signalLabel,
+  });
+  const statusLabel = getSignalEvaluationStatusLabel(status);
+  const caveats = [
+    isLimitedSample ? "Sample is limited; use as research context only." : null,
+    group === "overheated" && avgReturn !== null && medianReturn !== null && avgReturn > 0 && medianReturn < 0
+      ? "Median outcome leaned lower, while average was affected by large outliers."
+      : null,
+    contradictionMessage,
+    evaluation.interpretation?.summary?.trim() || null,
+  ].filter((item): item is string => Boolean(item));
+
+  return {
+    available: true,
+    statusLabel,
+    expectedDirectionLabel: formatSignalEvaluationDirection(expectedDirection),
+    sampleQualityLabel: formatSignalEvaluationSampleQuality(sampleQuality),
+    sourceSignals: formatNullableInteger(sample.sourceSignals),
+    completedSignals: formatNullableInteger(sample.completedSignals),
+    selectedHorizonLabel: `${selectedHorizon} candles`,
+    medianReturn: formatSignalEvaluationReturn(medianReturn),
+    directionMatchRate: formatSignalEvaluationRate(directionMatchRate),
+    positiveRate: formatSignalEvaluationRate(positiveRate),
+    mainInterpretation:
+      caveats.length > 0 ? `${statusLabel}. ${caveats.join(" ")}` : statusLabel,
+    warnings: formatSignalEvaluationWarnings(sample.warnings),
+    contradictionMessage,
   };
 }
 
@@ -930,6 +1095,261 @@ export function toTitleCase(value: string) {
 
 function formatNullableInteger(value: number | null | undefined) {
   return typeof value === "number" && Number.isFinite(value) ? String(value) : "Not available";
+}
+
+function unavailableSignalEvaluationReadout(
+  message: string,
+): SignalEvaluationReadout {
+  return {
+    available: false,
+    statusLabel: "Unavailable",
+    expectedDirectionLabel: "Not available",
+    sampleQualityLabel: "No completed sample",
+    sourceSignals: "0",
+    completedSignals: "0",
+    selectedHorizonLabel: "Not available",
+    medianReturn: "-",
+    directionMatchRate: "-",
+    positiveRate: "-",
+    mainInterpretation: message,
+    warnings: [],
+    contradictionMessage: null,
+  };
+}
+
+function selectSignalEvaluationHorizon(
+  horizons: SignalEvaluationResponse["horizons"],
+) {
+  if (!horizons) {
+    return null;
+  }
+
+  for (const horizon of ["5", "3", "1"]) {
+    if (toFiniteNumber(horizons[horizon]?.sampleSize) > 0) {
+      return Number(horizon);
+    }
+  }
+
+  const firstCompleted = Object.entries(horizons)
+    .map(([key, stats]) => ({
+      horizon: Number(key),
+      sampleSize: toFiniteNumber(stats?.sampleSize),
+    }))
+    .filter((item) => Number.isFinite(item.horizon) && item.sampleSize > 0)
+    .sort((left, right) => left.horizon - right.horizon)[0];
+
+  return firstCompleted?.horizon ?? null;
+}
+
+function getSignalEvaluationStatus({
+  expectedDirection,
+  medianReturn,
+  directionMatchRate,
+}: {
+  expectedDirection: SignalEvaluationExpectedDirection;
+  medianReturn: number | null;
+  directionMatchRate: number | null;
+}) {
+  if (expectedDirection === "up" || expectedDirection === "cautious") {
+    if (
+      directionMatchRate !== null &&
+      medianReturn !== null &&
+      directionMatchRate >= 55 &&
+      medianReturn > 0
+    ) {
+      return "supportive_up" as const;
+    }
+
+    if (
+      (directionMatchRate !== null && directionMatchRate < 45) ||
+      (medianReturn !== null && medianReturn < 0)
+    ) {
+      return "not_supportive_up" as const;
+    }
+
+    return "mixed" as const;
+  }
+
+  if (expectedDirection === "down") {
+    if (
+      directionMatchRate !== null &&
+      medianReturn !== null &&
+      directionMatchRate >= 55 &&
+      medianReturn < 0
+    ) {
+      return "supportive_down" as const;
+    }
+
+    if (
+      (directionMatchRate !== null && directionMatchRate < 45) ||
+      (medianReturn !== null && medianReturn > 0)
+    ) {
+      return "not_supportive_down" as const;
+    }
+
+    return "mixed" as const;
+  }
+
+  return "mixed" as const;
+}
+
+function getSignalEvaluationStatusLabel(
+  status: ReturnType<typeof getSignalEvaluationStatus>,
+) {
+  switch (status) {
+    case "supportive_up":
+      return "Historically supportive";
+    case "not_supportive_up":
+      return "Historically not supportive";
+    case "supportive_down":
+      return "Risk follow-through observed";
+    case "not_supportive_down":
+      return "Risk follow-through not supported";
+    case "mixed":
+      return "Mixed historical follow-through";
+  }
+}
+
+function getSignalEvaluationContradiction({
+  status,
+  expectedDirection,
+  group,
+  signalLabel,
+}: {
+  status: ReturnType<typeof getSignalEvaluationStatus>;
+  expectedDirection: SignalEvaluationExpectedDirection;
+  group: SymbolResearchGroup;
+  signalLabel: string | null;
+}) {
+  const normalizedLabel = signalLabel?.toLowerCase() ?? "";
+  const isBullishLabel =
+    expectedDirection === "up" ||
+    group === "eligible" ||
+    normalizedLabel === "confirmed" ||
+    normalizedLabel === "trend";
+  const isRiskLabel =
+    group === "risk" ||
+    normalizedLabel === "breakdown_risk" ||
+    normalizedLabel === "distribution_risk";
+
+  if (isBullishLabel && status === "not_supportive_up") {
+    return "Historical evaluation does not support this bullish label in the current sample.";
+  }
+
+  if (isRiskLabel && status === "supportive_down") {
+    return "Historical evaluation supports caution for this risk label.";
+  }
+
+  return null;
+}
+
+function normalizeSignalEvaluationDirection(
+  value: string | null | undefined,
+): SignalEvaluationExpectedDirection {
+  if (
+    value === "up" ||
+    value === "down" ||
+    value === "none" ||
+    value === "cautious"
+  ) {
+    return value;
+  }
+
+  return "none";
+}
+
+function normalizeSignalEvaluationSampleQuality(
+  value: string | null | undefined,
+): SignalEvaluationSampleQuality {
+  if (
+    value === "none" ||
+    value === "very_limited" ||
+    value === "limited" ||
+    value === "moderate" ||
+    value === "strong"
+  ) {
+    return value;
+  }
+
+  return "none";
+}
+
+function formatSignalEvaluationDirection(
+  value: SignalEvaluationExpectedDirection,
+) {
+  switch (value) {
+    case "up":
+      return "Up";
+    case "down":
+      return "Down";
+    case "cautious":
+      return "Cautious / up";
+    case "none":
+      return "No directional edge";
+  }
+}
+
+function formatSignalEvaluationSampleQuality(
+  value: SignalEvaluationSampleQuality,
+) {
+  switch (value) {
+    case "none":
+      return "No completed sample";
+    case "very_limited":
+      return "Very limited";
+    case "limited":
+      return "Limited";
+    case "moderate":
+      return "Moderate";
+    case "strong":
+      return "Strong";
+  }
+}
+
+function formatSignalEvaluationReturn(value: number | null) {
+  if (value === null) {
+    return "-";
+  }
+
+  return `${value > 0 ? "+" : ""}${value.toFixed(2)}%`;
+}
+
+function formatSignalEvaluationRate(value: number | null) {
+  return value === null ? "-" : `${value.toFixed(1)}%`;
+}
+
+function formatSignalEvaluationWarnings(value: string[] | null | undefined) {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value
+    .map((warning) => {
+      switch (warning) {
+        case "missing_future_candles":
+          return "Some recent signals do not have enough future candles yet.";
+        case "insufficient_completed_horizons":
+          return "Longer horizons are still incomplete.";
+        case "limited_sample":
+        case "very_limited_sample":
+          return "Sample is limited.";
+        case "symbol_filtered_sample":
+          return "Symbol-filtered sample is limited.";
+        case "one_hour_history_still_accumulating":
+          return "1h production history is still accumulating.";
+        case "neutral_has_no_directional_edge":
+          return "Neutral samples have no directional edge.";
+        default:
+          return toTitleCase(warning);
+      }
+    })
+    .filter(Boolean);
+}
+
+function toFiniteNumber(value: unknown) {
+  const number = Number(value);
+
+  return Number.isFinite(number) ? number : 0;
 }
 
 function isSymbolResearchGroup(value: unknown): value is SymbolResearchGroup {

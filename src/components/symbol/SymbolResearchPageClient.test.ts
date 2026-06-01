@@ -16,6 +16,7 @@ vi.mock("next/navigation", () => ({
 }));
 
 import {
+  buildSignalEvaluationUrl,
   buildScannerReturnHref,
   buildSymbolResearchSwitchHref,
   buildSymbolResearchTimeframeHref,
@@ -81,6 +82,21 @@ describe("symbol research API URL builder", () => {
     expect(getTradeApiBaseUrl("https://api.auere.com///")).toBe(
       "https://api.auere.com",
     );
+  });
+
+  it("builds broad-market signal evaluation URLs without symbol filters", () => {
+    const url = buildSignalEvaluationUrl({
+      tradeApiBaseUrl: "https://api.auere.com/",
+      timeframe: "1h",
+      assetClass: "crypto",
+      group: "risk",
+      signalLabel: "breakdown_risk",
+    });
+
+    expect(url).toBe(
+      "https://api.auere.com/api/signal/evaluation?exchange=binance&market=spot&timeframe=1h&assetClass=crypto&group=risk&signalLabel=breakdown_risk",
+    );
+    expect(url).not.toContain("symbol=");
   });
 
   it("reports only the API origin for diagnostics", () => {
@@ -334,9 +350,62 @@ describe("SymbolResearchPageClient success state", () => {
     expect(html).toContain("Recent outcomes");
     expect(html).toContain("Most recent prior observations with available forward returns.");
   });
+
+  it("renders the Signal Evaluation card from the broad-market response", () => {
+    useQueryMock.mockImplementation(
+      ({ queryKey }: { queryKey: [string, unknown] }) => ({
+        isLoading: false,
+        isError: false,
+        isFetching: false,
+        refetch: vi.fn(),
+        data:
+          queryKey[0] === "signal-evaluation"
+            ? makeSignalEvaluationResponse()
+            : makeSuccessResponse({
+                latestSignal: makeSymbolResearchSignal({
+                  resultGroup: "risk",
+                  signalLabel: "breakdown_risk",
+                  actionBias: "avoid",
+                  primaryStructure: "trend_breakdown",
+                }),
+              }),
+      }),
+    );
+
+    const html = renderToStaticMarkup(
+      createElement(SymbolResearchPageClient, {
+        exchange: "binance",
+        symbol: "SEIUSDT",
+      }),
+    );
+    const signalEvaluationCall = useQueryMock.mock.calls.find(
+      ([options]) => options.queryKey[0] === "signal-evaluation",
+    );
+
+    expect(html).toContain("Signal Evaluation");
+    expect(html).toContain(
+      "How this type of scanner signal behaved across the broader market",
+    );
+    expect(html).toContain("Expected Direction");
+    expect(html).toContain("Risk follow-through observed");
+    expect(html).toContain(
+      "Historical evaluation supports caution for this risk label.",
+    );
+    expect(signalEvaluationCall?.[0].queryKey[1]).toMatchObject({
+      timeframe: "4h",
+      assetClass: "crypto",
+      group: "risk",
+      signalLabel: "breakdown_risk",
+    });
+    expect(signalEvaluationCall?.[0].queryKey[1]).not.toHaveProperty("symbol");
+  });
 });
 
-function makeSuccessResponse() {
+function makeSuccessResponse({
+  latestSignal = makeSymbolResearchSignal(),
+}: {
+  latestSignal?: ReturnType<typeof makeSymbolResearchSignal>;
+} = {}) {
   return {
     ok: true,
     timeframe: "4h",
@@ -359,7 +428,7 @@ function makeSuccessResponse() {
         signalsCreated: 409,
         finishedAt: "2026-06-01T00:01:00.000Z",
       },
-      signal: makeSymbolResearchSignal(),
+      signal: latestSignal,
     },
     currentSelection: {
       selectedRunId: "full-run",
@@ -460,7 +529,9 @@ function makeSuccessResponse() {
   };
 }
 
-function makeSymbolResearchSignal() {
+function makeSymbolResearchSignal(
+  overrides: Partial<Record<string, unknown>> = {},
+) {
   return {
     id: "signal-latest",
     scanRunId: "full-run",
@@ -503,5 +574,76 @@ function makeSymbolResearchSignal() {
     sourceRunIsLikelyFullUniverse: true,
     isSelectedCurrentRun: true,
     isNewerThanSelectedCurrentRun: false,
+    ...overrides,
+  };
+}
+
+function makeSignalEvaluationResponse() {
+  return {
+    ok: true,
+    filters: {
+      assetClass: "crypto",
+      exchange: "binance",
+      market: "spot",
+      timeframe: "4h",
+      symbol: null,
+      group: "risk",
+      signalLabel: "breakdown_risk",
+      primaryStructure: null,
+      setupType: null,
+      horizons: [1, 3, 5, 10],
+    },
+    sample: {
+      sourceSignals: 128,
+      completedSignals: 120,
+      skippedSignals: 8,
+      sampleQuality: "strong",
+      warnings: [],
+    },
+    expectedDirection: "down",
+    horizons: {
+      "1": makeSignalEvaluationHorizon({
+        sampleSize: 128,
+        medianReturnPct: -0.2,
+        directionMatchRatePct: 58,
+      }),
+      "3": makeSignalEvaluationHorizon({
+        sampleSize: 124,
+        medianReturnPct: -0.6,
+        directionMatchRatePct: 61,
+      }),
+      "5": makeSignalEvaluationHorizon({
+        sampleSize: 120,
+        avgReturnPct: -1.2,
+        medianReturnPct: -0.9,
+        positiveRatePct: 36,
+        directionMatchRatePct: 64,
+      }),
+      "10": makeSignalEvaluationHorizon({
+        sampleSize: 100,
+        medianReturnPct: -1.1,
+        directionMatchRatePct: 62,
+      }),
+    },
+    interpretation: {
+      summary: "Risk label historically leaned lower across the broader market.",
+      confidence: "strong",
+      researchOnly: true,
+    },
+  };
+}
+
+function makeSignalEvaluationHorizon(
+  overrides: Partial<Record<string, number | null>> = {},
+) {
+  return {
+    sampleSize: 120,
+    avgReturnPct: -0.4,
+    medianReturnPct: -0.3,
+    positiveRatePct: 42,
+    directionMatchRatePct: 58,
+    bestReturnPct: 8,
+    worstReturnPct: -12,
+    ...overrides,
   };
 }

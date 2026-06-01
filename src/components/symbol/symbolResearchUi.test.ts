@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  buildSignalEvaluationReadout,
   buildResearchDecisionSummary,
   buildSymbolResearchDiagnostics,
   buildSymbolResearchSummary,
@@ -608,13 +609,13 @@ describe("symbol research UI helpers", () => {
   });
 
   it("prefers the selected current signal for the requested timeframe snapshot", () => {
-    const latestSignal = {
+    const latestSignal: TestTimeframeSnapshot = {
       id: "selected-current",
       timeframe: "4h",
       isSelectedCurrentRun: true,
       sourceRunIsLikelyFullUniverse: true,
     };
-    const snapshots = getSymbolResearchTimeframeSnapshots({
+    const snapshots = getSymbolResearchTimeframeSnapshots<TestTimeframeSnapshot>({
       requestedTimeframe: "4h",
       latestSignal,
       timeframes: [
@@ -632,7 +633,7 @@ describe("symbol research UI helpers", () => {
   });
 
   it("uses raw timeframe snapshots safely when latest signal is missing", () => {
-    const snapshots = getSymbolResearchTimeframeSnapshots({
+    const snapshots = getSymbolResearchTimeframeSnapshots<TestTimeframeSnapshot>({
       requestedTimeframe: "4h",
       latestSignal: null,
       timeframes: [{ id: "raw-4h", timeframe: "4h" }],
@@ -642,8 +643,8 @@ describe("symbol research UI helpers", () => {
   });
 
   it("keeps other timeframe rows unchanged when replacing requested timeframe", () => {
-    const daily = { id: "daily", timeframe: "1d", rankScore: 50 };
-    const snapshots = getSymbolResearchTimeframeSnapshots({
+    const daily: TestTimeframeSnapshot = { id: "daily", timeframe: "1d", rankScore: 50 };
+    const snapshots = getSymbolResearchTimeframeSnapshots<TestTimeframeSnapshot>({
       requestedTimeframe: "4h",
       latestSignal: {
         id: "selected-current",
@@ -665,11 +666,250 @@ describe("symbol research UI helpers", () => {
       daily,
     ]);
   });
+
+  it("reads risk breakdown evaluations as supportive downside context", () => {
+    const readout = buildSignalEvaluationReadout(
+      makeSignalEvaluation({
+        group: "risk",
+        signalLabel: "breakdown_risk",
+        expectedDirection: "down",
+        sampleQuality: "strong",
+        horizon5: {
+          sampleSize: 120,
+          avgReturnPct: -1.2,
+          medianReturnPct: -0.9,
+          positiveRatePct: 36,
+          directionMatchRatePct: 64,
+        },
+      }),
+      { currentGroup: "risk", currentSignalLabel: "breakdown_risk" },
+    );
+
+    expect(readout.statusLabel).toBe("Risk follow-through observed");
+    expect(readout.selectedHorizonLabel).toBe("5 candles");
+    expect(readout.directionMatchRate).toBe("64.0%");
+    expect(readout.medianReturn).toBe("-0.90%");
+    expect(readout.mainInterpretation).toContain(
+      "Historical evaluation supports caution for this risk label.",
+    );
+  });
+
+  it("flags eligible confirmed evaluations that do not support the bullish label", () => {
+    const readout = buildSignalEvaluationReadout(
+      makeSignalEvaluation({
+        group: "eligible",
+        signalLabel: "confirmed",
+        expectedDirection: "up",
+        sampleQuality: "strong",
+        horizon5: {
+          sampleSize: 130,
+          avgReturnPct: -2.1,
+          medianReturnPct: -3.7,
+          positiveRatePct: 12,
+          directionMatchRatePct: 12,
+        },
+      }),
+      { currentGroup: "eligible", currentSignalLabel: "confirmed" },
+    );
+
+    expect(readout.statusLabel).toBe("Historically not supportive");
+    expect(readout.mainInterpretation).toContain(
+      "Historical evaluation does not support this bullish label in the current sample.",
+    );
+  });
+
+  it("calls out overheated average skew when median leans lower", () => {
+    const readout = buildSignalEvaluationReadout(
+      makeSignalEvaluation({
+        group: "overheated",
+        signalLabel: "overheated",
+        expectedDirection: "down",
+        sampleQuality: "moderate",
+        horizon5: {
+          sampleSize: 44,
+          avgReturnPct: 4.8,
+          medianReturnPct: -1.3,
+          positiveRatePct: 42,
+          directionMatchRatePct: 58,
+        },
+      }),
+      { currentGroup: "overheated", currentSignalLabel: "overheated" },
+    );
+
+    expect(readout.statusLabel).toBe("Risk follow-through observed");
+    expect(readout.mainInterpretation).toContain(
+      "Median outcome leaned lower, while average was affected by large outliers.",
+    );
+  });
+
+  it("uses shorter 1h horizons when 5 and 10 candle samples are incomplete", () => {
+    const readout = buildSignalEvaluationReadout(
+      makeSignalEvaluation({
+        timeframe: "1h",
+        group: "risk",
+        signalLabel: "breakdown_risk",
+        expectedDirection: "down",
+        sampleQuality: "limited",
+        warnings: [
+          "insufficient_completed_horizons",
+          "missing_future_candles",
+          "one_hour_history_still_accumulating",
+        ],
+        horizon3: {
+          sampleSize: 24,
+          avgReturnPct: -0.4,
+          medianReturnPct: -0.6,
+          positiveRatePct: 38,
+          directionMatchRatePct: 62,
+        },
+        horizon5: {
+          sampleSize: 0,
+          avgReturnPct: null,
+          medianReturnPct: null,
+          positiveRatePct: null,
+          directionMatchRatePct: null,
+        },
+      }),
+      { currentGroup: "risk", currentSignalLabel: "breakdown_risk", timeframe: "1h" },
+    );
+
+    expect(readout.selectedHorizonLabel).toBe("3 candles");
+    expect(readout.sampleQualityLabel).toBe("Limited");
+    expect(readout.warnings).toEqual([
+      "Longer horizons are still incomplete.",
+      "Some recent signals do not have enough future candles yet.",
+      "1h production history is still accumulating.",
+    ]);
+  });
+
+  it("returns unavailable and limited-sample readouts conservatively", () => {
+    const unavailable = buildSignalEvaluationReadout({ ok: false });
+    const limited = buildSignalEvaluationReadout(
+      makeSignalEvaluation({
+        sampleQuality: "very_limited",
+        completedSignals: 3,
+        warnings: ["very_limited_sample"],
+        horizon5: {
+          sampleSize: 3,
+          avgReturnPct: 0.2,
+          medianReturnPct: 0.1,
+          positiveRatePct: 66.7,
+          directionMatchRatePct: 66.7,
+        },
+      }),
+    );
+
+    expect(unavailable.available).toBe(false);
+    expect(unavailable.mainInterpretation).toBe(
+      "Signal evaluation is currently unavailable.",
+    );
+    expect(limited.sampleQualityLabel).toBe("Very limited");
+    expect(limited.mainInterpretation).toContain("Sample is limited");
+    expect(JSON.stringify(limited)).not.toMatch(
+      /\b(buy|sell|entry|trade now|profitable|accurate signal)\b/i,
+    );
+  });
 });
 
 function makeDecisionSignal(timeframe: string, resultGroup: string) {
   return {
     timeframe,
     resultGroup,
+  };
+}
+
+type TestTimeframeSnapshot = {
+  id: string;
+  timeframe: string;
+  rankScore?: number;
+  isSelectedCurrentRun?: boolean;
+  isNewerThanSelectedCurrentRun?: boolean;
+  sourceRunIsLikelyFullUniverse?: boolean;
+};
+
+function makeSignalEvaluation({
+  timeframe = "4h",
+  group = "eligible",
+  signalLabel = "confirmed",
+  expectedDirection = "up",
+  sampleQuality = "strong",
+  sourceSignals = 150,
+  completedSignals = 140,
+  warnings = [],
+  horizon1 = {
+    sampleSize: 140,
+    avgReturnPct: 0.2,
+    medianReturnPct: 0.1,
+    positiveRatePct: 52,
+    directionMatchRatePct: 52,
+  },
+  horizon3 = {
+    sampleSize: 138,
+    avgReturnPct: 0.1,
+    medianReturnPct: 0,
+    positiveRatePct: 50,
+    directionMatchRatePct: 50,
+  },
+  horizon5 = {
+    sampleSize: 136,
+    avgReturnPct: 0.3,
+    medianReturnPct: 0.2,
+    positiveRatePct: 55,
+    directionMatchRatePct: 55,
+  },
+  horizon10 = {
+    sampleSize: 120,
+    avgReturnPct: 0.4,
+    medianReturnPct: 0.2,
+    positiveRatePct: 56,
+    directionMatchRatePct: 56,
+  },
+}: {
+  timeframe?: string;
+  group?: string;
+  signalLabel?: string;
+  expectedDirection?: string;
+  sampleQuality?: string;
+  sourceSignals?: number;
+  completedSignals?: number;
+  warnings?: string[];
+  horizon1?: Record<string, number | null>;
+  horizon3?: Record<string, number | null>;
+  horizon5?: Record<string, number | null>;
+  horizon10?: Record<string, number | null>;
+}) {
+  return {
+    ok: true,
+    filters: {
+      assetClass: "crypto",
+      exchange: "binance",
+      market: "spot",
+      timeframe,
+      symbol: null,
+      group,
+      signalLabel,
+      primaryStructure: null,
+      setupType: null,
+      horizons: [1, 3, 5, 10],
+    },
+    sample: {
+      sourceSignals,
+      completedSignals,
+      skippedSignals: sourceSignals - completedSignals,
+      sampleQuality,
+      warnings,
+    },
+    expectedDirection,
+    horizons: {
+      "1": horizon1,
+      "3": horizon3,
+      "5": horizon5,
+      "10": horizon10,
+    },
+    interpretation: {
+      summary: "API interpretation summary.",
+      confidence: "strong",
+      researchOnly: true,
+    },
   };
 }
