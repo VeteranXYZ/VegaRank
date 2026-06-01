@@ -28,10 +28,10 @@ const actionLabels: Record<string, string> = {
 
 type CandleSummaryInput = {
   rows?: Array<{
-    openTime: number;
-    close: number;
-    high: number;
-    low: number;
+    openTime?: number | string | null;
+    close?: number | string | null;
+    high?: number | string | null;
+    low?: number | string | null;
   }>;
 };
 
@@ -61,12 +61,30 @@ type ResearchSummarySignalInput = RunContextInput & {
   invalidation?: unknown;
 };
 
+type ResearchDiagnosticsInput = {
+  selectedTimeframe: string;
+  currentSelection?: {
+    selectedRunFinishedAt?: string | null;
+    selectedSignalScanTime?: string | null;
+    isLikelyFullUniverse?: boolean | null;
+    fallbackUsed?: boolean | null;
+  } | null;
+  latestSignal?: RunContextInput | null;
+  history?: RunContextInput[] | null;
+};
+
 export type SymbolResearchSummary = {
   stance: string;
   why: string[];
   nextConfirmation: string[];
   invalidation: string[];
   runBasis: string;
+};
+
+export type SymbolResearchDiagnostics = {
+  rows: Array<{ label: string; value: string }>;
+  notice: string;
+  hasWarning: boolean;
 };
 
 export function formatSymbolResearchScore(
@@ -178,12 +196,18 @@ export function getSymbolResearchScoreRows(scores: {
 
 export function getSymbolResearchCandleSummary(candles: CandleSummaryInput) {
   const rows = candles.rows ?? [];
-  const latest = rows[rows.length - 1] ?? null;
-  const high = rows.length > 0 ? Math.max(...rows.map((row) => row.high)) : null;
-  const low = rows.length > 0 ? Math.min(...rows.map((row) => row.low)) : null;
+  const latestClose = toNullableFiniteNumber(rows[rows.length - 1]?.close);
+  const highs = rows
+    .map((row) => toNullableFiniteNumber(row.high))
+    .filter((value): value is number => value !== null);
+  const lows = rows
+    .map((row) => toNullableFiniteNumber(row.low))
+    .filter((value): value is number => value !== null);
+  const high = highs.length > 0 ? Math.max(...highs) : null;
+  const low = lows.length > 0 ? Math.min(...lows) : null;
 
   return {
-    latestClose: latest?.close ?? null,
+    latestClose,
     recentHigh: Number.isFinite(high) ? high : null,
     recentLow: Number.isFinite(low) ? low : null,
   };
@@ -284,6 +308,48 @@ export function buildSymbolResearchSummary(
       "Reassess if risk flags increase or structure weakens.",
     ),
     runBasis: `Based on ${lowerFirst(formatSymbolResearchRunContext(signal))}`,
+  };
+}
+
+export function buildSymbolResearchDiagnostics({
+  selectedTimeframe,
+  currentSelection,
+  latestSignal,
+  history,
+}: ResearchDiagnosticsInput): SymbolResearchDiagnostics {
+  const hasNewerSecondary = hasNewerSymbolResearchHistoryRows(history);
+  const hasHistory = (history?.length ?? 0) > 0;
+  const hasLatestSignal = Boolean(latestSignal);
+  const notice = !hasLatestSignal && hasHistory
+    ? "No selected current signal found; showing history only."
+    : hasNewerSecondary
+      ? "Newer secondary runs exist. Current classification uses selected full-universe run."
+      : !hasHistory
+        ? "No recent signal history available."
+        : "Current classification uses the selected scanner run.";
+
+  return {
+    rows: [
+      { label: "Selected Timeframe", value: selectedTimeframe || "Not available" },
+      {
+        label: "Full-Universe Run",
+        value: currentSelection?.isLikelyFullUniverse ? "Yes" : "No",
+      },
+      {
+        label: "Run Finished",
+        value: formatSymbolResearchDateTime(currentSelection?.selectedRunFinishedAt),
+      },
+      {
+        label: "Signal Scan Time",
+        value: formatSymbolResearchDateTime(currentSelection?.selectedSignalScanTime),
+      },
+      {
+        label: "Fallback Used",
+        value: currentSelection?.fallbackUsed ? "Yes" : "No",
+      },
+    ],
+    notice,
+    hasWarning: hasNewerSecondary || (!hasLatestSignal && hasHistory),
   };
 }
 
@@ -423,4 +489,10 @@ function withResearchFallback(values: string[], fallback: string) {
 
 function lowerFirst(value: string) {
   return value ? value.charAt(0).toLowerCase() + value.slice(1) : value;
+}
+
+function toNullableFiniteNumber(value: unknown) {
+  const number = Number(value);
+
+  return Number.isFinite(number) ? number : null;
 }

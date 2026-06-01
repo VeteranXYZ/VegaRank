@@ -100,6 +100,64 @@ describe("symbol timeline UI helpers", () => {
     expect(item?.isSecondaryRun).toBe(true);
     expect(item?.timelineTone).toBe("secondary");
   });
+
+  it("deduplicates obvious duplicate rows during history normalization", () => {
+    const normalized = normalizeSignalHistory([
+      makeHistoryRow("duplicate-a", "2026-05-31T20:00:00.000Z", "eligible", {
+        scanRunId: "run-1",
+        symbol: "SEIUSDT",
+        timeframe: "4h",
+        signalLabel: "confirmed",
+        rankScore: 82,
+      }),
+      makeHistoryRow("duplicate-b", "2026-05-31T20:00:00.000Z", "eligible", {
+        scanRunId: "run-1",
+        symbol: "SEIUSDT",
+        timeframe: "4h",
+        signalLabel: "confirmed",
+        rankScore: 82,
+      }),
+    ]);
+
+    expect(normalized.map((item) => item.key)).toEqual(["duplicate-a"]);
+  });
+
+  it("keeps newest non-preferred row visible and reports hidden count after dedupe", () => {
+    const normalized = normalizeSignalHistory([
+      makeHistoryRow("newer-limited", "2026-05-31T20:00:00.000Z", "eligible", {
+        scanRunId: "limited-run",
+        symbol: "SEIUSDT",
+        timeframe: "4h",
+        signalLabel: "confirmed",
+        rankScore: 90,
+        isNewerThanSelectedCurrentRun: true,
+        sourceRunIsLikelyFullUniverse: false,
+      }),
+      makeHistoryRow("duplicate-limited", "2026-05-31T20:00:00.000Z", "eligible", {
+        scanRunId: "limited-run",
+        symbol: "SEIUSDT",
+        timeframe: "4h",
+        signalLabel: "confirmed",
+        rankScore: 90,
+        isNewerThanSelectedCurrentRun: true,
+        sourceRunIsLikelyFullUniverse: false,
+      }),
+      makeHistoryRow("selected", "2026-05-31T12:00:00.000Z", "risk", {
+        isSelectedCurrentRun: true,
+        sourceRunIsLikelyFullUniverse: true,
+      }),
+      makeHistoryRow("old", "2026-05-30T12:00:00.000Z", "neutral"),
+    ]);
+
+    const compact = getCompactSignalHistory(normalized, 2);
+
+    expect(compact.items.map((item) => item.key)).toEqual([
+      "newer-limited",
+      "selected",
+    ]);
+    expect(compact.totalCount).toBe(3);
+    expect(compact.hiddenCount).toBe(1);
+  });
 });
 
 function makeHistoryRow(

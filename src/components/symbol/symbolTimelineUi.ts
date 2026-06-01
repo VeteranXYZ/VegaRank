@@ -2,7 +2,9 @@ import { formatSymbolResearchRunContext } from "./symbolResearchUi";
 
 export type RawSymbolTimelineSignal = {
   id?: string | null;
+  scanRunId?: string | null;
   symbol?: string | null;
+  timeframe?: string | null;
   scanTime?: string | null;
   candleOpenTime?: string | null;
   resultGroup?: string | null;
@@ -87,7 +89,7 @@ export function normalizeSignalHistory(
     return [];
   }
 
-  return history
+  return dedupeSignalHistory(history)
     .map((item, index) => {
       const group = normalizeGroup(item.resultGroup);
       const scanTimeMs = parseDateMs(item.scanTime);
@@ -150,6 +152,14 @@ export function getCompactSignalHistory(
       selectedIndexes.add(index);
     }
   });
+
+  const firstSecondaryIndex = items.findIndex(
+    (item) => item.isNewerThanSelectedCurrentRun && item.isSecondaryRun,
+  );
+
+  if (firstSecondaryIndex >= 0) {
+    selectedIndexes.add(firstSecondaryIndex);
+  }
 
   for (let index = 1; index < items.length && selectedIndexes.size < limit; index += 1) {
     if (items[index]?.group !== items[index - 1]?.group) {
@@ -254,6 +264,33 @@ function getTimelineActionText(item: RawSymbolTimelineSignal) {
   }
 
   return "Review only";
+}
+
+function dedupeSignalHistory(history: RawSymbolTimelineSignal[]) {
+  const seen = new Set<string>();
+  const rows: RawSymbolTimelineSignal[] = [];
+
+  for (const item of history) {
+    const key = getSignalHistoryDedupeKey(item);
+
+    if (!seen.has(key)) {
+      seen.add(key);
+      rows.push(item);
+    }
+  }
+
+  return rows;
+}
+
+function getSignalHistoryDedupeKey(item: RawSymbolTimelineSignal) {
+  return [
+    item.scanRunId ?? "",
+    item.symbol ?? "",
+    item.timeframe ?? "",
+    item.scanTime ?? "",
+    item.signalLabel ?? "",
+    item.rankScore ?? "",
+  ].join("|");
 }
 
 function isSecondaryTimelineRun(item: RawSymbolTimelineSignal) {

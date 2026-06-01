@@ -1,9 +1,20 @@
 export type RawSymbolChartCandle = {
   openTime?: number | string | null;
+  closeTime?: number | string | null;
   open?: number | string | null;
   high?: number | string | null;
   low?: number | string | null;
   close?: number | string | null;
+  volume?: number | string | null;
+  quoteVolume?: number | string | null;
+};
+
+export type SymbolResearchCandles = {
+  count: number;
+  timeframe: string;
+  firstOpenTime: string | null;
+  lastOpenTime: string | null;
+  rows: RawSymbolChartCandle[];
 };
 
 export type NormalizedSymbolChartCandle = {
@@ -18,6 +29,47 @@ export type SymbolChartLinePoint = {
   time: number;
   value: number;
 };
+
+const emptySymbolResearchCandles: SymbolResearchCandles = {
+  count: 0,
+  timeframe: "",
+  firstOpenTime: null,
+  lastOpenTime: null,
+  rows: [],
+};
+
+export function normalizeSymbolResearchCandles(
+  input: unknown,
+): SymbolResearchCandles {
+  if (Array.isArray(input)) {
+    return {
+      ...emptySymbolResearchCandles,
+      count: input.length,
+      rows: input.filter(isCandleLike),
+    };
+  }
+
+  if (!isRecord(input)) {
+    return { ...emptySymbolResearchCandles };
+  }
+
+  const rows = Array.isArray(input.rows) ? input.rows.filter(isCandleLike) : [];
+  const count = toFiniteNumber(input.count);
+
+  return {
+    count: count === null ? rows.length : count,
+    timeframe: typeof input.timeframe === "string" ? input.timeframe : "",
+    firstOpenTime:
+      typeof input.firstOpenTime === "string" && input.firstOpenTime
+        ? input.firstOpenTime
+        : null,
+    lastOpenTime:
+      typeof input.lastOpenTime === "string" && input.lastOpenTime
+        ? input.lastOpenTime
+        : null,
+    rows,
+  };
+}
 
 export function normalizeCandlesForChart(
   candles: RawSymbolChartCandle[] | null | undefined,
@@ -137,8 +189,16 @@ function normalizeTimestampToSeconds(value: string | number | null | undefined) 
   return Math.floor(milliseconds / 1000);
 }
 
-function toFiniteNumber(value: number | string | null | undefined) {
+function toFiniteNumber(value: unknown) {
   const number = Number(value);
 
   return Number.isFinite(number) ? number : null;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+function isCandleLike(value: unknown): value is RawSymbolChartCandle {
+  return isRecord(value);
 }

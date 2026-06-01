@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  buildSymbolResearchDiagnostics,
   buildSymbolResearchSummary,
   formatSymbolResearchAction,
   formatSymbolResearchDateTime,
@@ -170,6 +171,29 @@ describe("symbol research UI helpers", () => {
     );
   });
 
+  it("builds data source diagnostics for selected runs and newer secondary rows", () => {
+    const diagnostics = buildSymbolResearchDiagnostics({
+      selectedTimeframe: "4h",
+      currentSelection: {
+        isLikelyFullUniverse: true,
+        fallbackUsed: false,
+        selectedRunFinishedAt: "2026-05-31T01:27:00.000Z",
+        selectedSignalScanTime: "2026-05-31T01:27:30.000Z",
+      },
+      latestSignal: { isSelectedCurrentRun: true },
+      history: [{ isNewerThanSelectedCurrentRun: true }],
+    });
+
+    expect(diagnostics.rows.slice(0, 2)).toEqual([
+      { label: "Selected Timeframe", value: "4h" },
+      { label: "Full-Universe Run", value: "Yes" },
+    ]);
+    expect(diagnostics.notice).toBe(
+      "Newer secondary runs exist. Current classification uses selected full-universe run.",
+    );
+    expect(diagnostics.hasWarning).toBe(true);
+  });
+
   it("avoids multi-timeframe wording when only one snapshot exists", () => {
     expect(getTimeframeSnapshotTitle(0)).toBe("Timeframe Snapshot");
     expect(getTimeframeSnapshotTitle(1)).toBe("Timeframe Snapshot");
@@ -204,5 +228,40 @@ describe("symbol research UI helpers", () => {
     });
 
     expect(snapshots.map((item) => item.id)).toEqual(["selected-current", "daily"]);
+  });
+
+  it("uses raw timeframe snapshots safely when latest signal is missing", () => {
+    const snapshots = getSymbolResearchTimeframeSnapshots({
+      requestedTimeframe: "4h",
+      latestSignal: null,
+      timeframes: [{ id: "raw-4h", timeframe: "4h" }],
+    });
+
+    expect(snapshots.map((item) => item.id)).toEqual(["raw-4h"]);
+  });
+
+  it("keeps other timeframe rows unchanged when replacing requested timeframe", () => {
+    const daily = { id: "daily", timeframe: "1d", rankScore: 50 };
+    const snapshots = getSymbolResearchTimeframeSnapshots({
+      requestedTimeframe: "4h",
+      latestSignal: {
+        id: "selected-current",
+        timeframe: "4h",
+        isSelectedCurrentRun: true,
+      },
+      timeframes: [
+        {
+          id: "newer-small-4h",
+          timeframe: "4h",
+          isNewerThanSelectedCurrentRun: true,
+        },
+        daily,
+      ],
+    });
+
+    expect(snapshots).toEqual([
+      { id: "selected-current", timeframe: "4h", isSelectedCurrentRun: true },
+      daily,
+    ]);
   });
 });

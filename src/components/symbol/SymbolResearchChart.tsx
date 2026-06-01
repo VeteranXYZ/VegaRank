@@ -139,6 +139,12 @@ export function SymbolResearchChart({
   }, [chartData]);
 
   const hasCandles = chartData.candles.length > 0;
+  const emptyMessage =
+    candles.length > 0
+      ? "No valid candles available for the research chart."
+      : candleCount > 0
+        ? "Candle metadata exists, but no candle rows were returned."
+        : "No candle rows available for this symbol/timeframe yet.";
 
   return (
     <section className="mt-4 border border-[var(--border)] bg-[var(--panel)] px-4 py-4">
@@ -178,7 +184,7 @@ export function SymbolResearchChart({
         />
       ) : (
         <div className="flex h-[220px] items-center justify-center border border-[var(--border)] bg-[#080d12] px-4 text-center text-sm text-[var(--muted)]">
-          No valid candles available for the research chart.
+          {emptyMessage}
         </div>
       )}
     </section>

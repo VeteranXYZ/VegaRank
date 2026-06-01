@@ -6,6 +6,11 @@ import { useMemo, type ReactNode } from "react";
 import { SymbolResearchChart } from "./SymbolResearchChart";
 import { SymbolSignalTimeline } from "./SymbolSignalTimeline";
 import {
+  normalizeSymbolResearchCandles,
+  type SymbolResearchCandles,
+} from "./symbolChartUi";
+import {
+  buildSymbolResearchDiagnostics,
   buildSymbolResearchSummary,
   formatSymbolResearchAction,
   formatSymbolResearchDateTime,
@@ -108,17 +113,6 @@ type SymbolResearchCurrentSelection = {
   fallbackUsed: boolean;
 };
 
-type SymbolResearchCandle = {
-  openTime: number;
-  closeTime: number;
-  open: number;
-  high: number;
-  low: number;
-  close: number;
-  volume: number;
-  quoteVolume: number | null;
-};
-
 type SymbolResearchResponse = {
   ok: true;
   timeframe?: string;
@@ -159,13 +153,14 @@ type SymbolResearchResponse = {
   };
   history: SymbolResearchSignal[];
   timeframes: SymbolResearchSignal[];
-  candles: {
-    timeframe: string;
-    count: number;
-    firstOpenTime: string | null;
-    lastOpenTime: string | null;
-    rows: SymbolResearchCandle[];
-  };
+  candles: SymbolResearchCandles;
+};
+
+type SymbolResearchApiErrorBody = {
+  ok?: false;
+  error?: string | { code?: string; message?: string };
+  code?: string;
+  message?: string;
 };
 
 const defaultHistoryLimit = 30;
@@ -180,6 +175,7 @@ export function SymbolResearchPageClient({
   const market = searchParams.get("market")?.trim() || "spot";
   const timeframe = searchParams.get("timeframe")?.trim() || defaultTimeframe;
   const normalizedSymbol = symbol.toUpperCase();
+  const apiOrigin = getSymbolResearchApiOriginLabel();
   const queryParams = useMemo(
     () => ({
       exchange,
@@ -200,7 +196,11 @@ export function SymbolResearchPageClient({
   if (query.isLoading) {
     return (
       <main className="mx-auto w-full max-w-7xl px-4 py-6 text-[var(--foreground)]">
-        <ResearchState title={normalizedSymbol} message="Loading research view..." />
+        <ResearchState
+          title={normalizedSymbol}
+          message="Loading research view..."
+          apiOrigin={apiOrigin}
+        />
       </main>
     );
   }
@@ -211,6 +211,7 @@ export function SymbolResearchPageClient({
         <ResearchState
           title={normalizedSymbol}
           message={query.error.message || "Unable to load symbol research."}
+          apiOrigin={apiOrigin}
         />
       </main>
     );
@@ -221,13 +222,18 @@ export function SymbolResearchPageClient({
   if (!data) {
     return (
       <main className="mx-auto w-full max-w-7xl px-4 py-6 text-[var(--foreground)]">
-        <ResearchState title={normalizedSymbol} message="No research data available." />
+        <ResearchState
+          title={normalizedSymbol}
+          message="No research data available."
+          apiOrigin={apiOrigin}
+        />
       </main>
     );
   }
 
   const latestSignal = data.latest.signal;
-  const candleSummary = getSymbolResearchCandleSummary(data.candles);
+  const candles = normalizeSymbolResearchCandles(data.candles);
+  const candleSummary = getSymbolResearchCandleSummary(candles);
   const riskTypes = formatSymbolResearchList(latestSignal.detectedRiskTypes);
   const secondaryStructures = formatSymbolResearchList(
     latestSignal.secondaryStructures,
@@ -244,6 +250,13 @@ export function SymbolResearchPageClient({
     ...data.timeframes,
   ]);
   const researchSummary = buildSymbolResearchSummary(latestSignal);
+  const diagnostics = buildSymbolResearchDiagnostics({
+    selectedTimeframe: data.timeframe ?? timeframe,
+    currentSelection: data.currentSelection,
+    latestSignal,
+    history: data.history,
+  });
+  const candleRowsNotice = getCandleRowsNotice(candles);
 
   return (
     <main className="mx-auto w-full max-w-7xl px-4 py-6 text-[var(--foreground)]">
@@ -344,11 +357,29 @@ export function SymbolResearchPageClient({
         </div>
       </Panel>
 
+      <Panel title="Data Source" className="mt-4">
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+          {diagnostics.rows.map((row) => (
+            <Fact key={row.label} label={row.label} value={row.value} />
+          ))}
+        </div>
+        <p
+          className={`mt-3 border px-3 py-2 text-xs ${
+            diagnostics.hasWarning
+              ? "border-amber-500/30 bg-amber-500/10 text-amber-100"
+              : "border-[var(--border)] bg-[#080d12] text-[var(--muted)]"
+          }`}
+        >
+          {diagnostics.notice}
+        </p>
+        <p className="mt-2 text-xs text-[var(--muted)]">API origin: {apiOrigin}</p>
+      </Panel>
+
       <SymbolResearchChart
         symbol={data.symbol.symbol}
         timeframe={timeframe}
-        candles={data.candles.rows}
-        candleCount={data.candles.count}
+        candles={candles.rows}
+        candleCount={candles.count}
         latestSignal={{
           candleOpenTime: latestSignal.candleOpenTime,
           resultGroup: latestSignal.resultGroup,
@@ -381,15 +412,18 @@ export function SymbolResearchPageClient({
         </Panel>
 
         <Panel title="Recent Candles Summary">
+          {candleRowsNotice ? (
+            <p className="mb-3 text-xs text-[var(--muted)]">{candleRowsNotice}</p>
+          ) : null}
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            <Fact label="Candles" value={String(data.candles.count)} />
+            <Fact label="Candles" value={String(candles.count)} />
             <Fact
               label="First Open"
-              value={formatSymbolResearchDateTime(data.candles.firstOpenTime)}
+              value={formatSymbolResearchDateTime(candles.firstOpenTime)}
             />
             <Fact
               label="Last Open"
-              value={formatSymbolResearchDateTime(data.candles.lastOpenTime)}
+              value={formatSymbolResearchDateTime(candles.lastOpenTime)}
             />
             <Fact
               label="Latest Close"
@@ -434,18 +468,35 @@ async function fetchSymbolResearch({
   signal,
   ...params
 }: BuildSymbolResearchUrlParams & { signal?: AbortSignal }) {
-  const response = await fetch(buildSymbolResearchUrl(params), { signal });
+  const url = buildSymbolResearchUrl(params);
+  let response: Response;
 
-  if (!response.ok) {
+  try {
+    response = await fetch(url, { signal });
+  } catch (error) {
+    if (error instanceof DOMException && error.name === "AbortError") {
+      throw error;
+    }
+
     throw new Error(
-      await getSymbolResearchErrorMessage(
-        response,
-        "Unable to load symbol research.",
-      ),
+      "Failed to reach trade API. Check NEXT_PUBLIC_TRADE_API_BASE_URL and CORS.",
     );
   }
 
-  return (await response.json()) as SymbolResearchResponse;
+  const body = (await response.json().catch(() => null)) as
+    | SymbolResearchResponse
+    | SymbolResearchApiErrorBody
+    | null;
+
+  if (!response.ok) {
+    throw new Error(formatSymbolResearchApiError(response.status, body));
+  }
+
+  if (isSymbolResearchApiErrorBody(body)) {
+    throw new Error(formatSymbolResearchApiError(null, body));
+  }
+
+  return body as SymbolResearchResponse;
 }
 
 export function buildSymbolResearchUrl({
@@ -479,11 +530,38 @@ export function getSymbolResearchApiBaseUrl(
   return value?.trim().replace(/\/+$/, "") ?? "";
 }
 
-function ResearchState({ title, message }: { title: string; message: string }) {
+export function getSymbolResearchApiOriginLabel(
+  value = process.env.NEXT_PUBLIC_TRADE_API_BASE_URL,
+) {
+  const baseUrl = getSymbolResearchApiBaseUrl(value);
+
+  if (!baseUrl) {
+    return "same-origin";
+  }
+
+  try {
+    return new URL(baseUrl).origin;
+  } catch {
+    return "same-origin";
+  }
+}
+
+function ResearchState({
+  title,
+  message,
+  apiOrigin,
+}: {
+  title: string;
+  message: string;
+  apiOrigin?: string;
+}) {
   return (
     <section className="border border-[var(--border)] bg-[var(--panel)] px-4 py-8">
       <h1 className="text-xl font-semibold">{title}</h1>
       <p className="mt-2 text-sm text-[var(--muted)]">{message}</p>
+      {apiOrigin ? (
+        <p className="mt-3 text-xs text-[var(--muted)]">API origin: {apiOrigin}</p>
+      ) : null}
     </section>
   );
 }
@@ -514,6 +592,16 @@ function Fact({ label, value }: { label: string; value: string }) {
       <div className="mt-1 text-sm text-[var(--foreground)]">{value}</div>
     </div>
   );
+}
+
+function getCandleRowsNotice(candles: SymbolResearchCandles) {
+  if (candles.rows.length > 0) {
+    return null;
+  }
+
+  return candles.count > 0
+    ? "Candle metadata exists, but no candle rows were returned."
+    : "No candle rows available for this symbol/timeframe yet.";
 }
 
 function TextList({ title, values }: { title: string; values: string[] }) {
@@ -598,14 +686,55 @@ function ResponsiveTable({
   );
 }
 
-async function getSymbolResearchErrorMessage(response: Response, fallback: string) {
-  const errorBody = (await response.json().catch(() => null)) as
-    | { error?: string | { message?: string }; message?: string }
-    | null;
+export function formatSymbolResearchApiError(
+  status: number | null,
+  body: SymbolResearchApiErrorBody | SymbolResearchResponse | null,
+) {
+  const errorCode = getSymbolResearchErrorCode(body);
+  const message = getSymbolResearchErrorMessage(body);
+  const parts = [
+    status === null ? null : `HTTP ${status}`,
+    errorCode,
+    message,
+  ].filter(Boolean);
 
-  if (typeof errorBody?.error === "string") {
-    return errorBody.error;
+  return parts.length > 0 ? parts.join(": ") : "Unable to load symbol research.";
+}
+
+function isSymbolResearchApiErrorBody(
+  body: SymbolResearchApiErrorBody | SymbolResearchResponse | null,
+): body is SymbolResearchApiErrorBody {
+  return Boolean(body && "ok" in body && body.ok === false);
+}
+
+function getSymbolResearchErrorCode(
+  body: SymbolResearchApiErrorBody | SymbolResearchResponse | null,
+) {
+  if (!body) {
+    return null;
   }
 
-  return errorBody?.error?.message ?? errorBody?.message ?? fallback;
+  if ("error" in body && typeof body.error === "string") {
+    return body.error;
+  }
+
+  if ("error" in body && typeof body.error === "object") {
+    return body.error.code ?? body.code ?? null;
+  }
+
+  return "code" in body ? body.code ?? null : null;
+}
+
+function getSymbolResearchErrorMessage(
+  body: SymbolResearchApiErrorBody | SymbolResearchResponse | null,
+) {
+  if (!body) {
+    return null;
+  }
+
+  if ("error" in body && typeof body.error === "object") {
+    return body.error.message ?? null;
+  }
+
+  return "message" in body ? body.message ?? null : null;
 }
