@@ -403,14 +403,23 @@ describe("trade-api symbol research", () => {
       lastOpenTime: "1970-01-01T00:00:02.000Z",
     });
     expect(body.behavior).toMatchObject({
-      timeframe: "4h",
-      symbol: "SEIUSDT",
       sampleSize: 12,
-      eligibleSampleSize: 11,
       currentContext: {
-        currentSignalLabel: "confirmed",
-        currentResultGroup: "eligible",
+        signalLabel: "confirmed",
+        resultGroup: "eligible",
+        primaryStructure: "strong_trend",
+        timeframe: "4h",
       },
+    });
+    expect(body.behavior.horizons["1"]).toMatchObject({
+      sampleSize: 11,
+      avgReturnPct: 1.2,
+    });
+    expect(body.behaviorDiagnostics).toEqual({
+      available: true,
+      reason: "ok",
+      message:
+        "Historical behavior is available from prior scanner signals with forward candles.",
     });
     expect(getSymbolResearchLatestSignalPgMock).toHaveBeenCalledWith({
       exchange: "binance",
@@ -457,7 +466,13 @@ describe("trade-api symbol research", () => {
       expect(response.status).toBe(200);
       expect(body.ok).toBe(true);
       expect(body.latest.signal.id).toBe("signal-latest");
-      expect(body.behavior).toBeUndefined();
+      expect(body.behavior).toBeNull();
+      expect(body.behaviorDiagnostics).toEqual({
+        available: false,
+        reason: "calculation_failed",
+        message:
+          "Historical behavior is not available because the behavior calculation failed.",
+      });
       expect(warnSpy).toHaveBeenCalledWith(
         "trade-api symbol behavior unavailable:",
         "BEHAVIOR_FAILED",
@@ -643,6 +658,13 @@ describe("trade-api symbol research", () => {
       requiredCandles: 200,
       lastOpenTime: "2026-05-31T20:00:00.000Z",
     });
+    expect(body.behavior).toBeNull();
+    expect(body.behaviorDiagnostics).toEqual({
+      available: false,
+      reason: "no_latest_signal",
+      message:
+        "Historical behavior is unavailable because no latest scanner signal exists for this symbol/timeframe.",
+    });
     expect(getSymbolSignalHistoryPgMock).not.toHaveBeenCalled();
     expect(getSymbolCandlesPgMock).not.toHaveBeenCalled();
   });
@@ -704,6 +726,13 @@ describe("trade-api symbol research", () => {
       market: "spot",
       symbol: "SEIUSDT",
       timeframe: "1w",
+    });
+    expect(body.behavior).toBeNull();
+    expect(body.behaviorDiagnostics).toEqual({
+      available: false,
+      reason: "no_latest_signal",
+      message:
+        "Historical behavior is unavailable because no latest scanner signal exists for this symbol/timeframe.",
     });
     expect(getSymbolSignalHistoryPgMock).not.toHaveBeenCalled();
     expect(getSymbolCandlesPgMock).not.toHaveBeenCalled();
@@ -820,7 +849,15 @@ function resetSymbolResearchMocks() {
     lastOpenTime: null,
   });
   getSymbolBehaviorPgMock.mockReset();
-  getSymbolBehaviorPgMock.mockResolvedValue(null);
+  getSymbolBehaviorPgMock.mockResolvedValue({
+    behavior: null,
+    behaviorDiagnostics: {
+      available: false,
+      reason: "no_prior_signals",
+      message:
+        "Historical behavior is not available yet because no prior scanner signals were found for this symbol/timeframe.",
+    },
+  });
   closeSymbolResearchMock.mockReset();
   closeSymbolResearchMock.mockResolvedValue(undefined);
   pgSymbolResearchStoreMock.mockClear();
@@ -971,33 +1008,50 @@ function makeResearchCandle({
 
 function makeResearchBehavior() {
   return {
-    timeframe: "4h",
-    symbol: "SEIUSDT",
-    sampleSize: 12,
-    eligibleSampleSize: 11,
-    horizons: [
-      {
-        candles: 1,
-        sampleSize: 11,
-        averageReturnPct: 1.2,
-        medianReturnPct: 0.8,
-        winRatePct: 63.6,
-        averageMaxUpsidePct: 2.4,
-        averageMaxDrawdownPct: -1.1,
-        bestReturnPct: 5.3,
-        worstReturnPct: -3.2,
+    behavior: {
+      sampleSize: 12,
+      horizons: {
+        "1": {
+          sampleSize: 11,
+          avgReturnPct: 1.2,
+          medianReturnPct: 0.8,
+          winRatePct: 63.6,
+          bestReturnPct: 5.3,
+          worstReturnPct: -3.2,
+        },
+        "3": {
+          sampleSize: 11,
+          avgReturnPct: 2.2,
+          medianReturnPct: 1.8,
+          winRatePct: 72.7,
+          bestReturnPct: 8.3,
+          worstReturnPct: -4.2,
+        },
+        "5": {
+          sampleSize: 11,
+          avgReturnPct: 3.2,
+          medianReturnPct: 2.8,
+          winRatePct: 72.7,
+          bestReturnPct: 10.3,
+          worstReturnPct: -6.2,
+        },
       },
-    ],
-    byGroup: [],
-    bySignalLabel: [],
-    recentOutcomes: [],
-    currentContext: {
-      currentSignalLabel: "confirmed",
-      currentResultGroup: "eligible",
-      matchingGroupSampleSize: 7,
-      matchingSignalSampleSize: 5,
-      note: "Research only.",
+      byResultGroup: [],
+      bySignalLabel: [],
+      recentOutcomes: [],
+      currentContext: {
+        signalLabel: "confirmed",
+        resultGroup: "eligible",
+        primaryStructure: "strong_trend",
+        timeframe: "4h",
+      },
+      warnings: [],
     },
-    warnings: [],
+    behaviorDiagnostics: {
+      available: true,
+      reason: "ok",
+      message:
+        "Historical behavior is available from prior scanner signals with forward candles.",
+    },
   };
 }

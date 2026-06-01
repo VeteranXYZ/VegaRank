@@ -8,23 +8,24 @@ import {
   formatBehaviorWinRate,
   formatRecentOutcomeDate,
   getBehaviorGroupLabel,
+  getBehaviorHorizonRows,
+  getBehaviorSetupLabel,
   getBehaviorSignalLabel,
+  getBehaviorUnavailableMessage,
   getBehaviorWarningLabel,
   getHiddenRecentOutcomeCount,
   hasBehaviorOutcomeStats,
   selectCompactRecentOutcomes,
   type SymbolBehavior,
-  type SymbolBehaviorHorizonStats,
+  type SymbolBehaviorDiagnostics,
+  type SymbolBehaviorHorizonRow,
   type SymbolBehaviorRecentOutcome,
 } from "./symbolBehaviorUi";
-import {
-  formatSymbolResearchAction,
-  formatSymbolResearchScore,
-  formatSymbolResearchSetup,
-} from "./symbolResearchUi";
+import { formatSymbolResearchScore } from "./symbolResearchUi";
 
 type SymbolBehaviorPanelProps = {
   behavior?: SymbolBehavior | null;
+  diagnostics?: SymbolBehaviorDiagnostics | null;
   className?: string;
 };
 
@@ -32,9 +33,11 @@ const compactOutcomeLimit = 5;
 
 export function SymbolBehaviorPanel({
   behavior,
+  diagnostics,
   className = "",
 }: SymbolBehaviorPanelProps) {
   const [expanded, setExpanded] = useState(false);
+  const isAvailable = diagnostics?.available === true && hasBehaviorOutcomeStats(behavior);
 
   return (
     <section
@@ -43,17 +46,18 @@ export function SymbolBehaviorPanel({
       <div className="mb-3">
         <h2 className="text-sm font-semibold">Historical Behavior</h2>
         <p className="mt-1 text-xs text-[var(--muted)]">
-          Past scanner signals for this symbol and timeframe. Research only.
+          Historical observations for prior scanner classifications. Research only,
+          not a prediction.
         </p>
       </div>
 
-      {!behavior || !hasBehaviorOutcomeStats(behavior) ? (
-        <EmptyBehaviorState />
+      {!isAvailable || !behavior ? (
+        <EmptyBehaviorState diagnostics={diagnostics} />
       ) : (
         <>
           <BehaviorSummary behavior={behavior} />
           <BehaviorWarnings warnings={behavior.warnings} />
-          <BehaviorHorizons horizons={behavior.horizons} />
+          <BehaviorHorizons horizons={getBehaviorHorizonRows(behavior)} />
           <CurrentBehaviorContext behavior={behavior} />
           <RecentBehaviorOutcomes
             outcomes={behavior.recentOutcomes}
@@ -66,15 +70,18 @@ export function SymbolBehaviorPanel({
   );
 }
 
-function EmptyBehaviorState() {
+function EmptyBehaviorState({
+  diagnostics,
+}: {
+  diagnostics?: SymbolBehaviorDiagnostics | null;
+}) {
   return (
     <div className="border border-[var(--border)] bg-[#080d12] px-3 py-3">
       <p className="text-sm font-semibold text-[var(--foreground)]">
-        Not enough historical behavior data yet.
+        Historical behavior is not available for this symbol/timeframe yet.
       </p>
       <p className="mt-1 text-sm text-[var(--muted)]">
-        More scanner runs with forward candles are needed before this section can
-        summarize past outcomes.
+        {getBehaviorUnavailableMessage(diagnostics)}
       </p>
     </div>
   );
@@ -109,34 +116,25 @@ function BehaviorWarnings({ warnings }: { warnings: string[] }) {
   );
 }
 
-function BehaviorHorizons({
-  horizons,
-}: {
-  horizons: SymbolBehaviorHorizonStats[];
-}) {
+function BehaviorHorizons({ horizons }: { horizons: SymbolBehaviorHorizonRow[] }) {
   return (
     <div className="mt-4 grid gap-3 lg:grid-cols-3">
       {horizons.map((horizon) => (
         <article
-          key={horizon.candles}
+          key={horizon.horizon}
           className="border border-[var(--border)] bg-[#080d12] px-3 py-3"
         >
-          <div className="flex items-start justify-between gap-3">
-            <div>
-              <h3 className="text-sm font-semibold">
-                Forward return after {horizon.candles}{" "}
-                {horizon.candles === 1 ? "candle" : "candles"}
-              </h3>
-              <p className="mt-1 text-xs text-[var(--muted)]">
-                {formatBehaviorSampleSize(horizon.sampleSize)} matched outcomes
-              </p>
-            </div>
-          </div>
+          <h3 className="text-sm font-semibold">
+            Forward return after {horizon.label}
+          </h3>
+          <p className="mt-1 text-xs text-[var(--muted)]">
+            {formatBehaviorSampleSize(horizon.sampleSize)} matched observations
+          </p>
 
           <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
             <BehaviorMetric
               label="Avg Return"
-              value={formatBehaviorPercent(horizon.averageReturnPct)}
+              value={formatBehaviorPercent(horizon.avgReturnPct)}
             />
             <BehaviorMetric
               label="Median Return"
@@ -147,18 +145,12 @@ function BehaviorHorizons({
               value={formatBehaviorWinRate(horizon.winRatePct)}
             />
             <BehaviorMetric
-              label="Avg Max Upside"
-              value={formatBehaviorPercent(horizon.averageMaxUpsidePct)}
+              label="Best Return"
+              value={formatBehaviorPercent(horizon.bestReturnPct)}
             />
             <BehaviorMetric
-              label="Avg Max Drawdown"
-              value={formatBehaviorPercent(horizon.averageMaxDrawdownPct)}
-            />
-            <BehaviorMetric
-              label="Best / Worst Return"
-              value={`${formatBehaviorPercent(
-                horizon.bestReturnPct,
-              )} / ${formatBehaviorPercent(horizon.worstReturnPct)}`}
+              label="Worst Return"
+              value={formatBehaviorPercent(horizon.worstReturnPct)}
             />
           </div>
         </article>
@@ -170,32 +162,24 @@ function BehaviorHorizons({
 function CurrentBehaviorContext({ behavior }: { behavior: SymbolBehavior }) {
   const context = behavior.currentContext;
 
-  if (!context) {
-    return null;
-  }
-
   return (
     <div className="mt-4 border border-[var(--border)] bg-[#080d12] px-3 py-3">
-      <h3 className="text-sm font-semibold">Current setup context</h3>
+      <h3 className="text-sm font-semibold">Current context</h3>
       <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
         <BehaviorFact
           label="Current Group"
-          value={getBehaviorGroupLabel(context.currentResultGroup)}
+          value={getBehaviorGroupLabel(context.resultGroup)}
         />
         <BehaviorFact
           label="Current Signal"
-          value={getBehaviorSignalLabel(context.currentSignalLabel)}
+          value={getBehaviorSignalLabel(context.signalLabel)}
         />
         <BehaviorFact
-          label="Matching Group Sample"
-          value={formatBehaviorSampleSize(context.matchingGroupSampleSize)}
+          label="Primary Structure"
+          value={getBehaviorSetupLabel(context.primaryStructure)}
         />
-        <BehaviorFact
-          label="Matching Signal Sample"
-          value={formatBehaviorSampleSize(context.matchingSignalSampleSize)}
-        />
+        <BehaviorFact label="Timeframe" value={context.timeframe || "Unknown"} />
       </div>
-      <p className="mt-3 text-xs text-[var(--muted)]">{context.note}</p>
     </div>
   );
 }
@@ -227,7 +211,7 @@ function RecentBehaviorOutcomes({
         <div>
           <h3 className="text-sm font-semibold">Recent outcomes</h3>
           <p className="mt-1 text-xs text-[var(--muted)]">
-            Available data from prior scanner signals.
+            Prior scanner observations with available forward candles.
           </p>
         </div>
         <span className="text-xs text-[var(--muted)]">
@@ -243,7 +227,7 @@ function RecentBehaviorOutcomes({
         <div className="grid gap-2">
           {visibleOutcomes.map((outcome, index) => (
             <RecentOutcomeCard
-              key={`${outcome.scanTime}-${outcome.signalLabel}-${index}`}
+              key={`${outcome.scanTime}-${outcome.signalLabel ?? "unknown"}-${index}`}
               outcome={outcome}
             />
           ))}
@@ -283,14 +267,9 @@ function RecentOutcomeCard({
               {getBehaviorSignalLabel(outcome.signalLabel)}
             </span>
           </div>
-          <p className="mt-1 text-xs text-[var(--muted)]">
-            {formatSymbolResearchAction(outcome.actionBias)} ·{" "}
-            {formatSymbolResearchSetup(outcome.primaryStructure)}
-          </p>
         </div>
         <div className="text-left text-xs text-[var(--muted)] sm:text-right">
-          <div>{formatRecentOutcomeDate(outcome.scanTime)}</div>
-          <div>Signal candle: {formatRecentOutcomeDate(outcome.candleOpenTime)}</div>
+          {formatRecentOutcomeDate(outcome.scanTime)}
         </div>
       </div>
 
@@ -300,20 +279,20 @@ function RecentOutcomeCard({
           value={formatSymbolResearchScore(outcome.rankScore)}
         />
         <BehaviorMetric
+          label="Price"
+          value={formatSymbolResearchScore(outcome.priceAtSignal, 4)}
+        />
+        <BehaviorMetric
           label="Next 1"
-          value={formatBehaviorPercent(outcome.forwardReturnsPct.next1)}
+          value={formatBehaviorPercent(outcome.forwardReturnPct["1"])}
         />
         <BehaviorMetric
           label="Next 3"
-          value={formatBehaviorPercent(outcome.forwardReturnsPct.next3)}
+          value={formatBehaviorPercent(outcome.forwardReturnPct["3"])}
         />
         <BehaviorMetric
           label="Next 5"
-          value={formatBehaviorPercent(outcome.forwardReturnsPct.next5)}
-        />
-        <BehaviorMetric
-          label="Forward Data"
-          value={outcome.hasEnoughForwardCandles ? "Complete" : "Partial"}
+          value={formatBehaviorPercent(outcome.forwardReturnPct["5"])}
         />
       </div>
     </article>

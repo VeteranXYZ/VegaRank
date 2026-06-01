@@ -5,7 +5,9 @@ import {
   formatBehaviorSampleSize,
   formatBehaviorWinRate,
   getBehaviorGroupLabel,
+  getBehaviorHorizonRows,
   getBehaviorSignalLabel,
+  getBehaviorUnavailableMessage,
   getHiddenRecentOutcomeCount,
   selectCompactRecentOutcomes,
   type SymbolBehavior,
@@ -47,50 +49,73 @@ describe("symbol behavior UI helpers", () => {
     ).toBe(0);
   });
 
-  it("builds summary rows from behavior and current context", () => {
+  it("builds horizon and summary rows from behavior", () => {
+    expect(getBehaviorHorizonRows(makeBehavior()).map((row) => row.label)).toEqual([
+      "1 candle",
+      "3 candles",
+      "5 candles",
+    ]);
     expect(buildBehaviorSummary(makeBehavior())).toEqual([
       { label: "Historical Sample", value: "12" },
-      { label: "Outcome Sample", value: "11" },
-      { label: "Current Group Sample", value: "7" },
-      { label: "Current Signal Sample", value: "5" },
+      { label: "1 Candle Samples", value: "11" },
+      { label: "3 Candle Samples", value: "10" },
+      { label: "5 Candle Samples", value: "9" },
     ]);
+  });
+
+  it("formats unavailable diagnostics messages", () => {
+    expect(
+      getBehaviorUnavailableMessage({
+        available: false,
+        reason: "no_prior_signals",
+        message: "No prior signals.",
+      }),
+    ).toBe("No prior signals.");
+    expect(getBehaviorUnavailableMessage(null)).toBe(
+      "Historical behavior is not available for this symbol/timeframe yet.",
+    );
   });
 });
 
 function makeBehavior(): SymbolBehavior {
   return {
-    timeframe: "4h",
-    symbol: "SEIUSDT",
     sampleSize: 12,
-    eligibleSampleSize: 11,
-    horizons: [],
-    byGroup: [],
+    horizons: {
+      "1": makeHorizon(11, 1.2),
+      "3": makeHorizon(10, 2.2),
+      "5": makeHorizon(9, 3.2),
+    },
+    byResultGroup: [],
     bySignalLabel: [],
     recentOutcomes: [],
     currentContext: {
-      currentSignalLabel: "confirmed",
-      currentResultGroup: "eligible",
-      matchingGroupSampleSize: 7,
-      matchingSignalSampleSize: 5,
-      note: "Research only.",
+      signalLabel: "confirmed",
+      resultGroup: "eligible",
+      primaryStructure: "strong_trend",
+      timeframe: "4h",
     },
     warnings: [],
+  };
+}
+
+function makeHorizon(sampleSize: number, avgReturnPct: number) {
+  return {
+    sampleSize,
+    avgReturnPct,
+    medianReturnPct: avgReturnPct,
+    winRatePct: 60,
+    bestReturnPct: 5,
+    worstReturnPct: -2,
   };
 }
 
 function makeOutcome(scanTime: string): SymbolBehaviorRecentOutcome {
   return {
     scanTime,
-    candleOpenTime: scanTime,
     signalLabel: "confirmed",
     resultGroup: "eligible",
-    actionBias: "eligible",
-    primaryStructure: "strong_trend",
     priceAtSignal: 1,
     rankScore: 10,
-    forwardReturnsPct: { next1: 1, next3: 2, next5: 3 },
-    maxUpsidePct: { next1: 2, next3: 3, next5: 4 },
-    maxDrawdownPct: { next1: -1, next3: -2, next5: -3 },
-    hasEnoughForwardCandles: true,
+    forwardReturnPct: { "1": 1, "3": 2, "5": 3 },
   };
 }

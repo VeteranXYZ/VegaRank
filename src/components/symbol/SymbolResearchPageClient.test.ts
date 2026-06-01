@@ -250,6 +250,13 @@ describe("SymbolResearchPageClient unavailable state", () => {
           firstOpenTime: "2023-08-14T00:00:00.000Z",
           lastOpenTime: "2026-05-25T00:00:00.000Z",
         },
+        behavior: null,
+        behaviorDiagnostics: {
+          available: false,
+          reason: "no_latest_signal",
+          message:
+            "Historical behavior is unavailable because no latest scanner signal exists for this symbol/timeframe.",
+        },
       },
     });
 
@@ -281,6 +288,10 @@ describe("SymbolResearchPageClient unavailable state", () => {
     expect(html).toContain('href="/symbol/binance/SEIUSDT?timeframe=1d');
     expect(html).toContain('href="/symbol/binance/SEIUSDT?timeframe=1w');
     expect(html).not.toContain('href="/symbol/binance/SEIUSDT?timeframe=1h');
+    expect(html).toContain("Historical Behavior");
+    expect(html).toContain(
+      "Historical behavior is unavailable because no latest scanner signal exists for this symbol/timeframe.",
+    );
   });
 });
 
@@ -311,12 +322,12 @@ describe("SymbolResearchPageClient success state", () => {
     );
 
     expect(html).toContain("Historical Behavior");
-    expect(html).toContain("Past scanner signals for this symbol and timeframe");
+    expect(html).toContain("Historical observations");
     expect(html).toContain("Historical Sample");
     expect(html).toContain("Forward return after 1 candle");
-    expect(html).toContain("Current setup context");
+    expect(html).toContain("Current context");
     expect(html).toContain("Recent outcomes");
-    expect(html).toContain("Available data from prior scanner signals.");
+    expect(html).toContain("Prior scanner observations with available forward candles.");
   });
 });
 
@@ -381,71 +392,58 @@ function makeSuccessResponse() {
     history: [makeSymbolResearchSignal()],
     timeframes: [makeSymbolResearchSignal()],
     behavior: {
-      timeframe: "4h",
-      symbol: "SEIUSDT",
       sampleSize: 12,
-      eligibleSampleSize: 11,
-      horizons: [
-        {
-          candles: 1,
+      horizons: {
+        "1": {
           sampleSize: 11,
-          averageReturnPct: 1.2,
+          avgReturnPct: 1.2,
           medianReturnPct: 0.8,
           winRatePct: 63.6,
-          averageMaxUpsidePct: 2.4,
-          averageMaxDrawdownPct: -1.1,
           bestReturnPct: 5.3,
           worstReturnPct: -3.2,
         },
-        {
-          candles: 3,
+        "3": {
           sampleSize: 11,
-          averageReturnPct: 2.2,
+          avgReturnPct: 2.2,
           medianReturnPct: 1.8,
           winRatePct: 72.7,
-          averageMaxUpsidePct: 4.4,
-          averageMaxDrawdownPct: -2.1,
           bestReturnPct: 8.3,
           worstReturnPct: -4.2,
         },
-        {
-          candles: 5,
+        "5": {
           sampleSize: 11,
-          averageReturnPct: 3.2,
+          avgReturnPct: 3.2,
           medianReturnPct: 2.8,
           winRatePct: 72.7,
-          averageMaxUpsidePct: 5.4,
-          averageMaxDrawdownPct: -2.8,
           bestReturnPct: 10.3,
           worstReturnPct: -6.2,
         },
-      ],
-      byGroup: [],
+      },
+      byResultGroup: [],
       bySignalLabel: [],
       recentOutcomes: [
         {
           scanTime: "2026-05-31T00:00:00.000Z",
-          candleOpenTime: "2026-05-30T20:00:00.000Z",
           signalLabel: "confirmed",
           resultGroup: "eligible",
-          actionBias: "eligible",
-          primaryStructure: "strong_trend",
           priceAtSignal: 1.23,
           rankScore: 82,
-          forwardReturnsPct: { next1: 1.2, next3: 2.1, next5: 3.4 },
-          maxUpsidePct: { next1: 2.2, next3: 3.1, next5: 4.4 },
-          maxDrawdownPct: { next1: -0.8, next3: -1.4, next5: -2.5 },
-          hasEnoughForwardCandles: true,
+          forwardReturnPct: { "1": 1.2, "3": 2.1, "5": 3.4 },
         },
       ],
       currentContext: {
-        currentSignalLabel: "confirmed",
-        currentResultGroup: "eligible",
-        matchingGroupSampleSize: 7,
-        matchingSignalSampleSize: 5,
-        note: "Research only.",
+        signalLabel: "confirmed",
+        resultGroup: "eligible",
+        primaryStructure: "strong_trend",
+        timeframe: "4h",
       },
       warnings: [],
+    },
+    behaviorDiagnostics: {
+      available: true,
+      reason: "ok",
+      message:
+        "Historical behavior is available from prior scanner signals with forward candles.",
     },
     candles: {
       timeframe: "4h",

@@ -7,81 +7,83 @@ import {
 import { createPostgresPool } from "./pool";
 
 export const SYMBOL_BEHAVIOR_HORIZONS = [1, 3, 5] as const;
-export const SYMBOL_BEHAVIOR_DEFAULT_LIMIT = 150;
+export const SYMBOL_BEHAVIOR_DEFAULT_LIMIT = 80;
+export const SYMBOL_BEHAVIOR_RECENT_OUTCOME_LIMIT = 20;
 
 export type SymbolBehaviorHorizonCandles =
   (typeof SYMBOL_BEHAVIOR_HORIZONS)[number];
+export type SymbolBehaviorHorizonKey = "1" | "3" | "5";
 
 export type SymbolBehaviorHorizonStats = {
-  candles: SymbolBehaviorHorizonCandles;
   sampleSize: number;
-  averageReturnPct: number | null;
+  avgReturnPct: number | null;
   medianReturnPct: number | null;
   winRatePct: number | null;
-  averageMaxUpsidePct: number | null;
-  averageMaxDrawdownPct: number | null;
   bestReturnPct: number | null;
   worstReturnPct: number | null;
 };
 
-export type SymbolBehaviorGroupedStats = {
-  group: string;
+export type SymbolBehaviorHorizonMap = Record<
+  SymbolBehaviorHorizonKey,
+  SymbolBehaviorHorizonStats | null
+>;
+
+export type SymbolBehaviorResultGroupStats = {
+  resultGroup: string;
   sampleSize: number;
-  horizons: SymbolBehaviorHorizonStats[];
+  horizons: SymbolBehaviorHorizonMap;
 };
 
 export type SymbolBehaviorSignalLabelStats = {
   signalLabel: string;
   sampleSize: number;
-  horizons: SymbolBehaviorHorizonStats[];
+  horizons: SymbolBehaviorHorizonMap;
 };
 
 export type SymbolBehaviorRecentOutcome = {
   scanTime: string;
-  candleOpenTime: string | null;
-  signalLabel: string;
   resultGroup: string | null;
-  actionBias: string | null;
-  primaryStructure: string | null;
-  priceAtSignal: number | null;
+  signalLabel: string | null;
   rankScore: number | null;
-  forwardReturnsPct: {
-    next1: number | null;
-    next3: number | null;
-    next5: number | null;
-  };
-  maxUpsidePct: {
-    next1: number | null;
-    next3: number | null;
-    next5: number | null;
-  };
-  maxDrawdownPct: {
-    next1: number | null;
-    next3: number | null;
-    next5: number | null;
-  };
-  hasEnoughForwardCandles: boolean;
+  priceAtSignal: number | null;
+  forwardReturnPct: Record<SymbolBehaviorHorizonKey, number | null>;
 };
 
 export type SymbolBehaviorCurrentContext = {
-  currentSignalLabel: string | null;
-  currentResultGroup: string | null;
-  matchingGroupSampleSize: number;
-  matchingSignalSampleSize: number;
-  note: string;
+  resultGroup: string | null;
+  signalLabel: string | null;
+  primaryStructure: string | null;
+  timeframe: string;
 };
 
-export type SymbolBehaviorResult = {
-  timeframe: string;
-  symbol: string;
+export type SymbolBehavior = {
   sampleSize: number;
-  eligibleSampleSize: number;
-  horizons: SymbolBehaviorHorizonStats[];
-  byGroup: SymbolBehaviorGroupedStats[];
+  horizons: SymbolBehaviorHorizonMap;
+  byResultGroup: SymbolBehaviorResultGroupStats[];
   bySignalLabel: SymbolBehaviorSignalLabelStats[];
   recentOutcomes: SymbolBehaviorRecentOutcome[];
-  currentContext?: SymbolBehaviorCurrentContext;
+  currentContext: SymbolBehaviorCurrentContext;
   warnings: string[];
+};
+
+export type SymbolBehaviorDiagnosticsReason =
+  | "ok"
+  | "no_prior_signals"
+  | "missing_forward_candles"
+  | "insufficient_sample"
+  | "calculation_failed"
+  | "no_latest_signal"
+  | "unknown";
+
+export type SymbolBehaviorDiagnostics = {
+  available: boolean;
+  reason: SymbolBehaviorDiagnosticsReason;
+  message: string;
+};
+
+export type SymbolBehaviorLoadResult = {
+  behavior: SymbolBehavior | null;
+  behaviorDiagnostics: SymbolBehaviorDiagnostics;
 };
 
 export type SymbolBehaviorCurrentSignalInput = {
@@ -125,20 +127,18 @@ type SymbolBehaviorSignalRow = {
 
 type ForwardCandle = {
   close: number;
-  high: number;
-  low: number;
 };
 
 type HorizonOutcome = {
   returnPct: number;
-  maxUpsidePct: number;
-  maxDrawdownPct: number;
 };
 
 type AnalyzedBehaviorOutcome = {
   resultGroup: ScanResultGroup;
-  signalLabel: string;
-  recentOutcome: SymbolBehaviorRecentOutcome;
+  signalLabel: string | null;
+  scanTime: string;
+  rankScore: number | null;
+  priceAtSignal: number | null;
   horizons: Record<SymbolBehaviorHorizonCandles, HorizonOutcome | null>;
 };
 
@@ -165,36 +165,58 @@ export class PgSymbolBehaviorStore {
 export async function loadSymbolBehaviorPg(
   pool: Pool,
   input: LoadSymbolBehaviorPgInput,
-): Promise<SymbolBehaviorResult> {
+): Promise<SymbolBehaviorLoadResult> {
   const rows = await loadSymbolBehaviorRowsPg(pool, input);
   const outcomes = rows
     .map(analyzeBehaviorRow)
     .sort(compareBehaviorOutcomeByScanTimeDesc);
-  const eligibleSampleSize = outcomes.filter(
-    (outcome) => outcome.recentOutcome.hasEnoughForwardCandles,
-  ).length;
-  const byGroup = buildGroupedStats(outcomes);
-  const bySignalLabel = buildSignalLabelStats(outcomes);
-  const currentContext = buildCurrentContext({
-    currentSignal: input.currentSignal,
-    byGroup,
-    bySignalLabel,
-  });
+  const currentContext = buildCurrentContext(input);
+
+  if (outcomes.length === 0) {
+    return {
+      behavior: null,
+      behaviorDiagnostics: {
+        available: false,
+        reason: "no_prior_signals",
+        message:
+          "Historical behavior is not available yet because no prior scanner signals were found for this symbol/timeframe.",
+      },
+    };
+  }
+
+  const horizons = buildHorizonStats(outcomes);
+  const usableSampleSize = getUsableSampleSize(horizons);
+
+  if (usableSampleSize === 0) {
+    return {
+      behavior: null,
+      behaviorDiagnostics: {
+        available: false,
+        reason: "missing_forward_candles",
+        message:
+          "Historical behavior is not available yet because prior signals do not have enough forward candles.",
+      },
+    };
+  }
 
   return {
-    timeframe: input.timeframe,
-    symbol: input.symbol.toUpperCase(),
-    sampleSize: outcomes.length,
-    eligibleSampleSize,
-    horizons: buildHorizonStats(outcomes),
-    byGroup,
-    bySignalLabel,
-    recentOutcomes: outcomes.map((outcome) => outcome.recentOutcome),
-    ...(currentContext ? { currentContext } : {}),
-    warnings: getBehaviorWarnings({
+    behavior: {
       sampleSize: outcomes.length,
-      eligibleSampleSize,
-    }),
+      horizons,
+      byResultGroup: buildResultGroupStats(outcomes),
+      bySignalLabel: buildSignalLabelStats(outcomes),
+      recentOutcomes: outcomes
+        .slice(0, SYMBOL_BEHAVIOR_RECENT_OUTCOME_LIMIT)
+        .map(toRecentOutcome),
+      currentContext,
+      warnings: getBehaviorWarnings(usableSampleSize),
+    },
+    behaviorDiagnostics: {
+      available: true,
+      reason: "ok",
+      message:
+        "Historical behavior is available from prior scanner signals with forward candles.",
+    },
   };
 }
 
@@ -282,19 +304,13 @@ async function loadSymbolBehaviorRowsPg(
         ON true
       LEFT JOIN LATERAL (
         SELECT jsonb_agg(
-          jsonb_build_object(
-            'close', forward_candle.close,
-            'high', forward_candle.high,
-            'low', forward_candle.low
-          )
+          jsonb_build_object('close', forward_candle.close)
           ORDER BY forward_candle.open_time ASC
         ) AS forward_candles
         FROM (
           SELECT
             c.open_time,
-            c.close,
-            c.high,
-            c.low
+            c.close
           FROM market_candles c
           WHERE c.symbol_id = ss.symbol_id
             AND c.timeframe = ss.timeframe
@@ -306,16 +322,7 @@ async function loadSymbolBehaviorRowsPg(
       ) forward
         ON true
       WHERE ${filters.join("\n        AND ")}
-      ORDER BY
-        CASE
-          WHEN sr.params->>'allSymbols' = 'true'
-            OR sr.params->>'scannerMode' = 'single'
-            OR sr.universe = 'all-symbols'
-          THEN 0
-          ELSE 1
-        END,
-        ss.scan_time DESC,
-        ss.created_at DESC
+      ORDER BY ss.scan_time DESC, ss.created_at DESC
       LIMIT $${params.length}
     `,
     params,
@@ -333,7 +340,6 @@ function analyzeBehaviorRow(row: SymbolBehaviorSignalRow): AnalyzedBehaviorOutco
     riskScore: toNullableNumber(row.risk_score),
     detectedRiskTypes: normalizeStringArray(row.detected_risk_types),
   });
-  const signalLabel = row.signal_label ?? "unknown";
   const basePrice = getBasePrice(row);
   const forwardCandles = parseForwardCandles(row.forward_candles);
   const horizons = Object.fromEntries(
@@ -342,44 +348,14 @@ function analyzeBehaviorRow(row: SymbolBehaviorSignalRow): AnalyzedBehaviorOutco
       getHorizonOutcome({ basePrice, forwardCandles, horizon }),
     ]),
   ) as Record<SymbolBehaviorHorizonCandles, HorizonOutcome | null>;
-  const hasEnoughForwardCandles = SYMBOL_BEHAVIOR_HORIZONS.every(
-    (horizon) => horizons[horizon] !== null,
-  );
 
   return {
     resultGroup,
-    signalLabel,
+    signalLabel: row.signal_label,
+    scanTime: toIsoString(row.scan_time),
+    rankScore: toNullableNumber(row.rank_score),
+    priceAtSignal: toNullableNumber(row.price_at_signal),
     horizons,
-    recentOutcome: {
-      scanTime: toIsoString(row.scan_time),
-      candleOpenTime: row.candle_open_time
-        ? toIsoString(row.candle_open_time)
-        : row.anchor_open_time
-          ? toIsoString(row.anchor_open_time)
-          : null,
-      signalLabel,
-      resultGroup,
-      actionBias: row.action_bias,
-      primaryStructure: row.primary_structure,
-      priceAtSignal: toNullableNumber(row.price_at_signal),
-      rankScore: toNullableNumber(row.rank_score),
-      forwardReturnsPct: {
-        next1: horizons[1]?.returnPct ?? null,
-        next3: horizons[3]?.returnPct ?? null,
-        next5: horizons[5]?.returnPct ?? null,
-      },
-      maxUpsidePct: {
-        next1: horizons[1]?.maxUpsidePct ?? null,
-        next3: horizons[3]?.maxUpsidePct ?? null,
-        next5: horizons[5]?.maxUpsidePct ?? null,
-      },
-      maxDrawdownPct: {
-        next1: horizons[1]?.maxDrawdownPct ?? null,
-        next3: horizons[3]?.maxDrawdownPct ?? null,
-        next5: horizons[5]?.maxDrawdownPct ?? null,
-      },
-      hasEnoughForwardCandles,
-    },
   };
 }
 
@@ -387,26 +363,23 @@ function compareBehaviorOutcomeByScanTimeDesc(
   left: AnalyzedBehaviorOutcome,
   right: AnalyzedBehaviorOutcome,
 ) {
-  return (
-    Date.parse(right.recentOutcome.scanTime) -
-    Date.parse(left.recentOutcome.scanTime)
-  );
+  return Date.parse(right.scanTime) - Date.parse(left.scanTime);
 }
 
-function buildGroupedStats(
+function buildResultGroupStats(
   outcomes: AnalyzedBehaviorOutcome[],
-): SymbolBehaviorGroupedStats[] {
-  const byGroup = new Map<ScanResultGroup, AnalyzedBehaviorOutcome[]>();
+): SymbolBehaviorResultGroupStats[] {
+  const byResultGroup = new Map<ScanResultGroup, AnalyzedBehaviorOutcome[]>();
 
   for (const outcome of outcomes) {
-    byGroup.set(outcome.resultGroup, [
-      ...(byGroup.get(outcome.resultGroup) ?? []),
+    byResultGroup.set(outcome.resultGroup, [
+      ...(byResultGroup.get(outcome.resultGroup) ?? []),
       outcome,
     ]);
   }
 
-  return [...byGroup.entries()].map(([group, groupOutcomes]) => ({
-    group,
+  return [...byResultGroup.entries()].map(([resultGroup, groupOutcomes]) => ({
+    resultGroup,
     sampleSize: groupOutcomes.length,
     horizons: buildHorizonStats(groupOutcomes),
   }));
@@ -418,8 +391,9 @@ function buildSignalLabelStats(
   const bySignalLabel = new Map<string, AnalyzedBehaviorOutcome[]>();
 
   for (const outcome of outcomes) {
-    bySignalLabel.set(outcome.signalLabel, [
-      ...(bySignalLabel.get(outcome.signalLabel) ?? []),
+    const signalLabel = outcome.signalLabel ?? "unknown";
+    bySignalLabel.set(signalLabel, [
+      ...(bySignalLabel.get(signalLabel) ?? []),
       outcome,
     ]);
   }
@@ -433,89 +407,93 @@ function buildSignalLabelStats(
 
 function buildHorizonStats(
   outcomes: AnalyzedBehaviorOutcome[],
-): SymbolBehaviorHorizonStats[] {
-  return SYMBOL_BEHAVIOR_HORIZONS.map((horizon) => {
-    const samples = outcomes
-      .map((outcome) => outcome.horizons[horizon])
-      .filter((outcome): outcome is HorizonOutcome => outcome !== null);
-    const returns = samples.map((sample) => sample.returnPct);
-    const upsides = samples.map((sample) => sample.maxUpsidePct);
-    const drawdowns = samples.map((sample) => sample.maxDrawdownPct);
-
-    return {
-      candles: horizon,
-      sampleSize: samples.length,
-      averageReturnPct: average(returns),
-      medianReturnPct: median(returns),
-      winRatePct: getWinRate(returns),
-      averageMaxUpsidePct: average(upsides),
-      averageMaxDrawdownPct: average(drawdowns),
-      bestReturnPct: returns.length > 0 ? roundPercent(Math.max(...returns)) : null,
-      worstReturnPct: returns.length > 0 ? roundPercent(Math.min(...returns)) : null,
-    };
-  });
+): SymbolBehaviorHorizonMap {
+  return Object.fromEntries(
+    SYMBOL_BEHAVIOR_HORIZONS.map((horizon) => [
+      toHorizonKey(horizon),
+      buildSingleHorizonStats(outcomes, horizon),
+    ]),
+  ) as SymbolBehaviorHorizonMap;
 }
 
-function buildCurrentContext({
-  currentSignal,
-  byGroup,
-  bySignalLabel,
-}: {
-  currentSignal?: SymbolBehaviorCurrentSignalInput | null;
-  byGroup: SymbolBehaviorGroupedStats[];
-  bySignalLabel: SymbolBehaviorSignalLabelStats[];
-}): SymbolBehaviorCurrentContext | undefined {
-  if (!currentSignal) {
-    return undefined;
+function buildSingleHorizonStats(
+  outcomes: AnalyzedBehaviorOutcome[],
+  horizon: SymbolBehaviorHorizonCandles,
+) {
+  const returns = outcomes
+    .map((outcome) => outcome.horizons[horizon]?.returnPct ?? null)
+    .filter((value): value is number => value !== null);
+
+  if (returns.length === 0) {
+    return null;
   }
 
-  const currentResultGroup = classifyScanResultGroup({
-    signalLabel: currentSignal.signalLabel,
-    actionBias: currentSignal.actionBias,
-    primaryStructure: currentSignal.primaryStructure,
-    rankScore: currentSignal.rankScore,
-    riskScore: currentSignal.riskScore,
-    detectedRiskTypes: normalizeStringArray(currentSignal.detectedRiskTypes),
-  });
-  const currentSignalLabel = currentSignal.signalLabel ?? null;
-
   return {
-    currentSignalLabel,
-    currentResultGroup,
-    matchingGroupSampleSize:
-      byGroup.find((row) => row.group === currentResultGroup)?.sampleSize ?? 0,
-    matchingSignalSampleSize:
-      bySignalLabel.find((row) => row.signalLabel === currentSignalLabel)
-        ?.sampleSize ?? 0,
-    note:
-      "Research only: historical outcomes describe the available sample and are not a trade instruction.",
+    sampleSize: returns.length,
+    avgReturnPct: average(returns),
+    medianReturnPct: median(returns),
+    winRatePct: getWinRate(returns),
+    bestReturnPct: roundPercent(Math.max(...returns)),
+    worstReturnPct: roundPercent(Math.min(...returns)),
   };
 }
 
-function getBehaviorWarnings({
-  sampleSize,
-  eligibleSampleSize,
-}: {
-  sampleSize: number;
-  eligibleSampleSize: number;
-}) {
-  const warnings: string[] = [];
+function buildCurrentContext({
+  timeframe,
+  currentSignal,
+}: LoadSymbolBehaviorPgInput): SymbolBehaviorCurrentContext {
+  const resultGroup = currentSignal
+    ? classifyScanResultGroup({
+        signalLabel: currentSignal.signalLabel,
+        actionBias: currentSignal.actionBias,
+        primaryStructure: currentSignal.primaryStructure,
+        rankScore: currentSignal.rankScore,
+        riskScore: currentSignal.riskScore,
+        detectedRiskTypes: normalizeStringArray(currentSignal.detectedRiskTypes),
+      })
+    : null;
 
-  if (sampleSize === 0) {
-    warnings.push("Not enough historical behavior data yet.");
+  return {
+    resultGroup,
+    signalLabel: currentSignal?.signalLabel ?? null,
+    primaryStructure: currentSignal?.primaryStructure ?? null,
+    timeframe,
+  };
+}
+
+function toRecentOutcome(
+  outcome: AnalyzedBehaviorOutcome,
+): SymbolBehaviorRecentOutcome {
+  return {
+    scanTime: outcome.scanTime,
+    resultGroup: outcome.resultGroup,
+    signalLabel: outcome.signalLabel,
+    rankScore: outcome.rankScore,
+    priceAtSignal: outcome.priceAtSignal,
+    forwardReturnPct: {
+      "1": outcome.horizons[1]?.returnPct ?? null,
+      "3": outcome.horizons[3]?.returnPct ?? null,
+      "5": outcome.horizons[5]?.returnPct ?? null,
+    },
+  };
+}
+
+function getBehaviorWarnings(usableSampleSize: number) {
+  if (usableSampleSize < 5) {
+    return ["Very limited historical sample size."];
   }
 
-  if (eligibleSampleSize === 0) {
-    warnings.push("Not enough forward candles for reliable outcome statistics.");
+  if (usableSampleSize < 10) {
+    return ["Limited historical sample size."];
   }
 
-  if (eligibleSampleSize < 5) {
-    warnings.push("Very limited historical sample size.");
-  } else if (eligibleSampleSize < 10) {
-    warnings.push("Limited historical sample size.");
-  }
+  return [];
+}
 
-  return warnings;
+function getUsableSampleSize(horizons: SymbolBehaviorHorizonMap) {
+  return Math.max(
+    ...Object.values(horizons).map((horizon) => horizon?.sampleSize ?? 0),
+  );
 }
 
 function getBasePrice(row: SymbolBehaviorSignalRow) {
@@ -546,20 +524,14 @@ function getHorizonOutcome({
     return null;
   }
 
-  const horizonCandles = forwardCandles.slice(0, horizon);
-  const futureClose = horizonCandles[horizonCandles.length - 1]?.close ?? null;
+  const futureClose = forwardCandles[horizon - 1]?.close ?? null;
 
   if (futureClose === null) {
     return null;
   }
 
-  const maxHigh = Math.max(...horizonCandles.map((candle) => candle.high));
-  const minLow = Math.min(...horizonCandles.map((candle) => candle.low));
-
   return {
     returnPct: getReturnPct({ basePrice, futurePrice: futureClose }),
-    maxUpsidePct: getReturnPct({ basePrice, futurePrice: maxHigh }),
-    maxDrawdownPct: getReturnPct({ basePrice, futurePrice: minLow }),
   };
 }
 
@@ -574,18 +546,10 @@ function getReturnPct({
 }
 
 function average(values: number[]) {
-  if (values.length === 0) {
-    return null;
-  }
-
   return roundPercent(values.reduce((sum, value) => sum + value, 0) / values.length);
 }
 
 function median(values: number[]) {
-  if (values.length === 0) {
-    return null;
-  }
-
   const sorted = [...values].sort((left, right) => left - right);
   const middle = Math.floor(sorted.length / 2);
 
@@ -597,10 +561,6 @@ function median(values: number[]) {
 }
 
 function getWinRate(values: number[]) {
-  if (values.length === 0) {
-    return null;
-  }
-
   const wins = values.filter((value) => value > 0).length;
 
   return roundPercent((wins / values.length) * 100);
@@ -621,12 +581,8 @@ function parseForwardCandles(value: unknown): ForwardCandle[] {
 
       const record = item as Record<string, unknown>;
       const close = toNullableNumber(record.close);
-      const high = toNullableNumber(record.high);
-      const low = toNullableNumber(record.low);
 
-      return close === null || high === null || low === null
-        ? null
-        : { close, high, low };
+      return close === null ? null : { close };
     })
     .filter((item): item is ForwardCandle => item !== null);
 }
@@ -659,6 +615,10 @@ function toNullableNumber(value: unknown) {
 
 function toIsoString(value: Date | string) {
   return new Date(value).toISOString();
+}
+
+function toHorizonKey(horizon: SymbolBehaviorHorizonCandles) {
+  return String(horizon) as SymbolBehaviorHorizonKey;
 }
 
 function roundPercent(value: number) {

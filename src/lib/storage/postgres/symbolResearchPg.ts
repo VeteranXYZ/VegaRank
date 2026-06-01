@@ -13,7 +13,7 @@ import {
 import {
   loadSymbolBehaviorPg,
   type LoadSymbolBehaviorPgInput,
-  type SymbolBehaviorResult,
+  type SymbolBehaviorLoadResult,
 } from "./symbolBehaviorPg";
 import { createPostgresPool } from "./pool";
 
@@ -464,7 +464,7 @@ export class PgSymbolResearchStore {
 
   async getSymbolBehaviorPg(
     input: LoadSymbolBehaviorPgInput,
-  ): Promise<SymbolBehaviorResult> {
+  ): Promise<SymbolBehaviorLoadResult> {
     return loadSymbolBehaviorPg(this.pool, input);
   }
 

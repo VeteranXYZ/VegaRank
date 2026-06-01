@@ -2,129 +2,127 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { SymbolBehaviorPanel } from "./SymbolBehaviorPanel";
-import type { SymbolBehavior, SymbolBehaviorRecentOutcome } from "./symbolBehaviorUi";
+import type {
+  SymbolBehavior,
+  SymbolBehaviorDiagnostics,
+  SymbolBehaviorRecentOutcome,
+} from "./symbolBehaviorUi";
 
 describe("SymbolBehaviorPanel", () => {
-  it("renders populated historical behavior data", () => {
+  it("renders available historical behavior data", () => {
     const html = renderToStaticMarkup(
-      createElement(SymbolBehaviorPanel, { behavior: makeBehavior() }),
+      createElement(SymbolBehaviorPanel, {
+        behavior: makeBehavior(),
+        diagnostics: makeDiagnostics(true),
+      }),
     );
 
     expect(html).toContain("Historical Behavior");
-    expect(html).toContain("Past scanner signals for this symbol and timeframe");
+    expect(html).toContain("Historical observations");
+    expect(html).toContain("not a prediction");
     expect(html).toContain("Historical Sample");
-    expect(html).toContain("12");
     expect(html).toContain("Forward return after 1 candle");
     expect(html).toContain("Avg Return");
     expect(html).toContain("+1.20%");
-    expect(html).toContain("Current setup context");
+    expect(html).toContain("Current context");
     expect(html).toContain("Eligible");
     expect(html).toContain("Confirmed");
+    expect(html).toContain("Strong Trend");
     expect(html).toContain("Recent outcomes");
     expect(html).toContain("Show more outcomes (1 hidden)");
   });
 
-  it("renders empty state when behavior is missing", () => {
+  it("renders unavailable diagnostics without crashing", () => {
     const html = renderToStaticMarkup(
-      createElement(SymbolBehaviorPanel, { behavior: null }),
+      createElement(SymbolBehaviorPanel, {
+        behavior: null,
+        diagnostics: makeDiagnostics(false, "no_prior_signals", "No prior signals."),
+      }),
     );
 
-    expect(html).toContain("Not enough historical behavior data yet.");
-    expect(html).toContain("More scanner runs with forward candles are needed");
+    expect(html).toContain(
+      "Historical behavior is not available for this symbol/timeframe yet.",
+    );
+    expect(html).toContain("No prior signals.");
   });
 
-  it("renders small sample warnings and partial forward data", () => {
+  it("renders small sample warnings", () => {
     const behavior = makeBehavior({
       warnings: ["Limited historical sample size."],
-      recentOutcomes: [makeOutcome({ hasEnoughForwardCandles: false })],
+      recentOutcomes: [makeOutcome()],
     });
     const html = renderToStaticMarkup(
-      createElement(SymbolBehaviorPanel, { behavior }),
+      createElement(SymbolBehaviorPanel, {
+        behavior,
+        diagnostics: makeDiagnostics(true),
+      }),
     );
 
     expect(html).toContain("Limited historical sample size.");
-    expect(html).toContain("Partial");
+    expect(html).toContain("Next 1");
+    expect(html).toContain("+1.20%");
   });
 });
 
-function makeBehavior(
-  overrides: Partial<SymbolBehavior> = {},
-): SymbolBehavior {
+function makeDiagnostics(
+  available: boolean,
+  reason: SymbolBehaviorDiagnostics["reason"] = available
+    ? "ok"
+    : "unknown",
+  message = available
+    ? "Historical behavior is available."
+    : "Historical behavior is not available.",
+): SymbolBehaviorDiagnostics {
+  return { available, reason, message };
+}
+
+function makeBehavior(overrides: Partial<SymbolBehavior> = {}): SymbolBehavior {
   return {
-    timeframe: "4h",
-    symbol: "SEIUSDT",
     sampleSize: 12,
-    eligibleSampleSize: 11,
-    horizons: [
-      {
-        candles: 1,
-        sampleSize: 11,
-        averageReturnPct: 1.2,
-        medianReturnPct: 0.8,
-        winRatePct: 63.6,
-        averageMaxUpsidePct: 2.4,
-        averageMaxDrawdownPct: -1.1,
-        bestReturnPct: 5.3,
-        worstReturnPct: -3.2,
-      },
-      {
-        candles: 3,
-        sampleSize: 11,
-        averageReturnPct: 2.2,
-        medianReturnPct: 1.8,
-        winRatePct: 72.7,
-        averageMaxUpsidePct: 4.4,
-        averageMaxDrawdownPct: -2.1,
-        bestReturnPct: 8.3,
-        worstReturnPct: -4.2,
-      },
-      {
-        candles: 5,
-        sampleSize: 11,
-        averageReturnPct: 3.2,
-        medianReturnPct: 2.8,
-        winRatePct: 72.7,
-        averageMaxUpsidePct: 5.4,
-        averageMaxDrawdownPct: -2.8,
-        bestReturnPct: 10.3,
-        worstReturnPct: -6.2,
-      },
-    ],
-    byGroup: [],
+    horizons: {
+      "1": makeHorizon(11, 1.2),
+      "3": makeHorizon(11, 2.2),
+      "5": makeHorizon(11, 3.2),
+    },
+    byResultGroup: [],
     bySignalLabel: [],
     recentOutcomes: Array.from({ length: 6 }, (_, index) =>
-      makeOutcome({ scanTime: `2026-05-${String(index + 1).padStart(2, "0")}T00:00:00.000Z` }),
+      makeOutcome({
+        scanTime: `2026-05-${String(index + 1).padStart(2, "0")}T00:00:00.000Z`,
+      }),
     ),
     currentContext: {
-      currentSignalLabel: "confirmed",
-      currentResultGroup: "eligible",
-      matchingGroupSampleSize: 7,
-      matchingSignalSampleSize: 5,
-      note: "Research only.",
+      signalLabel: "confirmed",
+      resultGroup: "eligible",
+      primaryStructure: "strong_trend",
+      timeframe: "4h",
     },
     warnings: [],
     ...overrides,
   };
 }
 
+function makeHorizon(sampleSize: number, avgReturnPct: number) {
+  return {
+    sampleSize,
+    avgReturnPct,
+    medianReturnPct: avgReturnPct - 0.4,
+    winRatePct: 63.6,
+    bestReturnPct: 5.3,
+    worstReturnPct: -3.2,
+  };
+}
+
 function makeOutcome(
   overrides: Partial<SymbolBehaviorRecentOutcome> = {},
 ): SymbolBehaviorRecentOutcome {
-  const scanTime = overrides.scanTime ?? "2026-05-01T00:00:00.000Z";
-
   return {
-    scanTime,
-    candleOpenTime: scanTime,
+    scanTime: "2026-05-01T00:00:00.000Z",
     signalLabel: "confirmed",
     resultGroup: "eligible",
-    actionBias: "eligible",
-    primaryStructure: "strong_trend",
     priceAtSignal: 1.23,
     rankScore: 82,
-    forwardReturnsPct: { next1: 1.2, next3: 2.1, next5: 3.4 },
-    maxUpsidePct: { next1: 2.2, next3: 3.1, next5: 4.4 },
-    maxDrawdownPct: { next1: -0.8, next3: -1.4, next5: -2.5 },
-    hasEnoughForwardCandles: true,
+    forwardReturnPct: { "1": 1.2, "3": 2.1, "5": 3.4 },
     ...overrides,
   };
 }

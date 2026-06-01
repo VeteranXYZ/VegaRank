@@ -1,76 +1,76 @@
 import { formatSymbolResearchDateTime, toTitleCase } from "./symbolResearchUi";
 
-export type SymbolBehaviorHorizonCandles = 1 | 3 | 5;
+export type SymbolBehaviorHorizonKey = "1" | "3" | "5";
 
 export type SymbolBehaviorHorizonStats = {
-  candles: SymbolBehaviorHorizonCandles;
   sampleSize: number;
-  averageReturnPct: number | null;
+  avgReturnPct: number | null;
   medianReturnPct: number | null;
   winRatePct: number | null;
-  averageMaxUpsidePct: number | null;
-  averageMaxDrawdownPct: number | null;
   bestReturnPct: number | null;
   worstReturnPct: number | null;
 };
 
-export type SymbolBehaviorGroupedStats = {
-  group: string;
+export type SymbolBehaviorHorizonMap = Record<
+  SymbolBehaviorHorizonKey,
+  SymbolBehaviorHorizonStats | null
+>;
+
+export type SymbolBehaviorResultGroupStats = {
+  resultGroup: string;
   sampleSize: number;
-  horizons: SymbolBehaviorHorizonStats[];
+  horizons: SymbolBehaviorHorizonMap;
 };
 
 export type SymbolBehaviorSignalLabelStats = {
   signalLabel: string;
   sampleSize: number;
-  horizons: SymbolBehaviorHorizonStats[];
+  horizons: SymbolBehaviorHorizonMap;
 };
 
 export type SymbolBehaviorRecentOutcome = {
   scanTime: string;
-  candleOpenTime: string | null;
-  signalLabel: string;
   resultGroup: string | null;
-  actionBias: string | null;
-  primaryStructure: string | null;
-  priceAtSignal: number | null;
+  signalLabel: string | null;
   rankScore: number | null;
-  forwardReturnsPct: {
-    next1: number | null;
-    next3: number | null;
-    next5: number | null;
-  };
-  maxUpsidePct: {
-    next1: number | null;
-    next3: number | null;
-    next5: number | null;
-  };
-  maxDrawdownPct: {
-    next1: number | null;
-    next3: number | null;
-    next5: number | null;
-  };
-  hasEnoughForwardCandles: boolean;
+  priceAtSignal: number | null;
+  forwardReturnPct: Record<SymbolBehaviorHorizonKey, number | null>;
 };
 
 export type SymbolBehavior = {
-  timeframe: string;
-  symbol: string;
   sampleSize: number;
-  eligibleSampleSize: number;
-  horizons: SymbolBehaviorHorizonStats[];
-  byGroup: SymbolBehaviorGroupedStats[];
+  horizons: SymbolBehaviorHorizonMap;
+  byResultGroup: SymbolBehaviorResultGroupStats[];
   bySignalLabel: SymbolBehaviorSignalLabelStats[];
   recentOutcomes: SymbolBehaviorRecentOutcome[];
-  currentContext?: {
-    currentSignalLabel: string | null;
-    currentResultGroup: string | null;
-    matchingGroupSampleSize: number;
-    matchingSignalSampleSize: number;
-    note: string;
+  currentContext: {
+    resultGroup: string | null;
+    signalLabel: string | null;
+    primaryStructure: string | null;
+    timeframe: string;
   };
   warnings: string[];
 };
+
+export type SymbolBehaviorDiagnostics = {
+  available: boolean;
+  reason:
+    | "ok"
+    | "no_prior_signals"
+    | "missing_forward_candles"
+    | "insufficient_sample"
+    | "calculation_failed"
+    | "no_latest_signal"
+    | "unknown";
+  message: string;
+};
+
+export type SymbolBehaviorHorizonRow = SymbolBehaviorHorizonStats & {
+  horizon: SymbolBehaviorHorizonKey;
+  label: string;
+};
+
+export const symbolBehaviorHorizonKeys = ["1", "3", "5"] as const;
 
 export function formatBehaviorPercent(value: number | null | undefined) {
   if (value === null || value === undefined || !Number.isFinite(value)) {
@@ -100,10 +100,6 @@ export function formatBehaviorSampleSize(value: number | null | undefined) {
 
 export function getBehaviorWarningLabel(warning: string) {
   switch (warning) {
-    case "Not enough historical behavior data yet.":
-      return "Not enough historical behavior data yet.";
-    case "Not enough forward candles for reliable outcome statistics.":
-      return "Not enough forward candles for reliable outcome statistics.";
     case "Very limited historical sample size.":
       return "Very limited historical sample size.";
     case "Limited historical sample size.":
@@ -119,6 +115,31 @@ export function getBehaviorGroupLabel(group: string | null | undefined) {
 
 export function getBehaviorSignalLabel(signalLabel: string | null | undefined) {
   return signalLabel ? toTitleCase(signalLabel) : "Unknown";
+}
+
+export function getBehaviorSetupLabel(primaryStructure: string | null | undefined) {
+  return primaryStructure ? toTitleCase(primaryStructure) : "Unknown";
+}
+
+export function getBehaviorHorizonRows(
+  behavior: SymbolBehavior | null | undefined,
+): SymbolBehaviorHorizonRow[] {
+  if (!behavior) {
+    return [];
+  }
+
+  return symbolBehaviorHorizonKeys.map((horizon) => ({
+    horizon,
+    label: `${horizon} ${horizon === "1" ? "candle" : "candles"}`,
+    ...(behavior.horizons[horizon] ?? {
+      sampleSize: 0,
+      avgReturnPct: null,
+      medianReturnPct: null,
+      winRatePct: null,
+      bestReturnPct: null,
+      worstReturnPct: null,
+    }),
+  }));
 }
 
 export function selectCompactRecentOutcomes(
@@ -150,32 +171,34 @@ export function getHiddenRecentOutcomeCount({
 export function hasBehaviorOutcomeStats(behavior: SymbolBehavior | null | undefined) {
   return Boolean(
     behavior &&
-      (behavior.sampleSize > 0 ||
-        behavior.horizons.some((horizon) => horizon.sampleSize > 0)),
+      Object.values(behavior.horizons).some(
+        (horizon) => (horizon?.sampleSize ?? 0) > 0,
+      ),
   );
 }
 
 export function buildBehaviorSummary(behavior: SymbolBehavior) {
-  const context = behavior.currentContext;
+  const horizonRows = getBehaviorHorizonRows(behavior);
 
   return [
     {
       label: "Historical Sample",
       value: formatBehaviorSampleSize(behavior.sampleSize),
     },
-    {
-      label: "Outcome Sample",
-      value: formatBehaviorSampleSize(behavior.eligibleSampleSize),
-    },
-    {
-      label: "Current Group Sample",
-      value: formatBehaviorSampleSize(context?.matchingGroupSampleSize),
-    },
-    {
-      label: "Current Signal Sample",
-      value: formatBehaviorSampleSize(context?.matchingSignalSampleSize),
-    },
+    ...horizonRows.map((row) => ({
+      label: `${row.horizon} Candle Samples`,
+      value: formatBehaviorSampleSize(row.sampleSize),
+    })),
   ];
+}
+
+export function getBehaviorUnavailableMessage(
+  diagnostics: SymbolBehaviorDiagnostics | null | undefined,
+) {
+  return (
+    diagnostics?.message ||
+    "Historical behavior is not available for this symbol/timeframe yet."
+  );
 }
 
 export function formatRecentOutcomeDate(value: string | null | undefined) {

@@ -524,11 +524,18 @@ async function handleSymbolResearch(response: http.ServerResponse, url: URL) {
         currentSelection,
         selectedRun: unavailable.selectedRun,
         symbolCoverage: unavailable.symbolCoverage,
+        behavior: null,
+        behaviorDiagnostics: buildSymbolBehaviorDiagnostics({
+          available: false,
+          reason: "no_latest_signal",
+          message:
+            "Historical behavior is unavailable because no latest scanner signal exists for this symbol/timeframe.",
+        }),
       });
       return;
     }
 
-    const [historySignals, timeframeSignals, candles, behavior] = await Promise.all([
+    const [historySignals, timeframeSignals, candles, behaviorResult] = await Promise.all([
       store.getSymbolSignalHistoryPg({
         exchange,
         market,
@@ -612,7 +619,8 @@ async function handleSymbolResearch(response: http.ServerResponse, url: URL) {
           assetClass: assetClass.value,
         }),
       ),
-      ...(behavior ? { behavior } : {}),
+      behavior: behaviorResult.behavior,
+      behaviorDiagnostics: behaviorResult.behaviorDiagnostics,
       candles: buildSymbolResearchCandlesPayload({ timeframe, candles }),
     });
   } catch {
@@ -1007,8 +1015,35 @@ async function loadSymbolBehaviorSafely({
       "trade-api symbol behavior unavailable:",
       getSafeErrorCode(error) ?? "UNKNOWN",
     );
-    return null;
+    return {
+      behavior: null,
+      behaviorDiagnostics: buildSymbolBehaviorDiagnostics({
+        available: false,
+        reason: "calculation_failed",
+        message:
+          "Historical behavior is not available because the behavior calculation failed.",
+      }),
+    };
   }
+}
+
+function buildSymbolBehaviorDiagnostics({
+  available,
+  reason,
+  message,
+}: {
+  available: boolean;
+  reason:
+    | "ok"
+    | "no_prior_signals"
+    | "missing_forward_candles"
+    | "insufficient_sample"
+    | "calculation_failed"
+    | "no_latest_signal"
+    | "unknown";
+  message: string;
+}) {
+  return { available, reason, message };
 }
 
 type SymbolResearchUnavailableReason =

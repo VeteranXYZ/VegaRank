@@ -7,7 +7,10 @@ import { useMemo, useState, type FormEvent, type ReactNode } from "react";
 import { SymbolBehaviorPanel } from "./SymbolBehaviorPanel";
 import { SymbolResearchChart } from "./SymbolResearchChart";
 import { SymbolSignalTimeline } from "./SymbolSignalTimeline";
-import type { SymbolBehavior } from "./symbolBehaviorUi";
+import type {
+  SymbolBehavior,
+  SymbolBehaviorDiagnostics,
+} from "./symbolBehaviorUi";
 import {
   normalizeSymbolResearchCandles,
   type SymbolResearchCandles,
@@ -183,7 +186,8 @@ type SymbolResearchSuccessResponse = {
   };
   history?: SymbolResearchSignal[];
   timeframes?: SymbolResearchSignal[];
-  behavior?: SymbolBehavior | null;
+  behavior: SymbolBehavior | null;
+  behaviorDiagnostics: SymbolBehaviorDiagnostics;
   candles?: SymbolResearchCandles;
 };
 
@@ -207,6 +211,8 @@ type SymbolResearchUnavailableResponse = {
   currentSelection?: SymbolResearchCurrentSelection;
   selectedRun?: SymbolResearchSelectedRun | null;
   symbolCoverage?: SymbolResearchSymbolCoverage | null;
+  behavior?: null;
+  behaviorDiagnostics?: SymbolBehaviorDiagnostics;
 };
 
 type SymbolResearchResponse =
@@ -414,6 +420,11 @@ export function SymbolResearchPageClient({
           content={content}
           apiOrigin={apiOrigin}
         />
+        <SymbolBehaviorPanel
+          behavior={data.behavior ?? null}
+          diagnostics={data.behaviorDiagnostics}
+          className="mt-4"
+        />
       </main>
     );
   }
@@ -619,7 +630,11 @@ export function SymbolResearchPageClient({
         </Panel>
       </div>
 
-      <SymbolBehaviorPanel behavior={data.behavior} className="mt-4" />
+      <SymbolBehaviorPanel
+        behavior={data.behavior}
+        diagnostics={data.behaviorDiagnostics}
+        className="mt-4"
+      />
 
       <SymbolResearchChart
         symbol={data.symbol.symbol}
