@@ -3,6 +3,7 @@ import {
   buildSymbolResearchDiagnostics,
   buildSymbolResearchSummary,
   buildSymbolResearchTimeframeAvailability,
+  buildSymbolResearchTimeframeNavigation,
   buildSymbolResearchUnavailableContent,
   formatSymbolResearchAction,
   formatSymbolResearchDateTime,
@@ -241,7 +242,7 @@ describe("symbol research UI helpers", () => {
     );
     expect(content.suggestions).toEqual([
       "Try 4h or 1d for SEIUSDT.",
-      "Use 1w only after enough weekly candles exist.",
+      "Refresh after the next scanner run; 1w coverage updates as more weekly candles accrue.",
     ]);
   });
 
@@ -334,6 +335,70 @@ describe("symbol research UI helpers", () => {
     });
   });
 
+  it("does not mark unchecked supported timeframes as broken", () => {
+    const rows = buildSymbolResearchTimeframeAvailability({
+      timeframes: ["4h", "1d", "1w", "1h"],
+      selectedTimeframe: "4h",
+      signals: [
+        {
+          timeframe: "4h",
+          resultGroup: "eligible",
+          actionBias: "eligible",
+          rankScore: 81.2,
+          scanTime: "2026-06-01T00:00:00.000Z",
+          isSelectedCurrentRun: true,
+          sourceRunIsLikelyFullUniverse: true,
+        },
+      ],
+    });
+
+    expect(rows.map((row) => [row.timeframe, row.status, row.reason])).toEqual([
+      ["4h", "selected_available", "Available"],
+      ["1d", "not_returned", "No latest signal was returned for this timeframe."],
+      ["1w", "not_returned", "No latest signal was returned for this timeframe."],
+      [
+        "1h",
+        "planned",
+        "No production scanner run is available for this timeframe yet.",
+      ],
+    ]);
+  });
+
+  it("builds quick-switch options with supported and planned states", () => {
+    const options = buildSymbolResearchTimeframeNavigation({
+      timeframes: ["4h", "1d", "1w", "1h"],
+      selectedTimeframe: "1d",
+    });
+
+    expect(options).toEqual([
+      expect.objectContaining({
+        timeframe: "4h",
+        status: "supported",
+        badgeLabel: "Supported",
+        isDisabled: false,
+      }),
+      expect.objectContaining({
+        timeframe: "1d",
+        status: "selected",
+        badgeLabel: "Selected",
+        isSelected: true,
+        isDisabled: false,
+      }),
+      expect.objectContaining({
+        timeframe: "1w",
+        status: "supported",
+        badgeLabel: "Supported",
+        isDisabled: false,
+      }),
+      expect.objectContaining({
+        timeframe: "1h",
+        status: "planned",
+        badgeLabel: "Planned",
+        isDisabled: true,
+      }),
+    ]);
+  });
+
   it("formats unavailable reason, selected run, and candle coverage directly", () => {
     expect(formatSymbolResearchUnavailableReason("insufficient_history")).toEqual({
       code: "insufficient_history",
@@ -364,15 +429,17 @@ describe("symbol research UI helpers", () => {
   it("avoids multi-timeframe wording when only one snapshot exists", () => {
     const base =
       "Snapshot rows may use the selected full-universe signal for the requested timeframe and latest available full-universe signals for other timeframes.";
+    const availabilityNote =
+      "Unavailable or planned timeframes are omitted from this snapshot unless the API returns enough detail to explain them.";
 
     expect(getTimeframeSnapshotTitle(0)).toBe("Timeframe Snapshot");
     expect(getTimeframeSnapshotTitle(1)).toBe("Timeframe Snapshot");
     expect(getTimeframeSnapshotTitle(2)).toBe("Multi-Timeframe Snapshot");
     expect(getTimeframeSnapshotNote([{ timeframe: "4h" }])).toBe(
-      `Only 4h snapshot is currently available for this symbol. ${base}`,
+      `Only 4h snapshot is currently available for this symbol. ${base} ${availabilityNote}`,
     );
     expect(getTimeframeSnapshotNote([{ timeframe: "4h" }, { timeframe: "1d" }])).toBe(
-      base,
+      `${base} ${availabilityNote}`,
     );
   });
 

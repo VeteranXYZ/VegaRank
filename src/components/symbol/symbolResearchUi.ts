@@ -122,6 +122,7 @@ export type SymbolResearchTimeframeAvailabilityStatus =
   | "available"
   | "selected_unavailable"
   | "unavailable"
+  | "not_returned"
   | "planned";
 
 export type SymbolResearchTimeframeAvailabilityRow = {
@@ -139,6 +140,20 @@ export type SymbolResearchTimeframeAvailabilityRow = {
   rank: string;
   scanTime: string;
   runContext: string;
+};
+
+export type SymbolResearchTimeframeNavigationStatus =
+  | SymbolResearchTimeframeAvailabilityStatus
+  | "selected"
+  | "supported";
+
+export type SymbolResearchTimeframeNavigationOption = {
+  timeframe: string;
+  status: SymbolResearchTimeframeNavigationStatus;
+  badgeLabel: string;
+  isSelected: boolean;
+  isDisabled: boolean;
+  reason: string;
 };
 
 export type SymbolResearchSummary = {
@@ -320,13 +335,15 @@ export function getTimeframeSnapshotTitle(itemCount: number) {
 export function getTimeframeSnapshotNote(timeframes: TimeframeSnapshotInput[]) {
   const base =
     "Snapshot rows may use the selected full-universe signal for the requested timeframe and latest available full-universe signals for other timeframes.";
+  const availabilityNote =
+    "Unavailable or planned timeframes are omitted from this snapshot unless the API returns enough detail to explain them.";
 
   if (timeframes.length !== 1) {
-    return base;
+    return `${base} ${availabilityNote}`;
   }
 
   const timeframe = timeframes[0]?.timeframe || "selected timeframe";
-  return `Only ${timeframe} snapshot is currently available for this symbol. ${base}`;
+  return `Only ${timeframe} snapshot is currently available for this symbol. ${base} ${availabilityNote}`;
 }
 
 export function getSymbolResearchTimeframeSnapshots<T extends TimeframeSnapshotInput>({
@@ -483,7 +500,7 @@ export function buildSymbolResearchUnavailableContent(
     suggestions: isInsufficientHistory
       ? [
           `Try 4h or 1d for ${symbol}.`,
-          `Use ${timeframe} only after enough ${toReadableTimeframeUnit(timeframe)} candles exist.`,
+          `Refresh after the next scanner run; ${timeframe} coverage updates as more ${toReadableTimeframeUnit(timeframe)} candles accrue.`,
         ]
       : [
           "Try 4h or 1d for this symbol.",
@@ -564,10 +581,70 @@ export function buildSymbolResearchTimeframeAvailability({
 
     return buildTimeframeAvailabilityRow({
       timeframe,
-      status: "unavailable",
+      status: "not_returned",
       isSelected,
-      reason: "No latest full-universe signal is currently available.",
+      reason: "No latest signal was returned for this timeframe.",
     });
+  });
+}
+
+export function buildSymbolResearchTimeframeNavigation({
+  timeframes,
+  selectedTimeframe,
+  availabilityRows = [],
+  plannedTimeframes = ["1h"],
+}: {
+  timeframes: readonly string[];
+  selectedTimeframe: string;
+  availabilityRows?: readonly SymbolResearchTimeframeAvailabilityRow[];
+  plannedTimeframes?: readonly string[];
+}): SymbolResearchTimeframeNavigationOption[] {
+  const selected = selectedTimeframe.trim().toLowerCase();
+  const planned = new Set(plannedTimeframes.map((timeframe) => timeframe.toLowerCase()));
+  const availabilityByTimeframe = new Map(
+    availabilityRows.map((row) => [row.timeframe.toLowerCase(), row]),
+  );
+
+  return timeframes.map((timeframe) => {
+    const key = timeframe.toLowerCase();
+    const isSelected = key === selected;
+    const availability = availabilityByTimeframe.get(key);
+
+    if (availability) {
+      return {
+        timeframe,
+        status: availability.status,
+        badgeLabel:
+          availability.status === "not_returned"
+            ? isSelected
+              ? "Selected"
+              : "Supported"
+            : availability.badgeLabel,
+        isSelected,
+        isDisabled: availability.isDisabled,
+        reason: availability.reason,
+      };
+    }
+
+    if (planned.has(key)) {
+      return {
+        timeframe,
+        status: "planned",
+        badgeLabel: "Planned",
+        isSelected,
+        isDisabled: true,
+        reason: "No production scanner run is available for this timeframe yet.",
+      };
+    }
+
+    return {
+      timeframe,
+      status: isSelected ? "selected" : "supported",
+      badgeLabel: isSelected ? "Selected" : "Supported",
+      isSelected,
+      isDisabled: false,
+      reason: "Production scanner supports this timeframe.",
+    };
   });
 }
 
@@ -651,6 +728,7 @@ function buildTimeframeAvailabilityRow({
 }): SymbolResearchTimeframeAvailabilityRow {
   const isAvailable = status === "available" || status === "selected_available";
   const isPlanned = status === "planned";
+  const isNotReturned = status === "not_returned";
   const selectedRun = unavailable?.selectedRun;
   const coverage = unavailable?.symbolCoverage;
 
@@ -666,14 +744,18 @@ function buildTimeframeAvailabilityRow({
       ? formatSymbolResearchUnavailableCoverage(coverage)
       : isAvailable
         ? "Covered"
-        : "Not available",
+        : isNotReturned
+          ? "Not returned"
+          : "Not available",
     selectedRun: selectedRun
       ? formatSymbolResearchUnavailableSelectedRun(selectedRun)
       : isAvailable && signal
         ? formatSymbolResearchRunContext(signal)
         : isPlanned
           ? "Not configured"
-          : "Not available",
+          : isNotReturned
+            ? "Open timeframe to check"
+            : "Not available",
     group: signal ? formatSymbolResearchGroup(signal.resultGroup) : "-",
     action: signal
       ? formatSymbolResearchAction(signal.actionBias ?? signal.statusNote)
@@ -694,6 +776,8 @@ function getTimeframeAvailabilityStatusLabel(
     case "selected_unavailable":
     case "unavailable":
       return "Unavailable";
+    case "not_returned":
+      return "Not returned";
     case "planned":
       return "Planned / Not configured";
   }
@@ -712,6 +796,8 @@ function getTimeframeAvailabilityBadgeLabel(
       return reason === "Insufficient history" ? "Insufficient history" : "Unavailable";
     case "unavailable":
       return "Unavailable";
+    case "not_returned":
+      return "Not returned";
     case "planned":
       return "Planned";
   }

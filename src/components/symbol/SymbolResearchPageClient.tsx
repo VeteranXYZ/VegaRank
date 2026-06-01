@@ -14,6 +14,7 @@ import {
   buildSymbolResearchDiagnostics,
   buildSymbolResearchSummary,
   buildSymbolResearchTimeframeAvailability,
+  buildSymbolResearchTimeframeNavigation,
   buildSymbolResearchUnavailableContent,
   formatSymbolResearchAction,
   formatSymbolResearchDateTime,
@@ -31,6 +32,7 @@ import {
   hasNewerSymbolResearchHistoryRows,
   toTitleCase,
   type SymbolResearchTimeframeAvailabilityRow,
+  type SymbolResearchTimeframeNavigationOption,
   type SymbolResearchUnavailableReason,
 } from "./symbolResearchUi";
 
@@ -240,7 +242,10 @@ export function SymbolResearchPageClient({
   const normalizedSymbol = symbol.toUpperCase();
   const tradeApiBaseUrl = getTradeApiBaseUrl();
   const apiOrigin = getSymbolResearchApiOriginLabel(tradeApiBaseUrl);
-  const scannerReturnHref = buildScannerReturnHref(searchParams);
+  const scannerReturnHref = buildScannerReturnHref(searchParams, {
+    timeframe,
+    assetClass,
+  });
   const queryParams = useMemo(
     () => ({
       exchange,
@@ -786,10 +791,17 @@ export function getSymbolResearchApiOriginLabel(
   }
 }
 
-export function buildScannerReturnHref(searchParamsOrState?: QueryStateInput) {
+export function buildScannerReturnHref(
+  searchParamsOrState?: QueryStateInput,
+  fallback?: { timeframe?: string | null; assetClass?: string | null },
+) {
   const params = new URLSearchParams();
-  const timeframe = getQueryStateValue(searchParamsOrState, "timeframe")?.trim();
-  const assetClass = getQueryStateValue(searchParamsOrState, "assetClass")?.trim();
+  const timeframe =
+    getQueryStateValue(searchParamsOrState, "timeframe")?.trim() ||
+    fallback?.timeframe?.trim();
+  const assetClass =
+    getQueryStateValue(searchParamsOrState, "assetClass")?.trim() ||
+    fallback?.assetClass?.trim();
   const limit = normalizePositiveInteger(
     getQueryStateValue(searchParamsOrState, "limit"),
   );
@@ -889,9 +901,11 @@ function SymbolResearchNavigation({
   availabilityRows?: SymbolResearchTimeframeAvailabilityRow[];
 }) {
   const [symbolInput, setSymbolInput] = useState(symbol);
-  const availabilityByTimeframe = new Map(
-    availabilityRows?.map((row) => [row.timeframe.toLowerCase(), row]),
-  );
+  const timeframeOptions = buildSymbolResearchTimeframeNavigation({
+    timeframes: symbolResearchTimeframes,
+    selectedTimeframe: timeframe,
+    availabilityRows,
+  });
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     onSymbolSubmit(symbolInput);
@@ -949,41 +963,38 @@ function SymbolResearchNavigation({
         aria-label="Timeframe quick switch"
         className="mt-3 flex flex-wrap gap-2 text-xs"
       >
-        {symbolResearchTimeframes.map((option) => {
-          const isActive = option === timeframe;
-          const availability = availabilityByTimeframe.get(option.toLowerCase());
-          const className = getTimeframeNavigationClass(availability, isActive);
-          const label = availability?.badgeLabel ?? (isActive ? "Selected" : "");
+        {timeframeOptions.map((option) => {
+          const className = getTimeframeNavigationClass(option);
 
-          if (availability?.isDisabled) {
+          if (option.isDisabled) {
             return (
               <span
-                key={option}
+                key={option.timeframe}
                 aria-disabled="true"
-                title={availability.reason}
+                title={option.reason}
                 className={`${className} cursor-not-allowed`}
               >
-                <span>{option}</span>
-                {label ? <span className="opacity-80">{label}</span> : null}
+                <span>{option.timeframe}</span>
+                <span className="opacity-80">{option.badgeLabel}</span>
               </span>
             );
           }
 
           return (
             <Link
-              key={option}
+              key={option.timeframe}
               href={buildSymbolResearchTimeframeHref({
                 exchange,
                 symbol,
-                timeframe: option,
+                timeframe: option.timeframe,
                 searchParams,
               })}
-              aria-current={isActive ? "page" : undefined}
-              title={availability?.reason}
+              aria-current={option.isSelected ? "page" : undefined}
+              title={option.reason}
               className={className}
             >
-              <span>{option}</span>
-              {label ? <span className="opacity-80">{label}</span> : null}
+              <span>{option.timeframe}</span>
+              <span className="opacity-80">{option.badgeLabel}</span>
             </Link>
           );
         })}
@@ -1034,26 +1045,23 @@ function TimeframeAvailabilityPanel({
   );
 }
 
-function getTimeframeNavigationClass(
-  availability: SymbolResearchTimeframeAvailabilityRow | undefined,
-  isActive: boolean,
-) {
+function getTimeframeNavigationClass(option: SymbolResearchTimeframeNavigationOption) {
   const base =
     "inline-flex items-center gap-1.5 border px-3 py-1.5 font-semibold";
 
-  if (availability?.status === "planned") {
+  if (option.status === "planned") {
     return `${base} border-[var(--border)] bg-[#080d12] text-[var(--muted)] opacity-70`;
   }
 
-  if (availability?.status === "selected_unavailable") {
+  if (option.status === "selected_unavailable") {
     return `${base} border-amber-400/50 bg-amber-500/10 text-amber-100 hover:border-amber-300`;
   }
 
-  if (availability?.status === "unavailable") {
+  if (option.status === "unavailable") {
     return `${base} border-[var(--border)] bg-[#080d12] text-[var(--muted)] hover:border-amber-400/50 hover:text-[var(--foreground)]`;
   }
 
-  if (isActive) {
+  if (option.isSelected) {
     return `${base} border-[var(--info)] bg-[#07131a] text-[var(--foreground)]`;
   }
 

@@ -144,6 +144,26 @@ describe("symbol research navigation helpers", () => {
     expect(buildScannerReturnHref(new URLSearchParams())).toBe("/scanner");
   });
 
+  it("falls back to current symbol research context for scanner returns", () => {
+    expect(
+      buildScannerReturnHref(new URLSearchParams(), {
+        timeframe: "1w",
+        assetClass: "crypto",
+      }),
+    ).toBe("/scanner?timeframe=1w&assetClass=crypto");
+    expect(
+      buildScannerReturnHref(
+        new URLSearchParams("limit=200&includeLowQuality=true"),
+        {
+          timeframe: "1d",
+          assetClass: "stable",
+        },
+      ),
+    ).toBe(
+      "/scanner?timeframe=1d&assetClass=stable&includeLowQuality=true&limit=200",
+    );
+  });
+
   it("does not preserve false low-quality query state", () => {
     expect(
       buildScannerReturnHref(
@@ -250,10 +270,13 @@ describe("SymbolResearchPageClient unavailable state", () => {
     expect(html).toContain("Planned / Not configured");
     expect(html).toContain("Not configured");
     expect(html).toContain("Try 4h or 1d for SEIUSDT.");
-    expect(html).toContain("Use 1w only after enough weekly candles exist.");
+    expect(html).toContain(
+      "Refresh after the next scanner run; 1w coverage updates as more weekly candles accrue.",
+    );
     expect(html).toContain("Back to Scanner");
     expect(html).toContain("Refresh");
     expect(html).toContain("Open Symbol");
+    expect(html).toContain('href="/scanner?timeframe=1w&amp;assetClass=crypto');
     expect(html).toContain('href="/symbol/binance/SEIUSDT?timeframe=4h');
     expect(html).toContain('href="/symbol/binance/SEIUSDT?timeframe=1d');
     expect(html).toContain('href="/symbol/binance/SEIUSDT?timeframe=1w');

@@ -647,7 +647,7 @@ function LatestScanRow({
           href={buildSymbolResearchHref({
             exchange: item.exchange ?? "binance",
             symbol: item.symbol,
-            timeframe: item.timeframe || timeframe,
+            timeframe,
             assetClass,
             includeLowQuality,
             limit,

@@ -75,6 +75,41 @@ describe("scanner symbol research links", () => {
     );
   });
 
+  it.each(["1d", "1w"] as const)(
+    "preserves the active %s scanner timeframe in symbol detail hrefs",
+    (timeframe) => {
+      expect(
+        buildSymbolResearchHref({
+          exchange: "binance",
+          symbol: "seiusdt",
+          timeframe,
+          assetClass: "crypto",
+          includeLowQuality: false,
+          limit: 200,
+          from: "scanner",
+        }),
+      ).toBe(
+        `/symbol/binance/SEIUSDT?timeframe=${timeframe}&assetClass=crypto&limit=200&from=scanner`,
+      );
+    },
+  );
+
+  it("preserves only true low-quality scanner context in symbol detail hrefs", () => {
+    expect(
+      buildSymbolResearchHref({
+        exchange: "binance",
+        symbol: "seiusdt",
+        timeframe: "1w",
+        assetClass: "crypto",
+        includeLowQuality: "true",
+        limit: "500",
+        from: "scanner",
+      }),
+    ).toBe(
+      "/symbol/binance/SEIUSDT?timeframe=1w&assetClass=crypto&includeLowQuality=true&limit=500&from=scanner",
+    );
+  });
+
   it("builds a safe symbol detail path with timeframe", () => {
     expect(
       buildSymbolResearchPath({
