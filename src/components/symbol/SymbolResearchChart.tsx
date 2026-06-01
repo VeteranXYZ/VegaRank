@@ -147,7 +147,7 @@ export function SymbolResearchChart({
         : "No candle rows available for this symbol/timeframe yet.";
 
   return (
-    <section className="mt-4 border border-[var(--border)] bg-[var(--panel)] px-4 py-4">
+    <section className="mt-4 min-w-0 border border-[var(--border)] bg-[var(--panel)] px-4 py-4">
       <div className="mb-3 flex flex-wrap items-start justify-between gap-3">
         <div>
           <h2 className="text-sm font-semibold">Research Chart</h2>
@@ -155,7 +155,7 @@ export function SymbolResearchChart({
             Recent candles with simple moving averages for manual review.
           </p>
         </div>
-        <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs text-[var(--muted)] sm:grid-cols-3 lg:text-right">
+        <div className="grid w-full grid-cols-2 gap-x-4 gap-y-1 text-xs text-[var(--muted)] sm:w-auto sm:grid-cols-3 lg:text-right">
           <LegendValue label="Symbol" value={symbol} />
           <LegendValue label="Timeframe" value={timeframe} />
           <LegendValue label="Last close" value={formatChartPrice(chartData.latestClose)} />
@@ -180,7 +180,7 @@ export function SymbolResearchChart({
       {hasCandles ? (
         <div
           ref={containerRef}
-          className="h-[320px] min-w-0 overflow-hidden border border-[var(--border)] bg-[#080d12]"
+          className="h-[280px] min-w-0 overflow-hidden border border-[var(--border)] bg-[#080d12] sm:h-[340px]"
         />
       ) : (
         <div className="flex h-[220px] items-center justify-center border border-[var(--border)] bg-[#080d12] px-4 text-center text-sm text-[var(--muted)]">

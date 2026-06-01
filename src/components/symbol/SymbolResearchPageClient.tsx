@@ -1,8 +1,9 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { useSearchParams } from "next/navigation";
-import { useMemo, type ReactNode } from "react";
+import Link from "next/link";
+import { useRouter, useSearchParams } from "next/navigation";
+import { useMemo, useState, type FormEvent, type ReactNode } from "react";
 import { SymbolResearchChart } from "./SymbolResearchChart";
 import { SymbolSignalTimeline } from "./SymbolSignalTimeline";
 import {
@@ -125,12 +126,12 @@ type SymbolResearchResponse = {
     isLowQuality: boolean;
     qualityFlags: string[];
   };
-  latest: {
+  latest?: {
     scanRun: SymbolResearchRun | null;
-    signal: SymbolResearchSignal;
-  };
+    signal?: SymbolResearchSignal | null;
+  } | null;
   currentSelection?: SymbolResearchCurrentSelection;
-  scoreBreakdown: {
+  scoreBreakdown?: {
     rankScore: number | null;
     finalSignalScore: number | null;
     opportunityScore: number | null;
@@ -141,7 +142,7 @@ type SymbolResearchResponse = {
     volumeScore: number | null;
     structureScore: number | null;
   };
-  interpretation: {
+  interpretation?: {
     group: string;
     label: string;
     action: string;
@@ -151,9 +152,9 @@ type SymbolResearchResponse = {
     nextConfirmation: unknown;
     invalidation: unknown;
   };
-  history: SymbolResearchSignal[];
-  timeframes: SymbolResearchSignal[];
-  candles: SymbolResearchCandles;
+  history?: SymbolResearchSignal[];
+  timeframes?: SymbolResearchSignal[];
+  candles?: SymbolResearchCandles;
 };
 
 type SymbolResearchApiErrorBody = {
@@ -163,30 +164,41 @@ type SymbolResearchApiErrorBody = {
   message?: string;
 };
 
+type QueryStateInput =
+  | { get(name: string): string | null }
+  | Record<string, string | number | boolean | null | undefined>
+  | null
+  | undefined;
+
 const defaultHistoryLimit = 30;
 const defaultCandleLimit = 120;
 const defaultTimeframe = "4h";
+const symbolResearchTimeframes = ["4h", "1d", "1w", "1h"] as const;
 
 export function SymbolResearchPageClient({
   exchange,
   symbol,
 }: SymbolResearchPageClientProps) {
+  const router = useRouter();
   const searchParams = useSearchParams();
   const market = searchParams.get("market")?.trim() || "spot";
   const timeframe = searchParams.get("timeframe")?.trim() || defaultTimeframe;
+  const assetClass = searchParams.get("assetClass")?.trim() || "crypto";
   const normalizedSymbol = symbol.toUpperCase();
   const tradeApiBaseUrl = getTradeApiBaseUrl();
   const apiOrigin = getSymbolResearchApiOriginLabel(tradeApiBaseUrl);
+  const scannerReturnHref = buildScannerReturnHref(searchParams);
   const queryParams = useMemo(
     () => ({
       exchange,
       market,
       symbol: normalizedSymbol,
       timeframe,
+      assetClass,
       historyLimit: defaultHistoryLimit,
       candleLimit: defaultCandleLimit,
     }),
-    [exchange, market, normalizedSymbol, timeframe],
+    [assetClass, exchange, market, normalizedSymbol, timeframe],
   );
   const query = useQuery({
     queryKey: ["symbol-research", queryParams],
@@ -194,25 +206,71 @@ export function SymbolResearchPageClient({
     staleTime: 60_000,
   });
 
+  const handleSymbolSubmit = (inputValue: string) => {
+    const nextSymbol = normalizeSymbolResearchInputSymbol(inputValue);
+
+    if (!nextSymbol) {
+      return;
+    }
+
+    router.push(
+      buildSymbolResearchSwitchHref({
+        exchange,
+        symbol: nextSymbol,
+        timeframe,
+        searchParams,
+      }),
+    );
+  };
+
   if (query.isLoading) {
     return (
       <main className="mx-auto w-full max-w-7xl px-4 py-6 text-[var(--foreground)]">
+        <SymbolResearchNavigation
+          key={normalizedSymbol}
+          exchange={exchange}
+          symbol={normalizedSymbol}
+          timeframe={timeframe}
+          assetClass={assetClass}
+          scannerReturnHref={scannerReturnHref}
+          searchParams={searchParams}
+          isFetching={query.isFetching}
+          onSymbolSubmit={handleSymbolSubmit}
+          onRefresh={() => void query.refetch()}
+        />
         <ResearchState
           title={normalizedSymbol}
-          message="Loading research view..."
+          message={`Loading symbol research for ${normalizedSymbol} on ${timeframe}...`}
           apiOrigin={apiOrigin}
+          scannerReturnHref={scannerReturnHref}
+          loading
         />
       </main>
     );
   }
 
   if (query.isError) {
+    const errorMessage = getSymbolResearchErrorDisplayMessage(query.error);
+
     return (
       <main className="mx-auto w-full max-w-7xl px-4 py-6 text-[var(--foreground)]">
+        <SymbolResearchNavigation
+          key={normalizedSymbol}
+          exchange={exchange}
+          symbol={normalizedSymbol}
+          timeframe={timeframe}
+          assetClass={assetClass}
+          scannerReturnHref={scannerReturnHref}
+          searchParams={searchParams}
+          isFetching={query.isFetching}
+          onSymbolSubmit={handleSymbolSubmit}
+          onRefresh={() => void query.refetch()}
+        />
         <ResearchState
           title={normalizedSymbol}
-          message={query.error.message || "Unable to load symbol research."}
+          message={errorMessage}
           apiOrigin={apiOrigin}
+          scannerReturnHref={scannerReturnHref}
         />
       </main>
     );
@@ -223,16 +281,59 @@ export function SymbolResearchPageClient({
   if (!data) {
     return (
       <main className="mx-auto w-full max-w-7xl px-4 py-6 text-[var(--foreground)]">
+        <SymbolResearchNavigation
+          key={normalizedSymbol}
+          exchange={exchange}
+          symbol={normalizedSymbol}
+          timeframe={timeframe}
+          assetClass={assetClass}
+          scannerReturnHref={scannerReturnHref}
+          searchParams={searchParams}
+          isFetching={query.isFetching}
+          onSymbolSubmit={handleSymbolSubmit}
+          onRefresh={() => void query.refetch()}
+        />
         <ResearchState
           title={normalizedSymbol}
           message="No research data available."
           apiOrigin={apiOrigin}
+          scannerReturnHref={scannerReturnHref}
         />
       </main>
     );
   }
 
-  const latestSignal = data.latest.signal;
+  const latestSignal = data.latest?.signal ?? null;
+
+  if (!latestSignal) {
+    return (
+      <main className="mx-auto w-full max-w-7xl px-4 py-6 text-[var(--foreground)]">
+        <SymbolResearchNavigation
+          key={normalizedSymbol}
+          exchange={exchange}
+          symbol={normalizedSymbol}
+          timeframe={timeframe}
+          assetClass={data.symbol.assetClass}
+          scannerReturnHref={scannerReturnHref}
+          searchParams={searchParams}
+          isFetching={query.isFetching}
+          onSymbolSubmit={handleSymbolSubmit}
+          onRefresh={() => void query.refetch()}
+        />
+        <ResearchState
+          title={data.symbol.symbol}
+          message="No selected latest signal found for this symbol/timeframe."
+          apiOrigin={apiOrigin}
+          scannerReturnHref={scannerReturnHref}
+        />
+      </main>
+    );
+  }
+
+  const history = data.history ?? [];
+  const timeframes = data.timeframes ?? [];
+  const interpretation = getSymbolResearchInterpretation(data, latestSignal);
+  const scoreBreakdown = getSymbolResearchScoreBreakdown(data, latestSignal);
   const candles = normalizeSymbolResearchCandles(data.candles);
   const candleSummary = getSymbolResearchCandleSummary(candles);
   const riskTypes = formatSymbolResearchList(latestSignal.detectedRiskTypes);
@@ -240,27 +341,40 @@ export function SymbolResearchPageClient({
     latestSignal.secondaryStructures,
   );
   const timeframeSnapshots = getSymbolResearchTimeframeSnapshots({
-    timeframes: data.timeframes,
+    timeframes,
     latestSignal,
     requestedTimeframe: data.timeframe ?? timeframe,
   });
   const timeframeSnapshotTitle = getTimeframeSnapshotTitle(timeframeSnapshots.length);
   const timeframeSnapshotNote = getTimeframeSnapshotNote(timeframeSnapshots);
   const showHistorySelectionNotice = hasNewerSymbolResearchHistoryRows([
-    ...data.history,
-    ...data.timeframes,
+    ...history,
+    ...timeframes,
   ]);
   const researchSummary = buildSymbolResearchSummary(latestSignal);
   const diagnostics = buildSymbolResearchDiagnostics({
     selectedTimeframe: data.timeframe ?? timeframe,
     currentSelection: data.currentSelection,
     latestSignal,
-    history: data.history,
+    history,
   });
   const candleRowsNotice = getCandleRowsNotice(candles);
 
   return (
     <main className="mx-auto w-full max-w-7xl px-4 py-6 text-[var(--foreground)]">
+      <SymbolResearchNavigation
+        key={data.symbol.symbol}
+        exchange={exchange}
+        symbol={data.symbol.symbol}
+        timeframe={timeframe}
+        assetClass={data.symbol.assetClass}
+        scannerReturnHref={scannerReturnHref}
+        searchParams={searchParams}
+        isFetching={query.isFetching}
+        onSymbolSubmit={handleSymbolSubmit}
+        onRefresh={() => void query.refetch()}
+      />
+
       <header className="mb-4 border border-[var(--border)] bg-[var(--panel)] px-4 py-4">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
@@ -283,7 +397,7 @@ export function SymbolResearchPageClient({
             <div>
               Latest scan:{" "}
               <span className="text-[var(--foreground)]">
-                {formatSymbolResearchDateTime(data.latest.scanRun?.finishedAt)}
+                {formatSymbolResearchDateTime(data.latest?.scanRun?.finishedAt)}
               </span>
             </div>
           </div>
@@ -293,28 +407,28 @@ export function SymbolResearchPageClient({
       <div className="grid gap-4 xl:grid-cols-[minmax(0,1.05fr)_minmax(320px,0.95fr)]">
         <Panel title="Current Classification">
           <div className="grid gap-3 sm:grid-cols-2">
-            <Fact label="Group" value={formatSymbolResearchGroup(data.interpretation.group)} />
-            <Fact label="Signal" value={data.interpretation.label} />
+            <Fact label="Group" value={formatSymbolResearchGroup(interpretation.group)} />
+            <Fact label="Signal" value={interpretation.label} />
             <Fact
               label="Action"
-              value={formatSymbolResearchAction(data.interpretation.action)}
+              value={formatSymbolResearchAction(interpretation.action)}
             />
             <Fact
               label="Setup Type"
-              value={formatSymbolResearchSetup(data.interpretation.setupType)}
+              value={formatSymbolResearchSetup(interpretation.setupType)}
             />
-            <Fact label="Status Note" value={data.interpretation.statusNote} />
+            <Fact label="Status Note" value={interpretation.statusNote} />
             <Fact
               label="Price"
               value={formatSymbolResearchPrice(latestSignal.priceAtSignal)}
             />
           </div>
-          <TextList title="Status Reasons" values={data.interpretation.reasons} />
+          <TextList title="Status Reasons" values={interpretation.reasons} />
         </Panel>
 
         <Panel title="Score Breakdown">
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-            {getSymbolResearchScoreRows(data.scoreBreakdown).map((row) => (
+            {getSymbolResearchScoreRows(scoreBreakdown).map((row) => (
               <div
                 key={row.label}
                 className="border border-[var(--border)] bg-[#080d12] px-3 py-2"
@@ -331,50 +445,52 @@ export function SymbolResearchPageClient({
         </Panel>
       </div>
 
-      <Panel title="Research Summary" className="mt-4">
-        <div className="grid gap-4 lg:grid-cols-[minmax(0,0.85fr)_minmax(0,1.15fr)]">
-          <div>
-            <div className="text-[11px] uppercase text-[var(--muted)]">
-              Current Stance
+      <div className="mt-4 grid gap-4 xl:grid-cols-[minmax(0,1.35fr)_minmax(320px,0.65fr)]">
+        <Panel title="Research Summary">
+          <div className="grid gap-4 lg:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)]">
+            <div>
+              <div className="text-[11px] uppercase text-[var(--muted)]">
+                Current Stance
+              </div>
+              <div className="mt-1 text-lg font-semibold text-[var(--foreground)]">
+                {researchSummary.stance}
+              </div>
+              <p className="mt-2 text-sm text-[var(--muted)]">
+                {researchSummary.runBasis}
+              </p>
             </div>
-            <div className="mt-1 text-lg font-semibold text-[var(--foreground)]">
-              {researchSummary.stance}
+            <div className="grid gap-4 md:grid-cols-3">
+              <SummaryList title="Why" values={researchSummary.why} />
+              <SummaryList
+                title="Next Confirmation"
+                values={researchSummary.nextConfirmation}
+              />
+              <SummaryList
+                title="Invalidation / Caution"
+                values={researchSummary.invalidation}
+              />
             </div>
-            <p className="mt-2 text-sm text-[var(--muted)]">
-              {researchSummary.runBasis}
-            </p>
           </div>
-          <div className="grid gap-4 md:grid-cols-3">
-            <SummaryList title="Why" values={researchSummary.why} />
-            <SummaryList
-              title="Next Confirmation"
-              values={researchSummary.nextConfirmation}
-            />
-            <SummaryList
-              title="Invalidation / Caution"
-              values={researchSummary.invalidation}
-            />
-          </div>
-        </div>
-      </Panel>
+        </Panel>
 
-      <Panel title="Data Source" className="mt-4">
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
-          {diagnostics.rows.map((row) => (
-            <Fact key={row.label} label={row.label} value={row.value} />
-          ))}
-        </div>
-        <p
-          className={`mt-3 border px-3 py-2 text-xs ${
-            diagnostics.hasWarning
-              ? "border-amber-500/30 bg-amber-500/10 text-amber-100"
-              : "border-[var(--border)] bg-[#080d12] text-[var(--muted)]"
-          }`}
-        >
-          {diagnostics.notice}
-        </p>
-        <p className="mt-2 text-xs text-[var(--muted)]">API origin: {apiOrigin}</p>
-      </Panel>
+        <Panel title="Data Source">
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-1">
+            {diagnostics.rows.map((row) => (
+              <Fact key={row.label} label={row.label} value={row.value} />
+            ))}
+            <Fact label="API Origin" value={apiOrigin} />
+          </div>
+          <p
+            className={`mt-3 border px-3 py-2 text-xs ${
+              diagnostics.hasWarning
+                ? "border-amber-500/30 bg-amber-500/10 text-amber-100"
+                : "border-[var(--border)] bg-[#080d12] text-[var(--muted)]"
+            }`}
+          >
+            {diagnostics.notice}
+          </p>
+        </Panel>
+      </div>
 
       <SymbolResearchChart
         symbol={data.symbol.symbol}
@@ -389,7 +505,7 @@ export function SymbolResearchPageClient({
       />
 
       <SymbolSignalTimeline
-        history={data.history}
+        history={history}
         showSelectionNotice={showHistorySelectionNotice}
       />
 
@@ -547,21 +663,226 @@ export function getSymbolResearchApiOriginLabel(
   }
 }
 
+export function buildScannerReturnHref(searchParamsOrState?: QueryStateInput) {
+  const params = new URLSearchParams();
+  const timeframe = getQueryStateValue(searchParamsOrState, "timeframe")?.trim();
+  const assetClass = getQueryStateValue(searchParamsOrState, "assetClass")?.trim();
+  const limit = normalizePositiveInteger(
+    getQueryStateValue(searchParamsOrState, "limit"),
+  );
+  const includeLowQuality =
+    getQueryStateValue(searchParamsOrState, "includeLowQuality") === "true";
+
+  if (timeframe) {
+    params.set("timeframe", timeframe);
+  }
+
+  if (assetClass) {
+    params.set("assetClass", assetClass);
+  }
+
+  if (includeLowQuality) {
+    params.set("includeLowQuality", "true");
+  }
+
+  if (limit !== null) {
+    params.set("limit", String(limit));
+  }
+
+  const query = params.toString();
+
+  return query ? `/scanner?${query}` : "/scanner";
+}
+
+export function buildSymbolResearchTimeframeHref({
+  exchange,
+  symbol,
+  timeframe,
+  searchParams,
+}: {
+  exchange: string;
+  symbol: string;
+  timeframe: string;
+  searchParams?: QueryStateInput;
+}) {
+  return buildSymbolResearchRouteHref({
+    exchange,
+    symbol,
+    timeframe,
+    ...getSymbolResearchNavigationState(searchParams),
+  });
+}
+
+export function buildSymbolResearchSwitchHref({
+  exchange,
+  symbol,
+  timeframe,
+  searchParams,
+}: {
+  exchange: string;
+  symbol: string;
+  timeframe: string;
+  searchParams?: QueryStateInput;
+}) {
+  const normalizedSymbol = normalizeSymbolResearchInputSymbol(symbol);
+
+  if (!normalizedSymbol) {
+    return "";
+  }
+
+  return buildSymbolResearchRouteHref({
+    exchange,
+    symbol: normalizedSymbol,
+    timeframe,
+    ...getSymbolResearchNavigationState(searchParams),
+  });
+}
+
+export function normalizeSymbolResearchInputSymbol(value: string) {
+  return value.trim().toUpperCase();
+}
+
+function SymbolResearchNavigation({
+  exchange,
+  symbol,
+  timeframe,
+  assetClass,
+  scannerReturnHref,
+  searchParams,
+  isFetching,
+  onSymbolSubmit,
+  onRefresh,
+}: {
+  exchange: string;
+  symbol: string;
+  timeframe: string;
+  assetClass?: string | null;
+  scannerReturnHref: string;
+  searchParams: QueryStateInput;
+  isFetching: boolean;
+  onSymbolSubmit: (value: string) => void;
+  onRefresh: () => void;
+}) {
+  const [symbolInput, setSymbolInput] = useState(symbol);
+  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    onSymbolSubmit(symbolInput);
+  };
+
+  return (
+    <section className="mb-3 border border-[var(--border)] bg-[#070b0f] px-3 py-3">
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-2">
+            <Link
+              href={scannerReturnHref}
+              className="border border-[var(--border)] px-3 py-1.5 text-xs font-semibold text-[var(--foreground)] hover:border-[var(--info)]"
+            >
+              Back to Scanner
+            </Link>
+            <button
+              type="button"
+              onClick={onRefresh}
+              disabled={isFetching}
+              className="border border-[var(--border)] px-3 py-1.5 text-xs font-semibold text-[var(--foreground)] disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {isFetching ? "Refreshing" : "Refresh"}
+            </button>
+          </div>
+          <p className="mt-2 text-xs text-[var(--muted)]">
+            {symbol} / {timeframe}
+            {assetClass ? ` / ${toTitleCase(assetClass)}` : ""}
+          </p>
+        </div>
+
+        <form
+          onSubmit={handleSubmit}
+          className="flex w-full min-w-0 flex-col gap-2 sm:flex-row lg:max-w-md"
+        >
+          <label className="min-w-0 flex-1">
+            <span className="sr-only">Symbol</span>
+            <input
+              value={symbolInput}
+              onChange={(event) => setSymbolInput(event.target.value)}
+              className="h-9 w-full border border-[var(--border)] bg-[#080d12] px-3 text-sm text-[var(--foreground)] outline-none focus:border-[var(--info)]"
+              placeholder="SEIUSDT"
+            />
+          </label>
+          <button
+            type="submit"
+            className="h-9 border border-[var(--border)] px-3 text-xs font-semibold text-[var(--foreground)] hover:border-[var(--info)]"
+          >
+            Open Symbol
+          </button>
+        </form>
+      </div>
+
+      <nav
+        aria-label="Timeframe quick switch"
+        className="mt-3 flex flex-wrap gap-2 text-xs"
+      >
+        {symbolResearchTimeframes.map((option) => {
+          const isActive = option === timeframe;
+
+          return (
+            <Link
+              key={option}
+              href={buildSymbolResearchTimeframeHref({
+                exchange,
+                symbol,
+                timeframe: option,
+                searchParams,
+              })}
+              aria-current={isActive ? "page" : undefined}
+              className={`border px-3 py-1.5 font-semibold ${
+                isActive
+                  ? "border-[var(--info)] bg-[#07131a] text-[var(--foreground)]"
+                  : "border-[var(--border)] text-[var(--muted)] hover:border-[var(--info)] hover:text-[var(--foreground)]"
+              }`}
+            >
+              {option}
+            </Link>
+          );
+        })}
+      </nav>
+    </section>
+  );
+}
+
 function ResearchState({
   title,
   message,
   apiOrigin,
+  scannerReturnHref,
+  loading = false,
 }: {
   title: string;
   message: string;
   apiOrigin?: string;
+  scannerReturnHref?: string;
+  loading?: boolean;
 }) {
   return (
     <section className="border border-[var(--border)] bg-[var(--panel)] px-4 py-8">
       <h1 className="text-xl font-semibold">{title}</h1>
       <p className="mt-2 text-sm text-[var(--muted)]">{message}</p>
+      {loading ? (
+        <div className="mt-5 grid gap-2 sm:grid-cols-3">
+          <div className="h-16 border border-[var(--border)] bg-[#080d12]" />
+          <div className="h-16 border border-[var(--border)] bg-[#080d12]" />
+          <div className="h-16 border border-[var(--border)] bg-[#080d12]" />
+        </div>
+      ) : null}
       {apiOrigin ? (
         <p className="mt-3 text-xs text-[var(--muted)]">API origin: {apiOrigin}</p>
+      ) : null}
+      {scannerReturnHref ? (
+        <Link
+          href={scannerReturnHref}
+          className="mt-4 inline-flex border border-[var(--border)] px-3 py-1.5 text-xs font-semibold text-[var(--foreground)] hover:border-[var(--info)]"
+        >
+          Back to Scanner
+        </Link>
       ) : null}
     </section>
   );
@@ -578,7 +899,7 @@ function Panel({
 }) {
   return (
     <section
-      className={`border border-[var(--border)] bg-[var(--panel)] px-4 py-4 ${className}`}
+      className={`min-w-0 border border-[var(--border)] bg-[var(--panel)] px-4 py-4 ${className}`}
     >
       <h2 className="mb-3 text-sm font-semibold">{title}</h2>
       {children}
@@ -588,9 +909,9 @@ function Panel({
 
 function Fact({ label, value }: { label: string; value: string }) {
   return (
-    <div>
+    <div className="min-w-0">
       <div className="text-[11px] uppercase text-[var(--muted)]">{label}</div>
-      <div className="mt-1 text-sm text-[var(--foreground)]">{value}</div>
+      <div className="mt-1 break-words text-sm text-[var(--foreground)]">{value}</div>
     </div>
   );
 }
@@ -687,12 +1008,153 @@ function ResponsiveTable({
   );
 }
 
+function getSymbolResearchInterpretation(
+  data: SymbolResearchResponse,
+  latestSignal: SymbolResearchSignal,
+) {
+  return {
+    group: data.interpretation?.group ?? latestSignal.resultGroup ?? "neutral",
+    label: data.interpretation?.label ?? latestSignal.signalLabel ?? "Unknown",
+    action:
+      data.interpretation?.action ??
+      latestSignal.actionBias ??
+      latestSignal.statusNote ??
+      "review_only",
+    setupType:
+      data.interpretation?.setupType ?? latestSignal.primaryStructure ?? "unknown",
+    statusNote:
+      data.interpretation?.statusNote ??
+      latestSignal.statusNote ??
+      "No status note available.",
+    reasons: data.interpretation?.reasons ?? latestSignal.statusReasons ?? [],
+  };
+}
+
+function getSymbolResearchScoreBreakdown(
+  data: SymbolResearchResponse,
+  latestSignal: SymbolResearchSignal,
+) {
+  return {
+    rankScore: data.scoreBreakdown?.rankScore ?? latestSignal.rankScore,
+    finalSignalScore:
+      data.scoreBreakdown?.finalSignalScore ?? latestSignal.finalSignalScore,
+    opportunityScore:
+      data.scoreBreakdown?.opportunityScore ?? latestSignal.opportunityScore,
+    confirmationScore:
+      data.scoreBreakdown?.confirmationScore ?? latestSignal.confirmationScore,
+    riskScore: data.scoreBreakdown?.riskScore ?? latestSignal.riskScore,
+    trendScore: data.scoreBreakdown?.trendScore ?? latestSignal.trendScore,
+    momentumScore:
+      data.scoreBreakdown?.momentumScore ?? latestSignal.momentumScore,
+    volumeScore: data.scoreBreakdown?.volumeScore ?? latestSignal.volumeScore,
+    structureScore:
+      data.scoreBreakdown?.structureScore ?? latestSignal.structureScore,
+  };
+}
+
+function buildSymbolResearchRouteHref({
+  exchange,
+  symbol,
+  timeframe,
+  assetClass,
+  includeLowQuality,
+  limit,
+  from,
+}: {
+  exchange: string;
+  symbol: string;
+  timeframe?: string | null;
+  assetClass?: string | null;
+  includeLowQuality?: boolean | string | null;
+  limit?: number | string | null;
+  from?: string | null;
+}) {
+  const params = new URLSearchParams({
+    timeframe: timeframe?.trim() || defaultTimeframe,
+  });
+  const normalizedAssetClass = assetClass?.trim();
+  const normalizedLimit = normalizePositiveInteger(limit);
+  const normalizedFrom = from?.trim();
+
+  if (normalizedAssetClass) {
+    params.set("assetClass", normalizedAssetClass);
+  }
+
+  if (includeLowQuality === true || includeLowQuality === "true") {
+    params.set("includeLowQuality", "true");
+  }
+
+  if (normalizedLimit !== null) {
+    params.set("limit", String(normalizedLimit));
+  }
+
+  if (normalizedFrom) {
+    params.set("from", normalizedFrom);
+  }
+
+  return `/symbol/${encodeURIComponent(
+    normalizeExchangePathSegment(exchange),
+  )}/${encodeURIComponent(normalizeSymbolResearchInputSymbol(symbol))}?${params.toString()}`;
+}
+
+function getSymbolResearchNavigationState(searchParams?: QueryStateInput) {
+  return {
+    assetClass: getQueryStateValue(searchParams, "assetClass"),
+    includeLowQuality: getQueryStateValue(searchParams, "includeLowQuality"),
+    limit: getQueryStateValue(searchParams, "limit"),
+    from: getQueryStateValue(searchParams, "from"),
+  };
+}
+
+function getQueryStateValue(input: QueryStateInput, key: string) {
+  if (!input) {
+    return null;
+  }
+
+  if ("get" in input && typeof input.get === "function") {
+    return input.get(key);
+  }
+
+  const record = input as Record<string, string | number | boolean | null | undefined>;
+  const value = record[key];
+
+  return value === null || value === undefined ? null : String(value);
+}
+
+function normalizeExchangePathSegment(value: string | null | undefined) {
+  return value?.trim().toLowerCase() || "binance";
+}
+
+function normalizePositiveInteger(value: number | string | null | undefined) {
+  const number = typeof value === "string" ? Number(value.trim()) : Number(value);
+
+  if (!Number.isInteger(number) || number <= 0) {
+    return null;
+  }
+
+  return number;
+}
+
+function getSymbolResearchErrorDisplayMessage(error: unknown) {
+  if (error instanceof Error && error.message) {
+    return error.message;
+  }
+
+  return "Unable to load symbol research.";
+}
+
 export function formatSymbolResearchApiError(
   status: number | null,
   body: SymbolResearchApiErrorBody | SymbolResearchResponse | null,
 ) {
   const errorCode = getSymbolResearchErrorCode(body);
   const message = getSymbolResearchErrorMessage(body);
+  const knownMessage = getKnownSymbolResearchErrorMessage(errorCode);
+
+  if (knownMessage) {
+    return knownMessage;
+  }
+
   const parts = [
     status === null ? null : `HTTP ${status}`,
     errorCode,
@@ -700,6 +1162,19 @@ export function formatSymbolResearchApiError(
   ].filter(Boolean);
 
   return parts.length > 0 ? parts.join(": ") : "Unable to load symbol research.";
+}
+
+function getKnownSymbolResearchErrorMessage(errorCode: string | null) {
+  switch (errorCode) {
+    case "SYMBOL_NOT_FOUND":
+      return "Symbol not found in scanner universe.";
+    case "NO_LATEST_SIGNAL":
+      return "No selected latest signal found for this symbol/timeframe.";
+    case "INVALID_TIMEFRAME":
+      return "Invalid timeframe. Try 1h, 4h, 1d, or 1w.";
+    default:
+      return null;
+  }
 }
 
 function isSymbolResearchApiErrorBody(

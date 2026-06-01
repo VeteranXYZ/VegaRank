@@ -3,6 +3,7 @@ import {
   buildLimitedViewWarning,
   buildLatestRunSummaryText,
   buildLatestScanUrl,
+  buildSymbolResearchHref,
   buildSymbolResearchPath,
   shouldShowIncompleteCryptoUniverseWarning,
 } from "./LatestScanPageClient";
@@ -58,6 +59,22 @@ describe("latest scan API URL builder", () => {
 });
 
 describe("scanner symbol research links", () => {
+  it("builds a deterministic symbol detail href with scanner context", () => {
+    expect(
+      buildSymbolResearchHref({
+        exchange: "binance",
+        symbol: "seiusdt",
+        timeframe: "4h",
+        assetClass: "crypto",
+        includeLowQuality: true,
+        limit: 100,
+        from: "scanner",
+      }),
+    ).toBe(
+      "/symbol/binance/SEIUSDT?timeframe=4h&assetClass=crypto&includeLowQuality=true&limit=100&from=scanner",
+    );
+  });
+
   it("builds a safe symbol detail path with timeframe", () => {
     expect(
       buildSymbolResearchPath({
@@ -76,6 +93,20 @@ describe("scanner symbol research links", () => {
         timeframe: "1d",
       }),
     ).toBe("/symbol/binance%20spot/SEI%2FUSDT?timeframe=1d");
+  });
+
+  it("does not include false low-quality state in symbol detail hrefs", () => {
+    expect(
+      buildSymbolResearchHref({
+        exchange: null,
+        symbol: "btc/usdt",
+        timeframe: undefined,
+        assetClass: "crypto",
+        includeLowQuality: false,
+        limit: 0,
+        from: "scanner",
+      }),
+    ).toBe("/symbol/binance/BTC%2FUSDT?timeframe=4h&assetClass=crypto&from=scanner");
   });
 });
 

@@ -25,7 +25,7 @@ export function SymbolSignalTimeline({
   const canToggle = compactHistory.hiddenCount > 0;
 
   return (
-    <section className="mt-4 border border-[var(--border)] bg-[var(--panel)] px-4 py-4">
+    <section className="mt-4 min-w-0 border border-[var(--border)] bg-[var(--panel)] px-4 py-4">
       <div className="mb-3">
         <h2 className="text-sm font-semibold">Signal History</h2>
         <p className="mt-1 text-xs text-[var(--muted)]">
@@ -53,13 +53,13 @@ export function SymbolSignalTimeline({
             </p>
           ) : null}
 
-          <ol className="relative space-y-3 border-l border-[var(--border)] pl-4">
+          <ol className="relative space-y-3 border-l border-[var(--border)] pl-3 sm:pl-4">
             {visibleItems.map((item) => (
               <li key={item.key} className="relative">
                 <span
                   className={`absolute -left-[21px] top-4 h-2.5 w-2.5 border ${getDotClassName(item)}`}
                 />
-                <article className={`border px-3 py-3 ${getArticleClassName(item)}`}>
+                <article className={`min-w-0 border px-3 py-3 ${getArticleClassName(item)}`}>
                   <div className="flex flex-wrap items-start justify-between gap-2">
                     <div>
                       <div className="flex flex-wrap items-center gap-2">
@@ -159,7 +159,7 @@ function TimelineFact({
   return (
     <div className={wide ? "sm:col-span-2" : ""}>
       <div className="text-[10px] uppercase text-[var(--muted-2)]">{label}</div>
-      <div className="mt-1 text-[var(--foreground)]">{value}</div>
+      <div className="mt-1 break-words text-[var(--foreground)]">{value}</div>
     </div>
   );
 }

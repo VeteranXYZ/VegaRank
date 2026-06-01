@@ -133,6 +133,22 @@ type BuildLatestScanUrlParams = {
   tradeApiBaseUrl?: string;
 };
 
+type BuildSymbolResearchHrefParams = {
+  exchange?: string | null;
+  symbol: string;
+  timeframe?: string | null;
+  assetClass?: string | null;
+  includeLowQuality?: boolean | string | null;
+  limit?: number | string | null;
+  from?: string | null;
+};
+
+type LatestScanQueryStateInput =
+  | { get(name: string): string | null }
+  | Record<string, string | string[] | number | boolean | null | undefined>
+  | null
+  | undefined;
+
 type LatestRunSummaryTextInput = {
   symbolsTotal: number | null | undefined;
   symbolsScanned: number | null | undefined;
@@ -161,11 +177,22 @@ const timeframeOptions: LatestScanTimeframe[] = ["4h", "1h", "1d", "1w"];
 const limitOptions: LatestScanLimit[] = [100, 200, 300, 500];
 const latestScanTableColumnCount = 9;
 
-export function LatestScanPageClient() {
-  const [timeframe, setTimeframe] = useState<LatestScanTimeframe>("4h");
-  const [assetClass, setAssetClass] = useState<LatestScanAssetClass>("crypto");
-  const [limit, setLimit] = useState<LatestScanLimit>(100);
-  const [includeLowQuality, setIncludeLowQuality] = useState(false);
+export function LatestScanPageClient({
+  initialQueryState,
+}: {
+  initialQueryState?: LatestScanQueryStateInput;
+} = {}) {
+  const initialFilters = getLatestScanInitialFilters(initialQueryState);
+  const [timeframe, setTimeframe] = useState<LatestScanTimeframe>(
+    initialFilters.timeframe,
+  );
+  const [assetClass, setAssetClass] = useState<LatestScanAssetClass>(
+    initialFilters.assetClass,
+  );
+  const [limit, setLimit] = useState<LatestScanLimit>(initialFilters.limit);
+  const [includeLowQuality, setIncludeLowQuality] = useState(
+    initialFilters.includeLowQuality,
+  );
   const latestScanQuery = useQuery({
     queryKey: ["latest-scan", timeframe, assetClass, limit, includeLowQuality],
     queryFn: ({ signal }) =>
@@ -261,6 +288,10 @@ export function LatestScanPageClient() {
                   group={section.group}
                   items={section.items}
                   summaryCount={section.summaryCount}
+                  timeframe={timeframe}
+                  assetClass={assetClass}
+                  includeLowQuality={includeLowQuality}
+                  limit={limit}
                 />
               ))}
             </div>
@@ -494,10 +525,18 @@ function LatestScanGroupSection({
   group,
   items,
   summaryCount,
+  timeframe,
+  assetClass,
+  includeLowQuality,
+  limit,
 }: {
   group: LatestScanGroupKey;
   items: LatestScanItem[];
   summaryCount: number;
+  timeframe: LatestScanTimeframe;
+  assetClass: LatestScanAssetClass;
+  includeLowQuality: boolean;
+  limit: LatestScanLimit;
 }) {
   const [expandedItemId, setExpandedItemId] = useState<string | null>(null);
   const hasLimitedHiddenItems = items.length === 0 && summaryCount > 0;
@@ -558,6 +597,10 @@ function LatestScanGroupSection({
                       onToggleDetails={() =>
                         setExpandedItemId(isExpanded ? null : item.id)
                       }
+                      timeframe={timeframe}
+                      assetClass={assetClass}
+                      includeLowQuality={includeLowQuality}
+                      limit={limit}
                     />
                     {isExpanded && <LatestScanDetailsRow item={item} />}
                   </Fragment>
@@ -575,10 +618,18 @@ function LatestScanRow({
   item,
   isExpanded,
   onToggleDetails,
+  timeframe,
+  assetClass,
+  includeLowQuality,
+  limit,
 }: {
   item: LatestScanItem;
   isExpanded: boolean;
   onToggleDetails: () => void;
+  timeframe: LatestScanTimeframe;
+  assetClass: LatestScanAssetClass;
+  includeLowQuality: boolean;
+  limit: LatestScanLimit;
 }) {
   const visibleReason = getVisibleReviewReason(item);
 
@@ -593,10 +644,14 @@ function LatestScanRow({
       <td className="px-2 py-1.5 font-semibold text-[var(--foreground)]">
         <Link
           className="text-[var(--info)] underline-offset-2 hover:underline"
-          href={buildSymbolResearchPath({
+          href={buildSymbolResearchHref({
             exchange: item.exchange ?? "binance",
             symbol: item.symbol,
-            timeframe: item.timeframe,
+            timeframe: item.timeframe || timeframe,
+            assetClass,
+            includeLowQuality,
+            limit,
+            from: "scanner",
           })}
         >
           {item.symbol}
@@ -920,10 +975,45 @@ export function buildSymbolResearchPath({
   symbol: string;
   timeframe: string;
 }) {
-  const params = new URLSearchParams({ timeframe });
+  return buildSymbolResearchHref({ exchange, symbol, timeframe });
+}
 
-  return `/symbol/${encodeURIComponent(exchange || "binance")}/${encodeURIComponent(
-    symbol.toUpperCase(),
+export function buildSymbolResearchHref({
+  exchange,
+  symbol,
+  timeframe,
+  assetClass,
+  includeLowQuality,
+  limit,
+  from,
+}: BuildSymbolResearchHrefParams) {
+  const normalizedExchange = normalizeExchangePathSegment(exchange);
+  const normalizedSymbol = symbol.trim().toUpperCase();
+  const params = new URLSearchParams({
+    timeframe: timeframe?.trim() || "4h",
+  });
+  const normalizedAssetClass = assetClass?.trim();
+  const normalizedLimit = normalizePositiveInteger(limit);
+  const normalizedFrom = from?.trim();
+
+  if (normalizedAssetClass) {
+    params.set("assetClass", normalizedAssetClass);
+  }
+
+  if (includeLowQuality === true || includeLowQuality === "true") {
+    params.set("includeLowQuality", "true");
+  }
+
+  if (normalizedLimit !== null) {
+    params.set("limit", String(normalizedLimit));
+  }
+
+  if (normalizedFrom) {
+    params.set("from", normalizedFrom);
+  }
+
+  return `/symbol/${encodeURIComponent(normalizedExchange)}/${encodeURIComponent(
+    normalizedSymbol,
   )}?${params.toString()}`;
 }
 
@@ -993,6 +1083,76 @@ export function getTradeApiBaseUrl(
   value = process.env.NEXT_PUBLIC_TRADE_API_BASE_URL,
 ) {
   return value?.trim().replace(/\/+$/, "") ?? "";
+}
+
+function getLatestScanInitialFilters(searchParams: LatestScanQueryStateInput) {
+  return {
+    timeframe: normalizeLatestScanTimeframe(
+      getLatestScanQueryStateValue(searchParams, "timeframe"),
+    ),
+    assetClass: normalizeLatestScanAssetClass(
+      getLatestScanQueryStateValue(searchParams, "assetClass"),
+    ),
+    limit: normalizeLatestScanLimit(getLatestScanQueryStateValue(searchParams, "limit")),
+    includeLowQuality:
+      getLatestScanQueryStateValue(searchParams, "includeLowQuality") === "true",
+  };
+}
+
+function getLatestScanQueryStateValue(input: LatestScanQueryStateInput, key: string) {
+  if (!input) {
+    return null;
+  }
+
+  if ("get" in input && typeof input.get === "function") {
+    return input.get(key);
+  }
+
+  const record = input as Record<
+    string,
+    string | string[] | number | boolean | null | undefined
+  >;
+  const value = record[key];
+
+  if (Array.isArray(value)) {
+    return value[0] ?? null;
+  }
+
+  return value === null || value === undefined ? null : String(value);
+}
+
+function normalizeLatestScanTimeframe(value: string | null): LatestScanTimeframe {
+  return timeframeOptions.includes(value as LatestScanTimeframe)
+    ? (value as LatestScanTimeframe)
+    : "4h";
+}
+
+function normalizeLatestScanAssetClass(value: string | null): LatestScanAssetClass {
+  return assetClassOptions.includes(value as LatestScanAssetClass)
+    ? (value as LatestScanAssetClass)
+    : "crypto";
+}
+
+function normalizeLatestScanLimit(value: string | null): LatestScanLimit {
+  const number = Number(value);
+
+  return limitOptions.includes(number as LatestScanLimit)
+    ? (number as LatestScanLimit)
+    : 100;
+}
+
+function normalizeExchangePathSegment(value: string | null | undefined) {
+  return value?.trim().toLowerCase() || "binance";
+}
+
+function normalizePositiveInteger(value: number | string | null | undefined) {
+  const number = typeof value === "string" ? Number(value.trim()) : Number(value);
+
+  if (!Number.isInteger(number) || number <= 0) {
+    return null;
+  }
+
+  return number;
 }
 
 async function getLatestScanErrorMessage(response: Response, fallback: string) {

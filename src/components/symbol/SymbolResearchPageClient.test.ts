@@ -1,9 +1,13 @@
 import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
 import {
+  buildScannerReturnHref,
+  buildSymbolResearchSwitchHref,
+  buildSymbolResearchTimeframeHref,
   buildSymbolResearchUrl,
   formatSymbolResearchApiError,
   getSymbolResearchApiOriginLabel,
   getTradeApiBaseUrl,
+  normalizeSymbolResearchInputSymbol,
 } from "./SymbolResearchPageClient";
 
 const ORIGINAL_ENV = { ...process.env };
@@ -86,6 +90,75 @@ describe("symbol research API URL builder", () => {
         ok: false,
         error: "NO_LATEST_SIGNAL",
       }),
-    ).toBe("NO_LATEST_SIGNAL");
+    ).toBe("No selected latest signal found for this symbol/timeframe.");
+    expect(
+      formatSymbolResearchApiError(404, {
+        ok: false,
+        error: "SYMBOL_NOT_FOUND",
+      }),
+    ).toBe("Symbol not found in scanner universe.");
+    expect(
+      formatSymbolResearchApiError(400, {
+        ok: false,
+        error: "INVALID_TIMEFRAME",
+      }),
+    ).toBe("Invalid timeframe. Try 1h, 4h, 1d, or 1w.");
+  });
+});
+
+describe("symbol research navigation helpers", () => {
+  it("builds scanner return hrefs from preserved query state", () => {
+    expect(
+      buildScannerReturnHref(
+        new URLSearchParams("from=scanner&timeframe=4h&assetClass=crypto&limit=100"),
+      ),
+    ).toBe("/scanner?timeframe=4h&assetClass=crypto&limit=100");
+    expect(
+      buildScannerReturnHref(
+        new URLSearchParams(
+          "timeframe=1d&assetClass=stable&includeLowQuality=true&limit=200",
+        ),
+      ),
+    ).toBe(
+      "/scanner?timeframe=1d&assetClass=stable&includeLowQuality=true&limit=200",
+    );
+    expect(buildScannerReturnHref(new URLSearchParams())).toBe("/scanner");
+  });
+
+  it("does not preserve false low-quality query state", () => {
+    expect(
+      buildScannerReturnHref(
+        new URLSearchParams("timeframe=4h&includeLowQuality=false&limit=100"),
+      ),
+    ).toBe("/scanner?timeframe=4h&limit=100");
+  });
+
+  it("builds timeframe switch hrefs while preserving scanner context", () => {
+    expect(
+      buildSymbolResearchTimeframeHref({
+        exchange: "binance",
+        symbol: "seiusdt",
+        timeframe: "1d",
+        searchParams: new URLSearchParams(
+          "timeframe=4h&assetClass=crypto&includeLowQuality=true&limit=100&from=scanner",
+        ),
+      }),
+    ).toBe(
+      "/symbol/binance/SEIUSDT?timeframe=1d&assetClass=crypto&includeLowQuality=true&limit=100&from=scanner",
+    );
+  });
+
+  it("normalizes symbol input and builds symbol switch hrefs", () => {
+    expect(normalizeSymbolResearchInputSymbol("  sei/usdt  ")).toBe("SEI/USDT");
+    expect(normalizeSymbolResearchInputSymbol("   ")).toBe("");
+
+    expect(
+      buildSymbolResearchSwitchHref({
+        exchange: "binance",
+        symbol: "  ethusdt ",
+        timeframe: "4h",
+        searchParams: new URLSearchParams("assetClass=crypto&limit=100&from=scanner"),
+      }),
+    ).toBe("/symbol/binance/ETHUSDT?timeframe=4h&assetClass=crypto&limit=100&from=scanner");
   });
 });
