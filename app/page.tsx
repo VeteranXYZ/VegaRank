@@ -24,6 +24,12 @@ export default function HomePage() {
           Open Scanner
         </Link>
         <Link
+          href="/screener"
+          className="rounded-md border border-[var(--border)] px-5 py-3 text-sm font-semibold text-[var(--foreground)]"
+        >
+          Open Multi-Timeframe Screener
+        </Link>
+        <Link
           href="/symbol/binance/BTCUSDT"
           className="rounded-md border border-[var(--border)] px-5 py-3 text-sm font-semibold text-[var(--foreground)]"
         >
