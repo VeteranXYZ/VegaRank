@@ -1,21 +1,23 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   buildSymbolResearchUrl,
   formatSymbolResearchApiError,
-  getSymbolResearchApiBaseUrl,
   getSymbolResearchApiOriginLabel,
+  getTradeApiBaseUrl,
 } from "./SymbolResearchPageClient";
 
-const originalTradeApiBaseUrl = process.env.NEXT_PUBLIC_TRADE_API_BASE_URL;
+const ORIGINAL_ENV = { ...process.env };
 
 describe("symbol research API URL builder", () => {
-  afterEach(() => {
+  beforeEach(() => {
     vi.unstubAllEnvs();
-    if (originalTradeApiBaseUrl === undefined) {
-      delete process.env.NEXT_PUBLIC_TRADE_API_BASE_URL;
-    } else {
-      process.env.NEXT_PUBLIC_TRADE_API_BASE_URL = originalTradeApiBaseUrl;
-    }
+    process.env = { ...ORIGINAL_ENV, NODE_ENV: "test" };
+    delete process.env.NEXT_PUBLIC_TRADE_API_BASE_URL;
+  });
+
+  afterAll(() => {
+    vi.unstubAllEnvs();
+    process.env = ORIGINAL_ENV;
   });
 
   it("uses NEXT_PUBLIC_TRADE_API_BASE_URL when present", () => {
@@ -31,8 +33,6 @@ describe("symbol research API URL builder", () => {
   });
 
   it("falls back to same-origin symbol research API when the env var is missing", () => {
-    delete process.env.NEXT_PUBLIC_TRADE_API_BASE_URL;
-
     expect(
       buildSymbolResearchUrl({
         exchange: "binance",
@@ -57,16 +57,21 @@ describe("symbol research API URL builder", () => {
   });
 
   it("normalizes trailing slashes from the API base URL", () => {
-    expect(getSymbolResearchApiBaseUrl("https://api.auere.com///")).toBe(
+    expect(getTradeApiBaseUrl("https://api.auere.com///")).toBe(
       "https://api.auere.com",
     );
   });
 
   it("reports only the API origin for diagnostics", () => {
+    expect(getSymbolResearchApiOriginLabel("https://api.auere.com")).toBe(
+      "https://api.auere.com",
+    );
     expect(getSymbolResearchApiOriginLabel("https://api.auere.com/")).toBe(
       "https://api.auere.com",
     );
     expect(getSymbolResearchApiOriginLabel(undefined)).toBe("same-origin");
+    expect(getSymbolResearchApiOriginLabel("")).toBe("same-origin");
+    expect(getSymbolResearchApiOriginLabel("/api")).toBe("same-origin");
   });
 
   it("formats HTTP and API error details without needing the full URL", () => {

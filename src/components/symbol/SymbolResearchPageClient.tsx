@@ -38,7 +38,7 @@ type BuildSymbolResearchUrlParams = {
   candleLimit?: number;
   includeCandles?: boolean;
   assetClass?: string;
-  tradeApiBaseUrl?: string;
+  tradeApiBaseUrl?: string | null;
 };
 
 type SymbolResearchPageClientProps = {
@@ -175,7 +175,8 @@ export function SymbolResearchPageClient({
   const market = searchParams.get("market")?.trim() || "spot";
   const timeframe = searchParams.get("timeframe")?.trim() || defaultTimeframe;
   const normalizedSymbol = symbol.toUpperCase();
-  const apiOrigin = getSymbolResearchApiOriginLabel();
+  const tradeApiBaseUrl = getTradeApiBaseUrl();
+  const apiOrigin = getSymbolResearchApiOriginLabel(tradeApiBaseUrl);
   const queryParams = useMemo(
     () => ({
       exchange,
@@ -508,7 +509,7 @@ export function buildSymbolResearchUrl({
   candleLimit = defaultCandleLimit,
   includeCandles = true,
   assetClass = "crypto",
-  tradeApiBaseUrl = process.env.NEXT_PUBLIC_TRADE_API_BASE_URL,
+  tradeApiBaseUrl,
 }: BuildSymbolResearchUrlParams) {
   const params = new URLSearchParams({
     exchange: exchange.toLowerCase(),
@@ -521,26 +522,26 @@ export function buildSymbolResearchUrl({
     assetClass,
   });
 
-  return `${getSymbolResearchApiBaseUrl(tradeApiBaseUrl)}/api/symbol/research?${params.toString()}`;
+  return `${getTradeApiBaseUrl(tradeApiBaseUrl)}/api/symbol/research?${params.toString()}`;
 }
 
-export function getSymbolResearchApiBaseUrl(
-  value = process.env.NEXT_PUBLIC_TRADE_API_BASE_URL,
+export function getTradeApiBaseUrl(
+  value: string | null | undefined = process.env.NEXT_PUBLIC_TRADE_API_BASE_URL,
 ) {
   return value?.trim().replace(/\/+$/, "") ?? "";
 }
 
 export function getSymbolResearchApiOriginLabel(
-  value = process.env.NEXT_PUBLIC_TRADE_API_BASE_URL,
+  baseUrl?: string | null,
 ) {
-  const baseUrl = getSymbolResearchApiBaseUrl(value);
+  const normalizedBaseUrl = baseUrl?.trim();
 
-  if (!baseUrl) {
+  if (!normalizedBaseUrl) {
     return "same-origin";
   }
 
   try {
-    return new URL(baseUrl).origin;
+    return new URL(normalizedBaseUrl).origin;
   } catch {
     return "same-origin";
   }
