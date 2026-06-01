@@ -38,7 +38,7 @@ export async function GET(request: Request) {
 
   if (!isTimeframe(timeframe)) {
     return NextResponse.json(
-      { error: "timeframe must be one of 4h, 1d, 1w, or 1M." },
+      { error: "timeframe must be one of 4h, 1h, 1d, 1w, or 1M." },
       { status: 400 },
     );
   }

@@ -550,7 +550,7 @@ async function handleSymbolResearch(response: http.ServerResponse, url: URL) {
         exchange,
         market,
         symbol,
-        timeframes: ["4h", "1d", "1w", "1M"],
+        timeframes: ["4h", "1h", "1d", "1w", "1M"],
         assetClass: assetClass.value,
         includeNonScanner,
         includeMarketContext,

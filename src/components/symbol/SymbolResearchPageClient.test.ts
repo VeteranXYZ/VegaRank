@@ -274,8 +274,8 @@ describe("SymbolResearchPageClient unavailable state", () => {
     expect(html).toContain("Timeframe Availability");
     expect(html).toContain("1w (selected)");
     expect(html).toContain("Insufficient history");
-    expect(html).toContain("Planned / Not configured");
-    expect(html).toContain("Not configured");
+    expect(html).toContain("Not returned");
+    expect(html).toContain("Open timeframe to check");
     expect(html).toContain("Try 4h or 1d for SEIUSDT.");
     expect(html).toContain(
       "Refresh after the next scanner run; 1w coverage updates as more weekly candles accrue.",
@@ -287,7 +287,7 @@ describe("SymbolResearchPageClient unavailable state", () => {
     expect(html).toContain('href="/symbol/binance/SEIUSDT?timeframe=4h');
     expect(html).toContain('href="/symbol/binance/SEIUSDT?timeframe=1d');
     expect(html).toContain('href="/symbol/binance/SEIUSDT?timeframe=1w');
-    expect(html).not.toContain('href="/symbol/binance/SEIUSDT?timeframe=1h');
+    expect(html).toContain('href="/symbol/binance/SEIUSDT?timeframe=1h');
     expect(html).toContain("Historical Behavior");
     expect(html).toContain(
       "Current coverage: 145 / 200 required candles.",

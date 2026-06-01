@@ -153,7 +153,7 @@ function parseTimeframes(value: string[] | undefined) {
   ) {
     return {
       valid: false as const,
-      error: "timeframes must be a non-empty array of 4h, 1d, 1w, or 1M.",
+      error: "timeframes must be a non-empty array of 4h, 1h, 1d, 1w, or 1M.",
     };
   }
 

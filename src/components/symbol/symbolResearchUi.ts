@@ -515,7 +515,7 @@ export function buildSymbolResearchTimeframeAvailability({
   selectedTimeframe,
   signals = [],
   unavailable,
-  plannedTimeframes = ["1h"],
+  plannedTimeframes = [],
 }: {
   timeframes: readonly string[];
   selectedTimeframe: string;
@@ -592,7 +592,7 @@ export function buildSymbolResearchTimeframeNavigation({
   timeframes,
   selectedTimeframe,
   availabilityRows = [],
-  plannedTimeframes = ["1h"],
+  plannedTimeframes = [],
 }: {
   timeframes: readonly string[];
   selectedTimeframe: string;

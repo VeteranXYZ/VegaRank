@@ -7,8 +7,8 @@ It ranks markets by technical structure, volatility compression, confirmation st
 ## What It Does
 
 - Scans Binance USDT spot markets by 24h quote volume.
-- Focuses on larger market moves with supported timeframes `4h`, `1d`, `1w`, and `1M`.
-- Uses `4h` as the minimum timeframe and `4h` + `1d` as the core multi-timeframe workflow.
+- Focuses on larger market moves with supported timeframes `4h`, `1h`, `1d`, `1w`, and `1M`.
+- Uses `4h` + `1d` as the core multi-timeframe workflow, with `1h` available for explicitly run production follow-up scans.
 - Calculates technical indicators from public candle data.
 - Classifies each market into a neutral market phase.
 - Produces opportunity, confirmation, risk, and rank scores.
@@ -180,7 +180,7 @@ Phase 1 includes a no-database per-symbol historical behavior review from the se
 - UI entry: `Historical Performance` / `历史表现`, then `Review setup` / `回看此结构`.
 - API form: `/api/backtest/symbol?symbol=VANAUSDT&timeframe=4h&matchMode=standard`
 - One request reviews one symbol and one timeframe only.
-- Supported timeframes are the same medium-to-large scanner intervals: `4h`, `1d`, `1w`, and `1M`.
+- Supported backtest timeframes remain `4h`, `1d`, `1w`, and `1M`.
 - Default candle limit is `1000`; the API clamps requests to `300` through `1000`.
 - Match modes are `broad`, `standard`, and `similar`.
 - Results are lazy-loaded, cached in memory, and not persisted.
@@ -194,18 +194,18 @@ The scanner is designed for medium-to-large timeframe coin selection, not intrad
 Supported public scanner timeframes:
 
 - `4h`
+- `1h`
 - `1d`
 - `1w`
 - `1M`
 
 Unsupported lower timeframes intentionally return `400` from public scanner/candle APIs:
 
-- `1h`
 - `15m`
 - `5m`
 - `1m`
 
-The core workflow is to scan eligible Binance USDT pairs on `4h`, confirm structure with `1d`, and optionally inspect `1w` and `1M`. Lower intervals were removed to reduce short-term noise and avoid unnecessary API/database load.
+The core workflow is to scan eligible Binance USDT pairs on `4h`, confirm structure with `1d`, and optionally inspect `1h`, `1w`, and `1M`. The `1h` path is supported when explicitly backfilled and scanned; it is not automatically scheduled by this runbook.
 
 ## Data Source
 
@@ -365,10 +365,12 @@ TTL values:
 - Markets / exchangeInfo: 12 hours
 - 24h tickers: 30 minutes
 - 4h candles: 60 minutes
+- 1h candles: 30 minutes
 - 1d candles: 6 hours
 - 1w candles: 24 hours
 - 1M candles: 72 hours
 - 4h scan: 60 minutes
+- 1h scan: 30 minutes
 - 1d scan: 6 hours
 - 1w scan: 24 hours
 - 1M scan: 72 hours
@@ -421,7 +423,7 @@ Command behavior:
   forward evaluations.
 - `research:evaluate` checks pending signals for a completed future horizon. It
   supports `--horizon=1h|4h|24h|3d|7d`, `--limit=100`, and supported scanner
-  `--timeframe=4h|1d|1w|1M`.
+  `--timeframe=4h|1h|1d|1w|1M`.
 - `research:prune` is dry-run by default. Add `--execute` to delete old rows using
   the provided retention windows.
 - `research:stats` prints storage mode, database path in local development, record
@@ -469,6 +471,8 @@ Use the PostgreSQL-backed backfill and scanner commands for production
 multi-timeframe coverage. The `--limit` flag on `market:backfill:pg` is the
 Binance page size; `1d` backfills target `1000` stored candles by default and
 `1w` backfills target `500` weekly candles or as much history as Binance has.
+For `1h`, pass `--target-count 5000` explicitly; do not use the full `50000`
+target for this phase.
 
 1. Backfill 1d candles:
 
@@ -518,7 +522,29 @@ curl 'https://api.auere.com/api/symbol/research?exchange=binance&symbol=SEIUSDT&
   | jq '{ok, timeframe, latest: {scanTime: .latest.signal.scanTime, resultGroup: .latest.signal.resultGroup, isSelectedCurrentRun: .latest.signal.isSelectedCurrentRun, sourceRunIsLikelyFullUniverse: .latest.signal.sourceRunIsLikelyFullUniverse}, candles: {count: .candles.count, rowsCount: (.candles.rows | length)}, historyCount: (.history | length)}'
 ```
 
-8. Restart the public API after code changes:
+8. Backfill 1h candles with an explicit 5000-candle target:
+
+```bash
+pnpm market:backfill:pg -- --timeframe 1h --all-symbols --asset-class crypto --target-count 5000 --limit 1000 --confirm-large-sync
+```
+
+9. Run the 1h scanner after backfill completes:
+
+```bash
+pnpm scanner:run:pg -- --timeframe 1h --all-symbols --asset-class crypto --limit 1000 --confirm-large-sync
+```
+
+10. Verify latest 1h results and Symbol Research:
+
+```bash
+curl 'https://api.auere.com/api/scan/latest?timeframe=1h&assetClass=crypto&limit=100' \
+  | jq '{ok, timeframe, count, run: {timeframe: .run.timeframe, symbolsTotal: .run.symbolsTotal, symbolsScanned: .run.symbolsScanned, signalsCreated: .run.signalsCreated}, latestRunSelection: .summary.latestRunSelection, totalByGroup: .summary.totalByGroup}'
+
+curl 'https://api.auere.com/api/symbol/research?exchange=binance&symbol=BTCUSDT&timeframe=1h' \
+  | jq '{ok, timeframe, latest: {scanTime: .latest.signal.scanTime, resultGroup: .latest.signal.resultGroup, isSelectedCurrentRun: .latest.signal.isSelectedCurrentRun, sourceRunIsLikelyFullUniverse: .latest.signal.sourceRunIsLikelyFullUniverse}, behaviorAvailable: .behaviorDiagnostics.available, behaviorReason: .behaviorDiagnostics.reason}'
+```
+
+11. Restart the public API after code changes:
 
 ```bash
 pm2 restart trade-api --update-env
@@ -529,8 +555,8 @@ Expected caveats:
 - `1w` may skip newer or recently listed symbols because there are fewer weekly
   candles. Those skips are counted in `symbols_skipped`; fake signals are not
   created for insufficient history.
-- `1h` is not part of this production coverage phase unless explicitly enabled
-  in a later runbook.
+- `1h` may initially have limited Historical Behavior samples. Backfill and scan
+  it explicitly when needed; no automatic hourly 1h scanner schedule is added here.
 
 ### VPS Evaluation Scheduling
 
@@ -655,7 +681,7 @@ where larger local datasets should be accumulated.
 - Scoring rules are MVP heuristics and should be tuned with observation.
 - The scanner only supports Binance Spot USDT markets.
 - Symbol Research depends on PostgreSQL scan coverage for the requested
-  timeframe; `4h`, `1d`, and `1w` are the production coverage targets.
+  timeframe; `4h`, `1h`, `1d`, and `1w` are the production coverage targets.
 - Signal research storage is local SQLite/JSONL research infrastructure, not trading advice or portfolio/PnL simulation.
 - The selected-symbol historical behavior review is per-symbol, lazy-loaded, no-database, and research-only.
 - There are no user accounts or saved watchlists.

@@ -13,7 +13,7 @@ describe("candles API timeframe validation", () => {
     getCandlesMock.mockResolvedValue([]);
   });
 
-  it.each(["1h", "15m", "5m", "1m"])(
+  it.each(["15m", "5m", "1m"])(
     "rejects unsupported lower timeframe %s",
     async (timeframe) => {
       const response = await GET(
@@ -24,12 +24,12 @@ describe("candles API timeframe validation", () => {
       const body = await response.json();
 
       expect(response.status).toBe(400);
-      expect(body.error).toContain("4h, 1d, 1w, or 1M");
+      expect(body.error).toContain("4h, 1h, 1d, 1w, or 1M");
       expect(getCandlesMock).not.toHaveBeenCalled();
     },
   );
 
-  it.each(["4h", "1d", "1w", "1M"])(
+  it.each(["4h", "1h", "1d", "1w", "1M"])(
     "accepts supported candle timeframe %s",
     async (timeframe) => {
       const response = await GET(

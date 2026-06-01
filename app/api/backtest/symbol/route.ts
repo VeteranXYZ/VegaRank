@@ -10,7 +10,10 @@ import {
 
 export const runtime = "nodejs";
 
-const supportedTimeframes = new Set(["4h", "1d", "1w", "1M"]);
+const supportedBacktestTimeframes = ["4h", "1d", "1w", "1M"] as const satisfies
+  readonly Timeframe[];
+type BacktestTimeframe = (typeof supportedBacktestTimeframes)[number];
+const supportedTimeframes = new Set<string>(supportedBacktestTimeframes);
 const supportedMatchModes = new Set(["broad", "standard", "similar"]);
 const symbolPattern = /^[A-Z0-9]+USDT$/;
 const minLimit = 300;
@@ -20,7 +23,7 @@ export async function GET(request: Request) {
   try {
     const url = new URL(request.url);
     const symbol = url.searchParams.get("symbol")?.trim().toUpperCase() ?? "";
-    const timeframe = url.searchParams.get("timeframe") ?? "";
+    const timeframeParam = url.searchParams.get("timeframe") ?? "";
     const requestedLimit = Number(url.searchParams.get("limit") ?? maxLimit);
     const matchModeParam = url.searchParams.get("matchMode") ?? "standard";
 
@@ -35,7 +38,7 @@ export async function GET(request: Request) {
       );
     }
 
-    if (!supportedTimeframes.has(timeframe)) {
+    if (!isBacktestTimeframe(timeframeParam)) {
       return NextResponse.json(
         { error: "Unsupported timeframe. Use 4h, 1d, 1w, or 1M." },
         { status: 400 },
@@ -50,6 +53,7 @@ export async function GET(request: Request) {
     }
 
     const limit = clampLimit(requestedLimit);
+    const timeframe = timeframeParam;
     const matchMode = matchModeParam as BacktestMatchMode;
     const cacheKey = [
       "backtest",
@@ -59,16 +63,16 @@ export async function GET(request: Request) {
       `limit:${limit}`,
       `match:${matchMode}`,
     ].join(":");
-    const ttlMs = getBacktestTtl(timeframe as Timeframe);
+    const ttlMs = getBacktestTtl(timeframe);
     const { entry, cached } = await getOrSetCached<HistoricalBehaviorResult>(
       cacheKey,
       ttlMs,
       async () => {
-        const candles = await getCandles(symbol, timeframe as Timeframe, limit);
+        const candles = await getCandles(symbol, timeframe, limit);
 
         return reviewHistoricalBehavior({
           symbol,
-          timeframe: timeframe as Timeframe,
+          timeframe,
           limit,
           matchMode,
           candles,
@@ -102,7 +106,11 @@ function clampLimit(value: number) {
   return Math.min(maxLimit, Math.max(minLimit, Math.trunc(value)));
 }
 
-function getBacktestTtl(timeframe: Timeframe) {
+function isBacktestTimeframe(value: string): value is BacktestTimeframe {
+  return supportedTimeframes.has(value);
+}
+
+function getBacktestTtl(timeframe: BacktestTimeframe) {
   const minute = 60 * 1000;
   const hour = 60 * minute;
 

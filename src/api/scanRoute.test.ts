@@ -130,7 +130,7 @@ describe("scan API remote market universe", () => {
     expect(getEligibleUsdtMarketsMock).not.toHaveBeenCalled();
   });
 
-  it.each(["1h", "15m", "5m", "1m"])(
+  it.each(["15m", "5m", "1m"])(
     "rejects unsupported lower timeframe %s",
     async (timeframe) => {
       const response = await GET(
@@ -141,11 +141,11 @@ describe("scan API remote market universe", () => {
       const body = await response.json();
 
       expect(response.status).toBe(400);
-      expect(body.error).toContain("4h, 1d, 1w, or 1M");
+      expect(body.error).toContain("4h, 1h, 1d, 1w, or 1M");
     },
   );
 
-  it.each(["4h", "1d", "1w", "1M"])(
+  it.each(["4h", "1h", "1d", "1w", "1M"])(
     "accepts supported scanner timeframe %s",
     async (timeframe) => {
       const response = await GET(

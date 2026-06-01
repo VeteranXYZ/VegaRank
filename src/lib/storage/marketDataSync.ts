@@ -35,6 +35,7 @@ export type MarketDataSyncResult = {
 
 const defaultCandlesPerTimeframe = {
   "4h": 1000,
+  "1h": 1000,
   "1d": 1000,
   "1w": 500,
   "1M": 300,

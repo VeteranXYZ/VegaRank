@@ -87,12 +87,14 @@ export const cacheTtls = {
   tickers: 30 * minute,
   candles: {
     "4h": 60 * minute,
+    "1h": 30 * minute,
     "1d": 6 * hour,
     "1w": 24 * hour,
     "1M": 72 * hour,
   } satisfies Record<Timeframe, number>,
   scan: {
     "4h": 60 * minute,
+    "1h": 30 * minute,
     "1d": 6 * hour,
     "1w": 24 * hour,
     "1M": 72 * hour,

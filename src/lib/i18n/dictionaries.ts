@@ -557,6 +557,7 @@ export const dictionaries = {
     } satisfies Record<ScannerExplanationKey, string>,
     timeframe: {
       "4h": "4H",
+      "1h": "1H",
       "1d": "1D",
       "1w": "1W",
       "1M": "1M",
@@ -1033,6 +1034,7 @@ export const dictionaries = {
     } satisfies Record<ScannerExplanationKey, string>,
     timeframe: {
       "4h": "4小时",
+      "1h": "1小时",
       "1d": "日线",
       "1w": "周线",
       "1M": "月线",

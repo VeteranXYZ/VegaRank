@@ -9,7 +9,7 @@ describe("scanner timeframe filters", () => {
     vi.unstubAllEnvs();
   });
 
-  it("renders medium-to-large timeframes only", () => {
+  it("renders supported scanner timeframes", () => {
     const html = renderToStaticMarkup(
       <LanguageProvider>
         <ScannerFilters filters={makeFilters()} onChange={() => undefined} />
@@ -17,11 +17,11 @@ describe("scanner timeframe filters", () => {
     );
 
     expect(html).toContain('value="4h"');
+    expect(html).toContain('value="1h"');
+    expect(html).toContain(">1H<");
     expect(html).toContain('value="1d"');
     expect(html).toContain('value="1w"');
     expect(html).toContain('value="1M"');
-    expect(html).not.toContain('value="1h"');
-    expect(html).not.toContain(">1H<");
     expect(html).toContain("Max Symbols Scanned");
     expect(html).toContain("Caps the eligible scan universe");
   });

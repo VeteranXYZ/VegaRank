@@ -187,7 +187,7 @@ describe("trade-api latest scan run selection", () => {
     });
   });
 
-  it("passes daily and weekly timeframes through latest scan metadata", async () => {
+  it("passes hourly, daily, and weekly timeframes through latest scan metadata", async () => {
     getLatestScanRunMock.mockImplementation(({ timeframe }: { timeframe: string }) =>
       Promise.resolve(
         makeRun(`full-${timeframe}`, {
@@ -207,8 +207,12 @@ describe("trade-api latest scan run selection", () => {
     const weeklyResponse = await requestTradeApi(
       "/api/scan/latest?timeframe=1w&assetClass=crypto&limit=100",
     );
+    const hourlyResponse = await requestTradeApi(
+      "/api/scan/latest?timeframe=1h&assetClass=crypto&limit=100",
+    );
     const dailyBody = JSON.parse(dailyResponse.body);
     const weeklyBody = JSON.parse(weeklyResponse.body);
+    const hourlyBody = JSON.parse(hourlyResponse.body);
 
     expect(dailyResponse.status).toBe(200);
     expect(dailyBody.timeframe).toBe("1d");
@@ -227,6 +231,14 @@ describe("trade-api latest scan run selection", () => {
       isLikelyFullUniverse: true,
       fallbackUsed: false,
     });
+    expect(hourlyResponse.status).toBe(200);
+    expect(hourlyBody.timeframe).toBe("1h");
+    expect(hourlyBody.run).toMatchObject({ id: "full-1h", timeframe: "1h" });
+    expect(hourlyBody.summary.latestRunSelection).toMatchObject({
+      preferredFullUniverse: true,
+      isLikelyFullUniverse: true,
+      fallbackUsed: false,
+    });
     expect(getLatestScanRunMock).toHaveBeenNthCalledWith(1, {
       timeframe: "1d",
       assetClass: "crypto",
@@ -235,6 +247,12 @@ describe("trade-api latest scan run selection", () => {
     });
     expect(getLatestScanRunMock).toHaveBeenNthCalledWith(2, {
       timeframe: "1w",
+      assetClass: "crypto",
+      preferFullUniverse: true,
+      minExpectedSymbols: 300,
+    });
+    expect(getLatestScanRunMock).toHaveBeenNthCalledWith(3, {
+      timeframe: "1h",
       assetClass: "crypto",
       preferFullUniverse: true,
       minExpectedSymbols: 300,
@@ -430,6 +448,15 @@ describe("trade-api symbol research", () => {
       includeNonScanner: false,
       includeMarketContext: false,
     });
+    expect(getSymbolLatestSignalsByTimeframesPgMock).toHaveBeenCalledWith({
+      exchange: "binance",
+      market: "spot",
+      symbol: "SEIUSDT",
+      timeframes: ["4h", "1h", "1d", "1w", "1M"],
+      assetClass: "crypto",
+      includeNonScanner: false,
+      includeMarketContext: false,
+    });
     expect(getSymbolBehaviorPgMock).toHaveBeenCalledWith({
       exchange: "binance",
       market: "spot",
@@ -482,7 +509,7 @@ describe("trade-api symbol research", () => {
     }
   });
 
-  it("returns requested timeframe metadata for daily and weekly symbol research", async () => {
+  it("returns requested timeframe metadata for hourly, daily, and weekly symbol research", async () => {
     getSymbolResearchLatestSignalPgMock.mockImplementation(
       ({ timeframe }: { timeframe: string }) =>
         Promise.resolve({
@@ -519,8 +546,12 @@ describe("trade-api symbol research", () => {
     const weeklyResponse = await requestTradeApi(
       "/api/symbol/research?exchange=binance&symbol=SEIUSDT&timeframe=1w",
     );
+    const hourlyResponse = await requestTradeApi(
+      "/api/symbol/research?exchange=binance&symbol=SEIUSDT&timeframe=1h",
+    );
     const dailyBody = JSON.parse(dailyResponse.body);
     const weeklyBody = JSON.parse(weeklyResponse.body);
+    const hourlyBody = JSON.parse(hourlyResponse.body);
 
     expect(dailyResponse.status).toBe(200);
     expect(dailyBody.timeframe).toBe("1d");
@@ -545,6 +576,18 @@ describe("trade-api symbol research", () => {
     });
     expect(weeklyBody.candles).toMatchObject({ timeframe: "1w", count: 2 });
     expect(weeklyBody.candles.rows.every((row: { timeframe: string }) => row.timeframe === "1w")).toBe(
+      true,
+    );
+    expect(hourlyResponse.status).toBe(200);
+    expect(hourlyBody.timeframe).toBe("1h");
+    expect(hourlyBody.latest.signal).toMatchObject({
+      id: "signal-1h",
+      timeframe: "1h",
+      isSelectedCurrentRun: true,
+      sourceRunIsLikelyFullUniverse: true,
+    });
+    expect(hourlyBody.candles).toMatchObject({ timeframe: "1h", count: 2 });
+    expect(hourlyBody.candles.rows.every((row: { timeframe: string }) => row.timeframe === "1h")).toBe(
       true,
     );
   });

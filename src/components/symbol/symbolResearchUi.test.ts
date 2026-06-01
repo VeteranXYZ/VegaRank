@@ -273,7 +273,7 @@ describe("symbol research UI helpers", () => {
     );
   });
 
-  it("builds timeframe availability rows for available, unavailable, and planned timeframes", () => {
+  it("builds timeframe availability rows for available and unavailable timeframes", () => {
     const rows = buildSymbolResearchTimeframeAvailability({
       timeframes: ["4h", "1d", "1w", "1h"],
       selectedTimeframe: "1w",
@@ -292,6 +292,15 @@ describe("symbol research UI helpers", () => {
           actionBias: "watch_caution",
           rankScore: 64,
           scanTime: "2026-06-01T01:00:00.000Z",
+          isSelectedCurrentRun: false,
+          sourceRunIsLikelyFullUniverse: true,
+        },
+        {
+          timeframe: "1h",
+          resultGroup: "neutral",
+          actionBias: "neutral",
+          rankScore: 48,
+          scanTime: "2026-06-01T02:00:00.000Z",
           isSelectedCurrentRun: false,
           sourceRunIsLikelyFullUniverse: true,
         },
@@ -320,7 +329,7 @@ describe("symbol research UI helpers", () => {
       ["4h", "available", "Available"],
       ["1d", "available", "Available"],
       ["1w", "selected_unavailable", "Insufficient history"],
-      ["1h", "planned", "Planned"],
+      ["1h", "available", "Available"],
     ]);
     expect(rows[2]).toMatchObject({
       isSelected: true,
@@ -329,9 +338,10 @@ describe("symbol research UI helpers", () => {
       selectedRun: "1w full-universe run, success, scanned 192 / 413, skipped 221",
     });
     expect(rows[3]).toMatchObject({
-      isDisabled: true,
-      selectedRun: "Not configured",
-      reason: "No production scanner run is available for this timeframe yet.",
+      isDisabled: false,
+      selectedRun: "Full-universe run",
+      reason: "Available",
+      rank: "48.0",
     });
   });
 
@@ -356,15 +366,11 @@ describe("symbol research UI helpers", () => {
       ["4h", "selected_available", "Available"],
       ["1d", "not_returned", "No latest signal was returned for this timeframe."],
       ["1w", "not_returned", "No latest signal was returned for this timeframe."],
-      [
-        "1h",
-        "planned",
-        "No production scanner run is available for this timeframe yet.",
-      ],
+      ["1h", "not_returned", "No latest signal was returned for this timeframe."],
     ]);
   });
 
-  it("builds quick-switch options with supported and planned states", () => {
+  it("builds quick-switch options with supported states", () => {
     const options = buildSymbolResearchTimeframeNavigation({
       timeframes: ["4h", "1d", "1w", "1h"],
       selectedTimeframe: "1d",
@@ -392,9 +398,9 @@ describe("symbol research UI helpers", () => {
       }),
       expect.objectContaining({
         timeframe: "1h",
-        status: "planned",
-        badgeLabel: "Planned",
-        isDisabled: true,
+        status: "supported",
+        badgeLabel: "Supported",
+        isDisabled: false,
       }),
     ]);
   });
