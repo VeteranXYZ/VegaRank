@@ -18,10 +18,11 @@ describe("SymbolBehaviorPanel", () => {
     );
 
     expect(html).toContain("Historical Behavior");
-    expect(html).toContain("Historical observations");
+    expect(html).toContain("How similar prior signals behaved");
     expect(html).toContain("not a prediction");
-    expect(html).toContain("Historical Sample");
-    expect(html).toContain("Forward return after 1 candle");
+    expect(html).toContain("Sample size");
+    expect(html).toContain("Forward horizon observations");
+    expect(html).toContain("1 candle");
     expect(html).toContain("Avg Return");
     expect(html).toContain("+1.20%");
     expect(html).toContain("Current context");
@@ -29,7 +30,7 @@ describe("SymbolBehaviorPanel", () => {
     expect(html).toContain("Confirmed");
     expect(html).toContain("Strong Trend");
     expect(html).toContain("Recent outcomes");
-    expect(html).toContain("Show more outcomes (1 hidden)");
+    expect(html).toContain("Showing 6 of 6 recent observations");
   });
 
   it("renders unavailable diagnostics without crashing", () => {
@@ -41,9 +42,22 @@ describe("SymbolBehaviorPanel", () => {
     );
 
     expect(html).toContain(
-      "Historical behavior is not available for this symbol/timeframe yet.",
+      "No prior matching signals",
     );
-    expect(html).toContain("No prior signals.");
+    expect(html).toContain("No prior matching signals were found yet");
+  });
+
+  it("renders no_latest_signal coverage for insufficient history", () => {
+    const html = renderToStaticMarkup(
+      createElement(SymbolBehaviorPanel, {
+        behavior: null,
+        diagnostics: makeDiagnostics(false, "no_latest_signal"),
+        coverage: { candleCount: 146, requiredCandles: 200 },
+      }),
+    );
+
+    expect(html).toContain("No current latest signal");
+    expect(html).toContain("Current coverage: 146 / 200 required candles.");
   });
 
   it("renders small sample warnings", () => {
@@ -58,9 +72,52 @@ describe("SymbolBehaviorPanel", () => {
       }),
     );
 
-    expect(html).toContain("Limited historical sample size.");
+    expect(html).toContain("Limited sample");
     expect(html).toContain("Next 1");
     expect(html).toContain("+1.20%");
+  });
+
+  it("does not crash when available behavior has missing horizons and outcomes", () => {
+    const html = renderToStaticMarkup(
+      createElement(SymbolBehaviorPanel, {
+        behavior: {
+          sampleSize: "2",
+          horizons: {},
+          recentOutcomes: [
+            {
+              scanTime: null,
+              resultGroup: null,
+              signalLabel: null,
+              rankScore: "bad",
+              forwardReturnPct: {},
+            },
+          ],
+        },
+        diagnostics: makeDiagnostics(true),
+      }),
+    );
+
+    expect(html).toContain("Sample size");
+    expect(html).toContain("—");
+    expect(html).toContain("Unknown");
+  });
+
+  it("limits visible recent outcomes and shows a count note", () => {
+    const html = renderToStaticMarkup(
+      createElement(SymbolBehaviorPanel, {
+        behavior: makeBehavior({
+          recentOutcomes: Array.from({ length: 12 }, (_, index) =>
+            makeOutcome({
+              scanTime: `2026-05-${String(index + 1).padStart(2, "0")}T00:00:00.000Z`,
+            }),
+          ),
+        }),
+        diagnostics: makeDiagnostics(true),
+      }),
+    );
+
+    expect(html).toContain("Showing 10 of 12 recent observations");
+    expect(html).toContain("Show all observations (2 hidden)");
   });
 });
 

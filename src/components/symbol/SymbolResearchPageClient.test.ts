@@ -290,7 +290,7 @@ describe("SymbolResearchPageClient unavailable state", () => {
     expect(html).not.toContain('href="/symbol/binance/SEIUSDT?timeframe=1h');
     expect(html).toContain("Historical Behavior");
     expect(html).toContain(
-      "Historical behavior is unavailable because no latest scanner signal exists for this symbol/timeframe.",
+      "Current coverage: 145 / 200 required candles.",
     );
   });
 });
@@ -322,12 +322,12 @@ describe("SymbolResearchPageClient success state", () => {
     );
 
     expect(html).toContain("Historical Behavior");
-    expect(html).toContain("Historical observations");
-    expect(html).toContain("Historical Sample");
-    expect(html).toContain("Forward return after 1 candle");
+    expect(html).toContain("How similar prior signals behaved");
+    expect(html).toContain("Sample size");
+    expect(html).toContain("Forward horizon observations");
     expect(html).toContain("Current context");
     expect(html).toContain("Recent outcomes");
-    expect(html).toContain("Prior scanner observations with available forward candles.");
+    expect(html).toContain("Most recent prior observations with available forward returns.");
   });
 });
 

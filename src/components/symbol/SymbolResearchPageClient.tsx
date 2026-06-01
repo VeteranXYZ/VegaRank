@@ -423,6 +423,7 @@ export function SymbolResearchPageClient({
         <SymbolBehaviorPanel
           behavior={data.behavior ?? null}
           diagnostics={data.behaviorDiagnostics}
+          coverage={data.symbolCoverage}
           className="mt-4"
         />
       </main>
