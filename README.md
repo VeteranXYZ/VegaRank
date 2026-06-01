@@ -558,6 +558,54 @@ Expected caveats:
 - `1h` may initially have limited Historical Behavior samples. Backfill and scan
   it explicitly when needed; no automatic hourly 1h scanner schedule is added here.
 
+### 1h Production Hourly Script
+
+The repo-tracked `scripts/production/run-1h-production.sh` script is intended
+for BaoTa / BT Panel to call once per hour. It creates `.data/logs` and
+`.data/locks`, uses `.data/locks/run-1h-production.lock` to prevent overlapping
+runs, treats locks older than `5400` seconds as stale, then runs the existing
+PostgreSQL 1h backfill and scanner commands with `--target-count 5000`.
+
+Manual one-off run from the VPS project directory:
+
+```bash
+cd /home/ubuntu/apps/trade-scanner
+mkdir -p .data/logs .data/locks
+scripts/production/run-1h-production.sh
+```
+
+BaoTa scheduled task command:
+
+```bash
+cd /home/ubuntu/apps/trade-scanner && /home/ubuntu/apps/trade-scanner/scripts/production/run-1h-production.sh >> /home/ubuntu/apps/trade-scanner/.data/logs/run-1h-production.log 2>&1
+```
+
+Recommended schedule: every hour at minute 5.
+
+Log checks:
+
+```bash
+tail -n 120 .data/logs/run-1h-production.log
+tail -f .data/logs/run-1h-production.log
+```
+
+Production API verification:
+
+```bash
+curl 'https://api.auere.com/api/scan/latest?timeframe=1h&assetClass=crypto&limit=100' \
+  | jq '{ok, timeframe, count, run: {id: .run.id, status: .run.status, symbolsTotal: .run.symbolsTotal, symbolsScanned: .run.symbolsScanned, signalsCreated: .run.signalsCreated}, latestRunSelection: .summary.latestRunSelection}'
+
+curl 'https://api.auere.com/api/symbol/research?exchange=binance&symbol=BTCUSDT&timeframe=1h' \
+  | jq '{ok, timeframe, group: .latest.signal.resultGroup, behaviorAvailable: .behaviorDiagnostics.available, behaviorReason: .behaviorDiagnostics.reason}'
+```
+
+Operational notes:
+
+- GitHub main -> VPS is `git pull origin main`.
+- VPS/local -> GitHub main is `git add`, `git commit`, and `git push`.
+- Cloudflare Pages deploys the frontend from GitHub main.
+- `pm2 restart trade-api --update-env` affects only the VPS `trade-api`.
+
 ### VPS Evaluation Scheduling
 
 Do not deploy these examples directly from this repository state; they are reference
