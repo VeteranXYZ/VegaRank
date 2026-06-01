@@ -634,6 +634,7 @@ export function SymbolResearchPageClient({
       <SymbolBehaviorPanel
         behavior={data.behavior}
         diagnostics={data.behaviorDiagnostics}
+        signalHistory={history}
         className="mt-4"
       />
 

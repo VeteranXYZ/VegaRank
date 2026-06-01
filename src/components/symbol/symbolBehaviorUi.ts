@@ -42,6 +42,9 @@ export type SymbolBehaviorRecentOutcome = {
     next3?: BehaviorNumericValue;
     next5?: BehaviorNumericValue;
   } | null;
+  sourceRunIsLikelyFullUniverse?: boolean | null;
+  isSelectedCurrentRun?: boolean | null;
+  isNewerThanSelectedCurrentRun?: boolean | null;
 };
 
 export type SymbolBehavior = {
@@ -94,6 +97,27 @@ export type SymbolBehaviorSampleHint = {
   label: string;
   detail: string;
   tone: "stronger" | "limited" | "small" | "none";
+};
+
+export type SymbolBehaviorRunContext = {
+  scanTime?: string | null;
+  sourceRunIsLikelyFullUniverse?: boolean | null;
+  isSelectedCurrentRun?: boolean | null;
+  isNewerThanSelectedCurrentRun?: boolean | null;
+};
+
+export type BehaviorSampleQualityTone = "neutral" | "notice" | "warning";
+
+export type BehaviorSampleQualityReadout = {
+  sampleQualityLabel: string;
+  sampleQualityTone: BehaviorSampleQualityTone;
+  hygieneSummary: string;
+  caveats: string[];
+  hasClusteredRuns: boolean;
+  hasLimitedForwardCandles: boolean;
+  hasNonPreferredRuns: boolean;
+  hasVerySmallSample: boolean;
+  hasLimitedSample: boolean;
 };
 
 export type BehaviorReadoutContextType =
@@ -280,6 +304,102 @@ export function getBehaviorSampleHint(
     label: "No completed observations",
     detail: "More completed scanner history is needed.",
     tone: "none",
+  };
+}
+
+export function buildBehaviorSampleQuality({
+  behavior,
+  signalHistory,
+}: {
+  behavior: SymbolBehavior | null | undefined;
+  signalHistory?: SymbolBehaviorRunContext[] | null;
+}): BehaviorSampleQualityReadout | null {
+  if (!behavior) {
+    return null;
+  }
+
+  const sampleSize = getBehaviorSampleSize(behavior);
+  const horizonRows = getBehaviorHorizonRows(behavior);
+  const recentOutcomes = Array.isArray(behavior.recentOutcomes)
+    ? behavior.recentOutcomes
+    : [];
+  const runContexts = [
+    ...recentOutcomes,
+    ...(Array.isArray(signalHistory) ? signalHistory : []),
+  ];
+  const hasVerySmallSample = sampleSize > 0 && sampleSize < 10;
+  const hasLimitedSample = sampleSize >= 10 && sampleSize < 20;
+  const hasClusteredRuns = hasClusteredScanTimes(
+    recentOutcomes.length > 0 ? recentOutcomes : signalHistory,
+  );
+  const hasLimitedForwardCandles = hasLimitedLongerHorizonSamples(
+    horizonRows,
+    sampleSize,
+  );
+  const hasNonPreferredRuns = runContexts.some(isNonPreferredRunContext);
+  const isNewOneHourHistory =
+    behavior.currentContext?.timeframe?.trim().toLowerCase() === "1h" &&
+    sampleSize < 20;
+
+  const caveats: string[] = [];
+
+  if (hasVerySmallSample || isNewOneHourHistory) {
+    caveats.push("Production history is still accumulating.");
+  }
+
+  if (hasVerySmallSample) {
+    caveats.push("Very limited sample; treat as research context.");
+  } else if (hasLimitedSample) {
+    caveats.push("Limited sample; treat as research context.");
+  }
+
+  if (hasClusteredRuns) {
+    caveats.push(
+      "Some recent observations appear clustered and may reflect development or non-scheduled runs.",
+    );
+  }
+
+  if (hasNonPreferredRuns) {
+    caveats.push(
+      "Some observations may include non-selected or secondary runs.",
+    );
+  }
+
+  if (hasLimitedForwardCandles) {
+    caveats.push("Longer-horizon outcomes are still incomplete.");
+  }
+
+  const sampleQualityLabel = getBehaviorSampleQualityLabel({
+    hasVerySmallSample,
+    hasLimitedSample,
+    hasNonPreferredRuns,
+    hasClusteredRuns,
+    hasLimitedForwardCandles,
+  });
+
+  return {
+    sampleQualityLabel,
+    sampleQualityTone: getBehaviorSampleQualityTone({
+      hasVerySmallSample,
+      hasLimitedSample,
+      hasNonPreferredRuns,
+      hasClusteredRuns,
+      hasLimitedForwardCandles,
+    }),
+    hygieneSummary: getBehaviorSampleQualitySummary({
+      sampleQualityLabel,
+      hasVerySmallSample,
+      hasLimitedSample,
+      hasNonPreferredRuns,
+      hasClusteredRuns,
+      hasLimitedForwardCandles,
+    }),
+    caveats: uniqueStrings(caveats),
+    hasClusteredRuns,
+    hasLimitedForwardCandles,
+    hasNonPreferredRuns,
+    hasVerySmallSample,
+    hasLimitedSample,
   };
 }
 
@@ -740,6 +860,180 @@ function buildBehaviorReadoutCaveats({
   }
 
   return uniqueStrings(caveats);
+}
+
+function hasClusteredScanTimes(
+  values:
+    | Array<{ scanTime?: string | null } | null | undefined>
+    | null
+    | undefined,
+) {
+  if (!Array.isArray(values) || values.length < 3) {
+    return false;
+  }
+
+  const times = values
+    .map((item) => item?.scanTime ?? "")
+    .map((scanTime) => parseValidDateMs(scanTime))
+    .filter((time): time is number => time !== null)
+    .sort((left, right) => left - right);
+
+  if (times.length < 3) {
+    return false;
+  }
+
+  const clusteredWindowMs = 60 * 60 * 1000;
+
+  for (let startIndex = 0; startIndex <= times.length - 3; startIndex += 1) {
+    if (times[startIndex + 2]! - times[startIndex]! <= clusteredWindowMs) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+function parseValidDateMs(value: string | null | undefined) {
+  if (!value) {
+    return null;
+  }
+
+  const parsed = Date.parse(value);
+  return Number.isNaN(parsed) ? null : parsed;
+}
+
+function hasLimitedLongerHorizonSamples(
+  horizonRows: SymbolBehaviorHorizonRow[],
+  sampleSize: number,
+) {
+  if (sampleSize <= 0) {
+    return false;
+  }
+
+  return horizonRows
+    .filter((row) => row.horizon === "3" || row.horizon === "5")
+    .some((row) => {
+      if (row.sampleSize === 0) {
+        return true;
+      }
+
+      const missingCount = sampleSize - row.sampleSize;
+      return missingCount >= 5 && row.sampleSize <= sampleSize * 0.5;
+    });
+}
+
+function isNonPreferredRunContext(
+  value: SymbolBehaviorRunContext | null | undefined,
+) {
+  if (!value || value.isSelectedCurrentRun === true) {
+    return false;
+  }
+
+  return (
+    value.isNewerThanSelectedCurrentRun === true ||
+    value.sourceRunIsLikelyFullUniverse === false
+  );
+}
+
+function getBehaviorSampleQualityLabel({
+  hasVerySmallSample,
+  hasLimitedSample,
+  hasNonPreferredRuns,
+  hasClusteredRuns,
+  hasLimitedForwardCandles,
+}: Pick<
+  BehaviorSampleQualityReadout,
+  | "hasVerySmallSample"
+  | "hasLimitedSample"
+  | "hasNonPreferredRuns"
+  | "hasClusteredRuns"
+  | "hasLimitedForwardCandles"
+>) {
+  if (hasVerySmallSample) {
+    return "Very limited sample";
+  }
+
+  if (hasLimitedSample) {
+    return "Limited sample";
+  }
+
+  if (hasNonPreferredRuns) {
+    return "Mixed run context";
+  }
+
+  if (hasClusteredRuns) {
+    return "Clustered recent observations";
+  }
+
+  if (hasLimitedForwardCandles) {
+    return "Waiting for more completed forward candles";
+  }
+
+  return "Clean enough for context";
+}
+
+function getBehaviorSampleQualityTone({
+  hasVerySmallSample,
+  hasLimitedSample,
+  hasNonPreferredRuns,
+  hasClusteredRuns,
+  hasLimitedForwardCandles,
+}: Pick<
+  BehaviorSampleQualityReadout,
+  | "hasVerySmallSample"
+  | "hasLimitedSample"
+  | "hasNonPreferredRuns"
+  | "hasClusteredRuns"
+  | "hasLimitedForwardCandles"
+>): BehaviorSampleQualityTone {
+  if (hasVerySmallSample || hasNonPreferredRuns || hasClusteredRuns) {
+    return "warning";
+  }
+
+  if (hasLimitedSample || hasLimitedForwardCandles) {
+    return "notice";
+  }
+
+  return "neutral";
+}
+
+function getBehaviorSampleQualitySummary({
+  sampleQualityLabel,
+  hasVerySmallSample,
+  hasLimitedSample,
+  hasNonPreferredRuns,
+  hasClusteredRuns,
+  hasLimitedForwardCandles,
+}: Pick<
+  BehaviorSampleQualityReadout,
+  | "sampleQualityLabel"
+  | "hasVerySmallSample"
+  | "hasLimitedSample"
+  | "hasNonPreferredRuns"
+  | "hasClusteredRuns"
+  | "hasLimitedForwardCandles"
+>) {
+  if (hasVerySmallSample) {
+    return "Very limited completed observations are available; production history is still accumulating.";
+  }
+
+  if (hasLimitedSample) {
+    return "A limited sample is available; treat as research context.";
+  }
+
+  if (hasNonPreferredRuns) {
+    return "This sample may include non-selected or secondary runs.";
+  }
+
+  if (hasClusteredRuns) {
+    return "Recent observations appear clustered close together in time.";
+  }
+
+  if (hasLimitedForwardCandles) {
+    return "Longer-horizon outcomes are still accumulating.";
+  }
+
+  return `${sampleQualityLabel}; treat as research context.`;
 }
 
 function uniqueStrings(values: string[]) {

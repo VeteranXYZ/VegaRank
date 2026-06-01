@@ -29,6 +29,8 @@ describe("SymbolBehaviorPanel", () => {
     expect(html).toContain(
       "Prior similar signals tended to show constructive follow-through",
     );
+    expect(html).toContain("Sample Quality");
+    expect(html).toContain("Limited sample");
     expect(html).toContain("Sample size");
     expect(html).toContain("Forward horizon observations");
     expect(html).toContain("1 candle");
@@ -40,6 +42,9 @@ describe("SymbolBehaviorPanel", () => {
     expect(html).toContain("Strong Trend");
     expect(html).toContain("Recent outcomes");
     expect(html).toContain("Showing 6 of 6 recent observations");
+    expect(html).not.toContain(
+      "Several recent observations are close together in time",
+    );
   });
 
   it("renders unavailable diagnostics without crashing", () => {
@@ -55,6 +60,7 @@ describe("SymbolBehaviorPanel", () => {
     );
     expect(html).toContain("No prior matching signals were found yet");
     expect(html).not.toContain("Behavior Readout");
+    expect(html).not.toContain("Sample Quality");
   });
 
   it("renders no_latest_signal coverage for insufficient history", () => {
@@ -128,6 +134,63 @@ describe("SymbolBehaviorPanel", () => {
 
     expect(html).toContain("Showing 10 of 12 recent observations");
     expect(html).toContain("Show all observations (2 hidden)");
+  });
+
+  it("renders clustered recent outcomes note only when clustered observations are detected", () => {
+    const html = renderToStaticMarkup(
+      createElement(SymbolBehaviorPanel, {
+        behavior: makeBehavior({
+          sampleSize: 20,
+          horizons: {
+            "1": makeHorizon(20, 1.2),
+            "3": makeHorizon(20, 2.2),
+            "5": makeHorizon(20, 3.2),
+          },
+          recentOutcomes: [
+            makeOutcome({ scanTime: "2026-06-01T11:38:00.000Z" }),
+            makeOutcome({ scanTime: "2026-06-01T12:05:00.000Z" }),
+            makeOutcome({ scanTime: "2026-06-01T12:12:00.000Z" }),
+          ],
+        }),
+        diagnostics: makeDiagnostics(true),
+      }),
+    );
+
+    expect(html).toContain("Clustered recent observations");
+    expect(html).toContain(
+      "Several recent observations are close together in time",
+    );
+    expect(html).toContain(
+      "Some recent observations appear clustered and may reflect development or non-scheduled runs.",
+    );
+  });
+
+  it("renders mixed run context caveat from existing signal history metadata", () => {
+    const html = renderToStaticMarkup(
+      createElement(SymbolBehaviorPanel, {
+        behavior: makeBehavior({
+          sampleSize: 20,
+          horizons: {
+            "1": makeHorizon(20, 1.2),
+            "3": makeHorizon(20, 2.2),
+            "5": makeHorizon(20, 3.2),
+          },
+        }),
+        diagnostics: makeDiagnostics(true),
+        signalHistory: [
+          {
+            scanTime: "2026-06-01T12:05:00.000Z",
+            isNewerThanSelectedCurrentRun: true,
+            sourceRunIsLikelyFullUniverse: false,
+          },
+        ],
+      }),
+    );
+
+    expect(html).toContain("Mixed run context");
+    expect(html).toContain(
+      "Some observations may include non-selected or secondary runs.",
+    );
   });
 });
 

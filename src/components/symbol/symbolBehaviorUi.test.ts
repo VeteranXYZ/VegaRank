@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   buildBehaviorReadout,
+  buildBehaviorSampleQuality,
   buildBehaviorSummary,
   formatBehaviorPercent,
   formatBehaviorSampleSize,
@@ -280,9 +281,148 @@ describe("symbol behavior UI helpers", () => {
     expect(readout.label).toBe("Insufficient sample");
     expect(readout.historicalBiasLabel).toBe("Not enough usable horizon data");
   });
+
+  it("labels very small behavior samples conservatively", () => {
+    const quality = buildBehaviorSampleQuality({
+      behavior: makeBehavior({
+        sampleSize: 9,
+        horizons: {
+          "1": makeHorizon(9, 0.5),
+          "3": makeHorizon(9, 0.6),
+          "5": makeHorizon(9, 0.7),
+        },
+      }),
+    });
+
+    expect(quality?.sampleQualityLabel).toBe("Very limited sample");
+    expect(quality?.sampleQualityTone).toBe("warning");
+    expect(quality?.hasVerySmallSample).toBe(true);
+    expect(quality?.caveats).toContain("Production history is still accumulating.");
+  });
+
+  it("labels limited behavior samples without changing the readout classification", () => {
+    const quality = buildBehaviorSampleQuality({
+      behavior: makeBehavior({
+        sampleSize: 12,
+        horizons: {
+          "1": makeHorizon(12, 0.5),
+          "3": makeHorizon(12, 0.6),
+          "5": makeHorizon(12, 0.7),
+        },
+      }),
+    });
+    const readout = buildBehaviorReadout(
+      makeReadoutInput({
+        sampleSize: 12,
+        horizons: { "5": makeHorizon(12, 0.7) },
+      }),
+    );
+
+    expect(quality?.sampleQualityLabel).toBe("Limited sample");
+    expect(quality?.hasLimitedSample).toBe(true);
+    expect(quality?.caveats).toContain("Limited sample; treat as research context.");
+    expect(readout.label).toBe("Constructive tendency");
+  });
+
+  it("flags missing longer-horizon samples as incomplete forward candles", () => {
+    const quality = buildBehaviorSampleQuality({
+      behavior: makeBehavior({
+        sampleSize: 20,
+        horizons: {
+          "1": makeHorizon(20, 0.5),
+          "3": makeHorizon(0, 0),
+          "5": makeHorizon(4, 0.7),
+        },
+      }),
+    });
+
+    expect(quality?.sampleQualityLabel).toBe(
+      "Waiting for more completed forward candles",
+    );
+    expect(quality?.hasLimitedForwardCandles).toBe(true);
+    expect(quality?.caveats).toContain(
+      "Longer-horizon outcomes are still incomplete.",
+    );
+  });
+
+  it("detects clustered recent observations from valid scan times", () => {
+    const quality = buildBehaviorSampleQuality({
+      behavior: makeBehavior({
+        sampleSize: 20,
+        horizons: {
+          "1": makeHorizon(20, 0.5),
+          "3": makeHorizon(20, 0.6),
+          "5": makeHorizon(20, 0.7),
+        },
+        recentOutcomes: [
+          makeOutcome("not-a-date"),
+          makeOutcome("2026-06-01T11:38:00.000Z"),
+          makeOutcome("2026-06-01T12:05:00.000Z"),
+          makeOutcome("2026-06-01T12:12:00.000Z"),
+        ],
+      }),
+    });
+
+    expect(quality?.sampleQualityLabel).toBe("Clustered recent observations");
+    expect(quality?.hasClusteredRuns).toBe(true);
+    expect(quality?.caveats).toContain(
+      "Some recent observations appear clustered and may reflect development or non-scheduled runs.",
+    );
+  });
+
+  it("does not crash or flag clustering for malformed or missing scan times only", () => {
+    const quality = buildBehaviorSampleQuality({
+      behavior: makeBehavior({
+        sampleSize: 20,
+        horizons: {
+          "1": makeHorizon(20, 0.5),
+          "3": makeHorizon(20, 0.6),
+          "5": makeHorizon(20, 0.7),
+        },
+        recentOutcomes: [
+          makeOutcome("bad"),
+          makeOutcome(""),
+          makeOutcome("2026-06-01T12:12:00.000Z"),
+        ],
+      }),
+    });
+
+    expect(quality?.sampleQualityLabel).toBe("Clean enough for context");
+    expect(quality?.hasClusteredRuns).toBe(false);
+  });
+
+  it("flags non-preferred or secondary run context when exposed", () => {
+    const quality = buildBehaviorSampleQuality({
+      behavior: makeBehavior({
+        sampleSize: 20,
+        horizons: {
+          "1": makeHorizon(20, 0.5),
+          "3": makeHorizon(20, 0.6),
+          "5": makeHorizon(20, 0.7),
+        },
+      }),
+      signalHistory: [
+        {
+          scanTime: "2026-06-01T12:12:00.000Z",
+          isNewerThanSelectedCurrentRun: true,
+          sourceRunIsLikelyFullUniverse: false,
+        },
+      ],
+    });
+
+    expect(quality?.sampleQualityLabel).toBe("Mixed run context");
+    expect(quality?.hasNonPreferredRuns).toBe(true);
+    expect(quality?.caveats).toContain(
+      "Some observations may include non-selected or secondary runs.",
+    );
+  });
+
+  it("does not emit sample quality for unavailable behavior", () => {
+    expect(buildBehaviorSampleQuality({ behavior: null })).toBeNull();
+  });
 });
 
-function makeBehavior(): SymbolBehavior {
+function makeBehavior(overrides: Partial<SymbolBehavior> = {}): SymbolBehavior {
   return {
     sampleSize: 12,
     horizons: {
@@ -300,6 +440,7 @@ function makeBehavior(): SymbolBehavior {
       timeframe: "4h",
     },
     warnings: [],
+    ...overrides,
   };
 }
 
@@ -339,7 +480,10 @@ function makeReadoutInput(
   };
 }
 
-function makeOutcome(scanTime: string): SymbolBehaviorRecentOutcome {
+function makeOutcome(
+  scanTime: string,
+  overrides: Partial<SymbolBehaviorRecentOutcome> = {},
+): SymbolBehaviorRecentOutcome {
   return {
     scanTime,
     signalLabel: "confirmed",
@@ -347,5 +491,6 @@ function makeOutcome(scanTime: string): SymbolBehaviorRecentOutcome {
     priceAtSignal: 1,
     rankScore: 10,
     forwardReturnPct: { "1": 1, "3": 2, "5": 3 },
+    ...overrides,
   };
 }

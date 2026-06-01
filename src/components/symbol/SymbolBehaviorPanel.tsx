@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import {
+  buildBehaviorSampleQuality,
   buildBehaviorReadout,
   buildBehaviorSummary,
   formatBehaviorPercent,
@@ -20,12 +21,14 @@ import {
   getHiddenRecentOutcomeCount,
   getRecentOutcomeReturn,
   selectCompactRecentOutcomes,
+  type BehaviorSampleQualityReadout,
   type BehaviorReadout,
   type SymbolBehavior,
   type SymbolBehaviorCoverage,
   type SymbolBehaviorDiagnostics,
   type SymbolBehaviorHorizonRow,
   type SymbolBehaviorRecentOutcome,
+  type SymbolBehaviorRunContext,
 } from "./symbolBehaviorUi";
 import { formatSymbolResearchScore } from "./symbolResearchUi";
 
@@ -33,6 +36,7 @@ type SymbolBehaviorPanelProps = {
   behavior?: SymbolBehavior | null;
   diagnostics?: SymbolBehaviorDiagnostics | null;
   coverage?: SymbolBehaviorCoverage | null;
+  signalHistory?: SymbolBehaviorRunContext[] | null;
   className?: string;
 };
 
@@ -42,10 +46,15 @@ export function SymbolBehaviorPanel({
   behavior,
   diagnostics,
   coverage,
+  signalHistory,
   className = "",
 }: SymbolBehaviorPanelProps) {
   const [expanded, setExpanded] = useState(false);
   const isAvailable = diagnostics?.available === true && Boolean(behavior);
+  const sampleQuality =
+    isAvailable && behavior
+      ? buildBehaviorSampleQuality({ behavior, signalHistory })
+      : null;
 
   return (
     <section
@@ -69,7 +78,11 @@ export function SymbolBehaviorPanel({
         <EmptyBehaviorState diagnostics={diagnostics} coverage={coverage} />
       ) : (
         <>
-          <BehaviorReadoutCard behavior={behavior} />
+          <BehaviorReadoutCard
+            behavior={behavior}
+            sampleQuality={sampleQuality}
+          />
+          <SampleQualityNotice quality={sampleQuality} />
           <BehaviorSummary behavior={behavior} />
           <SampleHint behavior={behavior} />
           <BehaviorWarnings
@@ -79,6 +92,7 @@ export function SymbolBehaviorPanel({
           <BehaviorHorizons horizons={getBehaviorHorizonRows(behavior)} />
           <RecentBehaviorOutcomes
             outcomes={behavior.recentOutcomes ?? []}
+            hasClusteredRuns={sampleQuality?.hasClusteredRuns === true}
             expanded={expanded}
             onToggle={() => setExpanded((value) => !value)}
           />
@@ -120,7 +134,13 @@ function EmptyBehaviorState({
   );
 }
 
-function BehaviorReadoutCard({ behavior }: { behavior: SymbolBehavior }) {
+function BehaviorReadoutCard({
+  behavior,
+  sampleQuality,
+}: {
+  behavior: SymbolBehavior;
+  sampleQuality?: BehaviorSampleQualityReadout | null;
+}) {
   const readout = buildBehaviorReadout({
     resultGroup: behavior.currentContext?.resultGroup,
     signalLabel: behavior.currentContext?.signalLabel,
@@ -129,6 +149,10 @@ function BehaviorReadoutCard({ behavior }: { behavior: SymbolBehavior }) {
     warnings: Array.isArray(behavior.warnings) ? behavior.warnings : [],
   });
   const toneClass = getBehaviorReadoutToneClass(readout);
+  const caveats = uniquePanelCaveats([
+    ...readout.caveats,
+    ...(sampleQuality?.caveats ?? []),
+  ]);
 
   return (
     <div className={`mb-3 border px-3 py-3 ${toneClass}`}>
@@ -157,13 +181,44 @@ function BehaviorReadoutCard({ behavior }: { behavior: SymbolBehavior }) {
         />
         <BehaviorFact label="Historical Bias" value={readout.historicalBiasLabel} />
       </div>
-      {readout.caveats.length > 0 ? (
+      {caveats.length > 0 ? (
         <div className="mt-3 space-y-1 text-xs text-[var(--muted)]">
-          {readout.caveats.map((caveat) => (
+          {caveats.map((caveat) => (
             <p key={caveat}>{caveat}</p>
           ))}
         </div>
       ) : null}
+    </div>
+  );
+}
+
+function SampleQualityNotice({
+  quality,
+}: {
+  quality?: BehaviorSampleQualityReadout | null;
+}) {
+  if (!quality) {
+    return null;
+  }
+
+  const className =
+    quality.sampleQualityTone === "warning"
+      ? "border-amber-500/30 bg-amber-500/10 text-amber-100"
+      : quality.sampleQualityTone === "notice"
+        ? "border-sky-500/25 bg-sky-500/10 text-sky-100"
+        : "border-[var(--border)] bg-[#080d12] text-[var(--muted)]";
+
+  return (
+    <div className={`mb-3 border px-3 py-2 text-xs ${className}`}>
+      <div className="text-[10px] uppercase tracking-normal text-[var(--muted-2)]">
+        Sample Quality
+      </div>
+      <p className="mt-1">
+        <span className="font-semibold text-[var(--foreground)]">
+          {quality.sampleQualityLabel}
+        </span>{" "}
+        - {quality.hygieneSummary}
+      </p>
     </div>
   );
 }
@@ -305,10 +360,12 @@ function BehaviorHorizons({ horizons }: { horizons: SymbolBehaviorHorizonRow[] }
 
 function RecentBehaviorOutcomes({
   outcomes,
+  hasClusteredRuns,
   expanded,
   onToggle,
 }: {
   outcomes: SymbolBehaviorRecentOutcome[];
+  hasClusteredRuns?: boolean;
   expanded: boolean;
   onToggle: () => void;
 }) {
@@ -338,6 +395,13 @@ function RecentBehaviorOutcomes({
           {formatBehaviorSampleSize(outcomes.length)} recent observations
         </span>
       </div>
+
+      {hasClusteredRuns ? (
+        <p className="mb-3 border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-100">
+          Several recent observations are close together in time; treat short-term
+          behavior samples cautiously.
+        </p>
+      ) : null}
 
       {visibleOutcomes.length === 0 ? (
         <p className="text-sm text-[var(--muted)]">
@@ -431,4 +495,22 @@ function toScoreValue(value: unknown) {
   const number = typeof value === "string" ? Number(value.trim()) : Number(value);
 
   return Number.isFinite(number) ? number : null;
+}
+
+function uniquePanelCaveats(values: string[]) {
+  const seen = new Set<string>();
+  const unique: string[] = [];
+
+  for (const value of values) {
+    const key = value.trim().toLowerCase();
+
+    if (!key || seen.has(key)) {
+      continue;
+    }
+
+    seen.add(key);
+    unique.push(value);
+  }
+
+  return unique;
 }
