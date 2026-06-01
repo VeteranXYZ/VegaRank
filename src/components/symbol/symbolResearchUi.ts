@@ -45,6 +45,15 @@ type TimeframeSnapshotInput = {
   timeframe?: string | null;
 };
 
+type TimeframeAvailabilitySignalInput = TimeframeSnapshotInput &
+  RunContextInput & {
+    resultGroup?: string | null;
+    actionBias?: string | null;
+    statusNote?: string | null;
+    rankScore?: number | null;
+    scanTime?: string | null;
+  };
+
 type ResearchSummarySignalInput = RunContextInput & {
   resultGroup?: string | null;
   signalLabel?: string | null;
@@ -106,6 +115,30 @@ export type SymbolResearchUnavailableContent = {
   details: Array<{ label: string; value: string }>;
   suggestions: string[];
   isInsufficientHistory: boolean;
+};
+
+export type SymbolResearchTimeframeAvailabilityStatus =
+  | "selected_available"
+  | "available"
+  | "selected_unavailable"
+  | "unavailable"
+  | "planned";
+
+export type SymbolResearchTimeframeAvailabilityRow = {
+  timeframe: string;
+  status: SymbolResearchTimeframeAvailabilityStatus;
+  statusLabel: string;
+  badgeLabel: string;
+  isSelected: boolean;
+  isDisabled: boolean;
+  reason: string;
+  candles: string;
+  selectedRun: string;
+  group: string;
+  action: string;
+  rank: string;
+  scanTime: string;
+  runContext: string;
 };
 
 export type SymbolResearchSummary = {
@@ -285,12 +318,15 @@ export function getTimeframeSnapshotTitle(itemCount: number) {
 }
 
 export function getTimeframeSnapshotNote(timeframes: TimeframeSnapshotInput[]) {
+  const base =
+    "Snapshot rows may use the selected full-universe signal for the requested timeframe and latest available full-universe signals for other timeframes.";
+
   if (timeframes.length !== 1) {
-    return null;
+    return base;
   }
 
   const timeframe = timeframes[0]?.timeframe || "selected timeframe";
-  return `Only ${timeframe} snapshot is currently available for this symbol.`;
+  return `Only ${timeframe} snapshot is currently available for this symbol. ${base}`;
 }
 
 export function getSymbolResearchTimeframeSnapshots<T extends TimeframeSnapshotInput>({
@@ -398,9 +434,13 @@ export function buildSymbolResearchUnavailableContent(
   const isInsufficientHistory =
     formatSymbolResearchUnavailableReason(input.unavailableReason).code ===
     "insufficient_history";
-  const title = isInsufficientHistory
+  const hasEnhancedUnavailableData = Boolean(
+    input.unavailableReason || input.selectedRun || input.symbolCoverage,
+  );
+  const title = hasEnhancedUnavailableData
     ? "Timeframe unavailable for this symbol"
     : "No scanner signal available";
+  const reason = formatSymbolResearchUnavailableReason(input.unavailableReason);
   const message =
     input.message?.trim() ||
     (isInsufficientHistory && candleCount !== null && requiredCandles !== null
@@ -409,6 +449,7 @@ export function buildSymbolResearchUnavailableContent(
   const details = [
     { label: "Symbol", value: symbol },
     { label: "Timeframe", value: timeframe },
+    { label: "Reason", value: reason.label },
     {
       label: "Candles",
       value:
@@ -441,8 +482,8 @@ export function buildSymbolResearchUnavailableContent(
     details,
     suggestions: isInsufficientHistory
       ? [
-          `Use 4h or 1d for ${symbol}.`,
-          "Try older symbols such as BTCUSDT or ETHUSDT for 1w research.",
+          `Try 4h or 1d for ${symbol}.`,
+          `Use ${timeframe} only after enough ${toReadableTimeframeUnit(timeframe)} candles exist.`,
         ]
       : [
           "Try 4h or 1d for this symbol.",
@@ -450,6 +491,84 @@ export function buildSymbolResearchUnavailableContent(
         ],
     isInsufficientHistory,
   };
+}
+
+export function buildSymbolResearchTimeframeAvailability({
+  timeframes,
+  selectedTimeframe,
+  signals = [],
+  unavailable,
+  plannedTimeframes = ["1h"],
+}: {
+  timeframes: readonly string[];
+  selectedTimeframe: string;
+  signals?: TimeframeAvailabilitySignalInput[];
+  unavailable?: SymbolResearchUnavailableInput | null;
+  plannedTimeframes?: readonly string[];
+}): SymbolResearchTimeframeAvailabilityRow[] {
+  const selected = selectedTimeframe.trim().toLowerCase();
+  const planned = new Set(plannedTimeframes.map((timeframe) => timeframe.toLowerCase()));
+  const signalByTimeframe = new Map(
+    signals
+      .filter((signal) => signal.timeframe)
+      .map((signal) => [signal.timeframe?.toLowerCase() ?? "", signal]),
+  );
+  const unavailableTimeframe = unavailable?.timeframe?.trim().toLowerCase();
+  const unavailableReason = formatSymbolResearchUnavailableReason(
+    unavailable?.unavailableReason,
+  );
+  const hasUnavailablePayload = Boolean(
+    unavailable &&
+      (unavailable.unavailableReason ||
+        unavailable.symbolCoverage ||
+        unavailable.selectedRun),
+  );
+
+  return timeframes.map((timeframe) => {
+    const key = timeframe.toLowerCase();
+    const isSelected = key === selected;
+    const signal = signalByTimeframe.get(key);
+    const isPlanned = planned.has(key);
+    const isSelectedUnavailable =
+      isSelected &&
+      hasUnavailablePayload &&
+      (!unavailableTimeframe || unavailableTimeframe === key);
+
+    if (isPlanned) {
+      return buildTimeframeAvailabilityRow({
+        timeframe,
+        status: "planned",
+        isSelected,
+        reason: "No production scanner run is available for this timeframe yet.",
+      });
+    }
+
+    if (signal) {
+      return buildTimeframeAvailabilityRow({
+        timeframe,
+        status: isSelected ? "selected_available" : "available",
+        isSelected,
+        signal,
+      });
+    }
+
+    if (isSelectedUnavailable) {
+      return buildTimeframeAvailabilityRow({
+        timeframe,
+        status: "selected_unavailable",
+        isSelected,
+        unavailable,
+        reason: unavailableReason.label,
+      });
+    }
+
+    return buildTimeframeAvailabilityRow({
+      timeframe,
+      status: "unavailable",
+      isSelected,
+      reason: "No latest full-universe signal is currently available.",
+    });
+  });
 }
 
 export function formatSymbolResearchUnavailableReason(
@@ -513,6 +632,104 @@ export function formatSymbolResearchUnavailableCoverage({
   }
 
   return `${candleCount} / ${requiredCandles} required`;
+}
+
+function buildTimeframeAvailabilityRow({
+  timeframe,
+  status,
+  isSelected,
+  signal,
+  unavailable,
+  reason,
+}: {
+  timeframe: string;
+  status: SymbolResearchTimeframeAvailabilityStatus;
+  isSelected: boolean;
+  signal?: TimeframeAvailabilitySignalInput;
+  unavailable?: SymbolResearchUnavailableInput | null;
+  reason?: string;
+}): SymbolResearchTimeframeAvailabilityRow {
+  const isAvailable = status === "available" || status === "selected_available";
+  const isPlanned = status === "planned";
+  const selectedRun = unavailable?.selectedRun;
+  const coverage = unavailable?.symbolCoverage;
+
+  return {
+    timeframe,
+    status,
+    statusLabel: getTimeframeAvailabilityStatusLabel(status),
+    badgeLabel: getTimeframeAvailabilityBadgeLabel(status, reason),
+    isSelected,
+    isDisabled: isPlanned,
+    reason: reason ?? (isAvailable ? "Available" : "Unavailable"),
+    candles: coverage
+      ? formatSymbolResearchUnavailableCoverage(coverage)
+      : isAvailable
+        ? "Covered"
+        : "Not available",
+    selectedRun: selectedRun
+      ? formatSymbolResearchUnavailableSelectedRun(selectedRun)
+      : isAvailable && signal
+        ? formatSymbolResearchRunContext(signal)
+        : isPlanned
+          ? "Not configured"
+          : "Not available",
+    group: signal ? formatSymbolResearchGroup(signal.resultGroup) : "-",
+    action: signal
+      ? formatSymbolResearchAction(signal.actionBias ?? signal.statusNote)
+      : "-",
+    rank: signal ? formatSymbolResearchScore(signal.rankScore) : "-",
+    scanTime: signal ? formatSymbolResearchDateTime(signal.scanTime) : "-",
+    runContext: signal ? formatSymbolResearchRunContext(signal) : "-",
+  };
+}
+
+function getTimeframeAvailabilityStatusLabel(
+  status: SymbolResearchTimeframeAvailabilityStatus,
+) {
+  switch (status) {
+    case "selected_available":
+    case "available":
+      return "Available";
+    case "selected_unavailable":
+    case "unavailable":
+      return "Unavailable";
+    case "planned":
+      return "Planned / Not configured";
+  }
+}
+
+function getTimeframeAvailabilityBadgeLabel(
+  status: SymbolResearchTimeframeAvailabilityStatus,
+  reason?: string,
+) {
+  switch (status) {
+    case "selected_available":
+      return "Selected";
+    case "available":
+      return "Available";
+    case "selected_unavailable":
+      return reason === "Insufficient history" ? "Insufficient history" : "Unavailable";
+    case "unavailable":
+      return "Unavailable";
+    case "planned":
+      return "Planned";
+  }
+}
+
+function toReadableTimeframeUnit(timeframe: string) {
+  switch (timeframe) {
+    case "1w":
+      return "weekly";
+    case "1d":
+      return "daily";
+    case "4h":
+      return "4h";
+    case "1h":
+      return "hourly";
+    default:
+      return timeframe;
+  }
 }
 
 export function toTitleCase(value: string) {

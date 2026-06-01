@@ -13,6 +13,7 @@ import {
 import {
   buildSymbolResearchDiagnostics,
   buildSymbolResearchSummary,
+  buildSymbolResearchTimeframeAvailability,
   buildSymbolResearchUnavailableContent,
   formatSymbolResearchAction,
   formatSymbolResearchDateTime,
@@ -29,6 +30,7 @@ import {
   getSymbolResearchScoreRows,
   hasNewerSymbolResearchHistoryRows,
   toTitleCase,
+  type SymbolResearchTimeframeAvailabilityRow,
   type SymbolResearchUnavailableReason,
 } from "./symbolResearchUi";
 
@@ -355,40 +357,61 @@ export function SymbolResearchPageClient({
   }
 
   if (!data.ok) {
-    const content = buildSymbolResearchUnavailableContent({
-      symbol: data.symbol?.symbol ?? normalizedSymbol,
-      timeframe: data.timeframe ?? timeframe,
+    const selectedTimeframe = data.timeframe ?? timeframe;
+    const unavailableSymbol = data.symbol?.symbol ?? normalizedSymbol;
+    const unavailableInput = {
+      symbol: unavailableSymbol,
+      timeframe: selectedTimeframe,
       unavailableReason: data.unavailableReason,
       message: data.message,
       selectedRun: data.selectedRun,
       symbolCoverage: data.symbolCoverage,
+    };
+    const hasEnhancedUnavailableData = Boolean(
+      data.unavailableReason || data.selectedRun || data.symbolCoverage,
+    );
+    const timeframeAvailability = hasEnhancedUnavailableData
+      ? buildSymbolResearchTimeframeAvailability({
+          timeframes: symbolResearchTimeframes,
+          selectedTimeframe,
+          unavailable: unavailableInput,
+        })
+      : null;
+    const content = buildSymbolResearchUnavailableContent({
+      ...unavailableInput,
     });
 
     return (
       <main className="mx-auto w-full max-w-7xl px-4 py-6 text-[var(--foreground)]">
         <SymbolResearchNavigation
-          key={data.symbol?.symbol ?? normalizedSymbol}
+          key={unavailableSymbol}
           exchange={exchange}
-          symbol={data.symbol?.symbol ?? normalizedSymbol}
-          timeframe={timeframe}
+          symbol={unavailableSymbol}
+          timeframe={selectedTimeframe}
           assetClass={data.symbol?.assetClass ?? assetClass}
           scannerReturnHref={scannerReturnHref}
           searchParams={searchParams}
           isFetching={query.isFetching}
           onSymbolSubmit={handleSymbolSubmit}
           onRefresh={() => void query.refetch()}
+          availabilityRows={timeframeAvailability ?? undefined}
         />
+        {timeframeAvailability ? (
+          <TimeframeAvailabilityPanel
+            rows={timeframeAvailability}
+            className="mb-4"
+          />
+        ) : null}
         <SymbolResearchUnavailableState
           content={content}
           apiOrigin={apiOrigin}
-          selectedRun={data.selectedRun}
-          symbolCoverage={data.symbolCoverage}
         />
       </main>
     );
   }
 
   const latestSignal = data.latest?.signal ?? null;
+  const selectedTimeframe = data.timeframe ?? timeframe;
 
   if (!latestSignal) {
     return (
@@ -397,7 +420,7 @@ export function SymbolResearchPageClient({
           key={normalizedSymbol}
           exchange={exchange}
           symbol={normalizedSymbol}
-          timeframe={timeframe}
+          timeframe={selectedTimeframe}
           assetClass={data.symbol.assetClass}
           scannerReturnHref={scannerReturnHref}
           searchParams={searchParams}
@@ -428,7 +451,12 @@ export function SymbolResearchPageClient({
   const timeframeSnapshots = getSymbolResearchTimeframeSnapshots({
     timeframes,
     latestSignal,
-    requestedTimeframe: data.timeframe ?? timeframe,
+    requestedTimeframe: selectedTimeframe,
+  });
+  const timeframeAvailability = buildSymbolResearchTimeframeAvailability({
+    timeframes: symbolResearchTimeframes,
+    selectedTimeframe,
+    signals: timeframeSnapshots,
   });
   const timeframeSnapshotTitle = getTimeframeSnapshotTitle(timeframeSnapshots.length);
   const timeframeSnapshotNote = getTimeframeSnapshotNote(timeframeSnapshots);
@@ -438,7 +466,7 @@ export function SymbolResearchPageClient({
   ]);
   const researchSummary = buildSymbolResearchSummary(latestSignal);
   const diagnostics = buildSymbolResearchDiagnostics({
-    selectedTimeframe: data.timeframe ?? timeframe,
+    selectedTimeframe,
     currentSelection: data.currentSelection,
     latestSignal,
     history,
@@ -451,13 +479,14 @@ export function SymbolResearchPageClient({
         key={data.symbol.symbol}
         exchange={exchange}
         symbol={data.symbol.symbol}
-        timeframe={timeframe}
+        timeframe={selectedTimeframe}
         assetClass={data.symbol.assetClass}
         scannerReturnHref={scannerReturnHref}
         searchParams={searchParams}
         isFetching={query.isFetching}
         onSymbolSubmit={handleSymbolSubmit}
         onRefresh={() => void query.refetch()}
+        availabilityRows={timeframeAvailability}
       />
 
       <header className="mb-4 border border-[var(--border)] bg-[var(--panel)] px-4 py-4">
@@ -468,7 +497,7 @@ export function SymbolResearchPageClient({
             </p>
             <h1 className="mt-1 text-2xl font-semibold">{data.symbol.symbol}</h1>
             <p className="mt-2 text-sm text-[var(--muted)]">
-              {data.symbol.exchange} · {data.symbol.market} · {timeframe} ·{" "}
+              {data.symbol.exchange} · {data.symbol.market} · {selectedTimeframe} ·{" "}
               {toTitleCase(data.symbol.assetClass)}
             </p>
           </div>
@@ -488,6 +517,11 @@ export function SymbolResearchPageClient({
           </div>
         </div>
       </header>
+
+      <TimeframeAvailabilityPanel
+        rows={timeframeAvailability}
+        className="mb-4"
+      />
 
       <div className="grid gap-4 xl:grid-cols-[minmax(0,1.05fr)_minmax(320px,0.95fr)]">
         <Panel title="Current Classification">
@@ -579,7 +613,7 @@ export function SymbolResearchPageClient({
 
       <SymbolResearchChart
         symbol={data.symbol.symbol}
-        timeframe={timeframe}
+        timeframe={selectedTimeframe}
         candles={candles.rows}
         candleCount={candles.count}
         latestSignal={{
@@ -602,7 +636,7 @@ export function SymbolResearchPageClient({
           <ResponsiveTable
             headers={["Timeframe", "Group", "Action", "Rank", "Scan Time", "Run Context"]}
             rows={timeframeSnapshots.map((item) => [
-              item.timeframe,
+              formatSelectedTimeframeLabel(item.timeframe, selectedTimeframe),
               formatSymbolResearchGroup(item.resultGroup),
               formatSymbolResearchAction(item.actionBias ?? item.statusNote),
               formatSymbolResearchScore(item.rankScore),
@@ -841,6 +875,7 @@ function SymbolResearchNavigation({
   isFetching,
   onSymbolSubmit,
   onRefresh,
+  availabilityRows,
 }: {
   exchange: string;
   symbol: string;
@@ -851,8 +886,12 @@ function SymbolResearchNavigation({
   isFetching: boolean;
   onSymbolSubmit: (value: string) => void;
   onRefresh: () => void;
+  availabilityRows?: SymbolResearchTimeframeAvailabilityRow[];
 }) {
   const [symbolInput, setSymbolInput] = useState(symbol);
+  const availabilityByTimeframe = new Map(
+    availabilityRows?.map((row) => [row.timeframe.toLowerCase(), row]),
+  );
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     onSymbolSubmit(symbolInput);
@@ -912,6 +951,23 @@ function SymbolResearchNavigation({
       >
         {symbolResearchTimeframes.map((option) => {
           const isActive = option === timeframe;
+          const availability = availabilityByTimeframe.get(option.toLowerCase());
+          const className = getTimeframeNavigationClass(availability, isActive);
+          const label = availability?.badgeLabel ?? (isActive ? "Selected" : "");
+
+          if (availability?.isDisabled) {
+            return (
+              <span
+                key={option}
+                aria-disabled="true"
+                title={availability.reason}
+                className={`${className} cursor-not-allowed`}
+              >
+                <span>{option}</span>
+                {label ? <span className="opacity-80">{label}</span> : null}
+              </span>
+            );
+          }
 
           return (
             <Link
@@ -923,19 +979,85 @@ function SymbolResearchNavigation({
                 searchParams,
               })}
               aria-current={isActive ? "page" : undefined}
-              className={`border px-3 py-1.5 font-semibold ${
-                isActive
-                  ? "border-[var(--info)] bg-[#07131a] text-[var(--foreground)]"
-                  : "border-[var(--border)] text-[var(--muted)] hover:border-[var(--info)] hover:text-[var(--foreground)]"
-              }`}
+              title={availability?.reason}
+              className={className}
             >
-              {option}
+              <span>{option}</span>
+              {label ? <span className="opacity-80">{label}</span> : null}
             </Link>
           );
         })}
       </nav>
     </section>
   );
+}
+
+function TimeframeAvailabilityPanel({
+  rows,
+  className = "",
+}: {
+  rows: SymbolResearchTimeframeAvailabilityRow[];
+  className?: string;
+}) {
+  if (rows.length === 0) {
+    return null;
+  }
+
+  return (
+    <Panel title="Timeframe Availability" className={className}>
+      <ResponsiveTable
+        headers={[
+          "Timeframe",
+          "Status",
+          "Reason",
+          "Candles",
+          "Run Context",
+          "Group",
+          "Action",
+          "Rank",
+          "Scan Time",
+        ]}
+        rows={rows.map((row) => [
+          row.isSelected ? `${row.timeframe} (selected)` : row.timeframe,
+          row.statusLabel,
+          row.reason,
+          row.candles,
+          row.selectedRun,
+          row.group,
+          row.action,
+          row.rank,
+          row.scanTime,
+        ])}
+        emptyText="No timeframe availability rows available."
+      />
+    </Panel>
+  );
+}
+
+function getTimeframeNavigationClass(
+  availability: SymbolResearchTimeframeAvailabilityRow | undefined,
+  isActive: boolean,
+) {
+  const base =
+    "inline-flex items-center gap-1.5 border px-3 py-1.5 font-semibold";
+
+  if (availability?.status === "planned") {
+    return `${base} border-[var(--border)] bg-[#080d12] text-[var(--muted)] opacity-70`;
+  }
+
+  if (availability?.status === "selected_unavailable") {
+    return `${base} border-amber-400/50 bg-amber-500/10 text-amber-100 hover:border-amber-300`;
+  }
+
+  if (availability?.status === "unavailable") {
+    return `${base} border-[var(--border)] bg-[#080d12] text-[var(--muted)] hover:border-amber-400/50 hover:text-[var(--foreground)]`;
+  }
+
+  if (isActive) {
+    return `${base} border-[var(--info)] bg-[#07131a] text-[var(--foreground)]`;
+  }
+
+  return `${base} border-[var(--border)] text-[var(--muted)] hover:border-[var(--info)] hover:text-[var(--foreground)]`;
 }
 
 function ResearchState({
@@ -983,8 +1105,6 @@ function SymbolResearchUnavailableState({
 }: {
   content: ReturnType<typeof buildSymbolResearchUnavailableContent>;
   apiOrigin?: string;
-  selectedRun?: SymbolResearchSelectedRun | null;
-  symbolCoverage?: SymbolResearchSymbolCoverage | null;
 }) {
   return (
     <section className="border border-[var(--border)] bg-[var(--panel)] px-4 py-5">
@@ -1039,6 +1159,17 @@ function Fact({ label, value }: { label: string; value: string }) {
       <div className="mt-1 break-words text-sm text-[var(--foreground)]">{value}</div>
     </div>
   );
+}
+
+function formatSelectedTimeframeLabel(
+  value: string | null | undefined,
+  selectedTimeframe: string,
+) {
+  const timeframe = value || "Unknown";
+
+  return timeframe.toLowerCase() === selectedTimeframe.toLowerCase()
+    ? `${timeframe} (selected)`
+    : timeframe;
 }
 
 function getCandleRowsNotice(candles: SymbolResearchCandles) {

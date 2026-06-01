@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   buildSymbolResearchDiagnostics,
   buildSymbolResearchSummary,
+  buildSymbolResearchTimeframeAvailability,
   buildSymbolResearchUnavailableContent,
   formatSymbolResearchAction,
   formatSymbolResearchDateTime,
@@ -229,6 +230,7 @@ describe("symbol research UI helpers", () => {
       expect.arrayContaining([
         { label: "Symbol", value: "SEIUSDT" },
         { label: "Timeframe", value: "1w" },
+        { label: "Reason", value: "Insufficient history" },
         { label: "Candles", value: "145 / 200 required" },
         {
           label: "Selected Run",
@@ -238,8 +240,8 @@ describe("symbol research UI helpers", () => {
       ]),
     );
     expect(content.suggestions).toEqual([
-      "Use 4h or 1d for SEIUSDT.",
-      "Try older symbols such as BTCUSDT or ETHUSDT for 1w research.",
+      "Try 4h or 1d for SEIUSDT.",
+      "Use 1w only after enough weekly candles exist.",
     ]);
   });
 
@@ -263,11 +265,73 @@ describe("symbol research UI helpers", () => {
       },
     });
 
-    expect(content.title).toBe("No scanner signal available");
+    expect(content.title).toBe("Timeframe unavailable for this symbol");
     expect(content.isInsufficientHistory).toBe(false);
     expect(content.message).toBe(
       "No scanner signal is available for this symbol/timeframe from the selected latest run.",
     );
+  });
+
+  it("builds timeframe availability rows for available, unavailable, and planned timeframes", () => {
+    const rows = buildSymbolResearchTimeframeAvailability({
+      timeframes: ["4h", "1d", "1w", "1h"],
+      selectedTimeframe: "1w",
+      signals: [
+        {
+          timeframe: "4h",
+          resultGroup: "eligible",
+          actionBias: "eligible",
+          rankScore: 81.2,
+          scanTime: "2026-06-01T00:00:00.000Z",
+          sourceRunIsLikelyFullUniverse: true,
+        },
+        {
+          timeframe: "1d",
+          resultGroup: "watch",
+          actionBias: "watch_caution",
+          rankScore: 64,
+          scanTime: "2026-06-01T01:00:00.000Z",
+          isSelectedCurrentRun: false,
+          sourceRunIsLikelyFullUniverse: true,
+        },
+      ],
+      unavailable: {
+        symbol: "SEIUSDT",
+        timeframe: "1w",
+        unavailableReason: "insufficient_history",
+        selectedRun: {
+          timeframe: "1w",
+          status: "success",
+          symbolsTotal: 413,
+          symbolsScanned: 192,
+          symbolsSkipped: 221,
+          isLikelyFullUniverse: true,
+        },
+        symbolCoverage: {
+          timeframe: "1w",
+          candleCount: 145,
+          requiredCandles: 200,
+        },
+      },
+    });
+
+    expect(rows.map((row) => [row.timeframe, row.status, row.badgeLabel])).toEqual([
+      ["4h", "available", "Available"],
+      ["1d", "available", "Available"],
+      ["1w", "selected_unavailable", "Insufficient history"],
+      ["1h", "planned", "Planned"],
+    ]);
+    expect(rows[2]).toMatchObject({
+      isSelected: true,
+      reason: "Insufficient history",
+      candles: "145 / 200 required",
+      selectedRun: "1w full-universe run, success, scanned 192 / 413, skipped 221",
+    });
+    expect(rows[3]).toMatchObject({
+      isDisabled: true,
+      selectedRun: "Not configured",
+      reason: "No production scanner run is available for this timeframe yet.",
+    });
   });
 
   it("formats unavailable reason, selected run, and candle coverage directly", () => {
@@ -298,14 +362,17 @@ describe("symbol research UI helpers", () => {
   });
 
   it("avoids multi-timeframe wording when only one snapshot exists", () => {
+    const base =
+      "Snapshot rows may use the selected full-universe signal for the requested timeframe and latest available full-universe signals for other timeframes.";
+
     expect(getTimeframeSnapshotTitle(0)).toBe("Timeframe Snapshot");
     expect(getTimeframeSnapshotTitle(1)).toBe("Timeframe Snapshot");
     expect(getTimeframeSnapshotTitle(2)).toBe("Multi-Timeframe Snapshot");
     expect(getTimeframeSnapshotNote([{ timeframe: "4h" }])).toBe(
-      "Only 4h snapshot is currently available for this symbol.",
+      `Only 4h snapshot is currently available for this symbol. ${base}`,
     );
     expect(getTimeframeSnapshotNote([{ timeframe: "4h" }, { timeframe: "1d" }])).toBe(
-      null,
+      base,
     );
   });
 
