@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  buildSymbolResearchSummary,
   formatSymbolResearchAction,
   formatSymbolResearchDateTime,
   formatSymbolResearchGroup,
@@ -97,6 +98,43 @@ describe("symbol research UI helpers", () => {
       "Strong Trend",
     ]);
     expect(formatSymbolResearchList([{ type: "risk" }])).toEqual([]);
+  });
+
+  it.each([
+    ["risk", "Risk / wait for repair"],
+    ["eligible", "Manual review candidate"],
+    ["watch", "Watch for confirmation"],
+    ["overheated", "Do not chase"],
+    ["neutral", "No clear edge"],
+  ])("builds a conservative research summary for %s", (resultGroup, stance) => {
+    const summary = buildSymbolResearchSummary({
+      resultGroup,
+      primaryStructure: "healthy_pullback",
+      rankScore: 82,
+      opportunityScore: 70,
+      confirmationScore: 62,
+      riskScore: 20,
+      detectedRiskTypes: resultGroup === "risk" ? ["trend_breakdown_risk"] : [],
+      statusReasons: ["Scanner status reason."],
+      factors: {
+        bullish: ["constructive_structure"],
+        risk: resultGroup === "risk" ? ["risk pressure"] : [],
+      },
+      nextConfirmation: ["Needs stronger confirmation"],
+      invalidation: ["Structure weakens further"],
+      isSelectedCurrentRun: true,
+      sourceRunIsLikelyFullUniverse: true,
+    });
+
+    expect(summary.stance).toBe(stance);
+    expect(summary.why.length).toBeGreaterThanOrEqual(2);
+    expect(summary.why.length).toBeLessThanOrEqual(4);
+    expect(summary.nextConfirmation).toEqual(["Needs stronger confirmation"]);
+    expect(summary.invalidation[0]).toBe("Structure weakens further");
+    expect(summary.runBasis).toBe("Based on selected full-universe run");
+    expect(JSON.stringify(summary)).not.toMatch(
+      /\b(buy|sell|long|short|entry|exit|target|take[-\s]?profit|stop[-\s]?loss)\b/i,
+    );
   });
 
   it("labels run context without making newer rows look current", () => {

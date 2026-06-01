@@ -45,6 +45,30 @@ type TimeframeSnapshotInput = {
   timeframe?: string | null;
 };
 
+type ResearchSummarySignalInput = RunContextInput & {
+  resultGroup?: string | null;
+  signalLabel?: string | null;
+  actionBias?: string | null;
+  primaryStructure?: string | null;
+  rankScore?: number | null;
+  opportunityScore?: number | null;
+  confirmationScore?: number | null;
+  riskScore?: number | null;
+  detectedRiskTypes?: unknown;
+  statusReasons?: string[] | null;
+  factors?: Record<string, unknown> | null;
+  nextConfirmation?: unknown;
+  invalidation?: unknown;
+};
+
+export type SymbolResearchSummary = {
+  stance: string;
+  why: string[];
+  nextConfirmation: string[];
+  invalidation: string[];
+  runBasis: string;
+};
+
 export function formatSymbolResearchScore(
   value: number | null | undefined,
   decimals = 1,
@@ -233,6 +257,36 @@ export function getSymbolResearchTimeframeSnapshots<T extends TimeframeSnapshotI
   ];
 }
 
+export function buildSymbolResearchSummary(
+  signal: ResearchSummarySignalInput,
+): SymbolResearchSummary {
+  return {
+    stance: getResearchSummaryStance(signal),
+    why: withResearchFallback(
+      uniqueResearchBullets([
+        ...(signal.statusReasons ?? []),
+        ...getSetupBullets(signal),
+        ...getScoreContextBullets(signal),
+        ...getFactorBullets(signal.factors, ["risk", "bearish", "bullish", "neutral"]),
+        ...getRiskTypeBullets(signal.detectedRiskTypes),
+      ]).slice(0, 4),
+      "Current grouping reflects the selected scanner classification.",
+    ),
+    nextConfirmation: withResearchFallback(
+      uniqueResearchBullets(collectResearchText(signal.nextConfirmation)).slice(0, 3),
+      "Watch for stronger confirmation before changing the research view.",
+    ),
+    invalidation: withResearchFallback(
+      uniqueResearchBullets([
+        ...collectResearchText(signal.invalidation),
+        ...getRiskTypeBullets(signal.detectedRiskTypes),
+      ]).slice(0, 3),
+      "Reassess if risk flags increase or structure weakens.",
+    ),
+    runBasis: `Based on ${lowerFirst(formatSymbolResearchRunContext(signal))}`,
+  };
+}
+
 export function toTitleCase(value: string) {
   return value
     .split(/[_\s-]+/)
@@ -250,4 +304,123 @@ function isSymbolResearchGroup(value: unknown): value is SymbolResearchGroup {
     value === "neutral" ||
     value === "insufficient_history"
   );
+}
+
+function getResearchSummaryStance(signal: ResearchSummarySignalInput) {
+  switch (signal.resultGroup) {
+    case "eligible":
+      return "Manual review candidate";
+    case "watch":
+      return "Watch for confirmation";
+    case "overheated":
+      return "Do not chase";
+    case "risk":
+      return "Risk / wait for repair";
+    case "insufficient_history":
+      return "Not enough history";
+    case "neutral":
+    default:
+      return "No clear edge";
+  }
+}
+
+function getFactorBullets(
+  factors: Record<string, unknown> | null | undefined,
+  keys: string[],
+) {
+  if (!factors) {
+    return [];
+  }
+
+  return keys.flatMap((key) => collectResearchText(factors[key]));
+}
+
+function getRiskTypeBullets(value: unknown) {
+  return collectResearchText(value).map((item) =>
+    item.toLowerCase().includes("risk") ? item : `${item} risk noted`,
+  );
+}
+
+function getSetupBullets(signal: ResearchSummarySignalInput) {
+  return signal.primaryStructure
+    ? [`Setup type: ${toTitleCase(signal.primaryStructure)}`]
+    : [];
+}
+
+function getScoreContextBullets(signal: ResearchSummarySignalInput) {
+  const scores = [
+    ["Rank", signal.rankScore],
+    ["Opportunity", signal.opportunityScore],
+    ["Confirmation", signal.confirmationScore],
+    ["Risk", signal.riskScore],
+  ]
+    .filter((item): item is [string, number] => typeof item[1] === "number")
+    .map(([label, value]) => `${label} ${formatSymbolResearchScore(value)}`);
+
+  return scores.length > 0 ? [`Scores: ${scores.join(", ")}`] : [];
+}
+
+function collectResearchText(value: unknown): string[] {
+  if (typeof value === "string") {
+    return [value];
+  }
+
+  if (Array.isArray(value)) {
+    return value.flatMap(collectResearchText);
+  }
+
+  return [];
+}
+
+function uniqueResearchBullets(values: string[]) {
+  const seen = new Set<string>();
+  const bullets: string[] = [];
+
+  for (const value of values) {
+    const next = normalizeResearchBullet(value);
+    const key = next.toLowerCase();
+
+    if (next && !seen.has(key)) {
+      seen.add(key);
+      bullets.push(next);
+    }
+  }
+
+  return bullets;
+}
+
+function normalizeResearchBullet(value: string) {
+  const trimmed = value.trim();
+
+  if (!trimmed) {
+    return "";
+  }
+
+  const readable =
+    /^[a-z0-9_-]+$/i.test(trimmed) && /[_-]/.test(trimmed)
+      ? toTitleCase(trimmed)
+      : trimmed;
+
+  return sanitizeResearchLanguage(readable);
+}
+
+function sanitizeResearchLanguage(value: string) {
+  return value
+    .replace(/\bbuy\b/gi, "directional action")
+    .replace(/\bsell\b/gi, "risk reduction")
+    .replace(/\blong\b/gi, "directional")
+    .replace(/\bshort\b/gi, "inverse")
+    .replace(/\bentry\b/gi, "trigger")
+    .replace(/\bexit\b/gi, "invalidation")
+    .replace(/\btarget\b/gi, "objective")
+    .replace(/\btake[-\s]?profit\b/gi, "objective")
+    .replace(/\bstop[-\s]?loss\b/gi, "risk boundary");
+}
+
+function withResearchFallback(values: string[], fallback: string) {
+  return values.length > 0 ? values : [fallback];
+}
+
+function lowerFirst(value: string) {
+  return value ? value.charAt(0).toLowerCase() + value.slice(1) : value;
 }

@@ -6,6 +6,7 @@ import { useMemo, type ReactNode } from "react";
 import { SymbolResearchChart } from "./SymbolResearchChart";
 import { SymbolSignalTimeline } from "./SymbolSignalTimeline";
 import {
+  buildSymbolResearchSummary,
   formatSymbolResearchAction,
   formatSymbolResearchDateTime,
   formatSymbolResearchGroup,
@@ -242,6 +243,7 @@ export function SymbolResearchPageClient({
     ...data.history,
     ...data.timeframes,
   ]);
+  const researchSummary = buildSymbolResearchSummary(latestSignal);
 
   return (
     <main className="mx-auto w-full max-w-7xl px-4 py-6 text-[var(--foreground)]">
@@ -314,6 +316,33 @@ export function SymbolResearchPageClient({
           </div>
         </Panel>
       </div>
+
+      <Panel title="Research Summary" className="mt-4">
+        <div className="grid gap-4 lg:grid-cols-[minmax(0,0.85fr)_minmax(0,1.15fr)]">
+          <div>
+            <div className="text-[11px] uppercase text-[var(--muted)]">
+              Current Stance
+            </div>
+            <div className="mt-1 text-lg font-semibold text-[var(--foreground)]">
+              {researchSummary.stance}
+            </div>
+            <p className="mt-2 text-sm text-[var(--muted)]">
+              {researchSummary.runBasis}
+            </p>
+          </div>
+          <div className="grid gap-4 md:grid-cols-3">
+            <SummaryList title="Why" values={researchSummary.why} />
+            <SummaryList
+              title="Next Confirmation"
+              values={researchSummary.nextConfirmation}
+            />
+            <SummaryList
+              title="Invalidation / Caution"
+              values={researchSummary.invalidation}
+            />
+          </div>
+        </div>
+      </Panel>
 
       <SymbolResearchChart
         symbol={data.symbol.symbol}
@@ -500,6 +529,19 @@ function TextList({ title, values }: { title: string; values: string[] }) {
       ) : (
         <p className="mt-2 text-sm text-[var(--muted)]">None noted.</p>
       )}
+    </div>
+  );
+}
+
+function SummaryList({ title, values }: { title: string; values: string[] }) {
+  return (
+    <div>
+      <h3 className="text-[11px] uppercase text-[var(--muted)]">{title}</h3>
+      <ul className="mt-2 space-y-1.5 text-sm text-[var(--muted)]">
+        {values.map((value) => (
+          <li key={value}>{value}</li>
+        ))}
+      </ul>
     </div>
   );
 }

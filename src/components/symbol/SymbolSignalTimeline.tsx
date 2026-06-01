@@ -1,6 +1,11 @@
+"use client";
+
+import { useMemo, useState } from "react";
 import {
   formatTimelineDate,
+  getCompactSignalHistory,
   normalizeSignalHistory,
+  type NormalizedSymbolTimelineSignal,
   type RawSymbolTimelineSignal,
 } from "./symbolTimelineUi";
 
@@ -13,7 +18,11 @@ export function SymbolSignalTimeline({
   history,
   showSelectionNotice = false,
 }: SymbolSignalTimelineProps) {
-  const items = normalizeSignalHistory(history);
+  const [showAll, setShowAll] = useState(false);
+  const items = useMemo(() => normalizeSignalHistory(history), [history]);
+  const compactHistory = useMemo(() => getCompactSignalHistory(items), [items]);
+  const visibleItems = showAll ? items : compactHistory.items;
+  const canToggle = compactHistory.hiddenCount > 0;
 
   return (
     <section className="mt-4 border border-[var(--border)] bg-[var(--panel)] px-4 py-4">
@@ -33,7 +42,7 @@ export function SymbolSignalTimeline({
           {items.length === 1 ? (
             <p className="mb-3 border border-[var(--border)] bg-[#080d12] px-3 py-2 text-xs text-[var(--muted)]">
               Only the latest signal is available. More history will appear after future
-          scans.
+              scans.
             </p>
           ) : null}
 
@@ -45,10 +54,12 @@ export function SymbolSignalTimeline({
           ) : null}
 
           <ol className="relative space-y-3 border-l border-[var(--border)] pl-4">
-            {items.map((item) => (
+            {visibleItems.map((item) => (
               <li key={item.key} className="relative">
-                <span className="absolute -left-[21px] top-4 h-2.5 w-2.5 border border-[var(--border)] bg-[var(--panel)]" />
-                <article className="border border-[var(--border)] bg-[#080d12] px-3 py-3">
+                <span
+                  className={`absolute -left-[21px] top-4 h-2.5 w-2.5 border ${getDotClassName(item)}`}
+                />
+                <article className={`border px-3 py-3 ${getArticleClassName(item)}`}>
                   <div className="flex flex-wrap items-start justify-between gap-2">
                     <div>
                       <div className="flex flex-wrap items-center gap-2">
@@ -60,6 +71,13 @@ export function SymbolSignalTimeline({
                         <span className="text-sm font-semibold text-[var(--foreground)]">
                           {item.signalLabel}
                         </span>
+                        {item.timelineTone !== "default" ? (
+                          <span className="border border-[var(--border)] px-2 py-0.5 text-[10px] uppercase text-[var(--muted)]">
+                            {item.timelineTone === "selected"
+                              ? "Selected current"
+                              : "Secondary run"}
+                          </span>
+                        ) : null}
                       </div>
                       <p className="mt-1 text-xs text-[var(--muted)]">
                         {item.groupDescription}
@@ -86,10 +104,47 @@ export function SymbolSignalTimeline({
               </li>
             ))}
           </ol>
+
+          {canToggle ? (
+            <button
+              type="button"
+              aria-expanded={showAll}
+              onClick={() => setShowAll((value) => !value)}
+              className="mt-3 border border-[var(--border)] px-3 py-1.5 text-xs text-[var(--foreground)] hover:border-[var(--info)]"
+            >
+              {showAll
+                ? "Show less history"
+                : `Show more history (${compactHistory.hiddenCount} hidden)`}
+            </button>
+          ) : null}
         </>
       )}
     </section>
   );
+}
+
+function getArticleClassName(item: NormalizedSymbolTimelineSignal) {
+  if (item.timelineTone === "selected") {
+    return "border-[var(--info)] bg-[#07131a]";
+  }
+
+  if (item.timelineTone === "secondary") {
+    return "border-dashed border-[var(--border)] bg-[#070b10] opacity-85";
+  }
+
+  return "border-[var(--border)] bg-[#080d12]";
+}
+
+function getDotClassName(item: NormalizedSymbolTimelineSignal) {
+  if (item.timelineTone === "selected") {
+    return "border-[var(--info)] bg-[var(--info)]";
+  }
+
+  if (item.timelineTone === "secondary") {
+    return "border-[var(--border)] bg-[#070b10]";
+  }
+
+  return "border-[var(--border)] bg-[var(--panel)]";
 }
 
 function TimelineFact({

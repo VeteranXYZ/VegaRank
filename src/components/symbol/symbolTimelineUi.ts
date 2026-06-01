@@ -42,6 +42,16 @@ export type NormalizedSymbolTimelineSignal = {
   riskText: string;
   statusText: string;
   runContextText: string;
+  isSelectedCurrentRun: boolean;
+  isNewerThanSelectedCurrentRun: boolean;
+  isSecondaryRun: boolean;
+  timelineTone: "selected" | "secondary" | "default";
+};
+
+export type CompactSignalHistoryResult = {
+  items: NormalizedSymbolTimelineSignal[];
+  hiddenCount: number;
+  totalCount: number;
 };
 
 const groupLabels: Record<string, string> = {
@@ -102,6 +112,10 @@ export function normalizeSignalHistory(
         riskText: getTimelineRiskText(item.detectedRiskTypes),
         statusText: getTimelineStatusText(item),
         runContextText: formatSymbolResearchRunContext(item),
+        isSelectedCurrentRun: item.isSelectedCurrentRun === true,
+        isNewerThanSelectedCurrentRun: item.isNewerThanSelectedCurrentRun === true,
+        isSecondaryRun: isSecondaryTimelineRun(item),
+        timelineTone: getTimelineTone(item),
       };
     })
     .sort((left, right) => {
@@ -114,6 +128,46 @@ export function normalizeSignalHistory(
 
       return left.key.localeCompare(right.key);
     });
+}
+
+export function getCompactSignalHistory(
+  items: NormalizedSymbolTimelineSignal[],
+  maxItems = 8,
+): CompactSignalHistoryResult {
+  if (items.length <= maxItems) {
+    return {
+      items: [...items],
+      hiddenCount: 0,
+      totalCount: items.length,
+    };
+  }
+
+  const limit = Math.max(1, maxItems);
+  const selectedIndexes = new Set<number>([0]);
+
+  items.forEach((item, index) => {
+    if (item.isSelectedCurrentRun) {
+      selectedIndexes.add(index);
+    }
+  });
+
+  for (let index = 1; index < items.length && selectedIndexes.size < limit; index += 1) {
+    if (items[index]?.group !== items[index - 1]?.group) {
+      selectedIndexes.add(index);
+    }
+  }
+
+  for (let index = 0; index < items.length && selectedIndexes.size < limit; index += 1) {
+    selectedIndexes.add(index);
+  }
+
+  const selected = [...selectedIndexes].sort((left, right) => left - right);
+
+  return {
+    items: selected.map((index) => items[index]!),
+    hiddenCount: items.length - selected.length,
+    totalCount: items.length,
+  };
 }
 
 export function formatTimelineDate(value: string | number | null | undefined) {
@@ -200,6 +254,27 @@ function getTimelineActionText(item: RawSymbolTimelineSignal) {
   }
 
   return "Review only";
+}
+
+function isSecondaryTimelineRun(item: RawSymbolTimelineSignal) {
+  return (
+    item.isSelectedCurrentRun !== true &&
+    item.sourceRunIsLikelyFullUniverse === false
+  );
+}
+
+function getTimelineTone(
+  item: RawSymbolTimelineSignal,
+): NormalizedSymbolTimelineSignal["timelineTone"] {
+  if (item.isSelectedCurrentRun) {
+    return "selected";
+  }
+
+  if (isSecondaryTimelineRun(item)) {
+    return "secondary";
+  }
+
+  return "default";
 }
 
 function normalizeGroup(value: string | null | undefined) {
