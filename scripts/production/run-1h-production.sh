@@ -17,6 +17,37 @@ log() {
   printf '[%s] %s\n' "$(timestamp)" "$*"
 }
 
+load_env() {
+  if [[ -f ".env" ]]; then
+    log "Loading environment from .env."
+    set -a
+    # shellcheck disable=SC1091
+    source ".env"
+    set +a
+    return
+  fi
+
+  log ".env not found; using existing environment."
+}
+
+validate_required_env() {
+  local missing=()
+  local name
+
+  for name in DATABASE_URL REDIS_URL; do
+    if [[ -z "${!name:-}" ]]; then
+      missing+=("$name")
+    fi
+  done
+
+  if (( ${#missing[@]} > 0 )); then
+    log "Missing required environment variables: ${missing[*]}"
+    exit 1
+  fi
+
+  log "Required environment variables are present."
+}
+
 lock_mtime() {
   stat -c %Y "$LOCK_FILE" 2>/dev/null ||
     stat -f %m "$LOCK_FILE" 2>/dev/null ||
@@ -76,19 +107,23 @@ acquire_lock() {
 }
 
 cleanup() {
-  local status
-  status=$?
+  local status=$?
 
   if [[ "$LOCK_ACQUIRED" == "1" ]]; then
-    rm -f "$LOCK_FILE"
-    log "Released lock: $LOCK_FILE"
+    if rm -f "$LOCK_FILE"; then
+      log "Released lock: $LOCK_FILE"
+    else
+      log "Failed to release lock: $LOCK_FILE"
+    fi
   fi
 
   if [[ "$status" -eq 0 ]]; then
     log "1h production job finished successfully."
   else
-    log "1h production job failed with exit status $status."
+    log "1h production job failed with exit code $status."
   fi
+
+  exit "$status"
 }
 
 main() {
@@ -97,6 +132,8 @@ main() {
 
   log "Starting 1h production job."
   log "Project directory: $PROJECT_DIR"
+  load_env
+  validate_required_env
   acquire_lock
   trap cleanup EXIT
 
