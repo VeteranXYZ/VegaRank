@@ -12,6 +12,8 @@ const getSymbolCandlesPgMock = vi.hoisted(() => vi.fn());
 const getSymbolCandleCoveragePgMock = vi.hoisted(() => vi.fn());
 const getSymbolBehaviorPgMock = vi.hoisted(() => vi.fn());
 const closeSymbolResearchMock = vi.hoisted(() => vi.fn());
+const getSignalEvaluationPgMock = vi.hoisted(() => vi.fn());
+const closeSignalEvaluationMock = vi.hoisted(() => vi.fn());
 const pgScannerResultsStoreMock = vi.hoisted(() =>
   vi.fn(function PgScannerResultsStore() {
     return {
@@ -31,6 +33,14 @@ const pgSymbolResearchStoreMock = vi.hoisted(() =>
       getSymbolCandleCoveragePg: getSymbolCandleCoveragePgMock,
       getSymbolBehaviorPg: getSymbolBehaviorPgMock,
       close: closeSymbolResearchMock,
+    };
+  }),
+);
+const pgSignalEvaluationStoreMock = vi.hoisted(() =>
+  vi.fn(function PgSignalEvaluationStore() {
+    return {
+      getSignalEvaluationPg: getSignalEvaluationPgMock,
+      close: closeSignalEvaluationMock,
     };
   }),
 );
@@ -64,6 +74,20 @@ vi.mock("@/lib/storage/postgres/scannerResultsPg", () => ({
 vi.mock("@/lib/storage/postgres/symbolResearchPg", () => ({
   PgSymbolResearchStore: pgSymbolResearchStoreMock,
 }));
+
+vi.mock("@/lib/storage/postgres/signalEvaluationPg", async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import("@/lib/storage/postgres/signalEvaluationPg")>();
+
+  return {
+    ...actual,
+    PgSignalEvaluationStore: pgSignalEvaluationStoreMock,
+  };
+});
+
+beforeEach(() => {
+  resetSignalEvaluationMocks();
+});
 
 describe("trade-api CORS", () => {
   beforeEach(() => {
@@ -147,6 +171,105 @@ describe("trade-api CORS", () => {
       "https://s.bitcoinmind.com",
     );
     expect(pgSymbolResearchStoreMock).not.toHaveBeenCalled();
+  });
+});
+
+describe("trade-api signal evaluation", () => {
+  beforeEach(() => {
+    resetScannerMocks();
+    resetSymbolResearchMocks();
+  });
+
+  it("returns historical signal evaluation with normalized filters", async () => {
+    getSignalEvaluationPgMock.mockResolvedValue(
+      makeSignalEvaluationResponse({
+        filters: {
+          assetClass: "crypto",
+          exchange: "binance",
+          market: "spot",
+          timeframe: "1h",
+          symbol: "BTCUSDT",
+          group: "risk",
+          signalLabel: "breakdown_risk",
+          primaryStructure: "trend_breakdown",
+          setupType: "trend_breakdown",
+          horizons: [1, 3, 5, 10],
+        },
+        expectedDirection: "down",
+      }),
+    );
+
+    const response = await requestTradeApi(
+      "/api/signal/evaluation?timeframe=1h&symbol=btcusdt&group=risk&signalLabel=breakdown_risk&setupType=trend_breakdown&horizons=1,3,5,10&minSamples=12&limit=250&includeBreakdowns=false",
+    );
+    const body = JSON.parse(response.body);
+
+    expect(response.status).toBe(200);
+    expect(body.ok).toBe(true);
+    expect(body.service).toBe("trade-api");
+    expect(body.source).toBe("postgres");
+    expect(body.expectedDirection).toBe("down");
+    expect(getSignalEvaluationPgMock).toHaveBeenCalledWith({
+      assetClass: "crypto",
+      exchange: "binance",
+      market: "spot",
+      timeframe: "1h",
+      symbol: "BTCUSDT",
+      group: "risk",
+      signalLabel: "breakdown_risk",
+      primaryStructure: null,
+      setupType: "trend_breakdown",
+      horizons: [1, 3, 5, 10],
+      minSamples: 12,
+      limit: 250,
+      includeBreakdowns: false,
+    });
+    expect(closeSignalEvaluationMock).toHaveBeenCalled();
+  });
+
+  it("uses conservative defaults for broad evaluation requests", async () => {
+    getSignalEvaluationPgMock.mockResolvedValue(makeSignalEvaluationResponse());
+
+    const response = await requestTradeApi("/api/signal/evaluation");
+
+    expect(response.status).toBe(200);
+    expect(getSignalEvaluationPgMock).toHaveBeenCalledWith({
+      assetClass: "crypto",
+      exchange: "binance",
+      market: "spot",
+      timeframe: "4h",
+      symbol: null,
+      group: null,
+      signalLabel: null,
+      primaryStructure: null,
+      setupType: null,
+      horizons: [1, 3, 5, 10],
+      minSamples: 10,
+      limit: 5000,
+      includeBreakdowns: true,
+    });
+  });
+
+  it("rejects invalid evaluation filters before opening the store", async () => {
+    const response = await requestTradeApi(
+      "/api/signal/evaluation?timeframe=15m&group=buy",
+    );
+    const body = JSON.parse(response.body);
+
+    expect(response.status).toBe(400);
+    expect(body.error).toBe("INVALID_TIMEFRAME");
+    expect(pgSignalEvaluationStoreMock).not.toHaveBeenCalled();
+  });
+
+  it("rejects invalid horizon lists", async () => {
+    const response = await requestTradeApi(
+      "/api/signal/evaluation?horizons=1,0,abc",
+    );
+    const body = JSON.parse(response.body);
+
+    expect(response.status).toBe(400);
+    expect(body.error).toBe("INVALID_HORIZONS");
+    expect(pgSignalEvaluationStoreMock).not.toHaveBeenCalled();
   });
 });
 
@@ -374,7 +497,10 @@ describe("trade-api multi-timeframe latest screener", () => {
     );
     listLatestScanSignalsForRunMock.mockImplementation(
       ({ timeframe }: { timeframe: string }) => {
-        const signalsByTimeframe = {
+        const signalsByTimeframe: Record<
+          string,
+          ReturnType<typeof makeResearchSignal>[]
+        > = {
           "1h": [
             makeResearchSignal({
               id: "1h-btc",
@@ -422,7 +548,7 @@ describe("trade-api multi-timeframe latest screener", () => {
             }),
           ],
           "1w": [],
-        } satisfies Record<string, ReturnType<typeof makeResearchSignal>[]>;
+        };
 
         return Promise.resolve(signalsByTimeframe[timeframe] ?? []);
       },
@@ -1082,6 +1208,14 @@ function resetSymbolResearchMocks() {
   pgSymbolResearchStoreMock.mockClear();
 }
 
+function resetSignalEvaluationMocks() {
+  getSignalEvaluationPgMock.mockReset();
+  getSignalEvaluationPgMock.mockResolvedValue(makeSignalEvaluationResponse());
+  closeSignalEvaluationMock.mockReset();
+  closeSignalEvaluationMock.mockResolvedValue(undefined);
+  pgSignalEvaluationStoreMock.mockClear();
+}
+
 function makeRun(
   id: string,
   overrides: Partial<{
@@ -1272,5 +1406,76 @@ function makeResearchBehavior() {
       message:
         "Historical behavior is available from prior scanner signals with forward candles.",
     },
+  };
+}
+
+function makeSignalEvaluationResponse(
+  overrides: Partial<{
+    filters: {
+      assetClass: string;
+      exchange: string;
+      market: string;
+      timeframe: string;
+      symbol: string | null;
+      group: string | null;
+      signalLabel: string | null;
+      primaryStructure: string | null;
+      setupType: string | null;
+      horizons: number[];
+    };
+    expectedDirection: string;
+  }> = {},
+) {
+  return {
+    ok: true,
+    filters: overrides.filters ?? {
+      assetClass: "crypto",
+      exchange: "binance",
+      market: "spot",
+      timeframe: "4h",
+      symbol: null,
+      group: null,
+      signalLabel: null,
+      primaryStructure: null,
+      setupType: null,
+      horizons: [1, 3, 5, 10],
+    },
+    sample: {
+      sourceSignals: 0,
+      completedSignals: 0,
+      skippedSignals: 0,
+      sampleQuality: "none",
+      warnings: ["insufficient_completed_horizons"],
+    },
+    expectedDirection: overrides.expectedDirection ?? "none",
+    horizons: {
+      "1": makeSignalEvaluationHorizon(),
+      "3": makeSignalEvaluationHorizon(),
+      "5": makeSignalEvaluationHorizon(),
+      "10": makeSignalEvaluationHorizon(),
+    },
+    interpretation: {
+      summary:
+        "No completed historical follow-through sample is available for these filters.",
+      confidence: "none",
+      researchOnly: true,
+    },
+    breakdowns: {
+      byGroup: [],
+      bySignalLabel: [],
+      byPrimaryStructure: [],
+    },
+  };
+}
+
+function makeSignalEvaluationHorizon() {
+  return {
+    sampleSize: 0,
+    avgReturnPct: null,
+    medianReturnPct: null,
+    positiveRatePct: null,
+    directionMatchRatePct: null,
+    bestReturnPct: null,
+    worstReturnPct: null,
   };
 }

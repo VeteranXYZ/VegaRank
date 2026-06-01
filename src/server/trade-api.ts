@@ -28,6 +28,16 @@ import {
   type SymbolResearchCandleRecord,
   type SymbolResearchSignalRecord,
 } from "@/lib/storage/postgres/symbolResearchPg";
+import {
+  PgSignalEvaluationStore,
+  SIGNAL_EVALUATION_DEFAULT_HORIZONS,
+  SIGNAL_EVALUATION_DEFAULT_LIMIT,
+  SIGNAL_EVALUATION_DEFAULT_MIN_SAMPLES,
+  SIGNAL_EVALUATION_GROUPS,
+  SIGNAL_EVALUATION_MAX_HORIZON,
+  SIGNAL_EVALUATION_MAX_LIMIT,
+  type SignalEvaluationGroup,
+} from "@/lib/storage/postgres/signalEvaluationPg";
 
 type ServiceCheck = {
   ok: boolean;
@@ -47,6 +57,7 @@ const defaultHost = "127.0.0.1";
 const defaultPort = "3000";
 const SYMBOL_RESEARCH_REQUIRED_CANDLES = 200;
 const MTF_LATEST_TIMEFRAMES = ["1h", "4h", "1d", "1w"] as const;
+const SIGNAL_EVALUATION_TIMEFRAMES = ["1h", "4h", "1d", "1w"] as const;
 const allowedOrigins = new Set([
   "https://s.bitcoinmind.com",
   "http://localhost:3000",
@@ -55,6 +66,7 @@ const allowedOrigins = new Set([
 type MtfLatestTimeframe = (typeof MTF_LATEST_TIMEFRAMES)[number];
 type MtfLatestSignalItem = ReturnType<typeof buildMtfLatestSignalItem>;
 type MtfLatestTimeframeMap<T> = Record<MtfLatestTimeframe, T>;
+type SignalEvaluationTimeframe = (typeof SIGNAL_EVALUATION_TIMEFRAMES)[number];
 type MtfLatestRunMetadata = Pick<
   ScanRunRecord,
   | "id"
@@ -140,6 +152,11 @@ export async function handleTradeApiRequest(
 
     if (url.pathname === "/api/symbol/research") {
       await handleSymbolResearch(response, url);
+      return;
+    }
+
+    if (url.pathname === "/api/signal/evaluation") {
+      await handleSignalEvaluation(response, url);
       return;
     }
 
@@ -656,6 +673,191 @@ async function handleSymbolResearch(response: http.ServerResponse, url: URL) {
       service: serviceName,
       source: "postgres",
       error: "INTERNAL_ERROR",
+    });
+  } finally {
+    await store.close().catch(() => undefined);
+  }
+}
+
+async function handleSignalEvaluation(response: http.ServerResponse, url: URL) {
+  const exchange = normalizeIdentityParam(
+    url.searchParams.get("exchange"),
+    "binance",
+  );
+  const market = normalizeIdentityParam(url.searchParams.get("market"), "spot");
+  const timeframe = url.searchParams.get("timeframe")?.trim() ?? "4h";
+  const assetClass = parseAssetClassParam(url.searchParams.get("assetClass"));
+  const symbolInput = url.searchParams.get("symbol")?.trim() ?? "";
+  const symbol = symbolInput ? symbolInput.toUpperCase() : null;
+  const group = parseSignalEvaluationGroupParam(url.searchParams.get("group"));
+  const signalLabel = parseOptionalTokenParam(
+    url.searchParams.get("signalLabel"),
+    "INVALID_SIGNAL_LABEL",
+  );
+  const primaryStructure = parseOptionalTokenParam(
+    url.searchParams.get("primaryStructure"),
+    "INVALID_PRIMARY_STRUCTURE",
+  );
+  const setupType = parseOptionalTokenParam(
+    url.searchParams.get("setupType"),
+    "INVALID_SETUP_TYPE",
+  );
+  const horizons = parseSignalEvaluationHorizonsParam(
+    url.searchParams.get("horizons"),
+  );
+  const minSamples = parseBoundedInteger({
+    value: url.searchParams.get("minSamples"),
+    fallback: SIGNAL_EVALUATION_DEFAULT_MIN_SAMPLES,
+    min: 1,
+    max: 1000,
+    name: "minSamples",
+  });
+  const limit = parseBoundedInteger({
+    value: url.searchParams.get("limit"),
+    fallback: SIGNAL_EVALUATION_DEFAULT_LIMIT,
+    min: 1,
+    max: SIGNAL_EVALUATION_MAX_LIMIT,
+    name: "limit",
+  });
+  const includeBreakdowns =
+    url.searchParams.get("includeBreakdowns") === null
+      ? true
+      : parseBooleanParam(url.searchParams.get("includeBreakdowns"));
+
+  if (!assetClass.valid) {
+    sendJson(response, 400, {
+      ok: false,
+      service: serviceName,
+      error: "INVALID_ASSET_CLASS",
+    });
+    return;
+  }
+
+  if (
+    !exchange ||
+    !market ||
+    !/^[a-z0-9_-]{1,30}$/.test(exchange) ||
+    !/^[a-z0-9_-]{1,30}$/.test(market)
+  ) {
+    sendJson(response, 400, {
+      ok: false,
+      service: serviceName,
+      error: "INVALID_MARKET",
+    });
+    return;
+  }
+
+  if (!isSignalEvaluationTimeframe(timeframe)) {
+    sendJson(response, 400, {
+      ok: false,
+      service: serviceName,
+      error: "INVALID_TIMEFRAME",
+    });
+    return;
+  }
+
+  if (symbol !== null && !/^[A-Z0-9]{2,30}$/.test(symbol)) {
+    sendJson(response, 400, {
+      ok: false,
+      service: serviceName,
+      error: "INVALID_SYMBOL",
+    });
+    return;
+  }
+
+  if (!group.valid) {
+    sendJson(response, 400, {
+      ok: false,
+      service: serviceName,
+      error: "INVALID_GROUP",
+    });
+    return;
+  }
+
+  if (!signalLabel.valid) {
+    sendJson(response, 400, {
+      ok: false,
+      service: serviceName,
+      error: signalLabel.error,
+    });
+    return;
+  }
+
+  if (!primaryStructure.valid) {
+    sendJson(response, 400, {
+      ok: false,
+      service: serviceName,
+      error: primaryStructure.error,
+    });
+    return;
+  }
+
+  if (!setupType.valid) {
+    sendJson(response, 400, {
+      ok: false,
+      service: serviceName,
+      error: setupType.error,
+    });
+    return;
+  }
+
+  if (!horizons.valid) {
+    sendJson(response, 400, {
+      ok: false,
+      service: serviceName,
+      error: "INVALID_HORIZONS",
+    });
+    return;
+  }
+
+  if (!minSamples.valid) {
+    sendJson(response, 400, {
+      ok: false,
+      service: serviceName,
+      error: minSamples.error,
+    });
+    return;
+  }
+
+  if (!limit.valid) {
+    sendJson(response, 400, {
+      ok: false,
+      service: serviceName,
+      error: limit.error,
+    });
+    return;
+  }
+
+  const store = new PgSignalEvaluationStore();
+
+  try {
+    const evaluation = await store.getSignalEvaluationPg({
+      assetClass: assetClass.value,
+      exchange,
+      market,
+      timeframe,
+      symbol,
+      group: group.value,
+      signalLabel: signalLabel.value,
+      primaryStructure: primaryStructure.value,
+      setupType: setupType.value,
+      horizons: horizons.value,
+      minSamples: minSamples.value,
+      limit: limit.value,
+      includeBreakdowns,
+    });
+
+    sendJson(response, 200, {
+      ...evaluation,
+      service: serviceName,
+      source: "postgres",
+    });
+  } catch (error) {
+    sendJson(response, 503, {
+      ok: false,
+      service: serviceName,
+      source: "postgres",
+      error: sanitizeConnectionError(error, "POSTGRES_UNAVAILABLE"),
     });
   } finally {
     await store.close().catch(() => undefined);
@@ -1713,6 +1915,97 @@ function parseAssetClassParam(value: string | null) {
   }
 
   return { valid: true as const, value: assetClass };
+}
+
+function parseSignalEvaluationGroupParam(value: string | null): {
+  valid: true;
+  value: SignalEvaluationGroup | null;
+} | {
+  valid: false;
+  value: null;
+} {
+  if (value === null || value.trim() === "") {
+    return { valid: true, value: null };
+  }
+
+  const group = value.trim().toLowerCase();
+
+  if (
+    SIGNAL_EVALUATION_GROUPS.includes(group as SignalEvaluationGroup)
+  ) {
+    return { valid: true, value: group as SignalEvaluationGroup };
+  }
+
+  return { valid: false, value: null };
+}
+
+function parseOptionalTokenParam(
+  value: string | null,
+  error: string,
+): {
+  valid: true;
+  value: string | null;
+  error?: never;
+} | {
+  valid: false;
+  value: null;
+  error: string;
+} {
+  if (value === null || value.trim() === "") {
+    return { valid: true, value: null };
+  }
+
+  const token = value.trim().toLowerCase();
+
+  if (!/^[a-z0-9_-]{1,80}$/.test(token)) {
+    return { valid: false, value: null, error };
+  }
+
+  return { valid: true, value: token };
+}
+
+function parseSignalEvaluationHorizonsParam(value: string | null): {
+  valid: true;
+  value: number[];
+} | {
+  valid: false;
+  value: number[];
+} {
+  if (value === null || value.trim() === "") {
+    return { valid: true, value: [...SIGNAL_EVALUATION_DEFAULT_HORIZONS] };
+  }
+
+  const rawParts = value.split(",").map((part) => part.trim());
+
+  if (rawParts.length === 0 || rawParts.some((part) => part === "")) {
+    return { valid: false, value: [] };
+  }
+
+  const horizons = rawParts.map((part) => Number(part));
+
+  if (
+    horizons.some(
+      (horizon) =>
+        !Number.isInteger(horizon) ||
+        horizon < 1 ||
+        horizon > SIGNAL_EVALUATION_MAX_HORIZON,
+    )
+  ) {
+    return { valid: false, value: [] };
+  }
+
+  return {
+    valid: true,
+    value: [...new Set(horizons)].sort((left, right) => left - right),
+  };
+}
+
+function isSignalEvaluationTimeframe(
+  value: string,
+): value is SignalEvaluationTimeframe {
+  return SIGNAL_EVALUATION_TIMEFRAMES.includes(
+    value as SignalEvaluationTimeframe,
+  );
 }
 
 function parseBooleanParam(value: string | null) {
