@@ -296,8 +296,10 @@ describe("trade-api symbol research", () => {
     expect(body.ok).toBe(true);
     expect(body.service).toBe("trade-api");
     expect(body.source).toBe("postgres");
+    expect(body.timeframe).toBe("4h");
     expect(body.symbol.symbol).toBe("SEIUSDT");
     expect(body.latest.scanRun.id).toBe("full-run");
+    expect(body.latest.signal.id).toBe("signal-latest");
     expect(body.latest.signal.resultGroup).toBe("eligible");
     expect(body.latest.signal.reviewTier).toBe("eligible");
     expect(body.latest.signal.isSelectedCurrentRun).toBe(true);
@@ -305,10 +307,16 @@ describe("trade-api symbol research", () => {
       selectedRunId: "full-run",
       selectedSignalId: "signal-latest",
       selectedTimeframe: "4h",
+      selectedSignalScanTime: body.latest.signal.scanTime,
       preferredFullUniverse: true,
       isLikelyFullUniverse: true,
       fallbackUsed: false,
     });
+    expect(body.currentSelection.selectedSignalId).toBe(body.latest.signal.id);
+    expect(body.currentSelection.selectedTimeframe).toBe(body.latest.signal.timeframe);
+    expect(body.currentSelection.selectedSignalScanTime).toBe(
+      body.latest.signal.scanTime,
+    );
     expect(body.scoreBreakdown).toMatchObject({
       rankScore: 82,
       finalSignalScore: 76,
@@ -397,6 +405,7 @@ describe("trade-api symbol research", () => {
     const body = JSON.parse(response.body);
 
     expect(response.status).toBe(200);
+    expect(body.timeframe).toBe("4h");
     expect(body.latest.signal.id).toBe("selected-risk");
     expect(body.latest.signal.resultGroup).toBe("risk");
     expect(body.history[0]).toMatchObject({

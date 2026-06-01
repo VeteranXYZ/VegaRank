@@ -553,6 +553,7 @@ async function handleSymbolResearch(response: http.ServerResponse, url: URL) {
       ok: true,
       service: serviceName,
       source: "postgres",
+      timeframe,
       symbol: {
         exchange: latest.symbol.exchange,
         market: latest.symbol.market,

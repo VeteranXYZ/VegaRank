@@ -14,6 +14,7 @@ import {
   formatSymbolResearchRunContext,
   formatSymbolResearchScore,
   formatSymbolResearchSetup,
+  getSymbolResearchTimeframeSnapshots,
   getTimeframeSnapshotNote,
   getTimeframeSnapshotTitle,
   getSymbolResearchCandleSummary,
@@ -119,6 +120,7 @@ type SymbolResearchCandle = {
 
 type SymbolResearchResponse = {
   ok: true;
+  timeframe?: string;
   symbol: {
     exchange: string;
     market: string;
@@ -229,9 +231,17 @@ export function SymbolResearchPageClient({
   const secondaryStructures = formatSymbolResearchList(
     latestSignal.secondaryStructures,
   );
-  const timeframeSnapshotTitle = getTimeframeSnapshotTitle(data.timeframes.length);
-  const timeframeSnapshotNote = getTimeframeSnapshotNote(data.timeframes);
-  const showHistorySelectionNotice = hasNewerSymbolResearchHistoryRows(data.history);
+  const timeframeSnapshots = getSymbolResearchTimeframeSnapshots({
+    timeframes: data.timeframes,
+    latestSignal,
+    requestedTimeframe: data.timeframe ?? timeframe,
+  });
+  const timeframeSnapshotTitle = getTimeframeSnapshotTitle(timeframeSnapshots.length);
+  const timeframeSnapshotNote = getTimeframeSnapshotNote(timeframeSnapshots);
+  const showHistorySelectionNotice = hasNewerSymbolResearchHistoryRows([
+    ...data.history,
+    ...data.timeframes,
+  ]);
 
   return (
     <main className="mx-auto w-full max-w-7xl px-4 py-6 text-[var(--foreground)]">
@@ -329,7 +339,7 @@ export function SymbolResearchPageClient({
           ) : null}
           <ResponsiveTable
             headers={["Timeframe", "Group", "Action", "Rank", "Scan Time", "Run Context"]}
-            rows={data.timeframes.map((item) => [
+            rows={timeframeSnapshots.map((item) => [
               item.timeframe,
               formatSymbolResearchGroup(item.resultGroup),
               formatSymbolResearchAction(item.actionBias ?? item.statusNote),

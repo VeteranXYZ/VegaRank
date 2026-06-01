@@ -167,7 +167,9 @@ export function getSymbolResearchCandleSummary(candles: CandleSummaryInput) {
 
 export function formatSymbolResearchRunContext(value: RunContextInput) {
   if (value.isSelectedCurrentRun) {
-    return "Selected current run";
+    return value.sourceRunIsLikelyFullUniverse === true
+      ? "Selected full-universe run"
+      : "Selected current run";
   }
 
   if (value.isNewerThanSelectedCurrentRun) {
@@ -181,7 +183,7 @@ export function formatSymbolResearchRunContext(value: RunContextInput) {
   }
 
   if (value.sourceRunIsLikelyFullUniverse === false) {
-    return "Non-preferred run";
+    return "Smaller/manual run";
   }
 
   return "Historical run";
@@ -206,6 +208,29 @@ export function getTimeframeSnapshotNote(timeframes: TimeframeSnapshotInput[]) {
 
   const timeframe = timeframes[0]?.timeframe || "selected timeframe";
   return `Only ${timeframe} snapshot is currently available for this symbol.`;
+}
+
+export function getSymbolResearchTimeframeSnapshots<T extends TimeframeSnapshotInput>({
+  timeframes,
+  latestSignal,
+  requestedTimeframe,
+}: {
+  timeframes: T[];
+  latestSignal: T | null | undefined;
+  requestedTimeframe: string;
+}) {
+  const requested = requestedTimeframe.trim().toLowerCase();
+  const selected =
+    latestSignal?.timeframe?.toLowerCase() === requested ? latestSignal : null;
+
+  if (!selected) {
+    return [...timeframes];
+  }
+
+  return [
+    selected,
+    ...timeframes.filter((item) => item.timeframe?.toLowerCase() !== requested),
+  ];
 }
 
 export function toTitleCase(value: string) {

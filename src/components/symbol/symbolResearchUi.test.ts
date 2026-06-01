@@ -8,6 +8,7 @@ import {
   formatSymbolResearchRunContext,
   formatSymbolResearchScore,
   formatSymbolResearchSetup,
+  getSymbolResearchTimeframeSnapshots,
   getTimeframeSnapshotNote,
   getTimeframeSnapshotTitle,
   getSymbolResearchCandleSummary,
@@ -99,9 +100,12 @@ describe("symbol research UI helpers", () => {
   });
 
   it("labels run context without making newer rows look current", () => {
-    expect(formatSymbolResearchRunContext({ isSelectedCurrentRun: true })).toBe(
-      "Selected current run",
-    );
+    expect(
+      formatSymbolResearchRunContext({
+        isSelectedCurrentRun: true,
+        sourceRunIsLikelyFullUniverse: true,
+      }),
+    ).toBe("Selected full-universe run");
     expect(
       formatSymbolResearchRunContext({
         isNewerThanSelectedCurrentRun: true,
@@ -112,7 +116,7 @@ describe("symbol research UI helpers", () => {
       "Full-universe run",
     );
     expect(formatSymbolResearchRunContext({ sourceRunIsLikelyFullUniverse: false })).toBe(
-      "Non-preferred run",
+      "Smaller/manual run",
     );
   });
 
@@ -138,5 +142,29 @@ describe("symbol research UI helpers", () => {
     expect(getTimeframeSnapshotNote([{ timeframe: "4h" }, { timeframe: "1d" }])).toBe(
       null,
     );
+  });
+
+  it("prefers the selected current signal for the requested timeframe snapshot", () => {
+    const latestSignal = {
+      id: "selected-current",
+      timeframe: "4h",
+      isSelectedCurrentRun: true,
+      sourceRunIsLikelyFullUniverse: true,
+    };
+    const snapshots = getSymbolResearchTimeframeSnapshots({
+      requestedTimeframe: "4h",
+      latestSignal,
+      timeframes: [
+        {
+          id: "newer-limited",
+          timeframe: "4h",
+          isNewerThanSelectedCurrentRun: true,
+          sourceRunIsLikelyFullUniverse: false,
+        },
+        { id: "daily", timeframe: "1d" },
+      ],
+    });
+
+    expect(snapshots.map((item) => item.id)).toEqual(["selected-current", "daily"]);
   });
 });
