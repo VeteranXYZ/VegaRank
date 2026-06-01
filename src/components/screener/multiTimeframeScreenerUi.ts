@@ -32,6 +32,24 @@ export const mtfScreenerPresetIds = [
 
 export type MtfScreenerPresetId = (typeof mtfScreenerPresetIds)[number];
 
+export const mtfScreenerSortOptions = [
+  { field: "combined_rank", label: "Screener Rank" },
+  { field: "symbol", label: "Symbol" },
+  { field: "1h_rank", label: "1h Rank" },
+  { field: "4h_rank", label: "4h Rank" },
+  { field: "1d_rank", label: "1d Rank" },
+  { field: "1w_rank", label: "1w Rank" },
+  { field: "higher_timeframe_safety", label: "Higher-Timeframe Safety" },
+] as const;
+
+export type MtfScreenerSortField =
+  (typeof mtfScreenerSortOptions)[number]["field"];
+export type MtfScreenerSortDirection = "desc" | "asc";
+export type MtfScreenerSortState = {
+  field: MtfScreenerSortField;
+  direction: MtfScreenerSortDirection;
+};
+
 export type MtfScreenerFilters = {
   groups: Record<MtfScreenerTimeframe, MtfScreenerGroupFilter>;
   minRank: Record<MtfScreenerTimeframe, number>;
@@ -128,6 +146,19 @@ export type MtfScreenerPreset = {
   description: string;
 };
 
+export type MtfHigherTimeframeHealthCode =
+  | "higher_tf_ok"
+  | "one_day_risk"
+  | "one_week_risk"
+  | "higher_tf_risk"
+  | "limited_htf_data";
+
+export type MtfHigherTimeframeHealth = {
+  code: MtfHigherTimeframeHealthCode;
+  label: string;
+  sortRank: number;
+};
+
 export const mtfScreenerPresets: MtfScreenerPreset[] = [
   {
     id: "short_term_repair",
@@ -173,6 +204,11 @@ export const defaultMtfScreenerFilters: MtfScreenerFilters = {
   exclude1wRisk: false,
 };
 
+export const defaultMtfScreenerSort: MtfScreenerSortState = {
+  field: "combined_rank",
+  direction: "desc",
+};
+
 export function buildMtfScreenerRows(
   latestByTimeframe: Partial<Record<MtfScreenerTimeframe, MtfLatestScanResponse>>,
 ) {
@@ -205,7 +241,7 @@ export function buildMtfScreenerRows(
     }
   }
 
-  return [...rowsBySymbol.values()].sort(compareMtfScreenerRows);
+  return [...rowsBySymbol.values()].sort(compareMtfScreenerRowsBySymbol);
 }
 
 export function buildMtfScreenerRowsFromResponse(
@@ -247,7 +283,7 @@ export function buildMtfScreenerRowsFromResponse(
     rowsBySymbol.set(symbol, row);
   }
 
-  return [...rowsBySymbol.values()].sort(compareMtfScreenerRows);
+  return [...rowsBySymbol.values()].sort(compareMtfScreenerRowsBySymbol);
 }
 
 export function filterMtfScreenerRows(
@@ -260,6 +296,26 @@ export function filterMtfScreenerRows(
       ? doesMtfRowMatchFilters(row, filters)
       : doesMtfRowMatchPreset(row, presetId),
   );
+}
+
+export function filterMtfScreenerRowsBySearch(
+  rows: MtfScreenerRow[],
+  searchQuery: string,
+) {
+  const normalizedQuery = searchQuery.trim().toUpperCase();
+
+  if (!normalizedQuery) {
+    return rows;
+  }
+
+  return rows.filter((row) => row.symbol.toUpperCase().includes(normalizedQuery));
+}
+
+export function sortMtfScreenerRows(
+  rows: MtfScreenerRow[],
+  sort: MtfScreenerSortState = defaultMtfScreenerSort,
+) {
+  return [...rows].sort((left, right) => compareMtfScreenerRows(left, right, sort));
 }
 
 export function doesMtfRowMatchFilters(
@@ -333,6 +389,12 @@ export function doesMtfRowMatchPreset(
   }
 }
 
+export function getMtfPresetDescription(
+  presetId: MtfScreenerPresetId | "custom",
+) {
+  return mtfScreenerPresets.find((preset) => preset.id === presetId)?.description ?? null;
+}
+
 export function getMtfSymbolResearchTimeframe(row: MtfScreenerRow) {
   if (row.snapshots["4h"]) {
     return "4h";
@@ -371,6 +433,76 @@ export function formatMtfRank(snapshot: MtfScreenerSnapshot | undefined) {
   return snapshot ? formatScore(snapshot.rankScore) : "-";
 }
 
+export function getMtfCombinedRank(row: MtfScreenerRow) {
+  let weightedTotal = 0;
+  let weightTotal = 0;
+
+  for (const timeframe of MTF_SCREENER_TIMEFRAMES) {
+    const rankScore = row.snapshots[timeframe]?.rankScore;
+
+    if (typeof rankScore !== "number" || !Number.isFinite(rankScore)) {
+      continue;
+    }
+
+    const weight = getMtfRankWeight(timeframe);
+    weightedTotal += rankScore * weight;
+    weightTotal += weight;
+  }
+
+  return weightTotal > 0 ? weightedTotal / weightTotal : null;
+}
+
+export function formatMtfCombinedRank(row: MtfScreenerRow) {
+  return formatScore(getMtfCombinedRank(row));
+}
+
+export function getMtfHigherTimeframeHealth(
+  row: MtfScreenerRow,
+): MtfHigherTimeframeHealth {
+  const oneDay = row.snapshots["1d"];
+  const oneWeek = row.snapshots["1w"];
+  const oneDayRisk = oneDay?.resultGroup === "risk";
+  const oneWeekRisk = oneWeek?.resultGroup === "risk";
+
+  if (oneDayRisk && oneWeekRisk) {
+    return {
+      code: "higher_tf_risk",
+      label: "Higher TF Risk",
+      sortRank: 0,
+    };
+  }
+
+  if (oneDayRisk) {
+    return {
+      code: "one_day_risk",
+      label: "1d Risk",
+      sortRank: 1,
+    };
+  }
+
+  if (oneWeekRisk) {
+    return {
+      code: "one_week_risk",
+      label: "1w Risk",
+      sortRank: 1,
+    };
+  }
+
+  if (!oneDay || !oneWeek) {
+    return {
+      code: "limited_htf_data",
+      label: "Limited HTF Data",
+      sortRank: 2,
+    };
+  }
+
+  return {
+    code: "higher_tf_ok",
+    label: "Higher TF OK",
+    sortRank: 3,
+  };
+}
+
 export function getMtfPrimarySignal(row: MtfScreenerRow) {
   const preferredTimeframes: MtfScreenerTimeframe[] = ["4h", "1h", "1d", "1w"];
   const snapshot =
@@ -388,7 +520,7 @@ export function getMtfPrimarySignal(row: MtfScreenerRow) {
   return `${snapshot.timeframe} ${formatSignalLabel(snapshot.signalLabel)} / ${formatGroupLabel(snapshot.resultGroup)}`;
 }
 
-export function getMtfRiskNotes(row: MtfScreenerRow) {
+export function getMtfRiskNoteItems(row: MtfScreenerRow) {
   const notes: string[] = [];
 
   for (const timeframe of MTF_SCREENER_TIMEFRAMES) {
@@ -412,7 +544,30 @@ export function getMtfRiskNotes(row: MtfScreenerRow) {
     }
   }
 
-  return notes.length > 0 ? uniqueStrings(notes).slice(0, 4).join("; ") : "-";
+  return uniqueStrings(notes);
+}
+
+export function getMtfRiskNotesSummary(
+  row: MtfScreenerRow,
+  visibleCount = 3,
+) {
+  const notes = getMtfRiskNoteItems(row);
+  const safeVisibleCount = Math.max(1, Math.floor(visibleCount));
+  const visibleNotes = notes.slice(0, safeVisibleCount);
+  const hiddenNotes = notes.slice(safeVisibleCount);
+
+  return {
+    notes,
+    visibleNotes,
+    hiddenNotes,
+    hiddenCount: hiddenNotes.length,
+  };
+}
+
+export function getMtfRiskNotes(row: MtfScreenerRow) {
+  const { notes } = getMtfRiskNotesSummary(row, 4);
+
+  return notes.length > 0 ? notes.slice(0, 4).join("; ") : "-";
 }
 
 export function getMtfRunFinishedAt(response: MtfLatestScanResponse | undefined) {
@@ -433,23 +588,100 @@ function isMtfRisk(row: MtfScreenerRow, timeframe: MtfScreenerTimeframe) {
   return row.snapshots[timeframe]?.resultGroup === "risk";
 }
 
-function compareMtfScreenerRows(left: MtfScreenerRow, right: MtfScreenerRow) {
-  const rankDelta =
-    getBestMtfRank(right) - getBestMtfRank(left);
+function compareMtfScreenerRows(
+  left: MtfScreenerRow,
+  right: MtfScreenerRow,
+  sort: MtfScreenerSortState = defaultMtfScreenerSort,
+) {
+  const sortDelta = getMtfSortDelta(left, right, sort);
 
-  if (rankDelta !== 0) {
-    return rankDelta;
+  if (sortDelta !== 0) {
+    return sortDelta;
   }
 
   return left.symbol.localeCompare(right.symbol);
 }
 
-function getBestMtfRank(row: MtfScreenerRow) {
-  return Math.max(
-    ...MTF_SCREENER_TIMEFRAMES.map(
-      (timeframe) => row.snapshots[timeframe]?.rankScore ?? Number.NEGATIVE_INFINITY,
-    ),
-  );
+function getMtfSortDelta(
+  left: MtfScreenerRow,
+  right: MtfScreenerRow,
+  sort: MtfScreenerSortState,
+) {
+  if (sort.field === "symbol") {
+    const symbolDelta = left.symbol.localeCompare(right.symbol);
+
+    return sort.direction === "asc" ? symbolDelta : -symbolDelta;
+  }
+
+  const leftValue = getMtfSortValue(left, sort.field);
+  const rightValue = getMtfSortValue(right, sort.field);
+
+  return compareNullableNumbers(leftValue, rightValue, sort.direction);
+}
+
+function getMtfSortValue(
+  row: MtfScreenerRow,
+  field: MtfScreenerSortField,
+) {
+  switch (field) {
+    case "combined_rank":
+      return getMtfCombinedRank(row);
+    case "1h_rank":
+      return row.snapshots["1h"]?.rankScore ?? null;
+    case "4h_rank":
+      return row.snapshots["4h"]?.rankScore ?? null;
+    case "1d_rank":
+      return row.snapshots["1d"]?.rankScore ?? null;
+    case "1w_rank":
+      return row.snapshots["1w"]?.rankScore ?? null;
+    case "higher_timeframe_safety":
+      return getMtfHigherTimeframeHealth(row).sortRank;
+    case "symbol":
+      return null;
+  }
+}
+
+function compareNullableNumbers(
+  left: number | null,
+  right: number | null,
+  direction: MtfScreenerSortDirection,
+) {
+  const leftMissing = left === null || !Number.isFinite(left);
+  const rightMissing = right === null || !Number.isFinite(right);
+
+  if (leftMissing && rightMissing) {
+    return 0;
+  }
+
+  if (leftMissing) {
+    return 1;
+  }
+
+  if (rightMissing) {
+    return -1;
+  }
+
+  const delta = left - right;
+
+  return direction === "asc" ? delta : -delta;
+}
+
+function compareMtfScreenerRowsBySymbol(
+  left: MtfScreenerRow,
+  right: MtfScreenerRow,
+) {
+  return left.symbol.localeCompare(right.symbol);
+}
+
+function getMtfRankWeight(timeframe: MtfScreenerTimeframe) {
+  switch (timeframe) {
+    case "4h":
+    case "1d":
+      return 2;
+    case "1h":
+    case "1w":
+      return 1;
+  }
 }
 
 function uniqueStrings(values: string[]) {

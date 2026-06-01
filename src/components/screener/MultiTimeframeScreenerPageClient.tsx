@@ -11,20 +11,31 @@ import {
   MTF_SCREENER_TIMEFRAMES,
   buildMtfScreenerRowsFromResponse,
   buildMtfSymbolResearchHref,
+  defaultMtfScreenerSort,
   defaultMtfScreenerFilters,
+  filterMtfScreenerRowsBySearch,
   filterMtfScreenerRows,
+  formatMtfCombinedRank,
   formatMtfGroup,
   formatMtfRank,
+  getMtfHigherTimeframeHealth,
   getMtfPrimarySignal,
-  getMtfRiskNotes,
+  getMtfPresetDescription,
+  getMtfRiskNotesSummary,
+  getMtfSymbolResearchTimeframe,
   mtfScreenerPresets,
   mtfScreenerGroupFilterOptions,
+  mtfScreenerSortOptions,
   type MtfLatestScreenerResponse,
   type MtfScreenerFilters,
   type MtfScreenerGroupFilter,
   type MtfScreenerPresetId,
   type MtfScreenerRow,
+  type MtfScreenerSortDirection,
+  type MtfScreenerSortField,
+  type MtfScreenerSortState,
   type MtfScreenerTimeframe,
+  sortMtfScreenerRows,
 } from "./multiTimeframeScreenerUi";
 
 const assetClass = "crypto";
@@ -35,6 +46,10 @@ export function MultiTimeframeScreenerPageClient() {
   );
   const [presetId, setPresetId] = useState<MtfScreenerPresetId | "custom">(
     "custom",
+  );
+  const [symbolSearch, setSymbolSearch] = useState("");
+  const [sortState, setSortState] = useState<MtfScreenerSortState>(
+    defaultMtfScreenerSort,
   );
   const latestQuery = useQuery({
     queryKey: ["mtf-latest-screener", assetClass],
@@ -48,6 +63,14 @@ export function MultiTimeframeScreenerPageClient() {
   const filteredRows = useMemo(
     () => filterMtfScreenerRows(rows, filters, presetId),
     [filters, presetId, rows],
+  );
+  const searchedRows = useMemo(
+    () => filterMtfScreenerRowsBySearch(filteredRows, symbolSearch),
+    [filteredRows, symbolSearch],
+  );
+  const sortedRows = useMemo(
+    () => sortMtfScreenerRows(searchedRows, sortState),
+    [searchedRows, sortState],
   );
 
   const updateGroupFilter = (
@@ -76,6 +99,12 @@ export function MultiTimeframeScreenerPageClient() {
     setPresetId("custom");
     setFilters((current) => ({ ...current, [key]: !current[key] }));
   };
+  const updateSortField = (field: MtfScreenerSortField) => {
+    setSortState((current) => ({ ...current, field }));
+  };
+  const updateSortDirection = (direction: MtfScreenerSortDirection) => {
+    setSortState((current) => ({ ...current, direction }));
+  };
   const applyPreset = (nextPresetId: MtfScreenerPresetId) => {
     setPresetId(nextPresetId);
     setFilters(defaultMtfScreenerFilters);
@@ -83,6 +112,8 @@ export function MultiTimeframeScreenerPageClient() {
   const clearFilters = () => {
     setPresetId("custom");
     setFilters(defaultMtfScreenerFilters);
+    setSymbolSearch("");
+    setSortState(defaultMtfScreenerSort);
   };
 
   return (
@@ -94,8 +125,8 @@ export function MultiTimeframeScreenerPageClient() {
               Multi-Timeframe Screener
             </h1>
             <p className="mt-1 max-w-3xl text-[11px] leading-5 text-[var(--muted)]">
-              Research-only view joining latest selected 1h, 4h, 1d, and 1w scan
-              states for Binance USDT crypto symbols.
+              Research-only, not financial advice view joining latest selected
+              1h, 4h, 1d, and 1w scan states for Binance USDT crypto symbols.
             </p>
           </div>
           <button
@@ -113,6 +144,11 @@ export function MultiTimeframeScreenerPageClient() {
         <MtfScreenerControls
           filters={filters}
           presetId={presetId}
+          symbolSearch={symbolSearch}
+          sortState={sortState}
+          onSymbolSearchChange={setSymbolSearch}
+          onSortFieldChange={updateSortField}
+          onSortDirectionChange={updateSortDirection}
           onGroupChange={updateGroupFilter}
           onMinRankChange={updateMinRank}
           onExcludeRiskChange={updateExcludeRisk}
@@ -124,7 +160,7 @@ export function MultiTimeframeScreenerPageClient() {
           <MtfScreenerSourcePanel
             data={latestQuery.data}
             totalRows={rows.length}
-            filteredRows={filteredRows.length}
+            filteredRows={sortedRows.length}
           />
 
           {latestQuery.isLoading ? (
@@ -134,7 +170,7 @@ export function MultiTimeframeScreenerPageClient() {
           ) : rows.length === 0 ? (
             <MtfStatePanel message="No latest multi-timeframe rows are available yet." />
           ) : (
-            <MtfScreenerTable rows={filteredRows} />
+            <MtfScreenerTable rows={sortedRows} />
           )}
         </main>
       </div>
@@ -160,23 +196,25 @@ export function MtfScreenerTable({ rows }: { rows: MtfScreenerRow[] }) {
         </span>
       </div>
       <div className="overflow-x-auto">
-        <table className="min-w-[1220px] table-fixed text-left text-xs">
+        <table className="min-w-[1450px] table-fixed text-left text-xs">
           <thead className="bg-[#080d12] text-[11px] uppercase text-[var(--muted)]">
             <tr>
               <HeaderCell className="w-[118px]">Symbol</HeaderCell>
+              <HeaderCell className="w-[96px]">Screener Rank</HeaderCell>
+              <HeaderCell className="w-[124px]">Higher TF</HeaderCell>
               {MTF_SCREENER_TIMEFRAMES.map((timeframe) => (
-                <HeaderCell key={`${timeframe}-group`} className="w-[92px]">
+                <HeaderCell key={`${timeframe}-group`} className="w-[86px]">
                   {timeframe} Group
                 </HeaderCell>
               ))}
               {MTF_SCREENER_TIMEFRAMES.map((timeframe) => (
-                <HeaderCell key={`${timeframe}-rank`} className="w-[78px]">
+                <HeaderCell key={`${timeframe}-rank`} className="w-[68px]">
                   {timeframe} Rank
                 </HeaderCell>
               ))}
-              <HeaderCell className="w-[180px]">Primary Signal</HeaderCell>
-              <HeaderCell className="w-[240px]">Risk Flags / Notes</HeaderCell>
-              <HeaderCell className="w-[145px]">Research</HeaderCell>
+              <HeaderCell className="w-[170px]">Primary Signal</HeaderCell>
+              <HeaderCell className="w-[255px]">Risk Flags / Notes</HeaderCell>
+              <HeaderCell className="w-[132px]">Research</HeaderCell>
             </tr>
           </thead>
           <tbody>
@@ -193,6 +231,14 @@ export function MtfScreenerTable({ rows }: { rows: MtfScreenerRow[] }) {
                     {row.exchange} / {row.market}
                   </div>
                 </BodyCell>
+                <BodyCell>
+                  <span className="font-mono tabular-nums text-[var(--foreground)]">
+                    {formatMtfCombinedRank(row)}
+                  </span>
+                </BodyCell>
+                <BodyCell>
+                  <HigherTimeframeHealthBadge row={row} />
+                </BodyCell>
                 {MTF_SCREENER_TIMEFRAMES.map((timeframe) => (
                   <BodyCell key={`${row.symbol}-${timeframe}-group`}>
                     <GroupBadge group={row.snapshots[timeframe]?.resultGroup}>
@@ -208,14 +254,11 @@ export function MtfScreenerTable({ rows }: { rows: MtfScreenerRow[] }) {
                   </BodyCell>
                 ))}
                 <BodyCell>{getMtfPrimarySignal(row)}</BodyCell>
-                <BodyCell>{getMtfRiskNotes(row)}</BodyCell>
                 <BodyCell>
-                  <Link
-                    href={buildMtfSymbolResearchHref({ row })}
-                    className="inline-flex border border-[var(--border)] px-2 py-1 text-[11px] font-semibold text-[var(--foreground)] hover:border-[var(--info)]"
-                  >
-                    Open Symbol Research
-                  </Link>
+                  <RiskNotesCell row={row} />
+                </BodyCell>
+                <BodyCell>
+                  <ResearchLink row={row} />
                 </BodyCell>
               </tr>
             ))}
@@ -260,6 +303,11 @@ export function buildMtfLatestScanUrl({
 function MtfScreenerControls({
   filters,
   presetId,
+  symbolSearch,
+  sortState,
+  onSymbolSearchChange,
+  onSortFieldChange,
+  onSortDirectionChange,
   onGroupChange,
   onMinRankChange,
   onExcludeRiskChange,
@@ -268,6 +316,11 @@ function MtfScreenerControls({
 }: {
   filters: MtfScreenerFilters;
   presetId: MtfScreenerPresetId | "custom";
+  symbolSearch: string;
+  sortState: MtfScreenerSortState;
+  onSymbolSearchChange: (value: string) => void;
+  onSortFieldChange: (field: MtfScreenerSortField) => void;
+  onSortDirectionChange: (direction: MtfScreenerSortDirection) => void;
   onGroupChange: (
     timeframe: MtfScreenerTimeframe,
     value: MtfScreenerGroupFilter,
@@ -277,6 +330,8 @@ function MtfScreenerControls({
   onPreset: (presetId: MtfScreenerPresetId) => void;
   onClear: () => void;
 }) {
+  const presetDescription = getMtfPresetDescription(presetId);
+
   return (
     <aside className="border border-[var(--border)] bg-[var(--panel)] p-3 xl:h-full xl:overflow-y-auto">
       <div className="mb-3 flex items-center justify-between gap-2">
@@ -290,7 +345,63 @@ function MtfScreenerControls({
         </button>
       </div>
 
-      <section className="space-y-2">
+      <section className="space-y-3">
+        <label className="block">
+          <span className="mb-1 block text-[11px] font-semibold uppercase text-[var(--muted)]">
+            Symbol Search
+          </span>
+          <input
+            type="search"
+            value={symbolSearch}
+            onChange={(event) => onSymbolSearchChange(event.target.value)}
+            className={controlClass}
+            placeholder="BTC, ETH, SEI..."
+          />
+        </label>
+      </section>
+
+      <section className="mt-4 space-y-3">
+        <h3 className="text-[11px] font-semibold uppercase text-[var(--muted)]">
+          Sort
+        </h3>
+        <label className="block">
+          <span className="mb-1 block text-[11px] text-[var(--muted)]">
+            Field
+          </span>
+          <select
+            value={sortState.field}
+            onChange={(event) =>
+              onSortFieldChange(event.target.value as MtfScreenerSortField)
+            }
+            className={controlClass}
+          >
+            {mtfScreenerSortOptions.map((option) => (
+              <option key={option.field} value={option.field}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="block">
+          <span className="mb-1 block text-[11px] text-[var(--muted)]">
+            Direction
+          </span>
+          <select
+            value={sortState.direction}
+            onChange={(event) =>
+              onSortDirectionChange(
+                event.target.value as MtfScreenerSortDirection,
+              )
+            }
+            className={controlClass}
+          >
+            <option value="desc">High to low</option>
+            <option value="asc">Low to high</option>
+          </select>
+        </label>
+      </section>
+
+      <section className="mt-4 space-y-2">
         <h3 className="text-[11px] font-semibold uppercase text-[var(--muted)]">
           Presets
         </h3>
@@ -311,6 +422,11 @@ function MtfScreenerControls({
             </button>
           ))}
         </div>
+        {presetDescription ? (
+          <p className="border border-[var(--border)] bg-[#080d12] px-2 py-1.5 text-[11px] leading-4 text-[var(--muted)]">
+            {presetDescription}
+          </p>
+        ) : null}
       </section>
 
       <section className="mt-4 space-y-3">
@@ -460,7 +576,7 @@ function HeaderCell({
 }
 
 function BodyCell({ children }: { children: React.ReactNode }) {
-  return <td className="px-2 py-2 text-[var(--muted)]">{children}</td>;
+  return <td className="px-2 py-2 text-[11px] text-[var(--muted)]">{children}</td>;
 }
 
 function GroupBadge({
@@ -485,6 +601,59 @@ function GroupBadge({
     <span className={`inline-flex border px-1.5 py-0.5 text-[11px] ${tone}`}>
       {children}
     </span>
+  );
+}
+
+function HigherTimeframeHealthBadge({ row }: { row: MtfScreenerRow }) {
+  const health = getMtfHigherTimeframeHealth(row);
+  const tone =
+    health.code === "higher_tf_ok"
+      ? "border-emerald-500/40 text-emerald-200"
+      : health.code === "limited_htf_data"
+        ? "border-sky-500/40 text-sky-200"
+        : health.code === "higher_tf_risk"
+          ? "border-rose-500/60 text-rose-200"
+          : "border-amber-500/50 text-amber-200";
+
+  return (
+    <span className={`inline-flex border px-1.5 py-0.5 text-[11px] ${tone}`}>
+      {health.label}
+    </span>
+  );
+}
+
+function RiskNotesCell({ row }: { row: MtfScreenerRow }) {
+  const summary = getMtfRiskNotesSummary(row, 3);
+
+  if (summary.notes.length === 0) {
+    return <span>-</span>;
+  }
+
+  return (
+    <div className="space-y-1 leading-4">
+      <span>{summary.visibleNotes.join("; ")}</span>
+      {summary.hiddenCount > 0 ? (
+        <details className="text-[10px] text-[var(--muted)]">
+          <summary className="cursor-pointer text-[var(--foreground)]">
+            +{summary.hiddenCount} more
+          </summary>
+          <div className="mt-1">{summary.hiddenNotes.join("; ")}</div>
+        </details>
+      ) : null}
+    </div>
+  );
+}
+
+function ResearchLink({ row }: { row: MtfScreenerRow }) {
+  const timeframe = getMtfSymbolResearchTimeframe(row);
+
+  return (
+    <Link
+      href={buildMtfSymbolResearchHref({ row, timeframe })}
+      className="inline-flex border border-[var(--border)] px-2 py-1 text-[11px] font-semibold text-[var(--foreground)] hover:border-[var(--info)]"
+    >
+      Open {timeframe} Research
+    </Link>
   );
 }
 

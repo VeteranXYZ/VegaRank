@@ -5,12 +5,19 @@ import {
   buildMtfSymbolResearchHref,
   defaultMtfScreenerFilters,
   doesMtfRowMatchPreset,
+  filterMtfScreenerRowsBySearch,
   filterMtfScreenerRows,
+  formatMtfCombinedRank,
   formatMtfGroup,
   formatMtfRank,
+  getMtfCombinedRank,
+  getMtfHigherTimeframeHealth,
   getMtfPrimarySignal,
+  getMtfPresetDescription,
   getMtfRiskNotes,
+  getMtfRiskNotesSummary,
   getMtfSymbolResearchTimeframe,
+  sortMtfScreenerRows,
   type MtfLatestScanItem,
   type MtfLatestScanResponse,
   type MtfScreenerTimeframe,
@@ -140,6 +147,103 @@ describe("multi-timeframe screener helpers", () => {
     ]);
   });
 
+  it("filters by symbol search case-insensitively", () => {
+    const rows = buildMtfScreenerRows({
+      "1h": makeResponse("1h", [
+        makeItem({ symbol: "BTCUSDT", timeframe: "1h", rankScore: 88 }),
+        makeItem({ symbol: "ETHUSDT", timeframe: "1h", rankScore: 78 }),
+        makeItem({ symbol: "SEIUSDT", timeframe: "1h", rankScore: 68 }),
+      ]),
+    });
+
+    expect(filterMtfScreenerRowsBySearch(rows, "btc").map((row) => row.symbol)).toEqual([
+      "BTCUSDT",
+    ]);
+    expect(filterMtfScreenerRowsBySearch(rows, "USDT")).toHaveLength(3);
+    expect(filterMtfScreenerRowsBySearch(rows, "   ")).toHaveLength(3);
+  });
+
+  it("calculates display-only screener rank from available weighted ranks", () => {
+    const [row] = buildMtfScreenerRows({
+      "1h": makeResponse("1h", [
+        makeItem({ symbol: "BTCUSDT", timeframe: "1h", rankScore: 90 }),
+      ]),
+      "4h": makeResponse("4h", [
+        makeItem({ symbol: "BTCUSDT", timeframe: "4h", rankScore: 60 }),
+      ]),
+      "1w": makeResponse("1w", [
+        makeItem({ symbol: "BTCUSDT", timeframe: "1w", rankScore: 30 }),
+      ]),
+    });
+
+    expect(getMtfCombinedRank(row)).toBe(60);
+    expect(formatMtfCombinedRank(row)).toBe("60.0");
+  });
+
+  it("leaves combined rank empty when all timeframe ranks are missing", () => {
+    const [row] = buildMtfScreenerRows({
+      "1h": makeResponse("1h", [
+        makeItem({ symbol: "BTCUSDT", timeframe: "1h", rankScore: null }),
+      ]),
+    });
+
+    expect(getMtfCombinedRank(row)).toBeNull();
+    expect(formatMtfCombinedRank(row)).toBe("-");
+  });
+
+  it("sorts by rank fields while keeping missing ranks last", () => {
+    const rows = buildMtfScreenerRows({
+      "1h": makeResponse("1h", [
+        makeItem({ symbol: "AAAUSDT", timeframe: "1h", rankScore: 10 }),
+        makeItem({ symbol: "CCCUSDT", timeframe: "1h", rankScore: 30 }),
+      ]),
+      "4h": makeResponse("4h", [
+        makeItem({ symbol: "BBBUSDT", timeframe: "4h", rankScore: 99 }),
+      ]),
+    });
+
+    expect(
+      sortMtfScreenerRows(rows, { field: "1h_rank", direction: "desc" }).map(
+        (row) => row.symbol,
+      ),
+    ).toEqual(["CCCUSDT", "AAAUSDT", "BBBUSDT"]);
+    expect(
+      sortMtfScreenerRows(rows, { field: "1h_rank", direction: "asc" }).map(
+        (row) => row.symbol,
+      ),
+    ).toEqual(["AAAUSDT", "CCCUSDT", "BBBUSDT"]);
+  });
+
+  it("sorts by combined rank and higher-timeframe safety", () => {
+    const rows = buildMtfScreenerRows({
+      "1h": makeResponse("1h", [
+        makeItem({ symbol: "SAFEUSDT", timeframe: "1h", rankScore: 60 }),
+        makeItem({ symbol: "RISKUSDT", timeframe: "1h", rankScore: 90 }),
+      ]),
+      "1d": makeResponse("1d", [
+        makeItem({ symbol: "SAFEUSDT", timeframe: "1d", resultGroup: "watch", rankScore: 70 }),
+        makeItem({ symbol: "RISKUSDT", timeframe: "1d", resultGroup: "risk", rankScore: 20 }),
+      ]),
+      "1w": makeResponse("1w", [
+        makeItem({ symbol: "SAFEUSDT", timeframe: "1w", resultGroup: "neutral", rankScore: 50 }),
+        makeItem({ symbol: "RISKUSDT", timeframe: "1w", resultGroup: "risk", rankScore: 10 }),
+      ]),
+    });
+
+    expect(
+      sortMtfScreenerRows(rows, {
+        field: "combined_rank",
+        direction: "desc",
+      }).map((row) => row.symbol),
+    ).toEqual(["SAFEUSDT", "RISKUSDT"]);
+    expect(
+      sortMtfScreenerRows(rows, {
+        field: "higher_timeframe_safety",
+        direction: "desc",
+      }).map((row) => row.symbol),
+    ).toEqual(["SAFEUSDT", "RISKUSDT"]);
+  });
+
   it("matches preset logic for repair, strength, overheated, and breakdown views", () => {
     const rows = buildMtfScreenerRows({
       "1h": makeResponse("1h", [
@@ -170,6 +274,28 @@ describe("multi-timeframe screener helpers", () => {
     expect(doesMtfRowMatchPreset(findRow(rows, "RISKUSDT"), "breakdown_risk")).toBe(true);
   });
 
+  it("labels higher-timeframe health states", () => {
+    expect(
+      getMtfHigherTimeframeHealth(
+        makeHealthRow({ oneDayGroup: "watch", oneWeekGroup: "neutral" }),
+      ).label,
+    ).toBe("Higher TF OK");
+    expect(
+      getMtfHigherTimeframeHealth(makeHealthRow({ oneDayGroup: "risk" })).label,
+    ).toBe("1d Risk");
+    expect(
+      getMtfHigherTimeframeHealth(makeHealthRow({ oneWeekGroup: "risk" })).label,
+    ).toBe("1w Risk");
+    expect(
+      getMtfHigherTimeframeHealth(
+        makeHealthRow({ oneDayGroup: "risk", oneWeekGroup: "risk" }),
+      ).label,
+    ).toBe("Higher TF Risk");
+    expect(getMtfHigherTimeframeHealth(makeHealthRow({ oneDayGroup: "watch" })).label).toBe(
+      "Limited HTF Data",
+    );
+  });
+
   it("formats missing timeframe data safely", () => {
     const [row] = buildMtfScreenerRows({
       "1h": makeResponse("1h", [
@@ -188,6 +314,45 @@ describe("multi-timeframe screener helpers", () => {
     expect(formatMtfRank(row.snapshots["4h"])).toBe("-");
     expect(getMtfPrimarySignal(row)).toBe("1h Breakdown Risk / Risk");
     expect(getMtfRiskNotes(row)).toBe("1h: Distribution Risk");
+  });
+
+  it("summarizes risk notes with accessible hidden details", () => {
+    const [row] = buildMtfScreenerRows({
+      "1h": makeResponse("1h", [
+        makeItem({
+          symbol: "BTCUSDT",
+          timeframe: "1h",
+          resultGroup: "risk",
+          detectedRiskTypes: ["distribution_risk"],
+        }),
+      ]),
+      "4h": makeResponse("4h", [
+        makeItem({ symbol: "BTCUSDT", timeframe: "4h", resultGroup: "overheated" }),
+      ]),
+      "1d": makeResponse("1d", [
+        makeItem({ symbol: "BTCUSDT", timeframe: "1d", resultGroup: "risk" }),
+      ]),
+      "1w": makeResponse("1w", [
+        makeItem({
+          symbol: "BTCUSDT",
+          timeframe: "1w",
+          resultGroup: "risk",
+          detectedRiskTypes: ["failed_breakout_risk"],
+        }),
+      ]),
+    });
+    const summary = getMtfRiskNotesSummary(row, 3);
+
+    expect(summary.visibleNotes).toHaveLength(3);
+    expect(summary.hiddenCount).toBe(1);
+    expect(summary.hiddenNotes[0]).toContain("1w:");
+  });
+
+  it("returns active preset explanation text", () => {
+    expect(getMtfPresetDescription("mtf_strength")).toBe(
+      "1h eligible, 4h and 1d constructive, 1w not risk.",
+    );
+    expect(getMtfPresetDescription("custom")).toBeNull();
   });
 
   it("builds symbol research links with a 4h default when present", () => {
@@ -247,6 +412,45 @@ function makeRun(timeframe: MtfScreenerTimeframe, signalsCreated: number) {
   };
 }
 
+function makeHealthRow({
+  oneDayGroup,
+  oneWeekGroup,
+}: {
+  oneDayGroup?: MtfLatestScanItem["resultGroup"];
+  oneWeekGroup?: MtfLatestScanItem["resultGroup"];
+}) {
+  const [row] = buildMtfScreenerRows({
+    ...(oneDayGroup
+      ? {
+          "1d": makeResponse("1d", [
+            makeItem({
+              symbol: "BTCUSDT",
+              timeframe: "1d",
+              resultGroup: oneDayGroup,
+            }),
+          ]),
+        }
+      : {}),
+    ...(oneWeekGroup
+      ? {
+          "1w": makeResponse("1w", [
+            makeItem({
+              symbol: "BTCUSDT",
+              timeframe: "1w",
+              resultGroup: oneWeekGroup,
+            }),
+          ]),
+        }
+      : {}),
+  });
+
+  if (!row) {
+    throw new Error("Expected health row");
+  }
+
+  return row;
+}
+
 function findRow(
   rows: ReturnType<typeof buildMtfScreenerRows>,
   symbol: string,
@@ -275,13 +479,13 @@ function makeItem(
     timeframe: overrides.timeframe,
     group: overrides.group,
     resultGroup: overrides.resultGroup === undefined ? "neutral" : overrides.resultGroup,
-    rankScore: overrides.rankScore ?? 0,
+    rankScore: overrides.rankScore === undefined ? 0 : overrides.rankScore,
     signalLabel: overrides.signalLabel ?? "watch",
-    actionBias: "watch_only",
+    actionBias: overrides.actionBias ?? "watch_only",
     reviewTier: "watch_high",
     statusNote: null,
     statusReasons: [],
-    primaryStructure: "strong_trend",
+    primaryStructure: overrides.primaryStructure ?? "strong_trend",
     detectedRiskTypes: overrides.detectedRiskTypes ?? [],
   };
 }
