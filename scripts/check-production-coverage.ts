@@ -40,6 +40,25 @@ type LatestRunRow = {
   fallback: string;
   result: CoverageStatus;
 };
+type MarketCoverageRow = {
+  timeframe: Timeframe;
+  totalSymbols: string;
+  healthy: string;
+  stale: string;
+  belowMinimum: string;
+  latestOpenTime: string;
+  result: CoverageStatus;
+};
+type ObservationReadinessRow = {
+  timeframe: Timeframe;
+  runId: string;
+  diagnostic: string;
+  complete: string;
+  partial: string;
+  missing: string;
+  coverageLag: string;
+  result: CoverageStatus;
+};
 
 export function createCoverageReport() {
   return {
@@ -111,6 +130,8 @@ export async function runProductionCoverageCheck({
   }
 
   const latestRunRows: LatestRunRow[] = [];
+  const marketCoverageRows: MarketCoverageRow[] = [];
+  const observationReadinessRows: ObservationReadinessRow[] = [];
 
   for (const timeframe of timeframes) {
     const body = await getJsonObject({
@@ -121,13 +142,58 @@ export async function runProductionCoverageCheck({
       critical: true,
     });
 
-    latestRunRows.push(
-      evaluateLatestRunSelection({
+    const latestRunRow = evaluateLatestRunSelection({
+      timeframe,
+      body,
+      report,
+    });
+    latestRunRows.push(latestRunRow);
+
+    const marketCoverageBody = await getJsonObject({
+      baseUrl,
+      path: `/api/market-data/coverage?timeframe=${timeframe}&assetClass=crypto&limit=500`,
+      report,
+      fetchImpl,
+      critical: false,
+    });
+
+    marketCoverageRows.push(
+      evaluateMarketDataCoverage({
         timeframe,
-        body,
+        body: marketCoverageBody,
         report,
       }),
     );
+
+    if (latestRunRow.runId !== "not available") {
+      const readinessBody = await getJsonObject({
+        baseUrl,
+        path: `/api/history/observation-readiness?timeframe=${timeframe}&assetClass=crypto&window=3&runId=${latestRunRow.runId}`,
+        report,
+        fetchImpl,
+        critical: false,
+      });
+
+      observationReadinessRows.push(
+        evaluateObservationReadiness({
+          timeframe,
+          runId: latestRunRow.runId,
+          body: readinessBody,
+          report,
+        }),
+      );
+    } else {
+      observationReadinessRows.push({
+        timeframe,
+        runId: latestRunRow.runId,
+        diagnostic: "not available",
+        complete: "not available",
+        partial: "not available",
+        missing: "not available",
+        coverageLag: "not available",
+        result: "fail",
+      });
+    }
   }
 
   report.section("Latest Run Selection", [
@@ -141,6 +207,37 @@ export async function runProductionCoverageCheck({
         row.signalsCreated,
         row.likelyFullUniverse,
         row.fallback,
+        row.result.toUpperCase(),
+      ].join(" | "),
+    ),
+  ]);
+
+  report.section("Market Candle Coverage", [
+    "timeframe | total symbols | healthy | stale | below minimum | latest open time | result",
+    ...marketCoverageRows.map((row) =>
+      [
+        row.timeframe,
+        row.totalSymbols,
+        row.healthy,
+        row.stale,
+        row.belowMinimum,
+        row.latestOpenTime,
+        row.result.toUpperCase(),
+      ].join(" | "),
+    ),
+  ]);
+
+  report.section("Observation Readiness", [
+    "timeframe | run id | diagnostic | complete | partial | missing | coverage lag | result",
+    ...observationReadinessRows.map((row) =>
+      [
+        row.timeframe,
+        row.runId,
+        row.diagnostic,
+        row.complete,
+        row.partial,
+        row.missing,
+        row.coverageLag,
         row.result.toUpperCase(),
       ].join(" | "),
     ),
@@ -466,7 +563,7 @@ export function evaluateLatestRunSelection({
         coverageCount >= threshold ? "healthy" : "not healthy"
       }.`,
     ]);
-    result = result === "fail" ? "fail" : "warn";
+    result = "warn";
   } else if (timeframe === "1w") {
     if (selection.fallbackUsed === true || selection.isLikelyFullUniverse === false) {
       report.warn("Latest Run Selection", [
@@ -492,6 +589,146 @@ export function evaluateLatestRunSelection({
     signalsCreated: formatValue(run?.signalsCreated),
     likelyFullUniverse: formatValue(selection?.isLikelyFullUniverse),
     fallback: formatValue(selection?.fallbackUsed),
+    result,
+  };
+}
+
+export function evaluateMarketDataCoverage({
+  timeframe,
+  body,
+  report,
+}: {
+  timeframe: Timeframe;
+  body: unknown;
+  report: CoverageReport;
+}): MarketCoverageRow {
+  const payload = isRecord(body) ? body : {};
+  const summary = isRecord(payload.summary) ? payload.summary : {};
+  const rows = Array.isArray(payload.rows)
+    ? payload.rows.filter(isRecord)
+    : [];
+  const totalSymbols = toNumber(summary.totalSymbols);
+  const healthy = toNumber(summary.healthy);
+  const stale = toNumber(summary.stale);
+  const belowMinimum = toNumber(summary.belowMinimum);
+  const minimum = timeframe === "1w" ? 100 : 300;
+  const staleFailThreshold = timeframe === "1w" ? Number.POSITIVE_INFINITY : 30;
+  const latestOpenTime = getLatestCoverageTimestamp(rows);
+  let result: CoverageStatus = "pass";
+
+  if (!isRecord(body) || payload.ok !== true) {
+    report.warn("Market Candle Coverage", [
+      `${timeframe} market coverage endpoint is unavailable or malformed.`,
+    ]);
+    return {
+      timeframe,
+      totalSymbols: "not available",
+      healthy: "not available",
+      stale: "not available",
+      belowMinimum: "not available",
+      latestOpenTime: "not available",
+      result: "warn",
+    };
+  }
+
+  if (totalSymbols === null || totalSymbols < minimum) {
+    report.fail("Market Candle Coverage", [
+      `${timeframe} market coverage has ${formatValue(
+        totalSymbols,
+      )} symbols, expected at least ${minimum}.`,
+    ]);
+    result = "fail";
+  }
+
+  if (stale !== null && stale > staleFailThreshold) {
+    report.fail("Market Candle Coverage", [
+      `${timeframe} has ${stale} stale market candle rows; latest sync likely did not catch up.`,
+    ]);
+    result = "fail";
+  } else if (stale !== null && stale > 0) {
+    report.warn("Market Candle Coverage", [
+      `${timeframe} has ${stale} stale market candle rows.`,
+    ]);
+    result = "warn";
+  }
+
+  if (belowMinimum !== null && belowMinimum > 0 && timeframe !== "1w") {
+    report.warn("Market Candle Coverage", [
+      `${timeframe} has ${belowMinimum} scanner symbols below the candle minimum.`,
+    ]);
+    result = result === "fail" ? "fail" : "warn";
+  }
+
+  return {
+    timeframe,
+    totalSymbols: formatValue(totalSymbols),
+    healthy: formatValue(healthy),
+    stale: formatValue(stale),
+    belowMinimum: formatValue(belowMinimum),
+    latestOpenTime: latestOpenTime ?? "not available",
+    result,
+  };
+}
+
+export function evaluateObservationReadiness({
+  timeframe,
+  runId,
+  body,
+  report,
+}: {
+  timeframe: Timeframe;
+  runId: string;
+  body: unknown;
+  report: CoverageReport;
+}): ObservationReadinessRow {
+  const payload = isRecord(body) ? body : {};
+  const selectedRun = isRecord(payload.selectedRun) ? payload.selectedRun : null;
+  const metadata = isRecord(payload.metadata) ? payload.metadata : {};
+  const diagnostic =
+    getNullableString(selectedRun?.diagnosticBlocker) ??
+    getNullableString(metadata.diagnosticBlocker) ??
+    "not available";
+  const complete = toNumber(selectedRun?.completeCount);
+  const partial = toNumber(selectedRun?.partialCount);
+  const missing = toNumber(selectedRun?.missingCount);
+  const rowCount = toNumber(selectedRun?.rowCount);
+  const coverageLagCandles = toNumber(selectedRun?.coverageLagCandles);
+  let result: CoverageStatus = "pass";
+
+  if (!isRecord(body) || payload.ok !== true || !selectedRun) {
+    report.warn("Observation Readiness", [
+      `${timeframe} observation readiness endpoint is unavailable or malformed.`,
+    ]);
+    result = "warn";
+  }
+
+  if (diagnostic === "stale_market_data") {
+    report.fail("Observation Readiness", [
+      `${timeframe} latest run ${runId} is blocked by stale market data.`,
+    ]);
+    result = "fail";
+  } else if (diagnostic === "waiting_for_future_candles") {
+    report.info("Observation Readiness", [
+      `${timeframe} latest run ${runId} is waiting for completed future candles.`,
+    ]);
+  } else if (missing !== null && rowCount !== null && missing > rowCount / 2) {
+    report.warn("Observation Readiness", [
+      `${timeframe} latest run ${runId} has ${missing}/${rowCount} missing observations.`,
+    ]);
+    result = "warn";
+  }
+
+  return {
+    timeframe,
+    runId,
+    diagnostic,
+    complete: formatValue(complete),
+    partial: formatValue(partial),
+    missing: formatValue(missing),
+    coverageLag:
+      coverageLagCandles === null
+        ? "not available"
+        : `${coverageLagCandles} candles`,
     result,
   };
 }
@@ -563,6 +800,15 @@ function getFreshnessTimestamp({
     .sort();
 
   return signalTimes.at(-1) ?? null;
+}
+
+function getLatestCoverageTimestamp(rows: JsonRecord[]) {
+  const timestamps = rows
+    .map((row) => getNullableString(row.latestOpenTime))
+    .filter((value): value is string => Boolean(value))
+    .sort();
+
+  return timestamps.at(-1) ?? null;
 }
 
 function getRowTimeframeSignal(row: JsonRecord, timeframe: Timeframe) {
@@ -658,6 +904,8 @@ function printCoverageReport({
     "Freshness",
     "Key Symbols",
     "Latest Run Selection",
+    "Market Candle Coverage",
+    "Observation Readiness",
   ].entries()) {
     console.log(`${index + 1}. ${title}`);
 
@@ -668,7 +916,7 @@ function printCoverageReport({
     console.log("");
   }
 
-  console.log("5. Summary");
+  console.log("7. Summary");
   console.log(`  Failures: ${report.failures.length}`);
   console.log(`  Warnings: ${report.warnings.length}`);
   console.log(`  Info: ${report.infos.length}`);

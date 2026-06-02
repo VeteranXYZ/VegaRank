@@ -22,10 +22,30 @@ const sharedScriptPath = path.join(
 );
 const readText = (filePath: string) => readFileSync(filePath, "utf8");
 const productionConfigs = [
-  { timeframe: "1h", staleLockSeconds: "5400", targetCount: "5000" },
-  { timeframe: "4h", staleLockSeconds: "14400", targetCount: "5000" },
-  { timeframe: "1d", staleLockSeconds: "43200", targetCount: "3000" },
-  { timeframe: "1w", staleLockSeconds: "86400", targetCount: "1000" },
+  {
+    timeframe: "1h",
+    staleLockSeconds: "5400",
+    targetCount: "5000",
+    syncLimit: "500",
+  },
+  {
+    timeframe: "4h",
+    staleLockSeconds: "14400",
+    targetCount: "5000",
+    syncLimit: "500",
+  },
+  {
+    timeframe: "1d",
+    staleLockSeconds: "43200",
+    targetCount: "3000",
+    syncLimit: "200",
+  },
+  {
+    timeframe: "1w",
+    staleLockSeconds: "86400",
+    targetCount: "1000",
+    syncLimit: "100",
+  },
 ] as const;
 
 describe("production scripts", () => {
@@ -45,10 +65,16 @@ describe("production scripts", () => {
     expect(sharedScript).toContain("exit \"$status\"");
     expect(sharedScript).toContain(".data/locks");
     expect(sharedScript).toContain("run-${TIMEFRAME}-production.lock");
+    expect(sharedScript).toContain("pnpm market:sync:pg");
     expect(sharedScript).toContain("pnpm market:backfill:pg");
     expect(sharedScript).toContain("pnpm scanner:run:pg");
 
-    for (const { timeframe, staleLockSeconds, targetCount } of productionConfigs) {
+    for (const {
+      timeframe,
+      staleLockSeconds,
+      targetCount,
+      syncLimit,
+    } of productionConfigs) {
       const wrapperPath = path.join(
         process.cwd(),
         `scripts/production/run-${timeframe}-production.sh`,
@@ -57,6 +83,7 @@ describe("production scripts", () => {
 
       expect(sharedScript).toContain(`STALE_LOCK_SECONDS=${staleLockSeconds}`);
       expect(sharedScript).toContain(`TARGET_COUNT=${targetCount}`);
+      expect(sharedScript).toContain(`SYNC_LIMIT=${syncLimit}`);
       expect(wrapper).toContain("set -euo pipefail");
       expect(wrapper).toContain(`run-timeframe-production.sh\" ${timeframe}`);
       expect(packageJson.scripts[`production:${timeframe}`]).toBe(
@@ -72,8 +99,8 @@ describe("production scripts", () => {
   });
 
   it.each(productionConfigs)(
-    "runs %s backfill and scanner with timeframe-specific config",
-    ({ timeframe, targetCount }) => {
+    "runs %s latest sync, backfill, and scanner with timeframe-specific config",
+    ({ timeframe, targetCount, syncLimit }) => {
       const projectDir = mkdtempSync(path.join(os.tmpdir(), "trade-scanner-prod-"));
       const binDir = path.join(projectDir, "bin");
       const fakePnpm = path.join(binDir, "pnpm");
@@ -115,6 +142,7 @@ describe("production scripts", () => {
           },
         });
         const calls = readText(callsFile);
+        const callLines = calls.trim().split("\n");
 
         expect(result.status).toBe(0);
         expect(result.stdout).toContain(`Starting ${timeframe} production job.`);
@@ -124,12 +152,17 @@ describe("production scripts", () => {
         expect(result.stdout).toContain(
           `Released lock: .data/locks/run-${timeframe}-production.lock`,
         );
-        expect(calls).toContain(
+        expect(result.stdout).toContain(
+          `Running ${timeframe} market latest sync with sync limit ${syncLimit}.`,
+        );
+        expect(result.stdout).toContain(
+          `Running ${timeframe} market backfill with target count ${targetCount}.`,
+        );
+        expect(callLines).toEqual([
+          `market:sync:pg -- --timeframe ${timeframe} --all-symbols --asset-class crypto --limit ${syncLimit} --confirm-large-sync`,
           `market:backfill:pg -- --timeframe ${timeframe} --all-symbols --asset-class crypto --target-count ${targetCount} --limit 1000 --confirm-large-sync`,
-        );
-        expect(calls).toContain(
           `scanner:run:pg -- --timeframe ${timeframe} --all-symbols --asset-class crypto --limit 1000 --confirm-large-sync`,
-        );
+        ]);
       } finally {
         rmSync(projectDir, { recursive: true, force: true });
       }

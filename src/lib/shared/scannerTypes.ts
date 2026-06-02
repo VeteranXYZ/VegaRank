@@ -256,6 +256,8 @@ export type ScanResult = {
     sufficientHistory: boolean;
     missingIndicators: string[];
     usesClosedCandles?: boolean;
+    lastClosedCandleOpenTime?: number | null;
+    lastClosedCandleCloseTime?: number | null;
     lastClosedCandleTime?: number | null;
   };
 };

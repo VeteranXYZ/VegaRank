@@ -34,6 +34,12 @@ type ObservationReadinessBlocker =
   | "mixed"
   | "unavailable"
   | "no_runs";
+type ObservationDiagnosticBlocker =
+  | "observable"
+  | "waiting_for_future_candles"
+  | "stale_market_data"
+  | "unavailable"
+  | "no_runs";
 type HistoricalObservationReadinessState =
   | "ready"
   | "not_ready"
@@ -171,6 +177,7 @@ type HistoricalSnapshotObservationRow = {
   anchorTime?: string | null;
   anchorClose?: number | null;
   anchorSource?: "stored_signal" | "nearest_prior_candle" | "unavailable";
+  latestMarketOpenTime?: string | null;
   window: ObservationWindow;
   observedClose?: number | null;
   observedChangePct?: number | null;
@@ -216,6 +223,7 @@ type HistoricalObservationReadinessRun = {
   run: HistoricalSnapshotRun;
   state: HistoricalObservationReadinessState;
   blocker: ObservationReadinessBlocker;
+  diagnosticBlocker?: ObservationDiagnosticBlocker | null;
   isObservable: boolean;
   isLimited: boolean;
   rowCount: number;
@@ -226,6 +234,9 @@ type HistoricalObservationReadinessRun = {
   dominantMissingReasonCount: number;
   latestAnchorTime: string | null;
   expectedCompleteTime: string | null;
+  latestCoverageTime?: string | null;
+  coverageLagMs?: number | null;
+  coverageLagCandles?: number | null;
 };
 
 type HistoricalObservationReadinessResponse = {
@@ -241,6 +252,7 @@ type HistoricalObservationReadinessResponse = {
     selectedWindow: ObservationWindow;
     windowUnit: "completed_candles";
     blocker: ObservationReadinessBlocker;
+    diagnosticBlocker?: ObservationDiagnosticBlocker | null;
     candidateCount: number;
     candidateLimit: number;
     fullUniverseMinExpectedSymbols: number;
@@ -759,6 +771,30 @@ function ForwardObservationStatePanel({
             />
           ) : null}
           {summary ? <Metric label="Rows" value={formatCount(summary.rowCount)} /> : null}
+          {summary ? (
+            <Metric label="Complete" value={formatCount(summary.completeCount)} />
+          ) : null}
+          {summary ? (
+            <Metric label="Partial" value={formatCount(summary.partialCount)} />
+          ) : null}
+          {summary ? (
+            <Metric label="Missing" value={formatCount(summary.missingCount)} />
+          ) : null}
+          {selectedReadiness?.diagnosticBlocker ? (
+            <Metric
+              label="Diagnostic"
+              value={formatObservationDiagnosticBlocker(
+                selectedReadiness.diagnosticBlocker,
+              )}
+            />
+          ) : readiness?.metadata.diagnosticBlocker ? (
+            <Metric
+              label="Diagnostic"
+              value={formatObservationDiagnosticBlocker(
+                readiness.metadata.diagnosticBlocker,
+              )}
+            />
+          ) : null}
           <Metric
             label="Dominant Reason"
             value={formatObservationBlocker(
@@ -776,6 +812,12 @@ function ForwardObservationStatePanel({
             <Metric
               label="Latest Coverage"
               value={formatLatestCoverage(coverage)}
+            />
+          ) : null}
+          {selectedReadiness ? (
+            <Metric
+              label="Coverage Lag"
+              value={formatCoverageLag(selectedReadiness)}
             />
           ) : null}
           {selectedReadiness?.expectedCompleteTime ? (
@@ -838,10 +880,18 @@ function getForwardObservationPanelMessage({
     case "readiness_unavailable":
       return "Forward Observation readiness could not be determined. This may happen if the API endpoint is not deployed yet, unavailable, or returned an invalid response.";
     case "not_ready_for_selected_run":
-      return "This snapshot is too recent for the selected forward window. Forward Observation uses completed future candles in the selected timeframe.";
+      if (isWaitingForFutureCandlesDiagnostic(uiState, readiness)) {
+        return "This snapshot is not fully observable yet. It is waiting for completed future candles in the selected timeframe.";
+      }
+
+      return "This snapshot is not fully observable yet. Forward Observation uses completed future candles in the selected timeframe.";
     case "no_observable_run":
+      if (isStaleMarketDataDiagnostic(uiState, readiness)) {
+        return "This snapshot is not fully observable yet. Market data appears stale; production data may need latest candle sync before this window can be observed.";
+      }
+
       if (isMarketCoverageBlocker(uiState)) {
-        return "Forward Observation is unavailable because the stored market candles do not yet cover enough completed future candles for this window.";
+        return "This snapshot is not fully observable yet. The stored market candles do not yet cover enough completed future candles for this window.";
       }
 
       return "No observable run is available within the backend readiness search window. Older runs may be unavailable, candle data may be stale, or market data sync may not have caught up.";
@@ -862,6 +912,42 @@ function isMarketCoverageBlocker(uiState: ForwardObservationUiState) {
   return (
     uiState.status === "no_observable_run" &&
     uiState.blocker === "market_data_coverage"
+  );
+}
+
+function isStaleMarketDataDiagnostic(
+  uiState: ForwardObservationUiState,
+  readiness: HistoricalObservationReadinessResponse | null,
+) {
+  return (
+    getObservationDiagnosticBlocker(uiState, readiness) === "stale_market_data"
+  );
+}
+
+function isWaitingForFutureCandlesDiagnostic(
+  uiState: ForwardObservationUiState,
+  readiness: HistoricalObservationReadinessResponse | null,
+) {
+  return (
+    getObservationDiagnosticBlocker(uiState, readiness) ===
+    "waiting_for_future_candles"
+  );
+}
+
+function getObservationDiagnosticBlocker(
+  uiState: ForwardObservationUiState,
+  readiness: HistoricalObservationReadinessResponse | null,
+) {
+  const selectedRunId = uiState.selectedRun?.runId ?? null;
+  const selectedReadiness =
+    selectedRunId && readiness?.selectedRun?.run.runId === selectedRunId
+      ? readiness.selectedRun
+      : readiness?.selectedRun;
+
+  return (
+    selectedReadiness?.diagnosticBlocker ??
+    readiness?.metadata.diagnosticBlocker ??
+    null
   );
 }
 
@@ -895,6 +981,39 @@ function formatObservationBlocker(
     default:
       return "Missing data";
   }
+}
+
+function formatObservationDiagnosticBlocker(
+  blocker: ObservationDiagnosticBlocker | null | undefined,
+) {
+  switch (blocker) {
+    case "observable":
+      return "Observable";
+    case "waiting_for_future_candles":
+      return "Waiting for future candles";
+    case "stale_market_data":
+      return "Market data appears stale";
+    case "no_runs":
+      return "No runs";
+    case "unavailable":
+    default:
+      return "Unavailable";
+  }
+}
+
+function formatCoverageLag(readinessRun: HistoricalObservationReadinessRun) {
+  const candles = readinessRun.coverageLagCandles;
+  const ms = readinessRun.coverageLagMs;
+
+  if (typeof candles === "number" && Number.isFinite(candles) && candles > 0) {
+    return `${formatCount(candles)} ${candles === 1 ? "candle" : "candles"}`;
+  }
+
+  if (typeof ms === "number" && Number.isFinite(ms) && ms > 0) {
+    return formatDuration(Math.ceil(ms / 3_600_000), "hour");
+  }
+
+  return "No lag detected";
 }
 
 export function SnapshotTable({
@@ -1637,6 +1756,7 @@ function isHistoricalObservationReadinessResponse(
   return (
     isHistoryTimeframeValue(value.metadata.timeframe) &&
     isObservationWindowValue(value.metadata.window) &&
+    isOptionalObservationDiagnosticBlocker(value.metadata.diagnosticBlocker) &&
     typeof value.coverage.totalSymbols === "number" &&
     typeof value.coverage.latestOpenTimeSymbolCount === "number"
   );
@@ -1654,11 +1774,30 @@ function isHistoricalObservationReadinessRunOrNull(value: unknown) {
   return (
     typeof value.run.runId === "string" &&
     isHistoryTimeframeValue(value.run.timeframe) &&
+    isOptionalObservationDiagnosticBlocker(value.diagnosticBlocker) &&
+    isOptionalNumberOrNull(value.coverageLagMs) &&
+    isOptionalNumberOrNull(value.coverageLagCandles) &&
     typeof value.rowCount === "number" &&
     typeof value.completeCount === "number" &&
     typeof value.partialCount === "number" &&
     typeof value.missingCount === "number"
   );
+}
+
+function isOptionalObservationDiagnosticBlocker(value: unknown) {
+  return (
+    value === undefined ||
+    value === null ||
+    value === "observable" ||
+    value === "waiting_for_future_candles" ||
+    value === "stale_market_data" ||
+    value === "unavailable" ||
+    value === "no_runs"
+  );
+}
+
+function isOptionalNumberOrNull(value: unknown) {
+  return value === undefined || value === null || typeof value === "number";
 }
 
 function isHistoryTimeframeValue(value: unknown): value is HistoryTimeframe {
@@ -1798,6 +1937,15 @@ function formatObservationReadinessMessage(
   readiness: HistoricalObservationReadinessResponse | null,
 ) {
   const blocker = readiness?.metadata.blocker;
+  const diagnosticBlocker = readiness?.metadata.diagnosticBlocker;
+
+  if (diagnosticBlocker === "stale_market_data") {
+    return "This snapshot is not fully observable yet. Market data appears stale; production data may need latest candle sync before this window can be observed.";
+  }
+
+  if (diagnosticBlocker === "waiting_for_future_candles") {
+    return "This snapshot is not fully observable yet. It is waiting for completed future candles in the selected timeframe.";
+  }
 
   switch (blocker) {
     case "market_data_coverage":

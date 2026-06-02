@@ -63,6 +63,8 @@ export function scanCandles(
       sufficientHistory,
       missingIndicators,
       usesClosedCandles: true,
+      lastClosedCandleOpenTime: lastClosedCandle?.openTime ?? null,
+      lastClosedCandleCloseTime: lastClosedCandle?.closeTime ?? null,
       lastClosedCandleTime: lastClosedCandle?.closeTime ?? null,
     },
   };

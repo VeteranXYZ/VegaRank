@@ -114,10 +114,17 @@ type HistoryObservationReadinessBlocker =
   | "mixed"
   | "unavailable"
   | "no_runs";
+type HistoryObservationDiagnosticBlocker =
+  | "observable"
+  | "waiting_for_future_candles"
+  | "stale_market_data"
+  | "unavailable"
+  | "no_runs";
 type HistoryObservationRunAssessment = {
   run: ScanRunRecord;
   state: HistoryObservationReadinessState;
   blocker: HistoryObservationReadinessBlocker;
+  diagnosticBlocker: HistoryObservationDiagnosticBlocker;
   isObservable: boolean;
   isLimited: boolean;
   rowCount: number;
@@ -128,6 +135,9 @@ type HistoryObservationRunAssessment = {
   dominantMissingReasonCount: number;
   latestAnchorTime: string | null;
   expectedCompleteTime: string | null;
+  latestCoverageTime: string | null;
+  coverageLagMs: number | null;
+  coverageLagCandles: number | null;
 };
 
 export function createTradeApiServer() {
@@ -2378,6 +2388,9 @@ async function handleHistoryObservationReadiness(
     const readinessBlocker =
       selectedAssessment?.blocker ??
       (runs.length === 0 ? "no_runs" : "unavailable");
+    const diagnosticBlocker =
+      selectedAssessment?.diagnosticBlocker ??
+      (runs.length === 0 ? "no_runs" : "unavailable");
 
     sendJson(response, 200, {
       ok: true,
@@ -2409,6 +2422,7 @@ async function handleHistoryObservationReadiness(
         selectedWindow: window.value,
         windowUnit: "completed_candles",
         blocker: readinessBlocker,
+        diagnosticBlocker,
         candidateCount: runs.length,
         candidateLimit: HISTORY_OBSERVATION_READINESS_CANDIDATE_LIMIT,
         fullUniverseMinExpectedSymbols: LATEST_SCAN_FULL_UNIVERSE_MIN_SYMBOLS,
@@ -2592,6 +2606,7 @@ function buildHistoricalSnapshotObservationRow(
     anchorTime: signal.anchorTime,
     anchorClose: signal.anchorClose,
     anchorSource: signal.anchorSource,
+    latestMarketOpenTime: signal.latestMarketOpenTime,
     window: signal.window,
     observedClose: signal.observedClose,
     observedChangePct: signal.observedChangePct,
@@ -2693,6 +2708,15 @@ async function buildHistoryObservationRunAssessment({
     expectedCompleteTime,
     coverage,
   });
+  const diagnostics = buildHistoryObservationReadinessDiagnostics({
+    state,
+    blocker,
+    dominantMissingReason: reason,
+    latestAnchorTime,
+    expectedCompleteTime,
+    coverage,
+    timeframe: run.timeframe,
+  });
   const isLikelyFullUniverse = isLikelyFullUniverseRun({
     run,
     assetClass,
@@ -2703,6 +2727,7 @@ async function buildHistoryObservationRunAssessment({
     run,
     state,
     blocker,
+    diagnosticBlocker: diagnostics.diagnosticBlocker,
     isObservable: state === "ready",
     isLimited: !isLikelyFullUniverse,
     rowCount: rows.length,
@@ -2713,6 +2738,9 @@ async function buildHistoryObservationRunAssessment({
     dominantMissingReasonCount: count,
     latestAnchorTime,
     expectedCompleteTime,
+    latestCoverageTime: diagnostics.latestCoverageTime,
+    coverageLagMs: diagnostics.coverageLagMs,
+    coverageLagCandles: diagnostics.coverageLagCandles,
   };
 }
 
@@ -2740,6 +2768,10 @@ function buildHistoryObservationReadinessRun({
     dominantMissingReasonCount: assessment.dominantMissingReasonCount,
     latestAnchorTime: assessment.latestAnchorTime,
     expectedCompleteTime: assessment.expectedCompleteTime,
+    latestCoverageTime: assessment.latestCoverageTime,
+    coverageLagMs: assessment.coverageLagMs,
+    coverageLagCandles: assessment.coverageLagCandles,
+    diagnosticBlocker: assessment.diagnosticBlocker,
   };
 }
 
@@ -2898,6 +2930,143 @@ function classifyHistoryObservationBlocker({
   }
 
   return "mixed";
+}
+
+function buildHistoryObservationReadinessDiagnostics({
+  state,
+  blocker,
+  dominantMissingReason,
+  latestAnchorTime,
+  expectedCompleteTime,
+  coverage,
+  timeframe,
+}: {
+  state: HistoryObservationReadinessState;
+  blocker: HistoryObservationReadinessBlocker;
+  dominantMissingReason: string | null;
+  latestAnchorTime: string | null;
+  expectedCompleteTime: string | null;
+  coverage: HistoricalObservationMarketCandleCoverage;
+  timeframe: string;
+}) {
+  const latestCoverageTime = coverage.latestOpenTime;
+  const coverageLag = calculateHistoryObservationCoverageLag({
+    timeframe,
+    expectedCompleteTime,
+    latestCoverageTime,
+  });
+
+  return {
+    latestCoverageTime,
+    coverageLagMs: coverageLag.coverageLagMs,
+    coverageLagCandles: coverageLag.coverageLagCandles,
+    diagnosticBlocker: classifyHistoryObservationDiagnosticBlocker({
+      state,
+      blocker,
+      dominantMissingReason,
+      latestAnchorTime,
+      expectedCompleteTime,
+      latestCoverageTime,
+    }),
+  };
+}
+
+function classifyHistoryObservationDiagnosticBlocker({
+  state,
+  blocker,
+  dominantMissingReason,
+  latestAnchorTime,
+  expectedCompleteTime,
+  latestCoverageTime,
+}: {
+  state: HistoryObservationReadinessState;
+  blocker: HistoryObservationReadinessBlocker;
+  dominantMissingReason: string | null;
+  latestAnchorTime: string | null;
+  expectedCompleteTime: string | null;
+  latestCoverageTime: string | null;
+}): HistoryObservationDiagnosticBlocker {
+  if (state === "ready") {
+    return "observable";
+  }
+
+  if (blocker === "no_runs") {
+    return "no_runs";
+  }
+
+  if (!isHistoricalObservationFutureCandleMissingReason(dominantMissingReason)) {
+    return "unavailable";
+  }
+
+  const nowMs = Date.now();
+  const latestAnchorMs = latestAnchorTime ? Date.parse(latestAnchorTime) : null;
+  const expectedCompleteMs = expectedCompleteTime
+    ? Date.parse(expectedCompleteTime)
+    : null;
+  const latestCoverageMs = latestCoverageTime ? Date.parse(latestCoverageTime) : null;
+
+  if (
+    expectedCompleteMs !== null &&
+    Number.isFinite(expectedCompleteMs) &&
+    nowMs < expectedCompleteMs
+  ) {
+    return "waiting_for_future_candles";
+  }
+
+  if (latestCoverageMs === null || !Number.isFinite(latestCoverageMs)) {
+    return "stale_market_data";
+  }
+
+  if (
+    expectedCompleteMs !== null &&
+    Number.isFinite(expectedCompleteMs) &&
+    latestCoverageMs < expectedCompleteMs
+  ) {
+    return "stale_market_data";
+  }
+
+  if (
+    latestAnchorMs !== null &&
+    Number.isFinite(latestAnchorMs) &&
+    latestCoverageMs <= latestAnchorMs
+  ) {
+    return "stale_market_data";
+  }
+
+  return blocker === "market_data_coverage" ? "stale_market_data" : "unavailable";
+}
+
+function calculateHistoryObservationCoverageLag({
+  timeframe,
+  expectedCompleteTime,
+  latestCoverageTime,
+}: {
+  timeframe: string;
+  expectedCompleteTime: string | null;
+  latestCoverageTime: string | null;
+}) {
+  const expectedCompleteMs = expectedCompleteTime
+    ? Date.parse(expectedCompleteTime)
+    : Number.NaN;
+  const latestCoverageMs = latestCoverageTime
+    ? Date.parse(latestCoverageTime)
+    : Number.NaN;
+
+  if (!Number.isFinite(expectedCompleteMs) || !Number.isFinite(latestCoverageMs)) {
+    return {
+      coverageLagMs: null,
+      coverageLagCandles: null,
+    };
+  }
+
+  const coverageLagMs = Math.max(0, expectedCompleteMs - latestCoverageMs);
+  const timeframeMs = getHistoryObservationTimeframeMs(timeframe);
+
+  return {
+    coverageLagMs,
+    coverageLagCandles:
+      timeframeMs === null ? null : Math.ceil(coverageLagMs / timeframeMs),
+  };
 }
 
 function isHistoricalObservationFutureCandleMissingReason(

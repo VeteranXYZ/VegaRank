@@ -7,6 +7,7 @@ import {
   type SymbolAssetClassFilter,
 } from "@/lib/market-data/symbolClassification";
 import { scanCandles } from "@/lib/scanner/scanCandles";
+import type { ScanResult } from "@/lib/scanner/types";
 import { PgMarketDataStore } from "@/lib/storage/postgres/marketDataPg";
 import {
   PgScannerResultsStore,
@@ -28,6 +29,7 @@ type ScannerRunOptions = {
 type SkipStats = {
   insufficient_candles: number;
   scanner_returned_empty: number;
+  missing_signal_anchor: number;
 };
 
 const DEFAULT_MARKET_LIMIT = 25;
@@ -63,6 +65,7 @@ async function main() {
   const skipStats: SkipStats = {
     insufficient_candles: 0,
     scanner_returned_empty: 0,
+    missing_signal_anchor: 0,
   };
 
   try {
@@ -149,14 +152,22 @@ async function main() {
               return;
             }
 
-            const lastCandle = candles.at(-1);
+            const candleOpenTimeMs = selectSignalCandleOpenTimeMs(result);
+
+            if (candleOpenTimeMs === null) {
+              symbolsSkipped += 1;
+              skipStats.missing_signal_anchor += 1;
+              console.info(`scanner:run:pg ${symbol.symbol} skipped missing_signal_anchor`);
+              return;
+            }
+
             signals.push({
               id: randomUUID(),
               scanRunId,
               symbolId: symbol.id,
               symbol: symbol.symbol,
               timeframe: options.timeframe,
-              candleOpenTimeMs: lastCandle?.openTime ?? null,
+              candleOpenTimeMs,
               result,
             });
             symbolsScanned += 1;
@@ -365,6 +376,10 @@ function parseAssetClass(value: string | undefined): SymbolAssetClassFilter {
   return assetClass;
 }
 
+export function selectSignalCandleOpenTimeMs(result: ScanResult) {
+  return result.dataQuality.lastClosedCandleOpenTime ?? null;
+}
+
 function parseInteger({
   value,
   fallback,
@@ -395,7 +410,9 @@ function toCamelCase(value: string) {
   return value.replace(/-([a-z])/g, (_, letter: string) => letter.toUpperCase());
 }
 
-main().catch((error) => {
-  console.error(error instanceof Error ? error.message : "scanner:run:pg failed");
-  process.exitCode = 1;
-});
+if (process.argv[1]?.endsWith("scanner-run-pg.ts")) {
+  main().catch((error) => {
+    console.error(error instanceof Error ? error.message : "scanner:run:pg failed");
+    process.exitCode = 1;
+  });
+}

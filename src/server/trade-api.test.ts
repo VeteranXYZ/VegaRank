@@ -880,6 +880,7 @@ describe("trade-api historical snapshots", () => {
     expect(body.selectedRun).toMatchObject({
       state: "not_ready",
       blocker: "market_data_coverage",
+      diagnosticBlocker: "stale_market_data",
       rowCount: 2,
       completeCount: 0,
       partialCount: 0,
@@ -887,6 +888,9 @@ describe("trade-api historical snapshots", () => {
       dominantMissingReason: "no_future_candles",
       latestAnchorTime: "2026-06-01T20:00:00.000Z",
       expectedCompleteTime: "2026-06-02T08:00:00.000Z",
+      latestCoverageTime: "2026-06-01T20:00:00.000Z",
+      coverageLagMs: 43_200_000,
+      coverageLagCandles: 3,
     });
     expect(body.recommendedRun).toMatchObject({
       state: "ready",
@@ -907,6 +911,7 @@ describe("trade-api historical snapshots", () => {
       timeframe: "4h",
       window: 3,
       blocker: "market_data_coverage",
+      diagnosticBlocker: "stale_market_data",
       candidateLimit: 25,
     });
     expect(listHistoricalSnapshotObservationsForRunMock).toHaveBeenCalledWith({
@@ -957,9 +962,67 @@ describe("trade-api historical snapshots", () => {
 
     expect(response.status).toBe(200);
     expect(body.selectedRun.blocker).toBe("market_data_coverage");
+    expect(body.selectedRun.diagnosticBlocker).toBe("stale_market_data");
+    expect(body.selectedRun.coverageLagCandles).toBe(14);
     expect(body.recommendedRun).toBeNull();
     expect(body.observationRun).toBeNull();
     expect(body.coverage.latestOpenTime).toBe("2026-05-31T00:00:00.000Z");
+  });
+
+  it("distinguishes a too-recent selected run from stale market data", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-06-02T06:00:00.000Z"));
+
+    try {
+      const recentRun = makeRun(historyRunId, {
+        symbolsTotal: 413,
+        symbolsScanned: 409,
+        signalsCreated: 409,
+        params: { assetClass: "crypto", allSymbols: true },
+      });
+
+      listHistoricalScanRunsMock.mockResolvedValue([recentRun]);
+      getHistoricalScanRunMock.mockResolvedValue(recentRun);
+      getHistoricalObservationMarketCandleCoverageMock.mockResolvedValue(
+        makeObservationCoverage({
+          latestOpenTime: "2026-06-02T08:00:00.000Z",
+          latestOpenTimeSymbolCount: 413,
+        }),
+      );
+      listHistoricalSnapshotObservationsForRunMock.mockResolvedValue([
+        makeObservationRecord({
+          id: "too-recent",
+          scanRunId: historyRunId,
+          symbol: "BTCUSDT",
+          anchorTime: "2026-06-02T00:00:00.000Z",
+          observedClose: null,
+          observedChangePct: null,
+          maxDrawdownPct: null,
+          dataStatus: "missing",
+          missingReason: "no_future_candles",
+          forwardCandlesAvailable: 0,
+        }),
+      ]);
+
+      const response = await requestTradeApi(
+        `/api/history/observation-readiness?timeframe=4h&runId=${historyRunId}&window=3`,
+      );
+      const body = JSON.parse(response.body);
+
+      expect(response.status).toBe(200);
+      expect(body.selectedRun).toMatchObject({
+        state: "not_ready",
+        blocker: "time_maturity",
+        diagnosticBlocker: "waiting_for_future_candles",
+        latestAnchorTime: "2026-06-02T00:00:00.000Z",
+        expectedCompleteTime: "2026-06-02T12:00:00.000Z",
+        latestCoverageTime: "2026-06-02T08:00:00.000Z",
+        coverageLagCandles: 1,
+      });
+      expect(body.metadata.diagnosticBlocker).toBe("waiting_for_future_candles");
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("falls back to a limited observable run when no full-universe run is observable", async () => {

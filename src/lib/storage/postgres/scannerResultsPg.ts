@@ -25,7 +25,8 @@ export type HistoricalSnapshotObservationDataStatus =
 export type HistoricalSnapshotObservationMissingReason =
   | "missing_anchor"
   | "no_future_candles"
-  | "insufficient_future_candles";
+  | "insufficient_future_candles"
+  | "run_after_latest_candle";
 
 export type ScanRunRecord = {
   id: string;
@@ -100,6 +101,7 @@ export type HistoricalSnapshotObservationRecord = LatestScanSignalRecord & {
   dataStatus: HistoricalSnapshotObservationDataStatus;
   missingReason: HistoricalSnapshotObservationMissingReason | null;
   forwardCandlesAvailable: number;
+  latestMarketOpenTime: string | null;
 };
 
 export type HistoricalSnapshotObservationsResult = {
@@ -259,6 +261,7 @@ type HistoricalSnapshotObservationRow = LatestScanSignalRow & {
   anchor_time: Date | string | null;
   anchor_close: number | string | null;
   anchor_source: string | null;
+  latest_market_open_time: Date | string | null;
   forward_candles: unknown;
 };
 
@@ -774,6 +777,7 @@ export class PgScannerResultsStore {
           observation_anchor.anchor_time,
           observation_anchor.anchor_close,
           observation_anchor.anchor_source,
+          latest_market.latest_market_open_time,
           COALESCE(forward.forward_candles, '[]'::jsonb) AS forward_candles
         FROM scan_signals ss
         JOIN symbols s
@@ -838,6 +842,17 @@ export class PgScannerResultsStore {
               ELSE 'unavailable'
             END AS anchor_source
         ) observation_anchor
+          ON true
+        LEFT JOIN LATERAL (
+          SELECT c.open_time AS latest_market_open_time
+          FROM market_candles c
+          WHERE c.symbol_id = ss.symbol_id
+            AND c.exchange = ss.exchange
+            AND c.market = ss.market
+            AND c.timeframe = ss.timeframe
+          ORDER BY c.open_time DESC
+          LIMIT 1
+        ) latest_market
           ON true
         LEFT JOIN LATERAL (
           SELECT jsonb_agg(
@@ -993,12 +1008,17 @@ function toHistoricalSnapshotObservationRecord(
   const anchorSource = toHistoricalSnapshotObservationAnchorSource(
     row.anchor_source,
   );
+  const latestMarketOpenTime = row.latest_market_open_time
+    ? new Date(row.latest_market_open_time).toISOString()
+    : null;
   const forwardCandles = parseHistoricalSnapshotForwardCandles(
     row.forward_candles,
   );
   const observation = calculateHistoricalSnapshotObservation({
+    anchorTime,
     anchorClose,
     anchorSource,
+    latestMarketOpenTime,
     forwardCandles,
     window,
   });
@@ -1011,17 +1031,22 @@ function toHistoricalSnapshotObservationRecord(
     window,
     ...observation,
     forwardCandlesAvailable: forwardCandles.length,
+    latestMarketOpenTime,
   };
 }
 
 function calculateHistoricalSnapshotObservation({
+  anchorTime,
   anchorClose,
   anchorSource,
+  latestMarketOpenTime,
   forwardCandles,
   window,
 }: {
+  anchorTime: string | null;
   anchorClose: number | null;
   anchorSource: HistoricalSnapshotObservationAnchorSource;
+  latestMarketOpenTime: string | null;
   forwardCandles: HistoricalSnapshotForwardCandle[];
   window: HistoricalSnapshotObservationWindow;
 }) {
@@ -1036,12 +1061,22 @@ function calculateHistoricalSnapshotObservation({
   }
 
   if (forwardCandles.length === 0) {
+    const anchorMs = anchorTime ? Date.parse(anchorTime) : Number.NaN;
+    const latestMarketMs = latestMarketOpenTime
+      ? Date.parse(latestMarketOpenTime)
+      : Number.NaN;
+
     return {
       observedClose: null,
       observedChangePct: null,
       maxDrawdownPct: null,
       dataStatus: "missing" as const,
-      missingReason: "no_future_candles" as const,
+      missingReason:
+        Number.isFinite(anchorMs) &&
+        Number.isFinite(latestMarketMs) &&
+        latestMarketMs <= anchorMs
+          ? ("run_after_latest_candle" as const)
+          : ("no_future_candles" as const),
     };
   }
 

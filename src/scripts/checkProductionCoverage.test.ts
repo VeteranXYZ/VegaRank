@@ -3,6 +3,8 @@ import {
   createCoverageReport,
   evaluateFreshness,
   evaluateFreshnessTimestamp,
+  evaluateMarketDataCoverage,
+  evaluateObservationReadiness,
   evaluateKeySymbols,
   evaluateLatestRunSelection,
   evaluateMtfCoverage,
@@ -39,6 +41,12 @@ describe("production coverage check", () => {
     expect(report.sections.get("MTF Coverage")?.[0]).toBe("count: 413");
     expect(report.sections.get("Key Symbols")?.[0]).toBe(
       "Symbol | 1h | 4h | 1d | 1w | status",
+    );
+    expect(report.sections.get("Market Candle Coverage")?.[0]).toBe(
+      "timeframe | total symbols | healthy | stale | below minimum | latest open time | result",
+    );
+    expect(report.sections.get("Observation Readiness")?.[0]).toBe(
+      "timeframe | run id | diagnostic | complete | partial | missing | coverage lag | result",
     );
   });
 
@@ -248,6 +256,62 @@ describe("production coverage check", () => {
     );
   });
 
+  it("reports stale market candle coverage for core timeframes", () => {
+    const report = createCoverageReport();
+
+    const row = evaluateMarketDataCoverage({
+      timeframe: "4h",
+      body: makeMarketCoverageResponse("4h", {
+        summary: {
+          totalSymbols: 413,
+          healthy: 360,
+          stale: 53,
+          belowMinimum: 0,
+        },
+      }),
+      report,
+    });
+
+    expect(row.result).toBe("fail");
+    expect(row.latestOpenTime).toBe("2026-06-01T08:00:00.000Z");
+    expect(report.failures.map((message) => message.details.join(" "))).toContain(
+      "4h has 53 stale market candle rows; latest sync likely did not catch up.",
+    );
+  });
+
+  it("reports observation readiness stale data separately from future-candle waiting", () => {
+    const staleReport = createCoverageReport();
+    const waitingReport = createCoverageReport();
+
+    const staleRow = evaluateObservationReadiness({
+      timeframe: "4h",
+      runId: "full-4h",
+      body: makeReadinessResponse("4h", {
+        diagnosticBlocker: "stale_market_data",
+        missingCount: 313,
+        coverageLagCandles: 3,
+      }),
+      report: staleReport,
+    });
+    const waitingRow = evaluateObservationReadiness({
+      timeframe: "1h",
+      runId: "full-1h",
+      body: makeReadinessResponse("1h", {
+        diagnosticBlocker: "waiting_for_future_candles",
+        missingCount: 413,
+        coverageLagCandles: 1,
+      }),
+      report: waitingReport,
+    });
+
+    expect(staleRow.result).toBe("fail");
+    expect(staleRow.diagnostic).toBe("stale_market_data");
+    expect(waitingRow.result).toBe("pass");
+    expect(waitingReport.infos.map((message) => message.details.join(" "))).toContain(
+      "1h latest run full-1h is waiting for completed future candles.",
+    );
+  });
+
   it("handles malformed API responses as hard failures without crashing", async () => {
     const report = createCoverageReport();
 
@@ -282,9 +346,13 @@ describe("production coverage check", () => {
 function makeFetch({
   mtf,
   latestRuns,
+  marketCoverage = makeMarketCoverageResponses(),
+  readiness = makeReadinessResponses(),
 }: {
   mtf: unknown;
   latestRuns: Record<string, unknown>;
+  marketCoverage?: Record<string, unknown>;
+  readiness?: Record<string, unknown>;
 }) {
   return async (url: string, init?: { method: "GET" }) => {
     expect(init?.method).toBe("GET");
@@ -296,6 +364,10 @@ function makeFetch({
         ? mtf
         : request.pathname === "/api/scan/latest"
           ? latestRuns[search.get("timeframe") ?? ""]
+          : request.pathname === "/api/market-data/coverage"
+            ? marketCoverage[search.get("timeframe") ?? ""]
+            : request.pathname === "/api/history/observation-readiness"
+              ? readiness[search.get("timeframe") ?? ""]
           : null;
 
     return {
@@ -388,6 +460,107 @@ function makeLatestRunResponses() {
       symbolsScanned: 192,
       signalsCreated: 192,
     }),
+  };
+}
+
+function makeMarketCoverageResponses() {
+  return {
+    "1h": makeMarketCoverageResponse("1h"),
+    "4h": makeMarketCoverageResponse("4h"),
+    "1d": makeMarketCoverageResponse("1d"),
+    "1w": makeMarketCoverageResponse("1w", {
+      summary: {
+        totalSymbols: 413,
+        healthy: 192,
+        stale: 0,
+        belowMinimum: 221,
+      },
+    }),
+  };
+}
+
+function makeMarketCoverageResponse(
+  timeframe: string,
+  overrides: {
+    summary?: Partial<{
+      totalSymbols: number;
+      healthy: number;
+      stale: number;
+      belowMinimum: number;
+    }>;
+  } = {},
+) {
+  const summary = {
+    totalSymbols: overrides.summary?.totalSymbols ?? 413,
+    healthy: overrides.summary?.healthy ?? 413,
+    stale: overrides.summary?.stale ?? 0,
+    belowMinimum: overrides.summary?.belowMinimum ?? 0,
+  };
+
+  return {
+    ok: true,
+    timeframe,
+    assetClass: "crypto",
+    summary,
+    rows: [
+      {
+        symbol: "BTCUSDT",
+        timeframe,
+        latestOpenTime: "2026-06-01T08:00:00.000Z",
+        latestCloseTime: "2026-06-01T11:59:59.999Z",
+        isStale: false,
+      },
+    ],
+  };
+}
+
+function makeReadinessResponses() {
+  return {
+    "1h": makeReadinessResponse("1h"),
+    "4h": makeReadinessResponse("4h"),
+    "1d": makeReadinessResponse("1d"),
+    "1w": makeReadinessResponse("1w", {
+      completeCount: 100,
+      partialCount: 10,
+      missingCount: 82,
+    }),
+  };
+}
+
+function makeReadinessResponse(
+  timeframe: string,
+  overrides: Partial<{
+    diagnosticBlocker: string;
+    completeCount: number;
+    partialCount: number;
+    missingCount: number;
+    coverageLagCandles: number;
+  }> = {},
+) {
+  const completeCount = overrides.completeCount ?? 300;
+  const partialCount = overrides.partialCount ?? 20;
+  const missingCount = overrides.missingCount ?? 0;
+
+  return {
+    ok: true,
+    selectedRun: {
+      run: {
+        runId: `full-${timeframe}`,
+        timeframe,
+      },
+      state: "ready",
+      blocker: "observable",
+      diagnosticBlocker: overrides.diagnosticBlocker ?? "observable",
+      rowCount: completeCount + partialCount + missingCount,
+      completeCount,
+      partialCount,
+      missingCount,
+      coverageLagCandles: overrides.coverageLagCandles ?? 0,
+    },
+    metadata: {
+      timeframe,
+      diagnosticBlocker: overrides.diagnosticBlocker ?? "observable",
+    },
   };
 }
 

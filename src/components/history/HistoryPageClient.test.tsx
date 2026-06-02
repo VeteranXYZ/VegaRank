@@ -196,6 +196,8 @@ describe("HistoryPageClient display formatting", () => {
         dominantMissingReason: "no_future_candles",
         dominantMissingReasonCount: 3,
         expectedCompleteTime: "2026-06-02T12:00:00.000Z",
+        latestCoverageTime: "2026-06-01T20:00:00.000Z",
+        coverageLagCandles: 3,
       }),
       observationRun: null,
       recommendedRun: null,
@@ -228,14 +230,16 @@ describe("HistoryPageClient display formatting", () => {
       readinessError: null,
     })).toBeNull();
     expect(html).toContain("Forward observation unavailable");
-    expect(html).toContain(
-      "stored market candles do not yet cover enough completed future candles",
-    );
+    expect(html).toContain("Market data appears stale");
+    expect(html).toContain("production data may need latest candle sync");
     expect(html).toContain("Dominant Reason");
+    expect(html).toContain("Diagnostic");
     expect(html).toContain("Market candle coverage");
     expect(html).toContain("Latest Candle");
     expect(html).toContain("2026-06-01 20:00");
     expect(html).toContain("100 / 413");
+    expect(html).toContain("Coverage Lag");
+    expect(html).toContain("3 candles");
     expect(html).toContain("Complete");
     expect(html).toContain("Partial");
     expect(html).toContain("Missing");
@@ -463,7 +467,9 @@ describe("HistoryPageClient display formatting", () => {
       readinessError: null,
     })).toBeNull();
     expect(html).toContain("Forward observation is not ready yet");
-    expect(html).toContain("This snapshot is too recent");
+    expect(html).toContain("This snapshot is not fully observable yet");
+    expect(html).toContain("Waiting for future candles");
+    expect(html).toContain("Missing");
     expect(html).toContain("For 4h + 3 candles, expect roughly 12 hours");
     expect(html).not.toContain("Loading observation rows");
     expect(html).not.toContain("Observed Change");
@@ -811,6 +817,13 @@ function makeReadinessResponse(
       selectedWindow: 3 as const,
       windowUnit: "completed_candles" as const,
       blocker: overrides.blocker ?? "observable",
+      diagnosticBlocker:
+        selectedRun?.diagnosticBlocker ??
+        (overrides.blocker === "time_maturity"
+          ? "waiting_for_future_candles"
+          : overrides.blocker === "market_data_coverage"
+            ? "stale_market_data"
+            : "observable"),
       candidateCount: 2,
       candidateLimit: 25,
       fullUniverseMinExpectedSymbols: 300,
@@ -831,6 +844,12 @@ function makeReadinessRun(
       | "mixed"
       | "unavailable"
       | "no_runs";
+    diagnosticBlocker:
+      | "observable"
+      | "waiting_for_future_candles"
+      | "stale_market_data"
+      | "unavailable"
+      | "no_runs";
     rowCount: number;
     completeCount: number;
     partialCount: number;
@@ -839,14 +858,27 @@ function makeReadinessRun(
     dominantMissingReasonCount: number;
     latestAnchorTime: string | null;
     expectedCompleteTime: string | null;
+    latestCoverageTime: string | null;
+    coverageLagMs: number | null;
+    coverageLagCandles: number | null;
   }> = {},
 ) {
   const state = overrides.state ?? "ready";
+  const blocker = overrides.blocker ?? (state === "ready" ? "observable" : "unavailable");
 
   return {
     run: overrides.run ?? makeObservationRun(),
     state,
-    blocker: overrides.blocker ?? (state === "ready" ? "observable" : "unavailable"),
+    blocker,
+    diagnosticBlocker:
+      overrides.diagnosticBlocker ??
+      (blocker === "time_maturity"
+        ? "waiting_for_future_candles"
+        : blocker === "market_data_coverage"
+          ? "stale_market_data"
+          : state === "ready"
+            ? "observable"
+            : "unavailable"),
     isObservable: state === "ready",
     isLimited: overrides.run?.isLikelyFullUniverse === false,
     rowCount: overrides.rowCount ?? 3,
@@ -858,6 +890,10 @@ function makeReadinessRun(
     latestAnchorTime:
       overrides.latestAnchorTime ?? "2026-06-02T00:00:00.000Z",
     expectedCompleteTime: overrides.expectedCompleteTime ?? null,
+    latestCoverageTime:
+      overrides.latestCoverageTime ?? "2026-06-02T12:00:00.000Z",
+    coverageLagMs: overrides.coverageLagMs ?? 0,
+    coverageLagCandles: overrides.coverageLagCandles ?? 0,
   };
 }
 
@@ -916,6 +952,7 @@ function makeObservationRow(overrides: {
     anchorTime: "2026-06-02T00:00:00.000Z",
     anchorClose: 100,
     anchorSource: "stored_signal" as const,
+    latestMarketOpenTime: "2026-06-02T12:00:00.000Z",
     window: 3 as const,
     observedClose: overrides.observedClose ?? 102,
     observedChangePct: overrides.observedChangePct ?? 2,

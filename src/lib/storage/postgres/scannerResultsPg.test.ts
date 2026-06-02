@@ -375,6 +375,7 @@ describe("PgScannerResultsStore latest scan queries", () => {
     expect(queries[1]).toContain("LEFT JOIN LATERAL");
     expect(queries[1]).toContain("LIMIT $3");
     expect(queries[1]).toContain("c.open_time > observation_anchor.anchor_time");
+    expect(queries[1]).toContain("latest_market.latest_market_open_time");
   });
 
   it("returns partial observations without dropping rows", async () => {
@@ -488,6 +489,42 @@ describe("PgScannerResultsStore latest scan queries", () => {
       maxDrawdownPct: null,
       dataStatus: "missing",
       missingReason: "no_future_candles",
+    });
+  });
+
+  it("marks stored anchors after the latest market candle as stale market data", async () => {
+    const store = new PgScannerResultsStore(
+      makePool(() => ({
+        rows: [
+          makeObservationRow({
+            id: "bad-anchor",
+            scan_run_id: "history-run",
+            symbol: "STALEUSDT",
+            anchor_time: "2026-06-01T20:00:00.000Z",
+            anchor_close: 100,
+            anchor_source: "stored_signal",
+            latest_market_open_time: "2026-05-31T00:00:00.000Z",
+            forward_candles: [],
+          }),
+        ],
+      })),
+    );
+
+    const rows = await store.listHistoricalSnapshotObservationsForRun({
+      scanRunId: "history-run",
+      timeframe: "4h",
+      assetClass: "crypto",
+      window: 3,
+    });
+
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({
+      symbol: "STALEUSDT",
+      anchorTime: "2026-06-01T20:00:00.000Z",
+      latestMarketOpenTime: "2026-05-31T00:00:00.000Z",
+      dataStatus: "missing",
+      missingReason: "run_after_latest_candle",
+      forwardCandlesAvailable: 0,
     });
   });
 
@@ -690,6 +727,8 @@ function makeObservationRow(
     anchor_time: overrides.anchor_time ?? "2026-05-30T20:00:00.000Z",
     anchor_close: overrides.anchor_close ?? 100,
     anchor_source: overrides.anchor_source ?? "stored_signal",
+    latest_market_open_time:
+      overrides.latest_market_open_time ?? "2026-06-01T20:00:00.000Z",
     forward_candles: overrides.forward_candles ?? [],
   };
 }

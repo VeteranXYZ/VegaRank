@@ -587,6 +587,8 @@ describe("scanner candle quality", () => {
       expect(result.price).toBeCloseTo(119.9, 6);
       expect(result.dataQuality.candleCount).toBe(200);
       expect(result.dataQuality.usesClosedCandles).toBe(true);
+      expect(result.dataQuality.lastClosedCandleOpenTime).toBe(199_000);
+      expect(result.dataQuality.lastClosedCandleCloseTime).toBe(199_999);
       expect(result.dataQuality.lastClosedCandleTime).toBe(199_999);
       expect(result.macd?.line).toBeDefined();
     } finally {

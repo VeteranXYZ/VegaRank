@@ -17,18 +17,22 @@ configure_timeframe() {
     1h)
       STALE_LOCK_SECONDS=5400
       TARGET_COUNT=5000
+      SYNC_LIMIT=500
       ;;
     4h)
       STALE_LOCK_SECONDS=14400
       TARGET_COUNT=5000
+      SYNC_LIMIT=500
       ;;
     1d)
       STALE_LOCK_SECONDS=43200
       TARGET_COUNT=3000
+      SYNC_LIMIT=200
       ;;
     1w)
       STALE_LOCK_SECONDS=86400
       TARGET_COUNT=1000
+      SYNC_LIMIT=100
       ;;
     *)
       usage
@@ -169,7 +173,11 @@ main() {
   acquire_lock
   trap cleanup EXIT
 
-  log "Running ${TIMEFRAME} market backfill."
+  log "Running ${TIMEFRAME} market latest sync with sync limit ${SYNC_LIMIT}."
+  pnpm market:sync:pg -- --timeframe "$TIMEFRAME" --all-symbols --asset-class crypto --limit "$SYNC_LIMIT" --confirm-large-sync
+  log "${TIMEFRAME} market latest sync completed."
+
+  log "Running ${TIMEFRAME} market backfill with target count ${TARGET_COUNT}."
   pnpm market:backfill:pg -- --timeframe "$TIMEFRAME" --all-symbols --asset-class crypto --target-count "$TARGET_COUNT" --limit 1000 --confirm-large-sync
   log "${TIMEFRAME} market backfill completed."
 
