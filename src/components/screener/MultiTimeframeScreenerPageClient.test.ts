@@ -54,9 +54,7 @@ describe("MultiTimeframeScreenerTable", () => {
 
     expect(html).toContain("Research Buckets");
     expect(html).toContain("research starting points");
-    expect(html).toContain(
-      "Research-only triage based on existing MTF scanner groups. Not financial advice.",
-    );
+    expect(html).toContain("Research-only. Not financial advice.");
     expect(html).toContain("Full Table");
     expect(html).toContain("3 joined symbols");
     expect(html).toContain("Short-term Repair");
@@ -101,10 +99,23 @@ describe("MultiTimeframeScreenerTable", () => {
     expect(html).toContain("Eligible");
     expect(html).toContain("88.2");
     expect(html).toContain("Not returned");
-    expect(html).toContain("Screener Rank");
-    expect(html).toContain("Higher TF");
+    for (const label of [
+      "Symbol",
+      "Rank",
+      "Higher TF",
+      "1h",
+      "4h",
+      "1d",
+      "1w",
+      "Group",
+      "Signal",
+      "Notes",
+      "Research",
+    ]) {
+      expect(html).toContain(label);
+    }
     expect(html).toContain("Limited HTF Data");
-    expect(html).toContain("Open 1h Research");
+    expect(html).toContain("1h Research");
     expect(html).toContain(
       'href="/symbol/binance/SEIUSDT?timeframe=1h&amp;assetClass=crypto&amp;from=screener"',
     );
@@ -141,7 +152,7 @@ describe("MultiTimeframeScreenerTable", () => {
 
     expect(html).toContain("+1 more");
     expect(html).toContain("1w:");
-    expect(html).toContain("Open 4h Research");
+    expect(html).toContain("4h Research");
   });
 
   it("renders all rows without show-more or pagination behavior", () => {

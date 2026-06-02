@@ -29,6 +29,11 @@ import {
   SymbolResearchPageClient,
   SymbolWatchlistControl,
 } from "./SymbolResearchPageClient";
+import {
+  buildSymbolResearchHref,
+  getSymbolResearchTimeframeSelection,
+  normalizeSymbolResearchTimeframe,
+} from "./symbolResearchLinks";
 import type { MarketContextResponse } from "@/components/market-context/marketContextUi";
 import type { WatchlistStorage } from "@/components/watchlist/watchlistUi";
 
@@ -80,6 +85,17 @@ describe("symbol research API URL builder", () => {
     expect(url).toContain("symbol=SEIUSDT");
     expect(url).toContain("timeframe=4h");
     expect(url.startsWith("https://api.auere.com/api/symbol/research")).toBe(true);
+  });
+
+  it("normalizes invalid frontend API timeframe requests to the default", () => {
+    const url = buildSymbolResearchUrl({
+      exchange: "binance",
+      symbol: "SEIUSDT",
+      timeframe: "bad",
+      tradeApiBaseUrl: "https://api.auere.com",
+    });
+
+    expect(url).toContain("timeframe=4h");
   });
 
   it("normalizes trailing slashes from the API base URL", () => {
@@ -146,6 +162,42 @@ describe("symbol research API URL builder", () => {
 });
 
 describe("symbol research navigation helpers", () => {
+  it("builds shared symbol research hrefs with normalized timeframe state", () => {
+    expect(
+      buildSymbolResearchHref({
+        exchange: "Binance",
+        symbol: "seiusdt",
+        timeframe: "1H",
+        assetClass: "crypto",
+        from: "watchlist",
+      }),
+    ).toBe("/symbol/binance/SEIUSDT?timeframe=1h&assetClass=crypto&from=watchlist");
+    expect(
+      buildSymbolResearchHref({
+        exchange: "binance",
+        symbol: "BTCUSDT",
+        timeframe: "bad",
+        assetClass: "crypto",
+        from: "screener",
+      }),
+    ).toBe("/symbol/binance/BTCUSDT?timeframe=4h&assetClass=crypto&from=screener");
+  });
+
+  it("normalizes missing and invalid symbol research timeframes predictably", () => {
+    expect(normalizeSymbolResearchTimeframe("1D")).toBe("1d");
+    expect(normalizeSymbolResearchTimeframe("bad")).toBe("4h");
+    expect(getSymbolResearchTimeframeSelection(null)).toEqual({
+      requestedTimeframe: null,
+      selectedTimeframe: "4h",
+      fallbackReason: "missing",
+    });
+    expect(getSymbolResearchTimeframeSelection("bad")).toEqual({
+      requestedTimeframe: "bad",
+      selectedTimeframe: "4h",
+      fallbackReason: "invalid",
+    });
+  });
+
   it("builds scanner return hrefs from preserved query state", () => {
     expect(
       buildScannerReturnHref(
@@ -182,6 +234,12 @@ describe("symbol research navigation helpers", () => {
     ).toBe(
       "/scanner?timeframe=1d&assetClass=stable&includeLowQuality=true&limit=200",
     );
+  });
+
+  it("normalizes invalid scanner return timeframes to the selected fallback", () => {
+    expect(
+      buildScannerReturnHref(new URLSearchParams("timeframe=bad&assetClass=crypto")),
+    ).toBe("/scanner?timeframe=4h&assetClass=crypto");
   });
 
   it("does not preserve false low-quality query state", () => {
@@ -392,6 +450,7 @@ describe("SymbolResearchPageClient success state", () => {
     );
 
     expect(html).toContain("Research Overview");
+    expect(html).toContain("Selected timeframe: 4h");
     expect(html).toContain("Current Signal Structure");
     expect(html).toContain("Historical Context");
     expect(html).toContain("Manual Review");
@@ -410,8 +469,8 @@ describe("SymbolResearchPageClient success state", () => {
     expect(html).toContain("Market Backdrop");
     expect(html).toContain("Research Decision Summary");
     expect(html).toContain("Constructive research context");
-    expect(html).toContain("Suggested Research Posture");
-    expect(html).toContain("Candidate for deeper research");
+    expect(html).toContain("Research Posture");
+    expect(html).toContain("Deeper research context");
     expect(html).toContain("Current Classification");
     expect(html).toContain("Score Breakdown");
     expect(html).toContain("Research Summary");
@@ -555,6 +614,44 @@ describe("SymbolResearchPageClient success state", () => {
     );
   });
 
+  it("falls back from invalid URL timeframe before loading symbol research", () => {
+    searchParamsMock.mockReturnValue(
+      new URLSearchParams("timeframe=bad&assetClass=crypto&from=screener"),
+    );
+    useQueryMock.mockImplementation(
+      ({ queryKey }: { queryKey: [string, unknown] }) => ({
+        isLoading: false,
+        isError: false,
+        isFetching: false,
+        refetch: vi.fn(),
+        data:
+          queryKey[0] === "signal-evaluation"
+            ? null
+            : queryKey[0] === "market-context"
+              ? makeMarketContextResponse()
+              : makeSuccessResponse(),
+      }),
+    );
+
+    const html = renderToStaticMarkup(
+      createElement(SymbolResearchPageClient, {
+        exchange: "binance",
+        symbol: "SEIUSDT",
+      }),
+    );
+    const symbolResearchCall = useQueryMock.mock.calls.find(
+      ([options]) => options.queryKey[0] === "symbol-research",
+    );
+
+    expect(symbolResearchCall?.[0].queryKey[1]).toMatchObject({
+      timeframe: "4h",
+    });
+    expect(html).toContain("Selected timeframe: 4h");
+    expect(html).toContain("Fallback timeframe: 4h");
+    expect(html).toContain("Requested timeframe bad is not supported.");
+    expect(html).toContain('href="/symbol/binance/SEIUSDT?timeframe=1d');
+  });
+
   it("does not render direct trading command wording", () => {
     useQueryMock.mockImplementation(
       ({ queryKey }: { queryKey: [string, unknown] }) => ({
@@ -617,7 +714,7 @@ describe("SymbolResearchPageClient success state", () => {
     expect(html).toContain(
       "Across the broader market, how this signal type has behaved historically",
     );
-    expect(html).toContain("Expected Direction");
+    expect(html).toContain("Historical Orientation");
     expect(html).toContain("Risk follow-through observed");
     expect(html).toContain(
       "Historical evaluation supports caution for this risk label.",

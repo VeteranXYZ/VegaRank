@@ -33,9 +33,9 @@ const groupHints = {
     "Candidates worth manual review: positive rank, confirmed/trend, clear setup, and no detected risks.",
   watch:
     "Monitor for confirmation; lower or negative-rank watch rows are lower priority.",
-  overheated: "Strong but extended, do not chase.",
-  risk: "Avoid or wait for repair.",
-  neutral: "No clear edge.",
+  overheated: "Extended conditions require additional review.",
+  risk: "Risk context requires repair review.",
+  neutral: "Mixed research context.",
   insufficient_history: "Not enough candles.",
 } satisfies Record<LatestScanGroupKey, string>;
 
@@ -44,9 +44,9 @@ const reviewTierLabels = {
   watch_high: "Needs confirmation",
   watch_caution: "Caution",
   watch_low: "Low priority",
-  overheated: "Do not chase",
-  risk: "Avoid",
-  neutral: "No clear edge",
+  overheated: "Overheated review",
+  risk: "Risk review",
+  neutral: "Mixed research context",
   insufficient_history: "Not enough candles",
 } satisfies Record<LatestScanReviewTier, string>;
 
@@ -81,9 +81,9 @@ const signalLabels: Record<string, string> = {
 const actionLabels: Record<string, string> = {
   eligible: "Eligible",
   watch_only: "Watch Only",
-  do_not_chase: "Do Not Chase",
-  avoid: "Avoid",
-  ignore: "Ignore",
+  do_not_chase: "Overheated Review",
+  avoid: "Risk Review",
+  ignore: "Low Priority Review",
 };
 
 const qualityLabels: Record<string, string> = {
@@ -188,7 +188,7 @@ export function formatActionDisplay(
   }
 
   if (actionBias === "do_not_chase") {
-    return "Do not chase";
+    return "Overheated review";
   }
 
   return formatActionBias(actionBias);
@@ -277,9 +277,9 @@ export function getReviewStatusReasons(item: {
   }
 
   if (resultGroup === "risk") {
-    reasons.push("Risk group has priority over opportunity score.");
+    reasons.push("Risk group has priority over setup score.");
   } else if (resultGroup === "overheated") {
-    reasons.push("Overheated state has priority over opportunity score.");
+    reasons.push("Overheated state has priority over setup score.");
   } else if (reasons.length === 0 && resultGroup === "watch") {
     reasons.push(
       "Needs confirmation: positive rank with a meaningful setup, but eligible rules are not fully met.",
@@ -337,7 +337,7 @@ export function formatQualityTier(value: string | null | undefined) {
 
 export function getLatestScanScoreRows(item: LatestScanScoreInput) {
   return [
-    { label: "Opportunity", value: formatScore(item.opportunityScore) },
+    { label: "Setup Score", value: formatScore(item.opportunityScore) },
     { label: "Confirmation", value: formatScore(item.confirmationScore) },
     { label: "Risk", value: formatScore(item.riskScore) },
     { label: "Trend", value: formatScore(item.trendScore) },

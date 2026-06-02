@@ -101,8 +101,8 @@ describe("WatchlistPageClient", () => {
     );
 
     expect(html).toContain("Not returned");
-    expect(html).toContain("Open 1h Research");
-    expect(html).toContain("Open 1d Research");
+    expect(html).toContain("1h Research");
+    expect(html).toContain("1d Research");
     expect(html).toContain(
       'href="/symbol/binance/SEIUSDT?timeframe=1h&amp;assetClass=crypto&amp;from=watchlist"',
     );

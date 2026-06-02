@@ -557,7 +557,7 @@ describe("symbol behavior UI helpers", () => {
     expect(continued.interpretation).not.toMatch(/\bgood\b/i);
   });
 
-  it("shows no clear historical follow-through edge for neutral context", () => {
+  it("shows mixed historical follow-through for neutral context", () => {
     const evaluation = buildHistoricalFollowThroughEvaluation({
       behavior: makeBehavior({
         currentContext: { resultGroup: "neutral", signalLabel: "neutral" },
@@ -566,8 +566,8 @@ describe("symbol behavior UI helpers", () => {
       diagnostics: { available: true, reason: "ok" },
     });
 
-    expect(evaluation.posture).toBe("No clear historical follow-through edge");
-    expect(evaluation.directionMatchLabel).toBe("No clear direction match");
+    expect(evaluation.posture).toBe("Mixed historical follow-through");
+    expect(evaluation.directionMatchLabel).toBe("Mixed historical match");
   });
 
   it("renders unavailable evaluation when horizons lack completed samples", () => {

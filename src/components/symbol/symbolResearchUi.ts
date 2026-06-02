@@ -20,9 +20,9 @@ const actionLabels: Record<string, string> = {
   watch: "Review only",
   watch_caution: "Caution review",
   watch_low: "Low priority review",
-  overheated: "Do not chase",
-  risk: "Avoid or wait for repair",
-  neutral: "No clear edge",
+  overheated: "Overheated review",
+  risk: "Risk review",
+  neutral: "Mixed research context",
   insufficient_history: "Not enough candles",
 };
 
@@ -196,10 +196,10 @@ type ResearchDecisionSampleQualityInput = {
 };
 
 export type ResearchDecisionPosture =
-  | "Candidate for deeper research"
-  | "Watch only"
-  | "Caution / wait for repair"
-  | "Avoid for now"
+  | "Deeper research context"
+  | "Manual review"
+  | "Caution review"
+  | "Risk review only"
   | "Insufficient data"
   | "Mixed context";
 
@@ -385,7 +385,7 @@ export function getSymbolResearchScoreRows(scores: {
   return [
     { label: "Rank", value: formatSymbolResearchScore(scores.rankScore) },
     { label: "Final Signal", value: formatSymbolResearchScore(scores.finalSignalScore) },
-    { label: "Opportunity", value: formatSymbolResearchScore(scores.opportunityScore) },
+    { label: "Setup Score", value: formatSymbolResearchScore(scores.opportunityScore) },
     { label: "Confirmation", value: formatSymbolResearchScore(scores.confirmationScore) },
     { label: "Risk", value: formatSymbolResearchScore(scores.riskScore) },
     { label: "Trend", value: formatSymbolResearchScore(scores.trendScore) },
@@ -1511,17 +1511,17 @@ function getResearchDecisionPosture({
     case "risk":
       return mtfContext.status === "broad_risk" ||
         behaviorContext.status === "cautionary"
-        ? "Avoid for now"
-        : "Caution / wait for repair";
+        ? "Risk review only"
+        : "Caution review";
     case "eligible":
       return mtfContext.hasHigherTimeframeRisk ||
         behaviorContext.status === "cautionary"
-        ? "Watch only"
-        : "Candidate for deeper research";
+        ? "Manual review"
+        : "Deeper research context";
     case "watch":
-      return "Watch only";
+      return "Manual review";
     case "overheated":
-      return "Caution / wait for repair";
+      return "Caution review";
     case "insufficient_history":
     case "neutral":
       return "Insufficient data";
@@ -1548,7 +1548,7 @@ function getResearchDecisionSummaryLabel({
   }
 
   if (group === "eligible" && mtfContext.hasHigherTimeframeRisk) {
-    return "Candidate with higher-timeframe caution";
+    return "Higher-timeframe caution";
   }
 
   if (group === "eligible" && behaviorContext.status === "supportive") {
@@ -1556,7 +1556,7 @@ function getResearchDecisionSummaryLabel({
   }
 
   if (group === "eligible") {
-    return "Candidate research context";
+    return "Research context";
   }
 
   if (group === "watch") {
@@ -1567,7 +1567,7 @@ function getResearchDecisionSummaryLabel({
     return "Overheated caution";
   }
 
-  return "No clear edge";
+  return "Mixed research context";
 }
 
 function getResearchDecisionConfidenceNote({
@@ -1618,7 +1618,7 @@ function getResearchDecisionKeyCaution({
   }
 
   if (group === "risk") {
-    return "Risk context is elevated; wait for repair before deeper research.";
+    return "Risk context is elevated; repair should be reviewed before deeper research.";
   }
 
   if (group === "watch") {
@@ -1651,18 +1651,18 @@ function getResearchDecisionKeyCaution({
 function getResearchSummaryStance(signal: ResearchSummarySignalInput) {
   switch (signal.resultGroup) {
     case "eligible":
-      return "Manual review candidate";
+      return "Manual review context";
     case "watch":
-      return "Watch for confirmation";
+      return "Confirmation review";
     case "overheated":
-      return "Do not chase";
+      return "Overheated review";
     case "risk":
-      return "Risk / wait for repair";
+      return "Risk review";
     case "insufficient_history":
       return "Not enough history";
     case "neutral":
     default:
-      return "No clear edge";
+      return "Mixed research context";
   }
 }
 
@@ -1692,7 +1692,7 @@ function getSetupBullets(signal: ResearchSummarySignalInput) {
 function getScoreContextBullets(signal: ResearchSummarySignalInput) {
   const scores = [
     ["Rank", signal.rankScore],
-    ["Opportunity", signal.opportunityScore],
+    ["Setup Score", signal.opportunityScore],
     ["Confirmation", signal.confirmationScore],
     ["Risk", signal.riskScore],
   ]

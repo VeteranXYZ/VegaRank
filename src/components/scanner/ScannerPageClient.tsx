@@ -403,8 +403,8 @@ function ResearchEvaluationPanel({
             label="Weak Bounce MA50"
             value={formatPercentRatio(weakBounce?.unfavorableRate)}
           />
-          <ResearchMetric label="Top Label" value={topLabel} />
-          <ResearchMetric label="Worst Risk" value={worstRiskType} />
+          <ResearchMetric label="Largest Label Group" value={topLabel} />
+          <ResearchMetric label="Largest Risk Group" value={worstRiskType} />
         </div>
       )}
     </section>

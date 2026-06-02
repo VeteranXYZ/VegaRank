@@ -6,6 +6,7 @@ import {
   normalizeGroupKey,
   type LatestScanGroupKey,
 } from "@/components/scanner/latestScanUi";
+import { buildSymbolResearchHref } from "@/components/symbol/symbolResearchLinks";
 
 export const MTF_SCREENER_TIMEFRAMES = ["1h", "4h", "1d", "1w"] as const;
 export type MtfScreenerTimeframe = (typeof MTF_SCREENER_TIMEFRAMES)[number];
@@ -457,15 +458,13 @@ export function buildMtfSymbolResearchHref({
   timeframe?: string;
   assetClass?: string;
 }) {
-  const params = new URLSearchParams({
+  return buildSymbolResearchHref({
+    exchange: row.exchange,
+    symbol: row.symbol,
     timeframe,
     assetClass,
     from: "screener",
   });
-
-  return `/symbol/${encodeURIComponent(row.exchange)}/${encodeURIComponent(
-    row.symbol,
-  )}?${params.toString()}`;
 }
 
 export function formatMtfGroup(snapshot: MtfScreenerSnapshot | undefined) {

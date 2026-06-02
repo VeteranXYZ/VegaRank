@@ -9,6 +9,7 @@ import {
 } from "@/components/scanner/latestScanUi";
 import { MarketContextPanel } from "@/components/market-context/MarketContextPanel";
 import { fetchMarketContext } from "@/components/market-context/marketContextUi";
+import { shortResearchDisclaimer } from "@/components/researchCopy";
 import {
   MTF_SCREENER_TIMEFRAMES,
   buildMtfScreenerRowsFromResponse,
@@ -140,9 +141,9 @@ export function MultiTimeframeScreenerPageClient() {
             <h1 className="text-sm font-semibold text-[var(--foreground)]">
               Multi-Timeframe Screener
             </h1>
-            <p className="mt-1 max-w-3xl text-[11px] leading-5 text-[var(--muted)]">
-              Research-only MTF view for Binance USDT crypto symbols. All
-              matching rows remain visible by default.
+          <p className="mt-1 max-w-3xl text-[11px] leading-5 text-[var(--muted)]">
+              {shortResearchDisclaimer} MTF view for Binance USDT crypto
+              symbols. All matching rows remain visible by default.
             </p>
           </div>
           <button
@@ -219,7 +220,7 @@ export function MtfScreenerTable({ rows }: { rows: MtfScreenerRow[] }) {
 
   return (
     <section className="overflow-hidden border border-[var(--border)] bg-[var(--panel)]">
-      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[var(--border)] px-3 py-2">
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[var(--border)] px-3 py-1.5">
         <h2 className="text-xs font-semibold text-[var(--foreground)]">
           Matching Symbols
         </h2>
@@ -228,42 +229,61 @@ export function MtfScreenerTable({ rows }: { rows: MtfScreenerRow[] }) {
         </span>
       </div>
       <div className="overflow-x-auto">
-        <table className="min-w-[1450px] table-fixed text-left text-xs">
-          <thead className="bg-[#080d12] text-[11px] uppercase text-[var(--muted)]">
+        <table className="min-w-[1320px] table-fixed text-left text-[11px]">
+          <thead className="bg-[#080d12] text-[10px] uppercase tracking-normal text-[var(--muted)]">
             <tr>
-              <HeaderCell className="w-[118px]">Symbol</HeaderCell>
-              <HeaderCell className="w-[96px]">Screener Rank</HeaderCell>
-              <HeaderCell className="w-[124px]">Higher TF</HeaderCell>
+              <HeaderCell
+                rowSpan={2}
+                className="sticky left-0 z-20 w-[118px] bg-[#080d12]"
+              >
+                Symbol
+              </HeaderCell>
+              <HeaderCell rowSpan={2} className="w-[72px] text-right">
+                Rank
+              </HeaderCell>
+              <HeaderCell rowSpan={2} className="w-[106px]">
+                Higher TF
+              </HeaderCell>
               {MTF_SCREENER_TIMEFRAMES.map((timeframe) => (
-                <HeaderCell key={`${timeframe}-group`} className="w-[86px]">
-                  {timeframe} Group
+                <HeaderCell
+                  key={`${timeframe}-header`}
+                  colSpan={2}
+                  className="border-l border-[var(--border)] text-center text-[var(--foreground)]"
+                >
+                  {timeframe}
                 </HeaderCell>
               ))}
+              <HeaderCell rowSpan={2} className="w-[156px]">
+                Signal
+              </HeaderCell>
+              <HeaderCell rowSpan={2} className="w-[230px]">
+                Notes
+              </HeaderCell>
+              <HeaderCell rowSpan={2} className="w-[104px]">
+                Research
+              </HeaderCell>
+            </tr>
+            <tr>
               {MTF_SCREENER_TIMEFRAMES.map((timeframe) => (
-                <HeaderCell key={`${timeframe}-rank`} className="w-[68px]">
-                  {timeframe} Rank
-                </HeaderCell>
+                <TimeframeHeaderCells key={timeframe} timeframe={timeframe} />
               ))}
-              <HeaderCell className="w-[170px]">Primary Signal</HeaderCell>
-              <HeaderCell className="w-[255px]">Risk Flags / Notes</HeaderCell>
-              <HeaderCell className="w-[132px]">Research</HeaderCell>
             </tr>
           </thead>
           <tbody>
             {rows.map((row) => (
               <tr
                 key={row.symbol}
-                className="border-t border-[var(--border)] align-top hover:bg-[#0b1118]"
+                className="group border-t border-[var(--border)] align-top hover:bg-[#0b1118]"
               >
-                <BodyCell>
-                  <div className="font-mono text-sm font-semibold text-[var(--foreground)]">
+                <BodyCell className="sticky left-0 z-10 bg-[var(--panel)] group-hover:bg-[#0b1118]">
+                  <div className="font-mono text-xs font-semibold text-[var(--foreground)]">
                     {row.symbol}
                   </div>
-                  <div className="mt-0.5 text-[11px] text-[var(--muted)]">
+                  <div className="mt-0.5 text-[10px] uppercase text-[var(--muted)]">
                     {row.exchange} / {row.market}
                   </div>
                 </BodyCell>
-                <BodyCell>
+                <BodyCell className="text-right">
                   <span className="font-mono tabular-nums text-[var(--foreground)]">
                     {formatMtfCombinedRank(row)}
                   </span>
@@ -272,20 +292,15 @@ export function MtfScreenerTable({ rows }: { rows: MtfScreenerRow[] }) {
                   <HigherTimeframeHealthBadge row={row} />
                 </BodyCell>
                 {MTF_SCREENER_TIMEFRAMES.map((timeframe) => (
-                  <BodyCell key={`${row.symbol}-${timeframe}-group`}>
-                    <GroupBadge group={row.snapshots[timeframe]?.resultGroup}>
-                      {formatMtfGroup(row.snapshots[timeframe])}
-                    </GroupBadge>
-                  </BodyCell>
+                  <TimeframeCells
+                    key={`${row.symbol}-${timeframe}`}
+                    row={row}
+                    timeframe={timeframe}
+                  />
                 ))}
-                {MTF_SCREENER_TIMEFRAMES.map((timeframe) => (
-                  <BodyCell key={`${row.symbol}-${timeframe}-rank`}>
-                    <span className="font-mono tabular-nums">
-                      {formatMtfRank(row.snapshots[timeframe])}
-                    </span>
-                  </BodyCell>
-                ))}
-                <BodyCell>{getMtfPrimarySignal(row)}</BodyCell>
+                <BodyCell className="leading-4 text-[var(--foreground)]">
+                  {getMtfPrimarySignal(row)}
+                </BodyCell>
                 <BodyCell>
                   <RiskNotesCell row={row} />
                 </BodyCell>
@@ -357,8 +372,7 @@ export function MtfResearchBucketsPanel({
           <p className="mt-1 max-w-4xl text-[11px] leading-5 text-[var(--muted)]">
             Triage groups for research starting points. Counts use the full
             joined screener universe before search or filter narrowing.
-            Research-only triage based on existing MTF scanner groups. Not
-            financial advice.
+            {shortResearchDisclaimer}
           </p>
         </div>
         <button
@@ -653,18 +667,82 @@ function MtfStatePanel({ message }: { message: string }) {
   );
 }
 
+function TimeframeHeaderCells({
+  timeframe,
+}: {
+  timeframe: MtfScreenerTimeframe;
+}) {
+  return (
+    <>
+      <HeaderCell className="w-[78px] border-l border-[var(--border)]">
+        Group
+        <span className="sr-only"> for {timeframe}</span>
+      </HeaderCell>
+      <HeaderCell className="w-[52px] text-right">
+        Rank
+        <span className="sr-only"> for {timeframe}</span>
+      </HeaderCell>
+    </>
+  );
+}
+
+function TimeframeCells({
+  row,
+  timeframe,
+}: {
+  row: MtfScreenerRow;
+  timeframe: MtfScreenerTimeframe;
+}) {
+  const snapshot = row.snapshots[timeframe];
+
+  return (
+    <>
+      <BodyCell className="border-l border-[var(--border)]">
+        <GroupBadge group={snapshot?.resultGroup}>{formatMtfGroup(snapshot)}</GroupBadge>
+      </BodyCell>
+      <BodyCell className="text-right">
+        <span className="font-mono tabular-nums text-[var(--foreground)]">
+          {formatMtfRank(snapshot)}
+        </span>
+      </BodyCell>
+    </>
+  );
+}
+
 function HeaderCell({
+  children,
+  className = "",
+  colSpan,
+  rowSpan,
+}: {
+  children: React.ReactNode;
+  className?: string;
+  colSpan?: number;
+  rowSpan?: number;
+}) {
+  return (
+    <th
+      colSpan={colSpan}
+      rowSpan={rowSpan}
+      className={`px-2 py-1.5 font-semibold ${className}`}
+    >
+      {children}
+    </th>
+  );
+}
+
+function BodyCell({
   children,
   className = "",
 }: {
   children: React.ReactNode;
   className?: string;
 }) {
-  return <th className={`px-2 py-2 font-semibold ${className}`}>{children}</th>;
-}
-
-function BodyCell({ children }: { children: React.ReactNode }) {
-  return <td className="px-2 py-2 text-[11px] text-[var(--muted)]">{children}</td>;
+  return (
+    <td className={`px-2 py-1.5 text-[11px] text-[var(--muted)] ${className}`}>
+      {children}
+    </td>
+  );
 }
 
 function GroupBadge({
@@ -686,7 +764,9 @@ function GroupBadge({
             : "border-[var(--border)] text-[var(--muted)]";
 
   return (
-    <span className={`inline-flex border px-1.5 py-0.5 text-[11px] ${tone}`}>
+    <span
+      className={`inline-flex min-w-[72px] justify-center whitespace-nowrap border px-1.5 py-0.5 text-[10px] ${tone}`}
+    >
       {children}
     </span>
   );
@@ -704,7 +784,7 @@ function HigherTimeframeHealthBadge({ row }: { row: MtfScreenerRow }) {
           : "border-amber-500/50 text-amber-200";
 
   return (
-    <span className={`inline-flex border px-1.5 py-0.5 text-[11px] ${tone}`}>
+    <span className={`inline-flex whitespace-nowrap border px-1.5 py-0.5 text-[10px] ${tone}`}>
       {health.label}
     </span>
   );
@@ -723,7 +803,7 @@ function RiskNotesCell({ row }: { row: MtfScreenerRow }) {
         {summary.visibleNotes.map((note) => (
           <span
             key={note}
-            className="border border-[var(--border)] bg-[#080d12] px-1.5 py-0.5"
+            className="border border-[var(--border)] bg-[#080d12] px-1.5 py-px text-[10px]"
           >
             {note}
           </span>
@@ -747,9 +827,9 @@ function ResearchLink({ row }: { row: MtfScreenerRow }) {
   return (
     <Link
       href={buildMtfSymbolResearchHref({ row, timeframe })}
-      className="inline-flex border border-[var(--border)] px-2 py-1 text-[11px] font-semibold text-[var(--foreground)] hover:border-[var(--info)]"
+      className="inline-flex min-w-[82px] justify-center border border-[var(--info)] bg-[#0b1118] px-2 py-1 text-[11px] font-semibold text-[var(--foreground)] hover:bg-[#101821]"
     >
-      Open {timeframe} Research
+      {timeframe} Research
     </Link>
   );
 }

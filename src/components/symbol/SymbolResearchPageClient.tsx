@@ -21,6 +21,7 @@ import {
   isMarketContextResponse,
   type MarketContextResponse,
 } from "@/components/market-context/marketContextUi";
+import { longResearchDisclaimer } from "@/components/researchCopy";
 import {
   buildBehaviorReadout,
   buildBehaviorSampleQuality,
@@ -31,6 +32,13 @@ import {
   normalizeSymbolResearchCandles,
   type SymbolResearchCandles,
 } from "./symbolChartUi";
+import {
+  DEFAULT_SYMBOL_RESEARCH_TIMEFRAME,
+  buildSymbolResearchHref,
+  getSymbolResearchTimeframeSelection,
+  normalizeSymbolResearchTimeframe,
+  type SymbolResearchTimeframeSelection,
+} from "./symbolResearchLinks";
 import {
   buildSignalEvaluationReadout,
   buildResearchDecisionSummary,
@@ -267,7 +275,7 @@ type QueryStateInput =
 
 const defaultHistoryLimit = 30;
 const defaultCandleLimit = 120;
-const defaultTimeframe = "4h";
+const defaultTimeframe = DEFAULT_SYMBOL_RESEARCH_TIMEFRAME;
 const symbolResearchTimeframes = ["4h", "1d", "1w", "1h"] as const;
 const symbolResearchMarketContextAssetClass = "crypto";
 
@@ -278,7 +286,10 @@ export function SymbolResearchPageClient({
   const router = useRouter();
   const searchParams = useSearchParams();
   const market = searchParams.get("market")?.trim() || "spot";
-  const timeframe = searchParams.get("timeframe")?.trim() || defaultTimeframe;
+  const timeframeSelection = getSymbolResearchTimeframeSelection(
+    searchParams.get("timeframe"),
+  );
+  const timeframe = timeframeSelection.selectedTimeframe;
   const assetClass = searchParams.get("assetClass")?.trim() || "crypto";
   const normalizedSymbol = symbol.toUpperCase();
   const tradeApiBaseUrl = getTradeApiBaseUrl();
@@ -359,6 +370,7 @@ export function SymbolResearchPageClient({
           exchange={exchange}
           symbol={normalizedSymbol}
           timeframe={timeframe}
+          timeframeSelection={timeframeSelection}
           assetClass={assetClass}
           scannerReturnHref={scannerReturnHref}
           searchParams={searchParams}
@@ -387,6 +399,7 @@ export function SymbolResearchPageClient({
           exchange={exchange}
           symbol={normalizedSymbol}
           timeframe={timeframe}
+          timeframeSelection={timeframeSelection}
           assetClass={assetClass}
           scannerReturnHref={scannerReturnHref}
           searchParams={searchParams}
@@ -414,6 +427,7 @@ export function SymbolResearchPageClient({
           exchange={exchange}
           symbol={normalizedSymbol}
           timeframe={timeframe}
+          timeframeSelection={timeframeSelection}
           assetClass={assetClass}
           scannerReturnHref={scannerReturnHref}
           searchParams={searchParams}
@@ -463,6 +477,7 @@ export function SymbolResearchPageClient({
           exchange={exchange}
           symbol={unavailableSymbol}
           timeframe={selectedTimeframe}
+          timeframeSelection={timeframeSelection}
           assetClass={data.symbol?.assetClass ?? assetClass}
           scannerReturnHref={scannerReturnHref}
           searchParams={searchParams}
@@ -502,6 +517,7 @@ export function SymbolResearchPageClient({
           exchange={exchange}
           symbol={normalizedSymbol}
           timeframe={selectedTimeframe}
+          timeframeSelection={timeframeSelection}
           assetClass={data.symbol.assetClass}
           scannerReturnHref={scannerReturnHref}
           searchParams={searchParams}
@@ -598,6 +614,7 @@ export function SymbolResearchPageClient({
         exchange={exchange}
         symbol={data.symbol.symbol}
         timeframe={selectedTimeframe}
+        timeframeSelection={timeframeSelection}
         assetClass={data.symbol.assetClass}
         scannerReturnHref={scannerReturnHref}
         searchParams={searchParams}
@@ -619,8 +636,7 @@ export function SymbolResearchPageClient({
               {toTitleCase(data.symbol.assetClass)}
             </p>
             <p className="mt-3 max-w-3xl text-xs leading-5 text-[var(--muted)]">
-              Research workflow only. Scanner classification, market backdrop, and
-              historical context are not financial advice.
+              {longResearchDisclaimer}
             </p>
           </div>
           <div className="text-left text-sm text-[var(--muted)] md:text-right">
@@ -949,7 +965,7 @@ export function buildSymbolResearchUrl({
     exchange: exchange.toLowerCase(),
     market: market.toLowerCase(),
     symbol: symbol.toUpperCase(),
-    timeframe,
+    timeframe: normalizeSymbolResearchTimeframe(timeframe),
     historyLimit: String(historyLimit),
     candleLimit: String(candleLimit),
     includeCandles: String(includeCandles),
@@ -1162,9 +1178,12 @@ export function buildScannerReturnHref(
   fallback?: { timeframe?: string | null; assetClass?: string | null },
 ) {
   const params = new URLSearchParams();
-  const timeframe =
+  const requestedTimeframe =
     getQueryStateValue(searchParamsOrState, "timeframe")?.trim() ||
     fallback?.timeframe?.trim();
+  const timeframe = requestedTimeframe
+    ? normalizeSymbolResearchTimeframe(requestedTimeframe)
+    : null;
   const assetClass =
     getQueryStateValue(searchParamsOrState, "assetClass")?.trim() ||
     fallback?.assetClass?.trim();
@@ -1206,7 +1225,7 @@ export function buildSymbolResearchTimeframeHref({
   timeframe: string;
   searchParams?: QueryStateInput;
 }) {
-  return buildSymbolResearchRouteHref({
+  return buildSymbolResearchHref({
     exchange,
     symbol,
     timeframe,
@@ -1231,7 +1250,7 @@ export function buildSymbolResearchSwitchHref({
     return "";
   }
 
-  return buildSymbolResearchRouteHref({
+  return buildSymbolResearchHref({
     exchange,
     symbol: normalizedSymbol,
     timeframe,
@@ -1247,6 +1266,7 @@ function SymbolResearchNavigation({
   exchange,
   symbol,
   timeframe,
+  timeframeSelection,
   assetClass,
   scannerReturnHref,
   searchParams,
@@ -1258,6 +1278,7 @@ function SymbolResearchNavigation({
   exchange: string;
   symbol: string;
   timeframe: string;
+  timeframeSelection?: SymbolResearchTimeframeSelection;
   assetClass?: string | null;
   scannerReturnHref: string;
   searchParams: QueryStateInput;
@@ -1298,9 +1319,15 @@ function SymbolResearchNavigation({
             </button>
           </div>
           <p className="mt-2 text-xs text-[var(--muted)]">
-            {symbol} / {timeframe}
+            {symbol} / Selected timeframe: {timeframe}
             {assetClass ? ` / ${toTitleCase(assetClass)}` : ""}
           </p>
+          {timeframeSelection?.fallbackReason === "invalid" ? (
+            <p className="mt-1 text-[11px] text-[var(--muted)]">
+              Fallback timeframe: {timeframe}. Requested timeframe{" "}
+              {timeframeSelection.requestedTimeframe} is not supported.
+            </p>
+          ) : null}
         </div>
 
         <form
@@ -1653,7 +1680,7 @@ function ResearchDecisionSummaryPanel({
           <Fact label="Confidence Note" value={summary.confidenceNote} />
           <Fact label="Key Caution" value={summary.keyCaution} />
           <Fact
-            label="Suggested Research Posture"
+            label="Research Posture"
             value={summary.suggestedResearchPosture}
           />
         </div>
@@ -1687,16 +1714,16 @@ function SignalEvaluationPanel({
         <>
           <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
             <Fact
-              label="Expected Direction"
+              label="Historical Orientation"
               value={readout.expectedDirectionLabel}
             />
             <Fact label="Sample Quality" value={readout.sampleQualityLabel} />
             <Fact label="Source Signals" value={readout.sourceSignals} />
             <Fact label="Completed Signals" value={readout.completedSignals} />
             <Fact label="Selected Horizon" value={readout.selectedHorizonLabel} />
-            <Fact label="Median Return" value={readout.medianReturn} />
-            <Fact label="Direction Match" value={readout.directionMatchRate} />
-            <Fact label="Positive Rate" value={readout.positiveRate} />
+            <Fact label="Historical Median Return" value={readout.medianReturn} />
+            <Fact label="Historical Match Rate" value={readout.directionMatchRate} />
+            <Fact label="Historical Positive Rate" value={readout.positiveRate} />
           </div>
           <div
             className={`mt-4 border px-3 py-3 text-sm ${
@@ -1706,7 +1733,7 @@ function SignalEvaluationPanel({
             }`}
           >
             <div className="text-[11px] uppercase text-[var(--muted)]">
-              Main Interpretation
+              Research Interpretation
             </div>
             <p className="mt-1">{readout.mainInterpretation}</p>
           </div>
@@ -1935,51 +1962,6 @@ function buildSignalEvaluationParams(
   };
 }
 
-function buildSymbolResearchRouteHref({
-  exchange,
-  symbol,
-  timeframe,
-  assetClass,
-  includeLowQuality,
-  limit,
-  from,
-}: {
-  exchange: string;
-  symbol: string;
-  timeframe?: string | null;
-  assetClass?: string | null;
-  includeLowQuality?: boolean | string | null;
-  limit?: number | string | null;
-  from?: string | null;
-}) {
-  const params = new URLSearchParams({
-    timeframe: timeframe?.trim() || defaultTimeframe,
-  });
-  const normalizedAssetClass = assetClass?.trim();
-  const normalizedLimit = normalizePositiveInteger(limit);
-  const normalizedFrom = from?.trim();
-
-  if (normalizedAssetClass) {
-    params.set("assetClass", normalizedAssetClass);
-  }
-
-  if (includeLowQuality === true || includeLowQuality === "true") {
-    params.set("includeLowQuality", "true");
-  }
-
-  if (normalizedLimit !== null) {
-    params.set("limit", String(normalizedLimit));
-  }
-
-  if (normalizedFrom) {
-    params.set("from", normalizedFrom);
-  }
-
-  return `/symbol/${encodeURIComponent(
-    normalizeExchangePathSegment(exchange),
-  )}/${encodeURIComponent(normalizeSymbolResearchInputSymbol(symbol))}?${params.toString()}`;
-}
-
 function getSymbolResearchNavigationState(searchParams?: QueryStateInput) {
   return {
     assetClass: getQueryStateValue(searchParams, "assetClass"),
@@ -2002,10 +1984,6 @@ function getQueryStateValue(input: QueryStateInput, key: string) {
   const value = record[key];
 
   return value === null || value === undefined ? null : String(value);
-}
-
-function normalizeExchangePathSegment(value: string | null | undefined) {
-  return value?.trim().toLowerCase() || "binance";
 }
 
 function normalizePositiveInteger(value: number | string | null | undefined) {

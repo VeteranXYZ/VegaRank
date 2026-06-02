@@ -274,14 +274,17 @@ function HistoricalFollowThroughEvaluationCard({
           value={evaluation.sampleLabel}
         />
         <BehaviorFact
-          label="Direction Match"
+          label="Historical Match"
           value={evaluation.directionMatchLabel}
         />
         <BehaviorFact
           label="Median Follow-through"
           value={evaluation.medianReturnLabel}
         />
-        <BehaviorFact label="Positive Rate" value={evaluation.positiveRateLabel} />
+        <BehaviorFact
+          label="Historical Positive Rate"
+          value={evaluation.positiveRateLabel}
+        />
       </div>
 
       {evaluation.caveats.length > 0 ? (
@@ -384,9 +387,11 @@ function BehaviorHorizons({ horizons }: { horizons: SymbolBehaviorHorizonRow[] }
               <th className="px-2 py-1.5 text-right">Observations</th>
               <th className="px-2 py-1.5 text-right">Avg Return</th>
               <th className="px-2 py-1.5 text-right">Median Return</th>
-              <th className="px-2 py-1.5 text-right">Positive Rate</th>
-              <th className="px-2 py-1.5 text-right">Best</th>
-              <th className="px-2 py-1.5 text-right">Worst</th>
+              <th className="px-2 py-1.5 text-right">
+                Historical Positive Rate
+              </th>
+              <th className="px-2 py-1.5 text-right">Max Observed</th>
+              <th className="px-2 py-1.5 text-right">Min Observed</th>
             </tr>
           </thead>
           <tbody>

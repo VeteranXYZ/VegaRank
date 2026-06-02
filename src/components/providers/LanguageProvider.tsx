@@ -4,16 +4,10 @@ import {
   createContext,
   useCallback,
   useContext,
-  useEffect,
   useMemo,
-  useState,
   type ReactNode,
 } from "react";
-import {
-  dictionaries,
-  languageLabels,
-  type Language,
-} from "@/lib/i18n/dictionaries";
+import { dictionaries, type Language } from "@/lib/i18n/dictionaries";
 
 type LanguageContextValue = {
   language: Language;
@@ -23,37 +17,25 @@ type LanguageContextValue = {
 };
 
 const LanguageContext = createContext<LanguageContextValue | null>(null);
-const storageKey = "trade-scanner-language";
 
 export function LanguageProvider({ children }: { children: ReactNode }) {
-  const [language, setLanguageState] = useState<Language>("en");
-
-  useEffect(() => {
-    const stored = window.localStorage.getItem(storageKey);
-    if (stored === "en" || stored === "zh") {
-      // localStorage is client-only; restore after hydration to keep SSR stable.
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      setLanguageState(stored);
-    }
-  }, []);
-
-  const setLanguage = useCallback((nextLanguage: Language) => {
-    setLanguageState(nextLanguage);
-    window.localStorage.setItem(storageKey, nextLanguage);
-  }, []);
+  const setLanguage = useCallback<LanguageContextValue["setLanguage"]>(
+    () => undefined,
+    [],
+  );
 
   const toggleLanguage = useCallback(() => {
-    setLanguage(language === "en" ? "zh" : "en");
-  }, [language, setLanguage]);
+    return undefined;
+  }, []);
 
   const value = useMemo(
     () => ({
-      language,
+      language: "en" as const,
       setLanguage,
       toggleLanguage,
-      dictionary: dictionaries[language],
+      dictionary: dictionaries.en,
     }),
-    [language, setLanguage, toggleLanguage],
+    [setLanguage, toggleLanguage],
   );
 
   return (
@@ -72,16 +54,5 @@ export function useLanguage() {
 }
 
 export function LanguageToggle() {
-  const { language, toggleLanguage } = useLanguage();
-  const nextLanguage: Language = language === "en" ? "zh" : "en";
-
-  return (
-    <button
-      type="button"
-      onClick={toggleLanguage}
-      className="rounded-md border border-[var(--border)] px-2 py-1 text-xs font-semibold text-[var(--foreground)]"
-    >
-      {languageLabels[nextLanguage]}
-    </button>
-  );
+  return null;
 }

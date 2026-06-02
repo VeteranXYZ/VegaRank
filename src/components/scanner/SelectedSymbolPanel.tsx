@@ -9,11 +9,10 @@ import { HistoricalBehaviorPanel } from "./HistoricalBehaviorPanel";
 import type { ScanResult } from "@/lib/shared/scannerTypes";
 import { formatScannerExplanation } from "@/lib/i18n/formatScannerExplanation";
 import {
-  mapActionBiasToChinese,
-  mapRiskTypeToChinese,
-  mapSignalLabelToChinese,
-  mapStructureToChinese,
-} from "@/lib/scanner/scoring";
+  formatActionBias,
+  formatSignalLabel,
+  toTitleCase,
+} from "@/components/scanner/latestScanUi";
 import type { ReactNode } from "react";
 
 type SelectedSymbolPanelProps = {
@@ -66,14 +65,14 @@ export function SelectedSymbolPanel({ result }: SelectedSymbolPanelProps) {
         </div>
 
         <p className="mb-2 border-l-2 border-[var(--border)] bg-[#0b0f14]/45 px-2 py-1 text-[11px] leading-5 text-[var(--muted)]">
-          {mapSignalLabelToChinese(result.signalLabel)} /{" "}
-          {mapActionBiasToChinese(result.actionBias)}
+          {formatSignalLabel(result.signalLabel)} /{" "}
+          {formatActionBias(result.actionBias)}
         </p>
 
         <InspectorSection title="Score Breakdown">
           <div className="grid grid-cols-2 gap-1">
             <Metric
-              label="Opportunity"
+              label="Setup Score"
               value={formatSigned(result.opportunityScore, 0)}
             />
             <Metric
@@ -81,7 +80,7 @@ export function SelectedSymbolPanel({ result }: SelectedSymbolPanelProps) {
               value={formatSigned(result.confirmationScore, 0)}
             />
             <Metric
-              label="Risk (越高越危险)"
+              label="Risk"
               value={formatSigned(result.riskScore, 0)}
             />
             <Metric label="Trend" value={formatSigned(result.trendScore, 0)} />
@@ -105,15 +104,15 @@ export function SelectedSymbolPanel({ result }: SelectedSymbolPanelProps) {
           <div className="space-y-1">
             <KeyValue
               label="Primary"
-              value={mapStructureToChinese(result.primaryStructure)}
+              value={toTitleCase(result.primaryStructure)}
             />
             <KeyValue
               label="Signal"
-              value={mapSignalLabelToChinese(result.signalLabel)}
+              value={formatSignalLabel(result.signalLabel)}
             />
             <KeyValue
-              label="Action"
-              value={mapActionBiasToChinese(result.actionBias)}
+              label="Review State"
+              value={formatActionBias(result.actionBias)}
             />
             <TagList
               label="Secondary"
@@ -121,7 +120,7 @@ export function SelectedSymbolPanel({ result }: SelectedSymbolPanelProps) {
             />
             <TagList
               label="Risk Types"
-              items={result.detectedRiskTypes.map(mapRiskTypeToChinese)}
+              items={result.detectedRiskTypes.map(toTitleCase)}
             />
           </div>
         </InspectorSection>
@@ -209,10 +208,10 @@ export function SelectedSymbolPanel({ result }: SelectedSymbolPanelProps) {
         </InspectorSection>
 
         <InspectorSection title="Reasons">
-          <FactorList title="多头因素" items={result.bullishFactors} />
-          <FactorList title="空头因素" items={result.bearishFactors} />
-          <FactorList title="风险因素" items={result.riskFactors} />
-          <FactorList title="中性因素" items={result.neutralFactors} />
+          <FactorList title="Constructive Factors" items={result.bullishFactors} />
+          <FactorList title="Weakness Factors" items={result.bearishFactors} />
+          <FactorList title="Risk Factors" items={result.riskFactors} />
+          <FactorList title="Neutral Factors" items={result.neutralFactors} />
         </InspectorSection>
 
         <InspectorSection title="Next Confirmation">

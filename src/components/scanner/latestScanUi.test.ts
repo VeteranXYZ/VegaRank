@@ -34,7 +34,7 @@ describe("latest scan UI helpers", () => {
 
   it("formats readable labels without buy or sell language", () => {
     expect(formatSignalLabel("breakdown_risk")).toBe("Breakdown Risk");
-    expect(formatActionBias("do_not_chase")).toBe("Do Not Chase");
+    expect(formatActionBias("do_not_chase")).toBe("Overheated Review");
     expect(formatQualityTier("wrapped_or_staked")).toBe("Wrapped/Staked");
     expect(formatGroupLabel("eligible")).toBe("Eligible");
     expect(formatGroupHint("eligible")).toBe(
@@ -44,10 +44,10 @@ describe("latest scan UI helpers", () => {
       "Monitor for confirmation; lower or negative-rank watch rows are lower priority.",
     );
     expect(formatGroupHint("overheated")).toBe(
-      "Strong but extended, do not chase.",
+      "Extended conditions require additional review.",
     );
-    expect(formatGroupHint("risk")).toBe("Avoid or wait for repair.");
-    expect(formatGroupHint("neutral")).toBe("No clear edge.");
+    expect(formatGroupHint("risk")).toBe("Risk context requires repair review.");
+    expect(formatGroupHint("neutral")).toBe("Mixed research context.");
     expect(formatGroupHint("insufficient_history")).toBe("Not enough candles.");
     expect(formatReviewTierLabel("watch_high")).toBe("Needs confirmation");
     expect(formatReviewTierLabel("watch_caution")).toBe("Caution");
@@ -82,7 +82,7 @@ describe("latest scan UI helpers", () => {
         structureScore: null,
       }),
     ).toEqual([
-      { label: "Opportunity", value: "72.2" },
+      { label: "Setup Score", value: "72.2" },
       { label: "Confirmation", value: "60.0" },
       { label: "Risk", value: "24.8" },
       { label: "Trend", value: "55.0" },
@@ -109,9 +109,9 @@ describe("latest scan UI helpers", () => {
     expect(formatActionDisplay("watch_only", ["overheat_risk"])).toBe(
       "Watch / Caution",
     );
-    expect(formatActionDisplay("avoid", ["overheat_risk"])).toBe("Avoid");
-    expect(formatActionDisplay("do_not_chase", [])).toBe("Do not chase");
-    expect(formatActionDisplay("ignore", [])).toBe("Ignore");
+    expect(formatActionDisplay("avoid", ["overheat_risk"])).toBe("Risk Review");
+    expect(formatActionDisplay("do_not_chase", [])).toBe("Overheated review");
+    expect(formatActionDisplay("ignore", [])).toBe("Low Priority Review");
     expect(formatActionDisplay("watch_only", [])).toBe("Watch Only");
   });
 
@@ -198,7 +198,7 @@ describe("latest scan UI helpers", () => {
       "Low priority watch because rank score is below zero.",
     ]);
     expect(getReviewStatusReasons({ resultGroup: "risk" })).toEqual([
-      "Risk group has priority over opportunity score.",
+      "Risk group has priority over setup score.",
     ]);
   });
 

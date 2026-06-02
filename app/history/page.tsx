@@ -13,10 +13,6 @@ export default function HistoryPage() {
         <p className="mt-2 text-sm leading-6 text-[var(--muted)]">
           {disabledMessage}
         </p>
-        <p className="mt-3 text-sm leading-6 text-[var(--muted)]">
-          持久化扫描历史当前未启用。本私人工具目前只使用 Remote Binance
-          实时扫描。
-        </p>
       </div>
     </section>
   );

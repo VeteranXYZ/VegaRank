@@ -57,7 +57,7 @@ export const dictionaries = {
       mtfPreset: "MTF Preset",
       allSignals: "All signals",
       allPhases: "All phases",
-      minOpportunity: "Min Opportunity",
+      minOpportunity: "Min Setup Score",
       maxRisk: "Max Risk",
       sortBy: "Sort By",
       limit: "Limit",
@@ -188,7 +188,7 @@ export const dictionaries = {
       subrequestCompact: "Subrequest",
       lowVolumeCompact: "Low volume",
       excludedCompact: "Excluded",
-      sortOpportunityHelp: "Sort by opportunity score",
+      sortOpportunityHelp: "Sort by setup score",
       columns: {
         rank: "#",
         symbol: "Symbol",
@@ -196,7 +196,7 @@ export const dictionaries = {
         signalCompact: "Sig",
         score: "Score",
         ocr: "O/C/R",
-        opportunity: "Opportunity",
+        opportunity: "Setup Score",
         confirmation: "Confirmation",
         rsi: "RSI",
         bbWidth: "BB Width %",
@@ -250,10 +250,10 @@ export const dictionaries = {
       metricHelp: [
         "Avg: average close-to-close return after N candles.",
         "Median: less affected by extreme samples.",
-        "Win: share of samples with return above 0.",
+        "Positive rate: share of samples with return above 0.",
         "MFE: maximum favorable move reached after the setup.",
         "MAE: maximum adverse move after the setup.",
-        "Best/Worst: extreme sample outcomes.",
+        "Max/Min observed: extreme sample outcomes.",
       ],
       recentSamples: "Recent samples",
       time: "Time",
@@ -262,9 +262,9 @@ export const dictionaries = {
       horizon: "Horizon",
       average: "Avg",
       median: "Median",
-      win: "Win",
-      best: "Best",
-      worst: "Worst",
+      win: "Positive Rate",
+      best: "Max Observed",
+      worst: "Min Observed",
       quality: {
         none: "No samples",
         low: "Low sample",
@@ -298,23 +298,24 @@ export const dictionaries = {
       alignmentDistribution: "Alignment Distribution",
       modeDistribution: "Mode Distribution",
       recentSnapshots: "Recent Snapshots",
-      latestLeaders: "Latest Leaders",
-      forwardEvaluation: "Forward Evaluation",
-      forwardEvaluationHelp: "Future 3-candle performance for recent stored snapshots.",
+      latestLeaders: "Latest Review Groups",
+      forwardEvaluation: "Forward Observations",
+      forwardEvaluationHelp:
+        "Observed 3-candle follow-through for recent stored snapshots.",
       validationSummary: "Validation Summary",
       evaluated: "Evaluated",
       completed: "Completed",
       pending: "Pending",
       evaluate: "Evaluate",
       evaluating: "Evaluating",
-      hitRate: "Hit Rate",
+      hitRate: "Positive Rate",
       avgReturn: "Avg Return",
       avgMaxUp: "Avg Max Up",
       avgMaxDown: "Avg Max Down",
       created: "Created",
       scope: "Scope",
       errors: "Errors",
-      topSymbols: "Top Symbols",
+      topSymbols: "Most Frequent Symbols",
       noData: "No data yet.",
       noEvaluations: "No evaluations available.",
       noSignalBuckets: "No signal buckets yet.",
@@ -347,7 +348,7 @@ export const dictionaries = {
       volumeContext:
         "Volume mainly affects confirmation and risk context. It is not a standalone trade signal.",
       opportunityHelp:
-        "Opportunity rewards compression, pullback location, normal momentum, and quiet volume before confirmation.",
+        "Setup score rewards compression, pullback location, normal momentum, and quiet volume before confirmation.",
       confirmationHelp:
         "Confirmation rewards breakout location, volume expansion, moving-average structure, and controlled RSI.",
       riskHelp:
@@ -379,7 +380,7 @@ export const dictionaries = {
       } satisfies Record<MarketPhase, string>,
       signalRule: {
         WATCHLIST:
-          "Opportunity is high and risk is contained, but confirmation is not strong enough yet.",
+          "Setup score is high and risk is contained, but confirmation is not strong enough yet.",
         CONFIRMED:
           "Breakout structure is confirmed, confirmation score is high, and risk remains controlled.",
         TREND_CONTINUATION:
@@ -395,7 +396,7 @@ export const dictionaries = {
     },
     sort: {
       rankScore: "Rank Score",
-      opportunityScore: "Opportunity",
+      opportunityScore: "Setup Score",
       confirmationScore: "Confirmation",
       lowestRiskScore: "Lowest Risk",
     },

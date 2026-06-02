@@ -97,7 +97,7 @@ export function SymbolSignalTimeline({
                     <TimelineFact label="Action" value={item.actionText} />
                     <TimelineFact label="Setup" value={item.setupText} />
                     <TimelineFact label="Rank" value={item.rankScore} />
-                    <TimelineFact label="Opportunity" value={item.opportunityScore} />
+                    <TimelineFact label="Setup Score" value={item.opportunityScore} />
                     <TimelineFact label="Confirmation" value={item.confirmationScore} />
                     <TimelineFact label="Risk" value={item.riskScore} />
                     <TimelineFact label="Run Context" value={item.runContextText} />

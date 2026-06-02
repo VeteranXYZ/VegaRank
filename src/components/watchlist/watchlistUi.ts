@@ -6,6 +6,7 @@ import {
   type MtfScreenerTimeframe,
 } from "@/components/screener/multiTimeframeScreenerUi";
 import { formatGroupLabel, formatScore } from "@/components/scanner/latestScanUi";
+import { buildSymbolResearchHref } from "@/components/symbol/symbolResearchLinks";
 
 export const WATCHLIST_STORAGE_KEY = "trade-scanner.watchlist.symbols";
 export const DEFAULT_WATCHLIST_SYMBOLS = [
@@ -99,7 +100,7 @@ export const watchlistSortOptions = [
   { field: "1d_rank", label: "1d Rank" },
   { field: "1w_rank", label: "1w Rank" },
   { field: "higher_timeframe_safety", label: "Higher-Timeframe Safety" },
-  { field: "best_short_term_rank", label: "Best Short-Term Rank" },
+  { field: "best_short_term_rank", label: "Short-Term Rank" },
 ] as const;
 
 export type WatchlistSortField =
@@ -498,15 +499,13 @@ export function buildWatchlistResearchHref({
     return null;
   }
 
-  const params = new URLSearchParams({
+  return buildSymbolResearchHref({
+    exchange: row.mtfRow.exchange,
+    symbol: row.symbol,
     timeframe,
     assetClass,
     from: "watchlist",
   });
-
-  return `/symbol/${encodeURIComponent(row.mtfRow.exchange)}/${encodeURIComponent(
-    row.symbol,
-  )}?${params.toString()}`;
 }
 
 export function hasHigherTimeframeRisk(row: WatchlistRow) {

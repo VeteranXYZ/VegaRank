@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { MarketContextPanel } from "@/components/market-context/MarketContextPanel";
 import { fetchMarketContext } from "@/components/market-context/marketContextUi";
+import { shortResearchDisclaimer } from "@/components/researchCopy";
 import { formatDateTime } from "@/components/scanner/latestScanUi";
 import {
   MTF_SCREENER_TIMEFRAMES,
@@ -224,8 +225,8 @@ export function WatchlistPageClient() {
               Watchlist Multi-Timeframe
             </h1>
             <p className="mt-1 max-w-3xl text-[11px] leading-5 text-[var(--muted)]">
-              Research-only MTF view for selected Binance USDT crypto symbols.
-              All selected symbols remain visible by default.
+              {shortResearchDisclaimer} MTF view for selected Binance USDT
+              crypto symbols. All selected symbols remain visible by default.
             </p>
           </div>
           <button
@@ -298,7 +299,7 @@ export function WatchlistPageClient() {
           )}
 
           <footer className="border border-[var(--border)] bg-[var(--panel)] px-3 py-2 text-[11px] text-[var(--muted)]">
-            Research output only. Not financial advice.
+            {shortResearchDisclaimer}
           </footer>
         </main>
       </div>
@@ -1014,7 +1015,7 @@ function ResearchLink({ row }: { row: WatchlistRow }) {
       href={href}
       className="inline-flex border border-[var(--border)] px-2 py-1 text-[11px] font-semibold text-[var(--foreground)] hover:border-[var(--info)]"
     >
-      Open {timeframe} Research
+      {timeframe} Research
     </Link>
   );
 }

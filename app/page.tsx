@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { longResearchDisclaimer } from "@/components/researchCopy";
 
 export default function HomePage() {
   return (
@@ -38,9 +39,7 @@ export default function HomePage() {
       </div>
 
       <p className="max-w-3xl rounded-md border border-[var(--border)] bg-[var(--panel)] p-4 text-sm leading-6 text-[var(--muted)]">
-        This tool is for technical screening and research only. It does not
-        provide financial advice, investment advice, trading recommendations,
-        or profit guarantees. It does not place trades or connect to user
+        {longResearchDisclaimer} It does not place trades or connect to user
         wallets or exchange accounts.
       </p>
     </section>

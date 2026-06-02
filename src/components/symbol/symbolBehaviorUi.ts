@@ -1054,7 +1054,7 @@ function getFollowThroughPosture({
 
       return "Mixed overextension follow-through";
     case "neutral":
-      return "No clear historical follow-through edge";
+      return "Mixed historical follow-through";
   }
 }
 
@@ -1082,7 +1082,7 @@ function getFollowThroughDirectionMatchLabel({
   directionMatchPct?: number;
 }) {
   if (context === "neutral") {
-    return "No clear direction match";
+    return "Mixed historical match";
   }
 
   if (directionMatchPct === undefined) {
@@ -1127,8 +1127,8 @@ function getFollowThroughInterpretation({
       return `Prior overheated signals showed pullback or cooling behavior over ${selectedHorizonLabel} in this sample.`;
     case "Overheated signals continued higher in this sample":
       return `Overheated signals continued higher over ${selectedHorizonLabel} in this sample, but this does not remove overextension risk.`;
-    case "No clear historical follow-through edge":
-      return "Historical follow-through does not show a clear edge in this sample.";
+    case "Mixed historical follow-through":
+      return "Historical follow-through is mixed in this sample.";
     default:
       if (context === "watch") {
         return `Watchlist follow-through was mixed over ${selectedHorizonLabel}; confirmation is still needed.`;

@@ -50,8 +50,8 @@ describe("symbol research UI helpers", () => {
     expect(labels).toContain("Manual review");
     expect(labels).toContain("Caution review");
     expect(labels).toContain("Low priority review");
-    expect(labels).toContain("Do not chase");
-    expect(labels).toContain("Avoid or wait for repair");
+    expect(labels).toContain("Overheated review");
+    expect(labels).toContain("Risk review");
     expect(labels.join(" ")).not.toMatch(/\b(buy|sell|entry|long|short)\b/i);
   });
 
@@ -71,7 +71,7 @@ describe("symbol research UI helpers", () => {
     ).toEqual([
       { label: "Rank", value: "81.2" },
       { label: "Final Signal", value: "70.0" },
-      { label: "Opportunity", value: "-" },
+      { label: "Setup Score", value: "-" },
       { label: "Confirmation", value: "62.1" },
       { label: "Risk", value: "20.0" },
       { label: "Trend", value: "54.0" },
@@ -110,11 +110,11 @@ describe("symbol research UI helpers", () => {
   });
 
   it.each([
-    ["risk", "Risk / wait for repair"],
-    ["eligible", "Manual review candidate"],
-    ["watch", "Watch for confirmation"],
-    ["overheated", "Do not chase"],
-    ["neutral", "No clear edge"],
+    ["risk", "Risk review"],
+    ["eligible", "Manual review context"],
+    ["watch", "Confirmation review"],
+    ["overheated", "Overheated review"],
+    ["neutral", "Mixed research context"],
   ])("builds a conservative research summary for %s", (resultGroup, stance) => {
     const summary = buildSymbolResearchSummary({
       resultGroup,
@@ -166,7 +166,7 @@ describe("symbol research UI helpers", () => {
     });
 
     expect(summary.summaryLabel).toBe("Risk context reinforced");
-    expect(summary.suggestedResearchPosture).toBe("Avoid for now");
+    expect(summary.suggestedResearchPosture).toBe("Risk review only");
     expect(summary.behaviorSupport).toContain(
       "prior similar risk signals tended to continue lower",
     );
@@ -192,7 +192,7 @@ describe("symbol research UI helpers", () => {
       },
     });
 
-    expect(summary.suggestedResearchPosture).toBe("Caution / wait for repair");
+    expect(summary.suggestedResearchPosture).toBe("Caution review");
     expect(summary.behaviorSupport).toBe(
       "Historical behavior sample is insufficient.",
     );
@@ -221,13 +221,13 @@ describe("symbol research UI helpers", () => {
       },
     });
 
-    expect(summary.summaryLabel).toBe("Candidate with higher-timeframe caution");
-    expect(summary.suggestedResearchPosture).toBe("Watch only");
+    expect(summary.summaryLabel).toBe("Higher-timeframe caution");
+    expect(summary.suggestedResearchPosture).toBe("Manual review");
     expect(summary.multiTimeframeAlignment).toContain("Higher-timeframe caution");
     expect(summary.keyCaution).toBe("Higher-timeframe risk is present.");
   });
 
-  it("keeps eligible context as a deeper research candidate when behavior is supportive", () => {
+  it("keeps eligible context as a deeper research context when behavior is supportive", () => {
     const summary = buildResearchDecisionSummary({
       selectedTimeframe: "4h",
       selectedSignal: makeDecisionSignal("4h", "eligible"),
@@ -248,15 +248,15 @@ describe("symbol research UI helpers", () => {
 
     expect(summary.summaryLabel).toBe("Constructive research context");
     expect(summary.suggestedResearchPosture).toBe(
-      "Candidate for deeper research",
+      "Deeper research context",
     );
     expect(summary.behaviorSupport).toContain("Supportive");
   });
 
   it.each([
-    ["watch", "Watch only", "Watch context"],
-    ["overheated", "Caution / wait for repair", "Overheated caution"],
-    ["neutral", "Insufficient data", "No clear edge"],
+    ["watch", "Manual review", "Watch context"],
+    ["overheated", "Caution review", "Overheated caution"],
+    ["neutral", "Insufficient data", "Mixed research context"],
   ])(
     "builds a conservative decision summary for %s",
     (resultGroup, posture, label) => {
@@ -296,7 +296,7 @@ describe("symbol research UI helpers", () => {
       "Historical behavior context is unavailable.",
     );
     expect(summary.suggestedResearchPosture).toBe(
-      "Candidate for deeper research",
+      "Deeper research context",
     );
     expect(JSON.stringify(summary)).not.toMatch(
       /\b(buy|sell|long|short|entry|exit|profit|prediction|accuracy)\b/i,

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { LanguageToggle, useLanguage } from "@/components/providers/LanguageProvider";
+import { useLanguage } from "@/components/providers/LanguageProvider";
 
 export function Header() {
   const { dictionary: t } = useLanguage();
@@ -18,7 +18,6 @@ export function Header() {
           <Link href="/watchlist">Watchlist</Link>
           <Link href="/history">{t.nav.history}</Link>
           <Link href="/symbol/binance/BTCUSDT">{t.nav.btc}</Link>
-          <LanguageToggle />
         </nav>
       </div>
     </header>

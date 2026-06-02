@@ -77,8 +77,8 @@ const groupDescriptions: Record<string, string> = {
 const actionLabels: Record<string, string> = {
   eligible: "Manual review",
   watch_only: "Review only",
-  do_not_chase: "Do not chase",
-  avoid: "Wait for repair",
+  do_not_chase: "Overheated review",
+  avoid: "Repair review",
   ignore: "Low priority review",
 };
 
