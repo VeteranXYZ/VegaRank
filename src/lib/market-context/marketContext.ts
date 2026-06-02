@@ -115,6 +115,17 @@ export type MarketContextResponse = {
 };
 
 type ProxyDirection = "risk_on" | "risk_off" | "mixed" | "unstable" | "unavailable";
+type EthConfirmationTone =
+  | "confirms_risk"
+  | "confirms_constructive"
+  | "mixed"
+  | "diverges"
+  | "insufficient";
+
+type EthConfirmation = {
+  tone: EthConfirmationTone;
+  label: string;
+};
 
 const MAJOR_RISK_TYPES = new Set([
   "distribution_risk",
@@ -153,18 +164,26 @@ export function buildMarketContextResponse({
     marketContext,
     tacticalContext,
   });
+  const ethConfirmation = classifyEthConfirmation(proxies);
   const warnings = buildWarnings({
     proxies,
     structuralContext,
     marketContext,
     tacticalContext,
+    ethConfirmation,
   });
   const confidence = classifyConfidence({
     proxies,
     structuralContext,
     marketContext,
   });
-  const summaryBase = getCombinedSummary(combinedContext);
+  const summaryBase = getCombinedSummary({
+    combinedContext,
+    structuralContext,
+    marketContext,
+    tacticalContext,
+    ethConfirmation,
+  });
 
   return {
     ok: true,
@@ -183,7 +202,7 @@ export function buildMarketContextResponse({
         structuralContext,
         marketContext,
         tacticalContext,
-        proxies,
+        ethConfirmation,
       }),
       warnings,
     },
@@ -372,21 +391,26 @@ function buildWarnings({
   structuralContext,
   marketContext,
   tacticalContext,
+  ethConfirmation,
 }: {
   proxies: MarketContextProxyMap;
   structuralContext: StructuralContext;
   marketContext: DailyMarketContext;
   tacticalContext: TacticalContext;
+  ethConfirmation: EthConfirmation;
 }) {
   const warnings: string[] = [];
-  const weeklyPair = getDirectionPair(proxies.BTCUSDT["1w"], proxies.ETHUSDT["1w"]);
-  const dailyPair = getDirectionPair(proxies.BTCUSDT["1d"], proxies.ETHUSDT["1d"]);
 
-  if (
-    isDivergentDirection(weeklyPair[0], weeklyPair[1]) ||
-    isDivergentDirection(dailyPair[0], dailyPair[1])
-  ) {
+  if (ethConfirmation.tone === "diverges") {
     warnings.push("BTC and ETH context diverge.");
+  }
+
+  if (ethConfirmation.tone === "mixed") {
+    warnings.push("ETH confirmation is mixed versus BTC.");
+  }
+
+  if (ethConfirmation.tone === "insufficient") {
+    warnings.push("ETH confirmation data is insufficient.");
   }
 
   if (
@@ -422,24 +446,34 @@ function buildKeyPoints({
   structuralContext,
   marketContext,
   tacticalContext,
-  proxies,
+  ethConfirmation,
 }: {
   structuralContext: StructuralContext;
   marketContext: DailyMarketContext;
   tacticalContext: TacticalContext;
-  proxies: MarketContextProxyMap;
+  ethConfirmation: EthConfirmation;
 }) {
   return [
     `BTC 1w structural context: ${formatContextValue(structuralContext)}.`,
     `BTC 1d market context: ${formatContextValue(marketContext)}.`,
     `BTC 4h tactical context: ${formatContextValue(tacticalContext)}.`,
-    `ETH confirmation: ${formatEthConfirmation(proxies)}.`,
+    `ETH confirmation: ${ethConfirmation.label}.`,
   ];
 }
 
-function getCombinedSummary(
-  combinedContext: CombinedMarketContext,
-): Pick<MarketContextResponse["summary"], "title" | "description" | "researchPosture"> {
+function getCombinedSummary({
+  combinedContext,
+  structuralContext,
+  marketContext,
+  tacticalContext,
+  ethConfirmation,
+}: {
+  combinedContext: CombinedMarketContext;
+  structuralContext: StructuralContext;
+  marketContext: DailyMarketContext;
+  tacticalContext: TacticalContext;
+  ethConfirmation: EthConfirmation;
+}): Pick<MarketContextResponse["summary"], "title" | "description" | "researchPosture"> {
   switch (combinedContext) {
     case "risk_off_continuation":
       return {
@@ -463,6 +497,20 @@ function getCombinedSummary(
         researchPosture: "constructive",
       };
     case "unstable_transition":
+      if (
+        marketContext === "risk_off" &&
+        tacticalContext === "short_term_weakness"
+      ) {
+        return {
+          title: "Risk-oriented transition",
+          description: buildRiskOrientedTransitionDescription({
+            structuralContext,
+            ethConfirmation,
+          }),
+          researchPosture: "defensive",
+        };
+      }
+
       return {
         title: "Unstable transition",
         description:
@@ -486,26 +534,128 @@ function getCombinedSummary(
   }
 }
 
-function formatEthConfirmation(proxies: MarketContextProxyMap) {
-  const weeklyPair = getDirectionPair(proxies.BTCUSDT["1w"], proxies.ETHUSDT["1w"]);
-  const dailyPair = getDirectionPair(proxies.BTCUSDT["1d"], proxies.ETHUSDT["1d"]);
+function buildRiskOrientedTransitionDescription({
+  structuralContext,
+  ethConfirmation,
+}: {
+  structuralContext: StructuralContext;
+  ethConfirmation: EthConfirmation;
+}) {
+  if (ethConfirmation.tone === "confirms_risk") {
+    return `BTC daily and tactical contexts are risk-oriented while weekly BTC ${formatStructuralSummary(structuralContext)}. ETH confirms broader weakness, so short-term repair signals should be interpreted cautiously.`;
+  }
 
-  if (weeklyPair.includes("unavailable") || dailyPair.includes("unavailable")) {
-    return "unavailable on one or more confirmation timeframes";
+  return `BTC daily and tactical contexts are risk-oriented while weekly BTC ${formatStructuralSummary(structuralContext)}. ${formatEthSummarySentence(ethConfirmation)} Short-term repair signals should be interpreted cautiously.`;
+}
+
+function classifyEthConfirmation(proxies: MarketContextProxyMap): EthConfirmation {
+  const btcDirections = getProxyDirections(proxies.BTCUSDT);
+  const ethDirections = getProxyDirections(proxies.ETHUSDT);
+
+  if (ethDirections.some((direction) => direction === "unavailable")) {
+    return {
+      tone: "insufficient",
+      label: "data insufficient",
+    };
   }
 
   if (
-    isDivergentDirection(weeklyPair[0], weeklyPair[1]) ||
-    isDivergentDirection(dailyPair[0], dailyPair[1])
+    countDirections(btcDirections, "risk_off") >= 2 &&
+    countDirections(ethDirections, "risk_off") >= 2
   ) {
-    return "divergent from BTC on at least one higher timeframe";
+    return {
+      tone: "confirms_risk",
+      label: "confirms broader risk",
+    };
   }
 
-  if (weeklyPair[0] === weeklyPair[1] && dailyPair[0] === dailyPair[1]) {
-    return "aligned with BTC on 1w and 1d";
+  if (
+    countDirections(btcDirections, "risk_on") >= 2 &&
+    countDirections(ethDirections, "risk_on") >= 2
+  ) {
+    return {
+      tone: "confirms_constructive",
+      label: "confirms constructive context",
+    };
   }
 
-  return "mixed versus BTC";
+  if (
+    isBroadlyDivergent({
+      btcDirections,
+      ethDirections,
+    })
+  ) {
+    return {
+      tone: "diverges",
+      label: "diverges from BTC",
+    };
+  }
+
+  return {
+    tone: "mixed",
+    label: "mixed versus BTC",
+  };
+}
+
+function getProxyDirections(
+  proxies: Record<MarketContextTimeframe, MarketContextProxy>,
+) {
+  return MARKET_CONTEXT_TIMEFRAMES.map((timeframe) =>
+    getProxyDirection(proxies[timeframe]),
+  );
+}
+
+function countDirections(
+  directions: ProxyDirection[],
+  direction: ProxyDirection,
+) {
+  return directions.filter((value) => value === direction).length;
+}
+
+function isBroadlyDivergent({
+  btcDirections,
+  ethDirections,
+}: {
+  btcDirections: ProxyDirection[];
+  ethDirections: ProxyDirection[];
+}) {
+  const btcRiskCount = countDirections(btcDirections, "risk_off");
+  const btcConstructiveCount = countDirections(btcDirections, "risk_on");
+  const ethRiskCount = countDirections(ethDirections, "risk_off");
+  const ethConstructiveCount = countDirections(ethDirections, "risk_on");
+
+  return (
+    (btcRiskCount >= 2 && ethConstructiveCount >= 2) ||
+    (btcConstructiveCount >= 2 && ethRiskCount >= 2)
+  );
+}
+
+function formatStructuralSummary(structuralContext: StructuralContext) {
+  switch (structuralContext) {
+    case "long_term_risk_on":
+      return "remains constructive";
+    case "long_term_risk_off":
+      return "remains weak";
+    case "long_term_mixed":
+      return "remains mixed";
+    case "insufficient_data":
+      return "is unavailable";
+  }
+}
+
+function formatEthSummarySentence(ethConfirmation: EthConfirmation) {
+  switch (ethConfirmation.tone) {
+    case "confirms_constructive":
+      return "ETH is constructive, creating cross-asset tension.";
+    case "diverges":
+      return "ETH diverges from BTC, reducing confidence.";
+    case "insufficient":
+      return "ETH confirmation data is insufficient.";
+    case "mixed":
+      return "ETH confirmation is mixed versus BTC.";
+    case "confirms_risk":
+      return "ETH confirms broader weakness.";
+  }
 }
 
 function getDirectionPair(
@@ -547,7 +697,7 @@ function isDivergentDirection(
   }
 
   if (btcDirection === "risk_off") {
-    return ethDirection === "risk_on" || ethDirection === "mixed";
+    return ethDirection === "risk_on";
   }
 
   if (btcDirection === "risk_on") {

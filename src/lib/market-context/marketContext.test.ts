@@ -37,6 +37,9 @@ describe("market context classification", () => {
       confidence: "high",
     });
     expect(response.summary.researchPosture).toBe("constructive");
+    expect(getEthKeyPoint(response)).toBe(
+      "ETH confirmation: confirms constructive context.",
+    );
     expect(response.summary.warnings).toContain(
       "Research-only context. Not a trading signal.",
     );
@@ -69,6 +72,51 @@ describe("market context classification", () => {
     });
     expect(response.summary.title).toBe("Broad risk-off context");
     expect(response.summary.researchPosture).toBe("defensive");
+    expect(getEthKeyPoint(response)).toBe(
+      "ETH confirmation: confirms broader risk.",
+    );
+  });
+
+  it("describes mixed weekly BTC with daily and tactical risk as ETH-confirmed broader risk", () => {
+    const response = buildMarketContextResponse({
+      assetClass: "crypto",
+      generatedAt,
+      proxies: makeProxyMap({
+        BTCUSDT: {
+          "1w": signal({
+            timeframe: "1w",
+            group: "watch",
+            rankScore: -3.5,
+            signalLabel: "watch",
+            actionBias: "watch_only",
+          }),
+          "1d": riskSignal("1d"),
+          "4h": riskSignal("4h"),
+        },
+        ETHUSDT: {
+          "1w": riskSignal("1w"),
+          "1d": riskSignal("1d"),
+          "4h": riskSignal("4h"),
+        },
+      }),
+    });
+
+    expect(response.context).toMatchObject({
+      structuralContext: "long_term_mixed",
+      marketContext: "risk_off",
+      tacticalContext: "short_term_weakness",
+      combinedContext: "unstable_transition",
+      confidence: "medium",
+    });
+    expect(getEthKeyPoint(response)).toBe(
+      "ETH confirmation: confirms broader risk.",
+    );
+    expect(response.summary.title).toBe("Risk-oriented transition");
+    expect(response.summary.description).toBe(
+      "BTC daily and tactical contexts are risk-oriented while weekly BTC remains mixed. ETH confirms broader weakness, so short-term repair signals should be interpreted cautiously.",
+    );
+    expect(response.summary.description).not.toContain("Short-term strength");
+    expect(response.summary.description).not.toContain("overextension");
   });
 
   it("classifies daily repair inside weak weekly structure as bear-market repair", () => {
@@ -193,9 +241,67 @@ describe("market context classification", () => {
 
     expect(response.context.combinedContext).toBe("risk_off_continuation");
     expect(response.context.confidence).toBe("low");
+    expect(getEthKeyPoint(response)).toBe("ETH confirmation: diverges from BTC.");
     expect(response.summary.warnings).toContain("BTC and ETH context diverge.");
   });
+
+  it("labels ETH as mixed versus BTC when BTC is risk-oriented and ETH is not broadly aligned", () => {
+    const response = buildMarketContextResponse({
+      assetClass: "crypto",
+      generatedAt,
+      proxies: makeProxyMap({
+        BTCUSDT: {
+          "1w": riskSignal("1w"),
+          "1d": riskSignal("1d"),
+          "4h": riskSignal("4h"),
+        },
+        ETHUSDT: {
+          "1w": signal({ timeframe: "1w", group: "neutral", rankScore: -2 }),
+          "1d": signal({ timeframe: "1d", group: "watch", rankScore: -3 }),
+          "4h": riskSignal("4h"),
+        },
+      }),
+    });
+
+    expect(response.context.combinedContext).toBe("risk_off_continuation");
+    expect(getEthKeyPoint(response)).toBe("ETH confirmation: mixed versus BTC.");
+    expect(response.summary.warnings).toContain(
+      "ETH confirmation is mixed versus BTC.",
+    );
+  });
+
+  it("labels missing ETH data as insufficient and does not raise confidence to high", () => {
+    const response = buildMarketContextResponse({
+      assetClass: "crypto",
+      generatedAt,
+      proxies: makeProxyMap({
+        BTCUSDT: {
+          "1w": signal({ timeframe: "1w", group: "eligible", rankScore: 92 }),
+          "1d": signal({ timeframe: "1d", group: "eligible", rankScore: 84 }),
+          "4h": signal({ timeframe: "4h", group: "watch", rankScore: 38 }),
+        },
+        ETHUSDT: {
+          "1w": createUnavailableMarketContextProxy("1w", "missing_symbol"),
+          "1d": createUnavailableMarketContextProxy("1d", "missing_symbol"),
+          "4h": createUnavailableMarketContextProxy("4h", "missing_symbol"),
+        },
+      }),
+    });
+
+    expect(response.context.combinedContext).toBe("bull_trend_continuation");
+    expect(response.context.confidence).toBe("medium");
+    expect(getEthKeyPoint(response)).toBe("ETH confirmation: data insufficient.");
+    expect(response.summary.warnings).toContain(
+      "ETH confirmation data is insufficient.",
+    );
+  });
 });
+
+function getEthKeyPoint(response: ReturnType<typeof buildMarketContextResponse>) {
+  return response.summary.keyPoints.find((point) =>
+    point.startsWith("ETH confirmation:"),
+  );
+}
 
 function makeProxyMap(
   overrides: Partial<
