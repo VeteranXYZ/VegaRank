@@ -727,6 +727,16 @@ describe("trade-api historical snapshots", () => {
       timeframe: "4h",
       assetClass: "crypto",
     });
+    expect(body.summary).toEqual({
+      totalRows: 3,
+      returnedRows: 3,
+      completeCount: 1,
+      partialCount: 1,
+      missingCount: 1,
+      window: 3,
+      timeframe: "4h",
+      runId: historyRunId,
+    });
     expect(body.metadata.disclaimer).toContain(
       "Historical observations are not predictions",
     );
@@ -763,6 +773,44 @@ describe("trade-api historical snapshots", () => {
       timeframe: undefined,
       assetClass: "crypto",
       window: 3,
+    });
+  });
+
+  it("returns a safe observation summary when a run has signals but no rows are returned", async () => {
+    getHistoricalSnapshotObservationsMock.mockResolvedValue({
+      run: makeRun(historyRunId, {
+        timeframe: "4h",
+        symbolsTotal: 413,
+        symbolsScanned: 413,
+        signalsCreated: 413,
+        params: { assetClass: "crypto", allSymbols: true },
+      }),
+      rows: [],
+    });
+
+    const response = await requestTradeApi(
+      `/api/history/snapshot-observations?runId=${historyRunId}&assetClass=crypto&window=3`,
+    );
+    const body = JSON.parse(response.body);
+
+    expect(response.status).toBe(200);
+    expect(body.ok).toBe(true);
+    expect(body.rows).toEqual([]);
+    expect(body.metadata).toMatchObject({
+      rowCount: 0,
+      completeCount: 0,
+      partialCount: 0,
+      missingCount: 0,
+    });
+    expect(body.summary).toEqual({
+      totalRows: 413,
+      returnedRows: 0,
+      completeCount: 0,
+      partialCount: 0,
+      missingCount: 413,
+      window: 3,
+      timeframe: "4h",
+      runId: historyRunId,
     });
   });
 

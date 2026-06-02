@@ -2520,6 +2520,12 @@ async function handleHistorySnapshotObservations(
       .map(buildHistoricalSnapshotObservationRow)
       .sort(compareScanResultGroupItems);
     const counts = buildHistoricalSnapshotObservationCounts(rows);
+    const summary = buildHistoricalSnapshotObservationSummary({
+      run: observations.run,
+      rows,
+      counts,
+      window: window.value,
+    });
 
     sendJson(response, 200, {
       ok: true,
@@ -2530,6 +2536,7 @@ async function handleHistorySnapshotObservations(
         assetClass: assetClass.value,
       }),
       rows,
+      summary,
       metadata: {
         window: window.value,
         selectedWindow: window.value,
@@ -2620,6 +2627,36 @@ function buildHistoricalSnapshotObservationCounts(
   rows: ReturnType<typeof buildHistoricalSnapshotObservationRow>[],
 ) {
   return countHistoricalSnapshotObservationStatuses(rows);
+}
+
+function buildHistoricalSnapshotObservationSummary({
+  run,
+  rows,
+  counts,
+  window,
+}: {
+  run: ScanRunRecord;
+  rows: ReturnType<typeof buildHistoricalSnapshotObservationRow>[];
+  counts: ReturnType<typeof buildHistoricalSnapshotObservationCounts>;
+  window: HistoricalSnapshotObservationWindow;
+}) {
+  const expectedRows =
+    rows.length > 0
+      ? rows.length
+      : typeof run.signalsCreated === "number" && run.signalsCreated > 0
+        ? run.signalsCreated
+        : rows.length;
+
+  return {
+    totalRows: expectedRows,
+    returnedRows: rows.length,
+    completeCount: rows.length > 0 ? counts.complete : 0,
+    partialCount: rows.length > 0 ? counts.partial : 0,
+    missingCount: rows.length > 0 ? counts.missing : expectedRows,
+    window,
+    timeframe: run.timeframe,
+    runId: run.id,
+  };
 }
 
 async function findRecommendedHistoryObservationRun({

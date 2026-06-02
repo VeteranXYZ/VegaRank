@@ -387,9 +387,68 @@ describe("HistoryPageClient display formatting", () => {
       readinessError: null,
     })).toBe(recommendedRun.runId);
     expect(html).toContain("Using most recent observable run");
-    expect(html).toContain("Selected stored run 11111111");
-    expect(html).toContain("Observation run 22222222");
+    expect(html).toContain("Latest run: 11111111, status: Market data appears stale");
+    expect(html).toContain("Observation run: 22222222, status: Ready");
     expect(html).toContain("Observation finished 2026-06-02 02:52");
+    expect(html).toContain("Latest run has stale market data coverage");
+    expect(html).toContain("Observed Change");
+    expect(html).not.toContain("Forward observation unavailable");
+  });
+
+  it("shows a non-error mature fallback note while the latest run waits for future candles", () => {
+    const selectedRun = makeObservationRun({
+      runId: "11111111-1111-4111-8111-111111111111",
+      finishedAt: "2026-06-02T15:05:15.000Z",
+    });
+    const observationRun = makeObservationRun({
+      runId: "22222222-2222-4222-8222-222222222222",
+      finishedAt: "2026-06-02T02:52:00.000Z",
+    });
+    const readiness = makeReadinessResponse({
+      selectedRun: makeReadinessRun({
+        run: selectedRun,
+        state: "not_ready",
+        blocker: "time_maturity",
+        rowCount: 409,
+        completeCount: 0,
+        partialCount: 0,
+        missingCount: 409,
+        dominantMissingReason: "no_future_candles",
+        dominantMissingReasonCount: 409,
+      }),
+      recommendedRun: makeReadinessRun({ run: observationRun }),
+      observationRun: makeReadinessRun({ run: observationRun }),
+      blocker: "time_maturity",
+    });
+    const response = makeObservationResponse({ run: observationRun });
+    const uiState = makeUiState({
+      selectedRunId: selectedRun.runId,
+      readiness,
+      response,
+    });
+    const html = renderToStaticMarkup(
+      createElement(ForwardObservationSection, {
+        window: 3,
+        onWindowChange: () => undefined,
+        response,
+        readiness,
+        uiState,
+      }),
+    );
+
+    expect(uiState.status).toBe("observation_ready");
+    expect(getForwardObservationRowsRunId({
+      selectedRunId: selectedRun.runId,
+      readiness,
+      readinessError: null,
+    })).toBe(observationRun.runId);
+    expect(html).toContain(
+      "Latest run is still waiting for future candles. Showing the most recent mature full-universe run instead.",
+    );
+    expect(html).toContain("Latest run: 11111111, status: Waiting for future candles");
+    expect(html).toContain("Observation run: 22222222, status: Ready");
+    expect(html).toContain("Observed Change");
+    expect(html).not.toContain("Forward observation unavailable");
   });
 
   it("renders readiness unavailable without enabling observation row fetch", () => {
@@ -506,8 +565,108 @@ describe("HistoryPageClient display formatting", () => {
       readinessError: null,
     })).toBe(selectedRun.runId);
     expect(html).toContain("Using selected run");
-    expect(html).toContain("Observation run 11111111");
+    expect(html).toContain("Observation run: 11111111, status: Ready");
     expect(html).toContain("Observed Change");
+  });
+
+  it("derives a fallback summary when rows exist but the API summary is null", () => {
+    const selectedRun = makeObservationRun();
+    const readiness = makeReadinessResponse({
+      selectedRun: makeReadinessRun({ run: selectedRun }),
+      observationRun: makeReadinessRun({ run: selectedRun }),
+    });
+    const response = makeObservationResponse({
+      run: selectedRun,
+      summary: null,
+      rows: [
+        makeObservationRow({
+          id: "complete-row",
+          symbol: "SEIUSDT",
+          dataStatus: "complete",
+          missingReason: null,
+        }),
+        makeObservationRow({
+          id: "partial-row",
+          symbol: "RISKUSDT",
+          dataStatus: "partial",
+          missingReason: "insufficient_future_candles",
+        }),
+      ],
+    });
+    const uiState = makeUiState({
+      selectedRunId: selectedRun.runId,
+      readiness,
+      response,
+    });
+    const html = renderToStaticMarkup(
+      createElement(ForwardObservationSection, {
+        window: 3,
+        onWindowChange: () => undefined,
+        response,
+        readiness,
+        uiState,
+      }),
+    );
+
+    expect(uiState.status).toBe("observation_ready");
+    expect(uiState.summary).toMatchObject({
+      totalRows: 2,
+      returnedRows: 2,
+      completeCount: 1,
+      partialCount: 1,
+      missingCount: 0,
+    });
+    expect(html).toContain("Observed Change");
+    expect(html).not.toContain("Observation rows not returned");
+  });
+
+  it("renders a diagnostic when a ready observation run returns no rows and null summary", () => {
+    const selectedRun = makeObservationRun({
+      runId: "11111111-1111-4111-8111-111111111111",
+      signalsCreated: 413,
+    });
+    const readiness = makeReadinessResponse({
+      selectedRun: makeReadinessRun({ run: selectedRun }),
+      observationRun: makeReadinessRun({ run: selectedRun }),
+    });
+    const response = makeObservationResponse({
+      run: selectedRun,
+      summary: null,
+      metadata: {
+        rowCount: 0,
+        completeCount: 0,
+        partialCount: 0,
+        missingCount: 0,
+      },
+      rows: [],
+    });
+    const uiState = makeUiState({
+      selectedRunId: selectedRun.runId,
+      readiness,
+      response,
+    });
+    const html = renderToStaticMarkup(
+      createElement(ForwardObservationSection, {
+        window: 3,
+        onWindowChange: () => undefined,
+        response,
+        readiness,
+        uiState,
+      }),
+    );
+
+    expect(uiState.status).toBe("observation_ready_summary_missing");
+    expect(uiState.summary).toMatchObject({
+      totalRows: 413,
+      returnedRows: 0,
+      missingCount: 413,
+    });
+    expect(html).toContain("Observation rows not returned");
+    expect(html).toContain("Observation run is available, but no observation rows were returned.");
+    expect(html).toContain("0 / 413");
+    expect(html).not.toContain(
+      "No forward observation rows are available for the selected observation run.",
+    );
   });
 
   it("renders observation row fetch failures without endless loading", () => {
@@ -697,6 +856,16 @@ function makeHistoryRow(overrides: {
 function makeObservationResponse(
   overrides: Partial<{
     run: ReturnType<typeof makeObservationRun>;
+    summary: {
+      totalRows: number;
+      returnedRows: number;
+      completeCount: number;
+      partialCount: number;
+      missingCount: number;
+      window: 1 | 3 | 5 | 10;
+      timeframe: "1h" | "4h" | "1d" | "1w";
+      runId: string;
+    } | null;
     metadata: Partial<{
       window: 1 | 3 | 5 | 10;
       selectedWindow: 1 | 3 | 5 | 10;
@@ -741,12 +910,29 @@ function makeObservationResponse(
   const missingCount =
     overrides.metadata?.missingCount ??
     rows.filter((row) => row.dataStatus === "missing").length;
+  const run = overrides.run ?? makeObservationRun();
+  const window = overrides.metadata?.window ?? 3;
+  const timeframe = overrides.metadata?.timeframe ?? "4h";
+  const summary =
+    "summary" in overrides
+      ? overrides.summary
+      : {
+          totalRows: rows.length,
+          returnedRows: rows.length,
+          completeCount,
+          partialCount,
+          missingCount,
+          window,
+          timeframe,
+          runId: run.runId,
+        };
 
   return {
     ok: true,
-    run: overrides.run ?? makeObservationRun(),
+    run,
+    summary,
     metadata: {
-      window: overrides.metadata?.window ?? 3,
+      window,
       selectedWindow: overrides.metadata?.selectedWindow ?? 3,
       windowUnit: "completed_candles" as const,
       rowCount: overrides.metadata?.rowCount ?? rows.length,
@@ -754,7 +940,7 @@ function makeObservationResponse(
       partialCount,
       missingCount,
       limited: false,
-      timeframe: overrides.metadata?.timeframe ?? "4h",
+      timeframe,
       assetClass: "crypto",
       disclaimer:
         "Research-only. Not financial advice. Historical observations are not predictions.",
@@ -903,6 +1089,7 @@ function makeObservationRun(
     timeframe: "1h" | "4h" | "1d" | "1w";
     finishedAt: string;
     isLikelyFullUniverse: boolean;
+    signalsCreated: number;
   }> = {},
 ) {
   return {
@@ -910,7 +1097,7 @@ function makeObservationRun(
     timeframe: overrides.timeframe ?? "4h",
     status: "success" as const,
     symbolsScanned: 409,
-    signalsCreated: 409,
+    signalsCreated: overrides.signalsCreated ?? 409,
     finishedAt: overrides.finishedAt ?? "2026-06-02T08:05:00.000Z",
     isLikelyFullUniverse: overrides.isLikelyFullUniverse ?? true,
   };

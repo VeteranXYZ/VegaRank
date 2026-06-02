@@ -62,11 +62,25 @@ type ForwardObservationUiStatus =
   | "using_recommended_observable_run"
   | "loading_observation_rows"
   | "observation_ready"
+  | "observation_ready_summary_missing"
+  | "observation_empty"
   | "observation_rows_error";
+type HistoricalSnapshotObservationSummary = {
+  totalRows: number;
+  returnedRows: number;
+  completeCount: number;
+  partialCount: number;
+  missingCount: number;
+  window: ObservationWindow;
+  timeframe: HistoryTimeframe;
+  runId: string;
+};
 type ForwardObservationSummary = {
   window: ObservationWindow;
   timeframe: HistoryTimeframe;
   rowCount: number;
+  totalRows: number;
+  returnedRows: number;
   completeCount: number;
   partialCount: number;
   missingCount: number;
@@ -190,6 +204,7 @@ type HistoricalSnapshotObservationsResponse = {
   ok: boolean;
   run: HistoricalSnapshotRun;
   rows: HistoricalSnapshotObservationRow[];
+  summary?: HistoricalSnapshotObservationSummary | null;
   metadata: {
     window: ObservationWindow;
     selectedWindow: ObservationWindow;
@@ -581,8 +596,14 @@ export function ForwardObservationSection({
 }) {
   const rows = response?.rows ?? [];
   const summary = uiState.summary;
-  const selectedReadinessRun = uiState.selectedRun;
+  const selectedReadiness = readiness?.selectedRun ?? null;
+  const selectedReadinessRun = selectedReadiness?.run ?? uiState.selectedRun;
+  const observationReadiness = getReadyObservationReadinessRun(readiness ?? null);
   const observationRun = uiState.observationRun;
+  const readyContextNote = getForwardObservationReadyContextNote({
+    uiState,
+    readiness: readiness ?? null,
+  });
 
   return (
     <section className="rounded-md border border-[var(--border)] bg-[var(--panel)] p-4">
@@ -618,17 +639,19 @@ export function ForwardObservationSection({
         <div className="mb-3 flex flex-wrap gap-2 text-xs text-[var(--muted)]">
           {selectedReadinessRun ? (
             <span className="rounded border border-[var(--border)] px-2 py-1">
-              Selected stored run {shortRunId(selectedReadinessRun.runId)}
+              Latest run: {shortRunId(selectedReadinessRun.runId)}, status:{" "}
+              {formatReadinessRunStatus(selectedReadiness)}
             </span>
           ) : null}
           {selectedReadinessRun ? (
             <span className="rounded border border-[var(--border)] px-2 py-1">
-              Selected finished {formatHistoryDateTime(selectedReadinessRun.finishedAt)}
+              Latest finished {formatHistoryDateTime(selectedReadinessRun.finishedAt)}
             </span>
           ) : null}
           {observationRun ? (
             <span className="rounded border border-[var(--border)] px-2 py-1">
-              Observation run {shortRunId(observationRun.runId)}
+              Observation run: {shortRunId(observationRun.runId)}, status:{" "}
+              {formatReadinessRunStatus(observationReadiness)}
             </span>
           ) : null}
           {observationRun ? (
@@ -642,11 +665,17 @@ export function ForwardObservationSection({
         </div>
       ) : null}
 
+      {readyContextNote ? (
+        <p className="mb-3 max-w-3xl text-sm leading-6 text-[var(--muted)]">
+          {readyContextNote}
+        </p>
+      ) : null}
+
       {summary ? (
         <div className="mb-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-6">
           <Metric label="Selected Window" value={`${summary.window} candles`} />
           <Metric label="Timeframe" value={summary.timeframe} />
-          <Metric label="Rows" value={formatCount(summary.rowCount)} />
+          <Metric label="Rows" value={formatObservationRows(summary)} />
           <Metric label="Complete" value={formatCount(summary.completeCount)} />
           <Metric label="Partial" value={formatCount(summary.partialCount)} />
           <Metric label="Missing" value={formatCount(summary.missingCount)} />
@@ -770,7 +799,7 @@ function ForwardObservationStatePanel({
               value={shortRunId(readiness.recommendedRun.run.runId)}
             />
           ) : null}
-          {summary ? <Metric label="Rows" value={formatCount(summary.rowCount)} /> : null}
+          {summary ? <Metric label="Rows" value={formatObservationRows(summary)} /> : null}
           {summary ? (
             <Metric label="Complete" value={formatCount(summary.completeCount)} />
           ) : null}
@@ -862,6 +891,10 @@ function getForwardObservationPanelTitle(uiState: ForwardObservationUiState) {
       return "Loading observation rows";
     case "observation_rows_error":
       return "Observation rows unavailable";
+    case "observation_ready_summary_missing":
+      return "Observation rows not returned";
+    case "observation_empty":
+      return "No observation rows returned";
     case "observation_ready":
       return "Forward observation ready";
   }
@@ -903,6 +936,10 @@ function getForwardObservationPanelMessage({
       return "Loading forward observation rows for the selected observation run.";
     case "observation_rows_error":
       return uiState.observationRowsError ?? "Forward observation rows could not be loaded.";
+    case "observation_ready_summary_missing":
+      return "Observation run is available, but no observation rows were returned. This may indicate the historical observation query returned no rows or the summary was not produced.";
+    case "observation_empty":
+      return "Observation run is available, but it has no historical observation rows for this forward observation window.";
     case "observation_ready":
       return formatObservationReadinessMessage(readiness);
   }
@@ -1319,7 +1356,12 @@ function getForwardObservationSelectionMode({
     return "unavailable";
   }
 
-  const observationRunId = readiness.observationRun?.run.runId ?? null;
+  const observationRunId =
+    readiness.observationRun?.state === "ready"
+      ? readiness.observationRun.run.runId
+      : readiness.selectedRun?.state === "ready"
+        ? readiness.selectedRun.run.runId
+        : null;
 
   if (observationRunId && observationRunId !== selectedRunId) {
     return "observable";
@@ -1349,7 +1391,15 @@ export function getForwardObservationRowsRunId({
     return null;
   }
 
-  return readiness.observationRun?.run.runId ?? null;
+  if (readiness.observationRun?.state === "ready") {
+    return readiness.observationRun.run.runId;
+  }
+
+  if (readiness.selectedRun?.state === "ready") {
+    return readiness.selectedRun.run.runId;
+  }
+
+  return null;
 }
 
 export function deriveForwardObservationUiState({
@@ -1375,8 +1425,9 @@ export function deriveForwardObservationUiState({
   observationRowsError: string | null;
   fallbackWindow: ObservationWindow;
 }): ForwardObservationUiState {
-  const readinessRun = readiness?.observationRun ?? readiness?.selectedRun ?? null;
-  const observationRun = response?.run ?? readiness?.observationRun?.run ?? null;
+  const observationReadinessRun = getReadyObservationReadinessRun(readiness);
+  const readinessRun = observationReadinessRun ?? readiness?.selectedRun ?? null;
+  const observationRun = response?.run ?? observationReadinessRun?.run ?? null;
   const selectedRun = readiness?.selectedRun?.run ?? null;
   const summary = buildForwardObservationSummary({
     response,
@@ -1439,7 +1490,7 @@ export function deriveForwardObservationUiState({
     };
   }
 
-  if (!observationRunId || !readiness.observationRun) {
+  if (!observationRunId || !observationReadinessRun) {
     return {
       ...base,
       status:
@@ -1465,9 +1516,21 @@ export function deriveForwardObservationUiState({
   }
 
   if (response) {
+    const expectedRows = summary?.totalRows ?? response.metadata.rowCount;
+
+    if (response.rows.length > 0) {
+      return {
+        ...base,
+        status: "observation_ready",
+      };
+    }
+
     return {
       ...base,
-      status: "observation_ready",
+      status:
+        expectedRows > 0
+          ? "observation_ready_summary_missing"
+          : "observation_empty",
     };
   }
 
@@ -1477,6 +1540,85 @@ export function deriveForwardObservationUiState({
       observationRunId === selectedRunId
         ? "using_selected_run"
         : "using_recommended_observable_run",
+  };
+}
+
+function getReadyObservationReadinessRun(
+  readiness: HistoricalObservationReadinessResponse | null,
+) {
+  if (readiness?.observationRun?.state === "ready") {
+    return readiness.observationRun;
+  }
+
+  if (readiness?.selectedRun?.state === "ready") {
+    return readiness.selectedRun;
+  }
+
+  return null;
+}
+
+function getObservationResponseExpectedRows(
+  response: HistoricalSnapshotObservationsResponse,
+) {
+  if (response.rows.length > 0) {
+    return response.rows.length;
+  }
+
+  if (
+    typeof response.summary?.totalRows === "number" &&
+    Number.isFinite(response.summary.totalRows)
+  ) {
+    return Math.max(0, response.summary.totalRows);
+  }
+
+  if (
+    typeof response.run.signalsCreated === "number" &&
+    Number.isFinite(response.run.signalsCreated) &&
+    response.run.signalsCreated > 0
+  ) {
+    return response.run.signalsCreated;
+  }
+
+  return Math.max(0, response.metadata.rowCount);
+}
+
+function countObservationRows(rows: HistoricalSnapshotObservationRow[]) {
+  return rows.reduce(
+    (counts, row) => ({
+      complete: counts.complete + (row.dataStatus === "complete" ? 1 : 0),
+      partial: counts.partial + (row.dataStatus === "partial" ? 1 : 0),
+      missing: counts.missing + (row.dataStatus === "missing" ? 1 : 0),
+    }),
+    { complete: 0, partial: 0, missing: 0 },
+  );
+}
+
+function toForwardObservationSummary({
+  window,
+  timeframe,
+  totalRows,
+  returnedRows,
+  completeCount,
+  partialCount,
+  missingCount,
+}: {
+  window: ObservationWindow;
+  timeframe: HistoryTimeframe;
+  totalRows: number;
+  returnedRows: number;
+  completeCount: number;
+  partialCount: number;
+  missingCount: number;
+}): ForwardObservationSummary {
+  return {
+    window,
+    timeframe,
+    rowCount: totalRows,
+    totalRows,
+    returnedRows,
+    completeCount,
+    partialCount,
+    missingCount,
   };
 }
 
@@ -1492,28 +1634,60 @@ function buildForwardObservationSummary({
   fallbackTimeframe: HistoryTimeframe;
 }): ForwardObservationSummary | null {
   if (response) {
-    return {
+    const summary = response.summary;
+
+    if (summary) {
+      return toForwardObservationSummary({
+        window: summary.window,
+        timeframe: summary.timeframe,
+        totalRows: summary.totalRows,
+        returnedRows: summary.returnedRows,
+        completeCount: summary.completeCount,
+        partialCount: summary.partialCount,
+        missingCount: summary.missingCount,
+      });
+    }
+
+    if (response.rows.length > 0) {
+      const counts = countObservationRows(response.rows);
+
+      return toForwardObservationSummary({
+        window: response.metadata.window,
+        timeframe: response.metadata.timeframe,
+        totalRows: response.rows.length,
+        returnedRows: response.rows.length,
+        completeCount: counts.complete,
+        partialCount: counts.partial,
+        missingCount: counts.missing,
+      });
+    }
+
+    const expectedRows = getObservationResponseExpectedRows(response);
+
+    return toForwardObservationSummary({
       window: response.metadata.window,
       timeframe: response.metadata.timeframe,
-      rowCount: response.metadata.rowCount,
-      completeCount: response.metadata.completeCount,
-      partialCount: response.metadata.partialCount,
-      missingCount: response.metadata.missingCount,
-    };
+      totalRows: expectedRows,
+      returnedRows: 0,
+      completeCount: 0,
+      partialCount: 0,
+      missingCount: expectedRows,
+    });
   }
 
   if (!readinessRun) {
     return null;
   }
 
-  return {
+  return toForwardObservationSummary({
     window: fallbackWindow,
     timeframe: fallbackTimeframe,
-    rowCount: readinessRun.rowCount,
+    totalRows: readinessRun.rowCount,
+    returnedRows: readinessRun.rowCount,
     completeCount: readinessRun.completeCount,
     partialCount: readinessRun.partialCount,
     missingCount: readinessRun.missingCount,
-  };
+  });
 }
 
 function buildRunSummaryItems(run: HistoricalSnapshotRun | null) {
@@ -1852,6 +2026,68 @@ function formatCount(value: number | null | undefined) {
     : "-";
 }
 
+function formatObservationRows(summary: ForwardObservationSummary) {
+  if (summary.returnedRows !== summary.totalRows) {
+    return `${formatCount(summary.returnedRows)} / ${formatCount(summary.totalRows)}`;
+  }
+
+  return formatCount(summary.totalRows);
+}
+
+function formatReadinessRunStatus(
+  readinessRun: HistoricalObservationReadinessRun | null | undefined,
+) {
+  if (!readinessRun) {
+    return "Unknown";
+  }
+
+  if (readinessRun.state === "ready") {
+    return "Ready";
+  }
+
+  if (readinessRun.diagnosticBlocker) {
+    return formatObservationDiagnosticBlocker(readinessRun.diagnosticBlocker);
+  }
+
+  return formatMaturityState(
+    readinessRun.state === "unavailable"
+      ? "empty_or_unavailable"
+      : readinessRun.state,
+  );
+}
+
+function getForwardObservationReadyContextNote({
+  uiState,
+  readiness,
+}: {
+  uiState: ForwardObservationUiState;
+  readiness: HistoricalObservationReadinessResponse | null;
+}) {
+  if (
+    uiState.selectionMode !== "observable" ||
+    !uiState.observationRun ||
+    !uiState.selectedRun ||
+    uiState.observationRun.runId === uiState.selectedRun.runId
+  ) {
+    return null;
+  }
+
+  const diagnosticBlocker = readiness?.selectedRun?.diagnosticBlocker;
+  const runDescription = readiness?.observationRun?.isLimited
+    ? "mature run"
+    : "mature full-universe run";
+
+  if (diagnosticBlocker === "waiting_for_future_candles") {
+    return `Latest run is still waiting for future candles. Showing the most recent ${runDescription} instead.`;
+  }
+
+  if (diagnosticBlocker === "stale_market_data") {
+    return `Latest run has stale market data coverage. Showing the most recent ${runDescription} instead.`;
+  }
+
+  return `Showing the most recent ${runDescription} for this historical observation.`;
+}
+
 function formatObservationNumber(value: number | null | undefined) {
   return typeof value === "number" && Number.isFinite(value)
     ? value.toLocaleString(undefined, { maximumFractionDigits: 6 })
@@ -1900,6 +2136,8 @@ function formatForwardObservationUiStatusLabel(
     case "using_selected_run":
     case "loading_observation_rows":
     case "observation_ready":
+    case "observation_ready_summary_missing":
+    case "observation_empty":
     case "observation_rows_error":
       return formatForwardObservationSelectionMode(uiState.selectionMode);
     case "using_recommended_observable_run":
