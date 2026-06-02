@@ -480,6 +480,11 @@ export function HistoryPageClient() {
           timeframe={timeframe}
           snapshots={snapshots}
           selectedRunId={selectedRunId}
+          latestRunId={snapshots[0]?.runId ?? null}
+          observationRunId={forwardObservationUiState.observationRun?.runId ?? null}
+          recommendedRunId={
+            readinessQuery.data?.recommendedRun?.run.runId ?? null
+          }
           isError={snapshotsQuery.isError}
           errorMessage={
             snapshotsQuery.isError ? formatQueryError(snapshotsQuery.error) : null
@@ -495,6 +500,9 @@ export function HistoryPageClient() {
                 <h2 className="text-base font-semibold">Selected Stored Run</h2>
                 <p className="mt-1 text-xs text-[var(--muted)]">
                   Stored scanner metadata for the selected historical run.
+                  Snapshot Rows below are scanner output from this selected run.
+                  Forward Observation may use a different mature observation run
+                  when the latest selected run is still waiting for future candles.
                 </p>
               </div>
               {snapshotQuery.data ? (
@@ -546,6 +554,9 @@ export function RecentSuccessfulRunsPanel({
   timeframe,
   snapshots,
   selectedRunId,
+  latestRunId,
+  observationRunId,
+  recommendedRunId,
   isError,
   errorMessage,
   isLoading,
@@ -554,6 +565,9 @@ export function RecentSuccessfulRunsPanel({
   timeframe: HistoryTimeframe;
   snapshots: HistoricalSnapshotRun[];
   selectedRunId: string | null;
+  latestRunId: string | null;
+  observationRunId: string | null;
+  recommendedRunId: string | null;
   isError: boolean;
   errorMessage: string | null;
   isLoading: boolean;
@@ -591,6 +605,13 @@ export function RecentSuccessfulRunsPanel({
         >
           {snapshots.map((run) => {
             const isSelected = run.runId === selectedRunId;
+            const badges = buildRecentRunBadges({
+              runId: run.runId,
+              selectedRunId,
+              latestRunId,
+              observationRunId,
+              recommendedRunId,
+            });
 
             return (
               <button
@@ -598,11 +619,7 @@ export function RecentSuccessfulRunsPanel({
                 type="button"
                 onClick={() => onSelectRun(run.runId)}
                 aria-pressed={isSelected}
-                className={`w-full rounded-md border p-3 text-left transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent)] ${
-                  isSelected
-                    ? "border-[var(--foreground)] bg-[#111820]"
-                    : "border-[var(--border)] hover:border-[var(--muted)]"
-                }`}
+                className={formatRecentRunCardClassName(run, isSelected)}
               >
                 <div className="flex items-start justify-between gap-3">
                   <div>
@@ -615,11 +632,31 @@ export function RecentSuccessfulRunsPanel({
                     {run.timeframe}
                   </span>
                 </div>
+                {badges.length > 0 ? (
+                  <div className="mt-3 flex flex-wrap gap-1.5">
+                    {badges.map((badge) => (
+                      <span
+                        key={badge}
+                        className="rounded border border-[var(--border)] px-2 py-0.5 text-[11px] font-semibold uppercase tracking-normal text-[var(--muted)]"
+                      >
+                        {badge}
+                      </span>
+                    ))}
+                  </div>
+                ) : null}
                 <div className="mt-3 grid grid-cols-2 gap-2 text-xs text-[var(--muted)]">
                   <span>Scanned {formatCount(run.symbolsScanned)}</span>
                   <span>Signals {formatCount(run.signalsCreated)}</span>
                   <span>Skipped {formatCount(run.skipped)}</span>
-                  <span>{formatFullUniverse(run)}</span>
+                  <span
+                    className={
+                      run.isLikelyFullUniverse === true
+                        ? "font-semibold text-[var(--foreground)]"
+                        : "text-[var(--muted)]"
+                    }
+                  >
+                    {formatFullUniverse(run)}
+                  </span>
                 </div>
               </button>
             );
@@ -628,6 +665,47 @@ export function RecentSuccessfulRunsPanel({
       )}
     </section>
   );
+}
+
+function buildRecentRunBadges({
+  runId,
+  selectedRunId,
+  latestRunId,
+  observationRunId,
+  recommendedRunId,
+}: {
+  runId: string;
+  selectedRunId: string | null;
+  latestRunId: string | null;
+  observationRunId: string | null;
+  recommendedRunId: string | null;
+}) {
+  return [
+    runId === selectedRunId ? "Selected" : null,
+    runId === observationRunId ? "Observation" : null,
+    runId === latestRunId ? "Latest" : null,
+    runId === recommendedRunId && runId !== observationRunId
+      ? "Recommended"
+      : null,
+  ].filter((badge): badge is string => badge !== null);
+}
+
+function formatRecentRunCardClassName(
+  run: HistoricalSnapshotRun,
+  isSelected: boolean,
+) {
+  const base =
+    "w-full rounded-md border p-3 text-left transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent)]";
+
+  if (isSelected) {
+    return `${base} border-[var(--foreground)] bg-[#111820]`;
+  }
+
+  if (run.isLikelyFullUniverse === true) {
+    return `${base} border-[var(--border)] bg-[#0f151c] hover:border-[var(--muted)]`;
+  }
+
+  return `${base} border-[var(--border)] opacity-75 hover:border-[var(--muted)] hover:opacity-100`;
 }
 
 export function ForwardObservationSection({
@@ -661,6 +739,11 @@ export function ForwardObservationSection({
           <h2 className="text-base font-semibold">Forward Observation</h2>
           <p className="mt-1 text-xs text-[var(--muted)]">
             Research-only. Historical observations are not predictions.
+          </p>
+          <p className="mt-1 max-w-3xl text-xs leading-5 text-[var(--muted)]">
+            Forward Observation is measured from the observation run after the
+            selected number of complete future candles. It may use a mature
+            historical observation run when the latest selected run is not mature.
           </p>
           <p className="mt-1 text-xs font-semibold text-[var(--muted)]">
             {formatForwardObservationUiStatusLabel(uiState)}
@@ -721,15 +804,18 @@ export function ForwardObservationSection({
       ) : null}
 
       {summary ? (
-        <div className="mb-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-6">
-          <Metric label="Selected Window" value={`${summary.window} candles`} />
+        <div className="mb-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-7">
+          <Metric label="Window" value={`${summary.window} candles`} />
           <Metric label="Timeframe" value={summary.timeframe} />
-          <Metric label="Rows" value={formatObservationRows(summary)} />
+          <Metric label="Total Rows" value={formatCount(summary.totalRows)} />
+          <Metric label="Returned Rows" value={formatCount(summary.returnedRows)} />
           <Metric label="Complete" value={formatCount(summary.completeCount)} />
           <Metric label="Partial" value={formatCount(summary.partialCount)} />
           <Metric label="Missing" value={formatCount(summary.missingCount)} />
         </div>
       ) : null}
+
+      <ObservationDataStatusLegend />
 
       {uiState.status !== "observation_ready" ? (
         <ForwardObservationStatePanel
@@ -744,7 +830,7 @@ export function ForwardObservationSection({
       ) : (
         <div className="overflow-x-auto">
           <table className="w-full min-w-[1060px] border-collapse text-left text-sm">
-            <thead className="bg-[#0d131a] text-xs uppercase text-[var(--muted)]">
+            <thead className="sticky top-0 bg-[#0d131a] text-xs uppercase text-[var(--muted)]">
               <tr>
                 <th className="px-3 py-3 font-semibold">Symbol</th>
                 <th className="px-3 py-3 font-semibold">Group</th>
@@ -835,7 +921,7 @@ function ForwardObservationStatePanel({
       {showDiagnostics ? (
         <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
           {summary ? (
-            <Metric label="Selected Window" value={`${summary.window} candles`} />
+            <Metric label="Window" value={`${summary.window} candles`} />
           ) : null}
           {summary ? <Metric label="Timeframe" value={summary.timeframe} /> : null}
           {selectedReadiness ? (
@@ -856,7 +942,15 @@ function ForwardObservationStatePanel({
               value={shortRunId(observationReadiness.run.runId)}
             />
           ) : null}
-          {summary ? <Metric label="Rows" value={formatObservationRows(summary)} /> : null}
+          {summary ? (
+            <Metric label="Total Rows" value={formatCount(summary.totalRows)} />
+          ) : null}
+          {summary ? (
+            <Metric
+              label="Returned Rows"
+              value={formatCount(summary.returnedRows)}
+            />
+          ) : null}
           {summary ? (
             <Metric label="Complete" value={formatCount(summary.completeCount)} />
           ) : null}
@@ -924,6 +1018,22 @@ function ForwardObservationStatePanel({
           availability.
         </p>
       ) : null}
+    </div>
+  );
+}
+
+function ObservationDataStatusLegend() {
+  return (
+    <div className="mb-3 rounded-md border border-[var(--border)] p-3 text-xs leading-5 text-[var(--muted)]">
+      <p className="font-semibold text-[var(--foreground)]">Data status</p>
+      <p className="mt-1">
+        Complete means enough future candles exist for the selected forward
+        observation window. Partial means fewer future candles are available than
+        the selected window. Missing means required future candles are
+        unavailable, often because of market data coverage, listing history, or
+        sync gaps. These statuses are research context, not scanner algorithm
+        failures or predictions.
+      </p>
     </div>
   );
 }
@@ -1123,8 +1233,10 @@ export function SnapshotTable({
         <div>
           <h2 className="text-base font-semibold">Snapshot Rows</h2>
           <p className="mt-1 text-xs text-[var(--muted)]">
-            Full stored single-timeframe result set. Current Symbol Research links
-            open the current research view.
+            Full scanner output from the selected stored run. Forward Observation
+            can use a different mature observation run when the selected run is
+            not ready for the forward observation window. Current Symbol Research
+            links open the current research view.
           </p>
         </div>
         <span className="text-xs text-[var(--muted)]">
@@ -2081,14 +2193,6 @@ function formatCount(value: number | null | undefined) {
   return typeof value === "number" && Number.isFinite(value)
     ? value.toLocaleString()
     : "-";
-}
-
-function formatObservationRows(summary: ForwardObservationSummary) {
-  if (summary.returnedRows !== summary.totalRows) {
-    return `${formatCount(summary.returnedRows)} / ${formatCount(summary.totalRows)}`;
-  }
-
-  return formatCount(summary.totalRows);
 }
 
 function formatReadinessRunStatus(

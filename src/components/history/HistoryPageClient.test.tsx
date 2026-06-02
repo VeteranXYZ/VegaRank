@@ -123,7 +123,8 @@ describe("HistoryPageClient display formatting", () => {
     );
 
     expect(html).toContain("Snapshot Rows");
-    expect(html).toContain("Full stored single-timeframe result set");
+    expect(html).toContain("Full scanner output from the selected stored run");
+    expect(html).toContain("Forward Observation can use a different mature observation run");
     expect(html).toContain("2 rows");
     expect(html).toContain("Overheated caution");
     expect(html).toContain("Risk review");
@@ -142,11 +143,19 @@ describe("HistoryPageClient display formatting", () => {
       runId: "22222222-2222-4222-8222-222222222222",
       finishedAt: "2026-06-02T04:05:00.000Z",
     });
+    const limitedRecommendedRun = makeObservationRun({
+      runId: "33333333-3333-4333-8333-333333333333",
+      finishedAt: "2026-06-02T00:05:00.000Z",
+      isLikelyFullUniverse: false,
+    });
     const html = renderToStaticMarkup(
       createElement(RecentSuccessfulRunsPanel, {
         timeframe: "4h",
-        snapshots: [selectedRun, olderRun],
+        snapshots: [selectedRun, olderRun, limitedRecommendedRun],
         selectedRunId: selectedRun.runId,
+        latestRunId: selectedRun.runId,
+        observationRunId: olderRun.runId,
+        recommendedRunId: limitedRecommendedRun.runId,
         isError: false,
         errorMessage: null,
         isLoading: false,
@@ -162,6 +171,12 @@ describe("HistoryPageClient display formatting", () => {
     expect(html).toContain("xl:overscroll-contain");
     expect(html).toContain("aria-pressed=\"true\"");
     expect(html).toContain("Scanned 409");
+    expect(html).toContain("Selected");
+    expect(html).toContain("Latest");
+    expect(html).toContain("Observation");
+    expect(html).toContain("Recommended");
+    expect(html).toContain("Limited or unknown");
+    expect(html).toContain("opacity-75");
     expect(recentRunsPanelClassName).toContain("xl:sticky");
     expect(recentRunsScrollContainerClassName).toContain("xl:overflow-y-auto");
     expect(recentRunsScrollContainerClassName).toContain("xl:overscroll-contain");
@@ -194,10 +209,16 @@ describe("HistoryPageClient display formatting", () => {
     expect(html).toContain("3 candles");
     expect(html).toContain("5 candles");
     expect(html).toContain("10 candles");
-    expect(html).toContain("Selected Window");
+    expect(html).toContain("Window");
+    expect(html).toContain("Total Rows");
+    expect(html).toContain("Returned Rows");
     expect(html).toContain("Complete");
     expect(html).toContain("Partial");
     expect(html).toContain("Missing");
+    expect(html).toContain("Forward Observation is measured from the observation run");
+    expect(html).toContain("Complete means enough future candles exist");
+    expect(html).toContain("Partial means fewer future candles are available");
+    expect(html).toContain("Missing means required future candles are unavailable");
     expect(html).toContain("Observed Change");
     expect(html).toContain("Max Drawdown");
     expect(html).toContain("Data Status");
@@ -703,7 +724,10 @@ describe("HistoryPageClient display formatting", () => {
     });
     expect(html).toContain("Observation rows not returned");
     expect(html).toContain("Observation run is available, but no observation rows were returned.");
-    expect(html).toContain("0 / 413");
+    expect(html).toContain("Total Rows");
+    expect(html).toContain("Returned Rows");
+    expect(html).toContain(">413<");
+    expect(html).toContain(">0<");
     expect(html).not.toContain(
       "No forward observation rows are available for the selected observation run.",
     );
