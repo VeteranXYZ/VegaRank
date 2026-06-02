@@ -28,7 +28,8 @@
     "symbols:summary:pg": "node scripts/run-ts.mjs scripts/symbols-summary-pg.ts",
     "scanner:run": "node scripts/run-ts.mjs scripts/scanner.ts run",
     "scanner:run:pg": "node scripts/run-ts.mjs scripts/scanner-run-pg.ts",
-    "scanner:export-latest": "node scripts/run-ts.mjs scripts/scanner.ts export-latest"
+    "scanner:export-latest": "node scripts/run-ts.mjs scripts/scanner.ts export-latest",
+    "smoke:production": "node scripts/run-ts.mjs scripts/smoke-production.ts"
   },
   "dependencies": {
     "@tanstack/react-query": "5.100.14",
