@@ -9,9 +9,12 @@ import {
   doesMtfRowMatchResearchBucket,
   filterMtfScreenerRowsBySearch,
   filterMtfScreenerRows,
+  formatMtfScreenerRowsCsv,
   formatMtfCombinedRank,
   formatMtfGroup,
   formatMtfRank,
+  getMtfScreenerExportFilename,
+  getMtfScreenerExportRows,
   getMtfCombinedRank,
   getMtfHigherTimeframeHealth,
   getMtfPrimarySignal,
@@ -24,6 +27,7 @@ import {
   sortMtfScreenerRows,
   type MtfLatestScanItem,
   type MtfLatestScanResponse,
+  type MtfScreenerRow,
   type MtfScreenerTimeframe,
 } from "./multiTimeframeScreenerUi";
 
@@ -425,6 +429,123 @@ describe("multi-timeframe screener helpers", () => {
     expect(buildMtfSymbolResearchHref({ row })).toBe(
       "/symbol/binance/SEIUSDT?timeframe=4h&assetClass=crypto&from=screener",
     );
+  });
+
+  it("formats screener rows as research-only CSV with useful headers", () => {
+    const rows = buildMtfScreenerRows({
+      "1h": makeResponse("1h", [
+        makeItem({
+          symbol: "BTCUSDT",
+          timeframe: "1h",
+          resultGroup: "eligible",
+          rankScore: 91.25,
+          signalLabel: "confirmed",
+        }),
+      ]),
+      "4h": makeResponse("4h", [
+        makeItem({
+          symbol: "BTCUSDT",
+          timeframe: "4h",
+          resultGroup: "risk",
+          rankScore: 24,
+          detectedRiskTypes: ["distribution_risk"],
+        }),
+      ]),
+    });
+    const csv = formatMtfScreenerRowsCsv({
+      rows,
+      exportType: "visible_rows",
+      exportedAt: "2026-06-02T15:00:00.000Z",
+      assetClass: "crypto",
+      runs: {
+        "1h": makeRun("1h", 1),
+        "4h": makeRun("4h", 1),
+      },
+    });
+
+    expect(csv.split("\n")[0]).toContain("export_type,exported_at,asset_class");
+    expect(csv.split("\n")[0]).toContain("1h_group,1h_rank,1h_missing");
+    expect(csv.split("\n")[0]).toContain("4h_run_id,4h_scan_time");
+    expect(csv).toContain("visible_rows,2026-06-02T15:00:00.000Z,crypto");
+    expect(csv).toContain("BTCUSDT");
+    expect(csv).toContain("4h Watch / Risk");
+    expect(csv).toContain("4h: Distribution Risk");
+    expect(csv).toContain("/symbol/binance/BTCUSDT?timeframe=4h&assetClass=crypto&from=screener");
+    expect(csv).toContain("Research-only. Not financial advice.");
+  });
+
+  it("escapes CSV commas, quotes, and newlines", () => {
+    const row: MtfScreenerRow = {
+      symbol: 'QUOTE"USDT',
+      exchange: "binance,spot",
+      market: "spot\nmarket",
+      snapshots: {
+        "1h": {
+          ...makeItem({
+            symbol: 'QUOTE"USDT',
+            timeframe: "1h",
+            resultGroup: "risk",
+            detectedRiskTypes: ["distribution_risk", "failed_breakout_risk"],
+          }),
+          timeframe: "1h",
+          resultGroup: "risk",
+          statusNote: 'Needs "manual" review',
+        },
+      },
+    };
+    const csv = formatMtfScreenerRowsCsv({
+      rows: [row],
+      exportType: "visible_rows",
+      exportedAt: "2026-06-02T15:00:00.000Z",
+    });
+
+    expect(csv).toContain('"QUOTE""USDT"');
+    expect(csv).toContain('"binance,spot"');
+    expect(csv).toContain('"spot\nmarket"');
+    expect(csv).toContain('"1h: Distribution Risk, Failed Breakout Risk"');
+  });
+
+  it("selects visible or all joined rows for export without changing row order", () => {
+    const allRows = buildMtfScreenerRows({
+      "4h": makeResponse("4h", [
+        makeItem({ symbol: "AAAUSDT", timeframe: "4h", rankScore: 10 }),
+        makeItem({ symbol: "BBBUSDT", timeframe: "4h", rankScore: 20 }),
+      ]),
+    });
+    const visibleRows = sortMtfScreenerRows(allRows, {
+      field: "4h_rank",
+      direction: "desc",
+    }).slice(0, 1);
+
+    expect(
+      getMtfScreenerExportRows({
+        exportType: "visible_rows",
+        visibleRows,
+        allRows,
+      }).map((row) => row.symbol),
+    ).toEqual(["BBBUSDT"]);
+    expect(
+      getMtfScreenerExportRows({
+        exportType: "all_joined_rows",
+        visibleRows,
+        allRows,
+      }).map((row) => row.symbol),
+    ).toEqual(["AAAUSDT", "BBBUSDT"]);
+  });
+
+  it("builds safe export filenames", () => {
+    expect(
+      getMtfScreenerExportFilename({
+        exportType: "visible_rows",
+        exportedAt: "2026-06-02T15:00:00.000Z",
+      }),
+    ).toBe("trade-scanner-visible-rows-2026-06-02.csv");
+    expect(
+      getMtfScreenerExportFilename({
+        exportType: "all_joined_rows",
+        exportedAt: "2026-06-02T15:00:00.000Z",
+      }),
+    ).toBe("trade-scanner-all-joined-rows-2026-06-02.csv");
   });
 });
 

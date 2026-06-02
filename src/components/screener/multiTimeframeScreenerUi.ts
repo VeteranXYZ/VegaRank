@@ -6,6 +6,7 @@ import {
   normalizeGroupKey,
   type LatestScanGroupKey,
 } from "@/components/scanner/latestScanUi";
+import { shortResearchDisclaimer } from "@/components/researchCopy";
 import { buildSymbolResearchHref } from "@/components/symbol/symbolResearchLinks";
 
 export const MTF_SCREENER_TIMEFRAMES = ["1h", "4h", "1d", "1w"] as const;
@@ -139,6 +140,16 @@ export type MtfScreenerRow = {
   exchange: string;
   market: string;
   snapshots: Partial<Record<MtfScreenerTimeframe, MtfScreenerSnapshot>>;
+};
+
+export type MtfScreenerExportType = "visible_rows" | "all_joined_rows";
+
+export type MtfScreenerCsvOptions = {
+  rows: MtfScreenerRow[];
+  exportType: MtfScreenerExportType;
+  exportedAt: string;
+  assetClass?: string;
+  runs?: Partial<Record<MtfScreenerTimeframe, MtfLatestScanRun | null>>;
 };
 
 export type MtfScreenerPreset = {
@@ -616,6 +627,94 @@ export function getMtfRunFinishedAt(response: MtfLatestScanResponse | undefined)
   return response?.run?.finishedAt ?? response?.run?.startedAt ?? null;
 }
 
+export function getMtfScreenerExportRows({
+  exportType,
+  visibleRows,
+  allRows,
+}: {
+  exportType: MtfScreenerExportType;
+  visibleRows: MtfScreenerRow[];
+  allRows: MtfScreenerRow[];
+}) {
+  return exportType === "visible_rows" ? visibleRows : allRows;
+}
+
+export function formatMtfScreenerRowsCsv({
+  rows,
+  exportType,
+  exportedAt,
+  assetClass = "crypto",
+  runs = {},
+}: MtfScreenerCsvOptions) {
+  const header = [
+    "export_type",
+    "exported_at",
+    "asset_class",
+    "symbol",
+    "exchange",
+    "market",
+    "research_timeframe",
+    "overall_rank",
+    "primary_signal",
+    "risk_notes",
+    "symbol_research_href",
+    ...MTF_SCREENER_TIMEFRAMES.flatMap((timeframe) => [
+      `${timeframe}_group`,
+      `${timeframe}_rank`,
+      `${timeframe}_missing`,
+      `${timeframe}_run_id`,
+      `${timeframe}_scan_time`,
+      `${timeframe}_run_finished_at`,
+    ]),
+    "disclaimer",
+  ];
+  const body = rows.map((row) =>
+    toCsvLine([
+      exportType,
+      exportedAt,
+      assetClass,
+      row.symbol,
+      row.exchange,
+      row.market,
+      getMtfSymbolResearchTimeframe(row),
+      formatMtfCombinedRank(row),
+      getMtfPrimarySignal(row),
+      getMtfRiskNotes(row),
+      buildMtfSymbolResearchHref({ row, assetClass }),
+      ...MTF_SCREENER_TIMEFRAMES.flatMap((timeframe) => {
+        const snapshot = row.snapshots[timeframe];
+        const run = runs[timeframe] ?? null;
+
+        return [
+          snapshot ? formatMtfGroup(snapshot) : "",
+          snapshot ? formatMtfRank(snapshot) : "",
+          snapshot ? "false" : "true",
+          snapshot?.scanRunId ?? run?.id ?? "",
+          snapshot?.scanTime ?? "",
+          run?.finishedAt ?? run?.startedAt ?? "",
+        ];
+      }),
+      shortResearchDisclaimer,
+    ]),
+  );
+
+  return [toCsvLine(header), ...body].join("\n");
+}
+
+export function getMtfScreenerExportFilename({
+  exportType,
+  exportedAt,
+}: {
+  exportType: MtfScreenerExportType;
+  exportedAt: string;
+}) {
+  const date = sanitizeExportDate(exportedAt);
+  const label =
+    exportType === "visible_rows" ? "visible-rows" : "all-joined-rows";
+
+  return `trade-scanner-${label}-${date}.csv`;
+}
+
 function hasMtfGroup(
   row: MtfScreenerRow,
   timeframe: MtfScreenerTimeframe,
@@ -740,4 +839,28 @@ function uniqueStrings(values: string[]) {
   }
 
   return unique;
+}
+
+function toCsvLine(values: Array<string | number | boolean | null | undefined>) {
+  return values.map(escapeCsvField).join(",");
+}
+
+function escapeCsvField(value: string | number | boolean | null | undefined) {
+  const text = value === null || value === undefined ? "" : String(value);
+
+  if (!/[",\n\r]/.test(text)) {
+    return text;
+  }
+
+  return `"${text.replace(/"/g, '""')}"`;
+}
+
+function sanitizeExportDate(value: string) {
+  const parsed = new Date(value);
+
+  if (!Number.isNaN(parsed.getTime())) {
+    return parsed.toISOString().slice(0, 10);
+  }
+
+  return value.trim().slice(0, 10).replace(/[^0-9A-Za-z-]/g, "-") || "unknown";
 }

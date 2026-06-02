@@ -4,6 +4,8 @@ import { describe, expect, it } from "vitest";
 import { MarketContextPanel } from "@/components/market-context/MarketContextPanel";
 import {
   buildMtfLatestScanUrl,
+  MtfScreenerExportControls,
+  MtfScreenerSourcePanel,
   MtfResearchBucketsPanel,
   MtfScreenerTable,
 } from "./MultiTimeframeScreenerPageClient";
@@ -119,6 +121,39 @@ describe("MultiTimeframeScreenerTable", () => {
     expect(html).toContain(
       'href="/symbol/binance/SEIUSDT?timeframe=1h&amp;assetClass=crypto&amp;from=screener"',
     );
+  });
+
+  it("renders compact export controls in the source panel", () => {
+    const html = renderToStaticMarkup(
+      createElement(MtfScreenerSourcePanel, {
+        data: undefined,
+        totalRows: 12,
+        filteredRows: 3,
+        onExportVisible: noop,
+        onExportAll: noop,
+      }),
+    );
+
+    expect(html).toContain("Data Source / Run Freshness");
+    expect(html).toContain("Showing 3 of 12 joined symbols");
+    expect(html).toContain("Export Visible Rows");
+    expect(html).toContain("Export All Joined Rows");
+    expect(html).not.toContain("Show More");
+    expect(html).not.toContain("Pagination");
+  });
+
+  it("disables export controls when there are no rows", () => {
+    const html = renderToStaticMarkup(
+      createElement(MtfScreenerExportControls, {
+        visibleRowsCount: 0,
+        allRowsCount: 0,
+        onExportVisible: noop,
+        onExportAll: noop,
+      }),
+    );
+
+    expect(html).toContain("Screener CSV export");
+    expect(html.match(/disabled=\"\"/g)).toHaveLength(2);
   });
 
   it("renders compact risk notes with hidden details available", () => {

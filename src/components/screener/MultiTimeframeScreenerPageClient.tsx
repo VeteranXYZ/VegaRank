@@ -19,9 +19,12 @@ import {
   defaultMtfScreenerFilters,
   filterMtfScreenerRowsBySearch,
   filterMtfScreenerRows,
+  formatMtfScreenerRowsCsv,
   formatMtfCombinedRank,
   formatMtfGroup,
   formatMtfRank,
+  getMtfScreenerExportFilename,
+  getMtfScreenerExportRows,
   getMtfHigherTimeframeHealth,
   getMtfPrimarySignal,
   getMtfRiskNotesSummary,
@@ -30,6 +33,7 @@ import {
   mtfScreenerSortOptions,
   type MtfLatestScreenerResponse,
   type MtfScreenerFilters,
+  type MtfScreenerExportType,
   type MtfScreenerGroupFilter,
   type MtfScreenerPresetId,
   type MtfScreenerRow,
@@ -132,6 +136,26 @@ export function MultiTimeframeScreenerPageClient() {
     void latestQuery.refetch();
     void marketContextQuery.refetch();
   };
+  const exportRows = (exportType: MtfScreenerExportType) => {
+    const exportedAt = new Date().toISOString();
+    const exportRows = getMtfScreenerExportRows({
+      exportType,
+      visibleRows: sortedRows,
+      allRows: rows,
+    });
+    const csv = formatMtfScreenerRowsCsv({
+      rows: exportRows,
+      exportType,
+      exportedAt,
+      assetClass,
+      runs: latestQuery.data?.runs,
+    });
+
+    downloadCsvFile({
+      csv,
+      filename: getMtfScreenerExportFilename({ exportType, exportedAt }),
+    });
+  };
 
   return (
     <section className="mx-auto flex min-h-[calc(100vh-1px)] max-w-[1800px] flex-col px-2 py-2">
@@ -194,6 +218,8 @@ export function MultiTimeframeScreenerPageClient() {
             data={latestQuery.data}
             totalRows={rows.length}
             filteredRows={sortedRows.length}
+            onExportVisible={() => exportRows("visible_rows")}
+            onExportAll={() => exportRows("all_joined_rows")}
           />
 
           {latestQuery.isLoading ? (
@@ -345,6 +371,26 @@ export function buildMtfLatestScanUrl({
   const baseUrl = tradeApiBaseUrl?.trim().replace(/\/+$/, "") ?? "";
 
   return `${baseUrl}/api/scan/mtf-latest?${params.toString()}`;
+}
+
+function downloadCsvFile({
+  csv,
+  filename,
+}: {
+  csv: string;
+  filename: string;
+}) {
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+  const url = window.URL.createObjectURL(blob);
+  const link = document.createElement("a");
+
+  link.href = url;
+  link.download = filename;
+  link.rel = "noopener";
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  window.URL.revokeObjectURL(url);
 }
 
 export function MtfResearchBucketsPanel({
@@ -607,14 +653,18 @@ function MtfScreenerControls({
   );
 }
 
-function MtfScreenerSourcePanel({
+export function MtfScreenerSourcePanel({
   data,
   totalRows,
   filteredRows,
+  onExportVisible,
+  onExportAll,
 }: {
   data: MtfLatestScreenerResponse | undefined;
   totalRows: number;
   filteredRows: number;
+  onExportVisible: () => void;
+  onExportAll: () => void;
 }) {
   return (
     <section className="border border-[var(--border)] bg-[var(--panel)] px-3 py-2">
@@ -628,8 +678,16 @@ function MtfScreenerSourcePanel({
             1w.
           </p>
         </div>
-        <div className="text-[11px] text-[var(--muted)]">
-          Showing {filteredRows} of {totalRows} joined symbols
+        <div className="flex flex-wrap items-center justify-end gap-2">
+          <div className="text-[11px] text-[var(--muted)]">
+            Showing {filteredRows} of {totalRows} joined symbols
+          </div>
+          <MtfScreenerExportControls
+            visibleRowsCount={filteredRows}
+            allRowsCount={totalRows}
+            onExportVisible={onExportVisible}
+            onExportAll={onExportAll}
+          />
         </div>
       </div>
       <div className="mt-2 grid gap-2 md:grid-cols-4">
@@ -656,6 +714,42 @@ function MtfScreenerSourcePanel({
         })}
       </div>
     </section>
+  );
+}
+
+export function MtfScreenerExportControls({
+  visibleRowsCount,
+  allRowsCount,
+  onExportVisible,
+  onExportAll,
+}: {
+  visibleRowsCount: number;
+  allRowsCount: number;
+  onExportVisible: () => void;
+  onExportAll: () => void;
+}) {
+  return (
+    <div
+      aria-label="Screener CSV export"
+      className="flex flex-wrap items-center gap-1.5"
+    >
+      <button
+        type="button"
+        onClick={onExportVisible}
+        disabled={visibleRowsCount === 0}
+        className="h-7 border border-[var(--border)] px-2 text-[11px] font-semibold text-[var(--foreground)] disabled:cursor-not-allowed disabled:opacity-50"
+      >
+        Export Visible Rows
+      </button>
+      <button
+        type="button"
+        onClick={onExportAll}
+        disabled={allRowsCount === 0}
+        className="h-7 border border-[var(--border)] px-2 text-[11px] font-semibold text-[var(--foreground)] disabled:cursor-not-allowed disabled:opacity-50"
+      >
+        Export All Joined Rows
+      </button>
+    </div>
   );
 }
 
