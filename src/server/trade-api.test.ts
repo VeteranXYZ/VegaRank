@@ -4,6 +4,8 @@ import { handleTradeApiRequest } from "./trade-api";
 
 const getLatestScanRunMock = vi.hoisted(() => vi.fn());
 const listLatestScanSignalsForRunMock = vi.hoisted(() => vi.fn());
+const listHistoricalScanRunsMock = vi.hoisted(() => vi.fn());
+const getHistoricalScanRunMock = vi.hoisted(() => vi.fn());
 const closeMock = vi.hoisted(() => vi.fn());
 const getSymbolResearchLatestSignalPgMock = vi.hoisted(() => vi.fn());
 const getSymbolSignalHistoryPgMock = vi.hoisted(() => vi.fn());
@@ -19,6 +21,8 @@ const pgScannerResultsStoreMock = vi.hoisted(() =>
     return {
       getLatestScanRun: getLatestScanRunMock,
       listLatestScanSignalsForRun: listLatestScanSignalsForRunMock,
+      listHistoricalScanRuns: listHistoricalScanRunsMock,
+      getHistoricalScanRun: getHistoricalScanRunMock,
       close: closeMock,
     };
   }),
@@ -472,6 +476,151 @@ describe("trade-api latest scan run selection", () => {
       totalSignals: 3,
       returnedItems: 1,
     });
+  });
+});
+
+describe("trade-api historical snapshots", () => {
+  beforeEach(() => {
+    resetScannerMocks();
+    resetSymbolResearchMocks();
+  });
+
+  it("lists recent successful single-timeframe historical snapshots", async () => {
+    listHistoricalScanRunsMock.mockResolvedValue([
+      makeRun("run-history-4h", {
+        timeframe: "4h",
+        symbolsTotal: 413,
+        symbolsScanned: 409,
+        signalsCreated: 409,
+        symbolsSkipped: 4,
+        params: { assetClass: "crypto", allSymbols: true },
+      }),
+    ]);
+
+    const response = await requestTradeApi(
+      "/api/history/snapshots?timeframe=4h&assetClass=crypto",
+    );
+    const body = JSON.parse(response.body);
+
+    expect(response.status).toBe(200);
+    expect(body.ok).toBe(true);
+    expect(body.service).toBe("trade-api");
+    expect(body.source).toBe("postgres");
+    expect(body.metadata).toMatchObject({
+      timeframe: "4h",
+      assetClass: "crypto",
+      count: 1,
+      limit: 25,
+    });
+    expect(body.metadata.disclaimer).toContain("Historical observations are not predictions");
+    expect(body.snapshots[0]).toMatchObject({
+      runId: "run-history-4h",
+      timeframe: "4h",
+      status: "success",
+      symbolsScanned: 409,
+      signalsCreated: 409,
+      skipped: 4,
+      isLikelyFullUniverse: true,
+    });
+    expect(listHistoricalScanRunsMock).toHaveBeenCalledWith({
+      timeframe: "4h",
+      assetClass: "crypto",
+      limit: 25,
+    });
+    expect(closeMock).toHaveBeenCalled();
+  });
+
+  it("returns full stored rows for a selected historical snapshot", async () => {
+    getHistoricalScanRunMock.mockResolvedValue(
+      makeRun("run-history-4h", {
+        timeframe: "4h",
+        symbolsTotal: 413,
+        symbolsScanned: 409,
+        signalsCreated: 2,
+        params: { assetClass: "crypto", allSymbols: true },
+      }),
+    );
+    listLatestScanSignalsForRunMock.mockResolvedValue([
+      makeResearchSignal({
+        id: "risk-signal",
+        scanRunId: "run-history-4h",
+        symbol: "RISKUSDT",
+        rankScore: 120,
+        signalLabel: "breakdown_risk",
+        actionBias: "avoid",
+        primaryStructure: "trend_breakdown",
+        detectedRiskTypes: ["trend_breakdown_risk"],
+      }),
+      makeResearchSignal({
+        id: "eligible-signal",
+        scanRunId: "run-history-4h",
+        symbol: "SEIUSDT",
+        rankScore: 82,
+      }),
+    ]);
+
+    const response = await requestTradeApi(
+      "/api/history/snapshot?runId=run-history-4h&assetClass=crypto",
+    );
+    const body = JSON.parse(response.body);
+
+    expect(response.status).toBe(200);
+    expect(body.run).toMatchObject({
+      runId: "run-history-4h",
+      timeframe: "4h",
+      scannerVersion: "test",
+      scoringVersion: "test",
+      isLikelyFullUniverse: true,
+    });
+    expect(body.metadata).toMatchObject({
+      rowCount: 2,
+      limited: false,
+      timeframe: "4h",
+      assetClass: "crypto",
+    });
+    expect(body.rows.map((row: { symbol: string }) => row.symbol)).toEqual([
+      "SEIUSDT",
+      "RISKUSDT",
+    ]);
+    expect(body.rows[0]).toMatchObject({
+      symbol: "SEIUSDT",
+      group: "eligible",
+      label: "confirmed",
+      primarySignal: "Manual review",
+      rankScore: 82,
+    });
+    expect(body.rows[1]).toMatchObject({
+      symbol: "RISKUSDT",
+      group: "risk",
+      riskTypes: ["trend_breakdown_risk"],
+    });
+    expect(getHistoricalScanRunMock).toHaveBeenCalledWith({
+      scanRunId: "run-history-4h",
+      timeframe: undefined,
+      assetClass: "crypto",
+    });
+    expect(listLatestScanSignalsForRunMock).toHaveBeenCalledWith({
+      scanRunId: "run-history-4h",
+      timeframe: "4h",
+      assetClass: "crypto",
+      includeNonScanner: false,
+      includeMarketContext: false,
+    });
+  });
+
+  it("rejects invalid historical snapshot filters before opening the store", async () => {
+    const timeframeResponse = await requestTradeApi(
+      "/api/history/snapshots?timeframe=15m",
+    );
+    const runResponse = await requestTradeApi(
+      "/api/history/snapshot?runId=../../secret",
+    );
+
+    expect(timeframeResponse.status).toBe(400);
+    expect(JSON.parse(timeframeResponse.body).error).toBe("INVALID_TIMEFRAME");
+    expect(runResponse.status).toBe(400);
+    expect(JSON.parse(runResponse.body).error).toBe("INVALID_RUN_ID");
+    expect(pgScannerResultsStoreMock).not.toHaveBeenCalled();
   });
 });
 
@@ -1391,6 +1540,10 @@ function resetScannerMocks() {
   getLatestScanRunMock.mockResolvedValue(null);
   listLatestScanSignalsForRunMock.mockReset();
   listLatestScanSignalsForRunMock.mockResolvedValue([]);
+  listHistoricalScanRunsMock.mockReset();
+  listHistoricalScanRunsMock.mockResolvedValue([]);
+  getHistoricalScanRunMock.mockReset();
+  getHistoricalScanRunMock.mockResolvedValue(null);
   closeMock.mockReset();
   closeMock.mockResolvedValue(undefined);
   pgScannerResultsStoreMock.mockClear();

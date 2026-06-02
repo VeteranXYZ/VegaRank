@@ -21,6 +21,7 @@ import {
 import { buildLatestScanResponse } from "@/lib/scanner/latestScanResponse";
 import {
   classifyScanResultGroup,
+  compareScanResultGroupItems,
   getScanResultReview,
   type ScanResultGroup,
 } from "@/lib/scanner/scanResultGroups";
@@ -68,6 +69,9 @@ const defaultPort = "3000";
 const SYMBOL_RESEARCH_REQUIRED_CANDLES = 200;
 const MTF_LATEST_TIMEFRAMES = ["1h", "4h", "1d", "1w"] as const;
 const SIGNAL_EVALUATION_TIMEFRAMES = ["1h", "4h", "1d", "1w"] as const;
+const HISTORY_SNAPSHOT_TIMEFRAMES = ["1h", "4h", "1d", "1w"] as const;
+const HISTORY_RESEARCH_DISCLAIMER =
+  "Research-only. Not financial advice. Historical observations are not predictions.";
 const allowedOrigins = new Set([
   "https://s.bitcoinmind.com",
   "http://localhost:3000",
@@ -77,6 +81,7 @@ type MtfLatestTimeframe = (typeof MTF_LATEST_TIMEFRAMES)[number];
 type MtfLatestSignalItem = ReturnType<typeof buildMtfLatestSignalItem>;
 type MtfLatestTimeframeMap<T> = Record<MtfLatestTimeframe, T>;
 type SignalEvaluationTimeframe = (typeof SIGNAL_EVALUATION_TIMEFRAMES)[number];
+type HistorySnapshotTimeframe = (typeof HISTORY_SNAPSHOT_TIMEFRAMES)[number];
 type MtfLatestRunMetadata = Pick<
   ScanRunRecord,
   | "id"
@@ -192,6 +197,16 @@ export async function handleTradeApiRequest(
 
     if (url.pathname === "/api/scan/mtf-latest") {
       await handleMtfLatestScan(response, url);
+      return;
+    }
+
+    if (url.pathname === "/api/history/snapshots") {
+      await handleHistorySnapshots(response, url);
+      return;
+    }
+
+    if (url.pathname === "/api/history/snapshot") {
+      await handleHistorySnapshot(response, url);
       return;
     }
 
@@ -2020,6 +2035,260 @@ async function handleScanRuns(response: http.ServerResponse, url: URL) {
   }
 }
 
+async function handleHistorySnapshots(response: http.ServerResponse, url: URL) {
+  const timeframe = parseHistorySnapshotTimeframeParam(
+    url.searchParams.get("timeframe"),
+  );
+  const assetClass = parseAssetClassParam(url.searchParams.get("assetClass"));
+  const limit = parseBoundedInteger({
+    value: url.searchParams.get("limit"),
+    fallback: 25,
+    min: 1,
+    max: 100,
+    name: "limit",
+  });
+
+  if (!timeframe.valid) {
+    sendJson(response, 400, {
+      ok: false,
+      service: serviceName,
+      error: "INVALID_TIMEFRAME",
+    });
+    return;
+  }
+
+  if (!assetClass.valid) {
+    sendJson(response, 400, {
+      ok: false,
+      service: serviceName,
+      error: "INVALID_ASSET_CLASS",
+    });
+    return;
+  }
+
+  if (!limit.valid) {
+    sendJson(response, 400, { ok: false, service: serviceName, error: limit.error });
+    return;
+  }
+
+  const store = new PgScannerResultsStore();
+
+  try {
+    const runs = await store.listHistoricalScanRuns({
+      timeframe: timeframe.value,
+      assetClass: assetClass.value,
+      limit: limit.value,
+    });
+    const snapshots = runs.map((run) =>
+      buildHistoricalSnapshotRunMetadata({
+        run,
+        assetClass: assetClass.value,
+      }),
+    );
+
+    sendJson(response, 200, {
+      ok: true,
+      service: serviceName,
+      source: "postgres",
+      snapshots,
+      metadata: {
+        timeframe: timeframe.value,
+        assetClass: assetClass.value,
+        count: snapshots.length,
+        limit: limit.value,
+        disclaimer: HISTORY_RESEARCH_DISCLAIMER,
+      },
+    });
+  } catch (error) {
+    sendJson(response, 503, {
+      ok: false,
+      service: serviceName,
+      source: "postgres",
+      error: sanitizeConnectionError(error, "POSTGRES_UNAVAILABLE"),
+    });
+  } finally {
+    await store.close().catch(() => undefined);
+  }
+}
+
+async function handleHistorySnapshot(response: http.ServerResponse, url: URL) {
+  const runId = parseHistoryRunIdParam(url.searchParams.get("runId"));
+  const timeframe = parseOptionalHistorySnapshotTimeframeParam(
+    url.searchParams.get("timeframe"),
+  );
+  const assetClass = parseAssetClassParam(url.searchParams.get("assetClass"));
+
+  if (!runId.valid) {
+    sendJson(response, 400, {
+      ok: false,
+      service: serviceName,
+      error: "INVALID_RUN_ID",
+    });
+    return;
+  }
+
+  if (!timeframe.valid) {
+    sendJson(response, 400, {
+      ok: false,
+      service: serviceName,
+      error: "INVALID_TIMEFRAME",
+    });
+    return;
+  }
+
+  if (!assetClass.valid) {
+    sendJson(response, 400, {
+      ok: false,
+      service: serviceName,
+      error: "INVALID_ASSET_CLASS",
+    });
+    return;
+  }
+
+  const store = new PgScannerResultsStore();
+
+  try {
+    const run = await store.getHistoricalScanRun({
+      scanRunId: runId.value,
+      timeframe: timeframe.value ?? undefined,
+      assetClass: assetClass.value,
+    });
+
+    if (!run) {
+      sendJson(response, 404, {
+        ok: false,
+        service: serviceName,
+        source: "postgres",
+        error: "SNAPSHOT_NOT_FOUND",
+      });
+      return;
+    }
+
+    const signals = await store.listLatestScanSignalsForRun({
+      scanRunId: run.id,
+      timeframe: run.timeframe,
+      assetClass: assetClass.value,
+      includeNonScanner: false,
+      includeMarketContext: false,
+    });
+    const rows = signals
+      .map(buildHistoricalSnapshotRow)
+      .sort(compareScanResultGroupItems);
+    const scannerVersion = firstNonEmpty(rows.map((row) => row.scannerVersion));
+    const scoringVersion = firstNonEmpty(rows.map((row) => row.scoringVersion));
+
+    sendJson(response, 200, {
+      ok: true,
+      service: serviceName,
+      source: "postgres",
+      run: {
+        ...buildHistoricalSnapshotRunMetadata({
+          run,
+          assetClass: assetClass.value,
+        }),
+        params: run.params,
+        scannerVersion,
+        scoringVersion,
+      },
+      rows,
+      metadata: {
+        rowCount: rows.length,
+        limited: false,
+        timeframe: run.timeframe,
+        assetClass: assetClass.value,
+        disclaimer: HISTORY_RESEARCH_DISCLAIMER,
+      },
+    });
+  } catch (error) {
+    sendJson(response, 503, {
+      ok: false,
+      service: serviceName,
+      source: "postgres",
+      error: sanitizeConnectionError(error, "POSTGRES_UNAVAILABLE"),
+    });
+  } finally {
+    await store.close().catch(() => undefined);
+  }
+}
+
+function buildHistoricalSnapshotRunMetadata({
+  run,
+  assetClass,
+}: {
+  run: ScanRunRecord;
+  assetClass: SymbolAssetClassFilter;
+}) {
+  return {
+    runId: run.id,
+    timeframe: run.timeframe,
+    status: run.status,
+    universe: run.universe,
+    exchange: run.exchange,
+    market: run.market,
+    symbolsTotal: run.symbolsTotal,
+    symbolsScanned: run.symbolsScanned,
+    signalsCreated: run.signalsCreated,
+    skipped: run.symbolsSkipped,
+    failedSymbols: run.failedSymbols,
+    startedAt: run.startedAt,
+    finishedAt: run.finishedAt,
+    isLikelyFullUniverse: isLikelyFullUniverseRun({
+      run,
+      assetClass,
+      minExpectedSymbols: LATEST_SCAN_FULL_UNIVERSE_MIN_SYMBOLS,
+    }),
+    fullUniverseMinExpectedSymbols: LATEST_SCAN_FULL_UNIVERSE_MIN_SYMBOLS,
+  };
+}
+
+function buildHistoricalSnapshotRow(signal: LatestScanSignalRecord) {
+  const group = classifyScanResultGroup(signal);
+  const review = getScanResultReview({ ...signal, resultGroup: group });
+  const riskTypes = toStringArray(signal.detectedRiskTypes);
+
+  return {
+    id: signal.id,
+    scanRunId: signal.scanRunId,
+    symbol: signal.symbol,
+    exchange: signal.exchange,
+    market: signal.market,
+    timeframe: signal.timeframe,
+    scanTime: signal.scanTime,
+    candleOpenTime: signal.candleOpenTime,
+    priceAtSignal: signal.priceAtSignal,
+    assetClass: signal.assetClass,
+    group,
+    resultGroup: group,
+    label: signal.signalLabel,
+    primarySignal: review.statusNote,
+    reviewTier: review.reviewTier,
+    riskNotes: review.statusReasons.join(" "),
+    riskTypes,
+    rankScore: signal.rankScore,
+    componentScores: {
+      finalSignalScore: signal.finalSignalScore,
+      opportunityScore: signal.opportunityScore,
+      confirmationScore: signal.confirmationScore,
+      riskScore: signal.riskScore,
+      trendScore: signal.trendScore,
+      momentumScore: signal.momentumScore,
+      volumeScore: signal.volumeScore,
+      structureScore: signal.structureScore,
+    },
+    actionBias: signal.actionBias,
+    primaryStructure: signal.primaryStructure,
+    secondaryStructures: signal.secondaryStructures,
+    factors: signal.factors,
+    rawMetrics: signal.rawMetrics,
+    scannerVersion: signal.scannerVersion,
+    scoringVersion: signal.scoringVersion,
+    candleCount: signal.candleCount,
+    firstOpenTime: signal.firstOpenTime,
+    isScannerEligible: signal.isScannerEligible,
+    isMarketContext: signal.isMarketContext,
+  };
+}
+
 function sanitizeConnectionError(error: unknown, fallbackCode: string): ServiceCheck {
   const code = getSafeErrorCode(error) ?? fallbackCode;
 
@@ -2202,12 +2471,76 @@ function isSignalEvaluationTimeframe(
   );
 }
 
+function parseHistorySnapshotTimeframeParam(value: string | null): {
+  valid: true;
+  value: HistorySnapshotTimeframe;
+} | {
+  valid: false;
+  value: null;
+} {
+  const timeframe = value?.trim().toLowerCase() || "4h";
+
+  if (isHistorySnapshotTimeframe(timeframe)) {
+    return { valid: true, value: timeframe };
+  }
+
+  return { valid: false, value: null };
+}
+
+function parseOptionalHistorySnapshotTimeframeParam(value: string | null): {
+  valid: true;
+  value: HistorySnapshotTimeframe | null;
+} | {
+  valid: false;
+  value: null;
+} {
+  if (value === null || value.trim() === "") {
+    return { valid: true, value: null };
+  }
+
+  return parseHistorySnapshotTimeframeParam(value);
+}
+
+function isHistorySnapshotTimeframe(
+  value: string,
+): value is HistorySnapshotTimeframe {
+  return HISTORY_SNAPSHOT_TIMEFRAMES.includes(
+    value as HistorySnapshotTimeframe,
+  );
+}
+
+function parseHistoryRunIdParam(value: string | null): {
+  valid: true;
+  value: string;
+} | {
+  valid: false;
+  value: null;
+} {
+  const runId = value?.trim() ?? "";
+
+  if (/^[A-Za-z0-9:_-]{1,120}$/.test(runId)) {
+    return { valid: true, value: runId };
+  }
+
+  return { valid: false, value: null };
+}
+
 function parseBooleanParam(value: string | null) {
   if (value === null || value === "") {
     return false;
   }
 
   return value === "1" || value.toLowerCase() === "true" || value.toLowerCase() === "yes";
+}
+
+function firstNonEmpty(values: Array<string | null | undefined>) {
+  return values.find((value) => typeof value === "string" && value.trim() !== "") ?? null;
+}
+
+function toStringArray(value: unknown[] | null | undefined) {
+  return Array.isArray(value)
+    ? value.filter((item): item is string => typeof item === "string")
+    : [];
 }
 
 function loadDotEnv() {

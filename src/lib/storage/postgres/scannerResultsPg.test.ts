@@ -252,6 +252,69 @@ describe("PgScannerResultsStore latest scan queries", () => {
     expect(queries[0]).not.toMatch(/scan_time\s*=\s*\(/i);
     expect(queries[0]).not.toMatch(/max\(scan_time\)/i);
   });
+
+  it("lists recent successful historical runs by timeframe and asset class", async () => {
+    const queries: string[] = [];
+    const paramsList: unknown[][] = [];
+    const store = new PgScannerResultsStore(
+      makePool((sql, params) => {
+        queries.push(sql);
+        paramsList.push(params);
+        return {
+          rows: [
+            makeRunRow("history-run", {
+              timeframe: "4h",
+              symbols_total: 413,
+              symbols_scanned: 409,
+              signals_created: 409,
+              params: { assetClass: "crypto", allSymbols: true },
+            }),
+          ],
+        };
+      }),
+    );
+
+    const runs = await store.listHistoricalScanRuns({
+      timeframe: "4h",
+      assetClass: "crypto",
+      limit: 25,
+    });
+
+    expect(runs).toHaveLength(1);
+    expect(runs[0]?.id).toBe("history-run");
+    expect(paramsList[0]).toEqual(["4h", 25, "crypto"]);
+    expect(queries[0]).toContain("sr.timeframe = $1");
+    expect(queries[0]).toContain("sr.status = 'success'");
+    expect(queries[0]).toContain("lower(sr.params->>'assetClass') = $3");
+    expect(queries[0]).toContain("LIMIT $2");
+  });
+
+  it("loads one successful historical run with optional timeframe and asset filters", async () => {
+    const queries: string[] = [];
+    const paramsList: unknown[][] = [];
+    const store = new PgScannerResultsStore(
+      makePool((sql, params) => {
+        queries.push(sql);
+        paramsList.push(params);
+        return { rows: [makeRunRow("history-run", { timeframe: "1d" })] };
+      }),
+    );
+
+    const run = await store.getHistoricalScanRun({
+      scanRunId: "history-run",
+      timeframe: "1d",
+      assetClass: "crypto",
+    });
+
+    expect(run?.id).toBe("history-run");
+    expect(run?.timeframe).toBe("1d");
+    expect(paramsList[0]).toEqual(["history-run", "1d", "crypto"]);
+    expect(queries[0]).toContain("sr.id = $1");
+    expect(queries[0]).toContain("sr.status = 'success'");
+    expect(queries[0]).toContain("sr.timeframe = $2");
+    expect(queries[0]).toContain("lower(sr.params->>'assetClass') = $3");
+    expect(queries[0]).toContain("LIMIT 1");
+  });
 });
 
 function makePool(

@@ -460,6 +460,104 @@ export class PgScannerResultsStore {
     return result.rows.map(toLatestScanSignalRecord);
   }
 
+  async listHistoricalScanRuns({
+    timeframe,
+    assetClass = "crypto",
+    limit = 25,
+  }: {
+    timeframe: string;
+    assetClass?: SymbolAssetClassFilter;
+    limit?: number;
+  }) {
+    const params: unknown[] = [timeframe, limit];
+    const filters = ["sr.timeframe = $1", "sr.status = 'success'"];
+
+    if (assetClass !== "all") {
+      params.push(assetClass);
+      filters.push(`
+        (
+          lower(sr.params->>'assetClass') = $${params.length}
+          OR (
+            NOT (sr.params ? 'assetClass')
+            AND EXISTS (
+              SELECT 1
+              FROM scan_signals ss
+              JOIN symbols s
+                ON s.id = ss.symbol_id
+              WHERE ss.scan_run_id = sr.id
+                AND ss.timeframe = sr.timeframe
+                AND s.asset_class = $${params.length}
+            )
+          )
+        )
+      `);
+    }
+
+    const result = await this.pool.query<ScanRunRow>(
+      `
+        SELECT sr.*
+        FROM scan_runs sr
+        WHERE ${filters.join("\n          AND ")}
+        ORDER BY sr.finished_at DESC NULLS LAST, sr.started_at DESC
+        LIMIT $2
+      `,
+      params,
+    );
+
+    return result.rows.map(toScanRunRecord);
+  }
+
+  async getHistoricalScanRun({
+    scanRunId,
+    timeframe,
+    assetClass = "crypto",
+  }: {
+    scanRunId: string;
+    timeframe?: string;
+    assetClass?: SymbolAssetClassFilter;
+  }) {
+    const params: unknown[] = [scanRunId];
+    const filters = ["sr.id = $1", "sr.status = 'success'"];
+
+    if (timeframe) {
+      params.push(timeframe);
+      filters.push(`sr.timeframe = $${params.length}`);
+    }
+
+    if (assetClass !== "all") {
+      params.push(assetClass);
+      filters.push(`
+        (
+          lower(sr.params->>'assetClass') = $${params.length}
+          OR (
+            NOT (sr.params ? 'assetClass')
+            AND EXISTS (
+              SELECT 1
+              FROM scan_signals ss
+              JOIN symbols s
+                ON s.id = ss.symbol_id
+              WHERE ss.scan_run_id = sr.id
+                AND ss.timeframe = sr.timeframe
+                AND s.asset_class = $${params.length}
+            )
+          )
+        )
+      `);
+    }
+
+    const result = await this.pool.query<ScanRunRow>(
+      `
+        SELECT sr.*
+        FROM scan_runs sr
+        WHERE ${filters.join("\n          AND ")}
+        LIMIT 1
+      `,
+      params,
+    );
+
+    return result.rows[0] ? toScanRunRecord(result.rows[0]) : null;
+  }
+
   async listLatestScanSignals({
     scanRunId,
     limit,

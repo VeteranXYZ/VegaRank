@@ -1,601 +1,572 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { useLanguage } from "@/components/providers/LanguageProvider";
-import type {
-  MarketPhase,
-  MultiTimeframeAlignment,
-  ScannerSignalState,
-} from "@/lib/shared/scannerTypes";
-import type { Timeframe } from "@/lib/shared/timeframes";
+import Link from "next/link";
+import { useMemo, useState } from "react";
+import {
+  formatDateTime,
+  formatGroupLabel,
+  formatScore,
+  formatSignalLabel,
+  normalizeGroupKey,
+} from "@/components/scanner/latestScanUi";
+import { buildSymbolResearchHref } from "@/components/symbol/symbolResearchLinks";
 
-type Dictionary = ReturnType<typeof useLanguage>["dictionary"];
+const HISTORY_TIMEFRAMES = ["1h", "4h", "1d", "1w"] as const;
+const assetClass = "crypto";
+const snapshotsLimit = 25;
+const historyDisclaimer =
+  "Research-only. Not financial advice. Historical observations are not predictions.";
 
-type EvaluationSummaryBucket = {
-  completedCount: number;
-  pendingCount: number;
-  hitRate: number | null;
-  avgReturnPct: number | null;
-  avgMaxUpPct: number | null;
-  avgMaxDownPct: number | null;
+type HistoryTimeframe = (typeof HISTORY_TIMEFRAMES)[number];
+
+type HistoricalSnapshotRun = {
+  runId: string;
+  timeframe: HistoryTimeframe;
+  status: "success";
+  universe?: string | null;
+  exchange?: string | null;
+  market?: string | null;
+  symbolsTotal?: number | null;
+  symbolsScanned?: number | null;
+  signalsCreated?: number | null;
+  skipped?: number | null;
+  failedSymbols?: number | null;
+  startedAt?: string | null;
+  finishedAt?: string | null;
+  isLikelyFullUniverse?: boolean | null;
+  fullUniverseMinExpectedSymbols?: number | null;
+  params?: unknown;
+  scannerVersion?: string | null;
+  scoringVersion?: string | null;
 };
 
-type StoredScanSnapshot = {
+type HistoricalSnapshotRow = {
   id: string;
-  createdAt: string;
-  exchange: "binance";
-  mode: "single" | "mtf";
-  timeframe?: Timeframe;
-  preset?: string;
-  timeframes?: Timeframe[];
-  limit: number;
-  itemCount: number;
-  errorsCount: number;
-  results: Array<{
-    symbol: string;
-    timeframe: Timeframe;
-    price: number;
-    phase: MarketPhase;
-    signalState: ScannerSignalState;
-    signalLabel: string;
-    rankScore: number;
-    opportunityScore: number;
-    confirmationScore: number;
-    riskScore: number;
-    multiTimeframe?: {
-      alignment: MultiTimeframeAlignment;
-      label: string;
-      rankScore: number;
-      constructiveCount: number;
-      riskCount: number;
-      timeframes: Timeframe[];
-    };
-  }>;
+  scanRunId: string;
+  symbol: string;
+  exchange?: string | null;
+  market?: string | null;
+  timeframe: HistoryTimeframe;
+  scanTime?: string | null;
+  candleOpenTime?: string | null;
+  priceAtSignal?: number | null;
+  group?: string | null;
+  label?: string | null;
+  primarySignal?: string | null;
+  reviewTier?: string | null;
+  riskNotes?: string | null;
+  riskTypes?: string[];
+  rankScore?: number | null;
+  componentScores?: {
+    finalSignalScore?: number | null;
+    opportunityScore?: number | null;
+    confirmationScore?: number | null;
+    riskScore?: number | null;
+    trendScore?: number | null;
+    momentumScore?: number | null;
+    volumeScore?: number | null;
+    structureScore?: number | null;
+  };
+  actionBias?: string | null;
+  primaryStructure?: string | null;
+  scannerVersion?: string | null;
+  scoringVersion?: string | null;
 };
 
-type HistoryApiResponse = {
-  snapshots: StoredScanSnapshot[];
-  itemCount: number;
-  summary: {
-    snapshotCount: number;
-    resultCount: number;
-    latestAt: string | null;
-    byMode: Record<string, number>;
-    bySignal: Record<string, number>;
-    byPhase: Record<string, number>;
-    byAlignment: Record<string, number>;
+type HistoricalSnapshotsResponse = {
+  ok: boolean;
+  snapshots: HistoricalSnapshotRun[];
+  metadata: {
+    timeframe: HistoryTimeframe;
+    assetClass: string;
+    count: number;
+    limit?: number;
+    disclaimer: string;
   };
 };
 
-type HistoryEvaluationApiResponse = {
-  horizonCandles: number;
-  itemCount: number;
-  summary: {
-    evaluationCount: number;
-    completedCount: number;
-    pendingCount: number;
-    bySignal: Record<string, EvaluationSummaryBucket>;
-    byPhase: Record<string, EvaluationSummaryBucket>;
-    byAlignment: Record<string, EvaluationSummaryBucket>;
+type HistoricalSnapshotDetailResponse = {
+  ok: boolean;
+  run: HistoricalSnapshotRun;
+  rows: HistoricalSnapshotRow[];
+  metadata: {
+    rowCount: number;
+    limited: boolean;
+    timeframe: HistoryTimeframe;
+    assetClass: string;
+    disclaimer: string;
   };
 };
 
 export function HistoryPageClient() {
-  const { dictionary: t } = useLanguage();
-  const historyQuery = useQuery({
-    queryKey: ["scan-history", 50],
-    queryFn: () => fetchHistory(50),
+  const [timeframe, setTimeframe] = useState<HistoryTimeframe>("4h");
+  const [manualSelectedRunId, setManualSelectedRunId] = useState<string | null>(
+    null,
+  );
+  const snapshotsQuery = useQuery({
+    queryKey: ["history-snapshots", timeframe, assetClass],
+    queryFn: ({ signal }) =>
+      fetchHistoricalSnapshots({ timeframe, assetClass, signal }),
+    staleTime: 60_000,
   });
-  const evaluationQuery = useQuery({
-    queryKey: ["scan-history-evaluation", 10, "24h", 50],
-    queryFn: () => fetchEvaluation({ limit: 10, horizon: "24h", resultLimit: 50 }),
-    enabled: (historyQuery.data?.snapshots.length ?? 0) > 0,
+  const snapshots = snapshotsQuery.data?.snapshots ?? [];
+  const selectedRunId =
+    manualSelectedRunId && snapshots.some((run) => run.runId === manualSelectedRunId)
+      ? manualSelectedRunId
+      : snapshots[0]?.runId ?? null;
+
+  const snapshotQuery = useQuery({
+    queryKey: ["history-snapshot", selectedRunId, assetClass],
+    queryFn: ({ signal }) =>
+      fetchHistoricalSnapshot({
+        runId: selectedRunId ?? "",
+        assetClass,
+        signal,
+      }),
+    enabled: selectedRunId !== null,
+    staleTime: 60_000,
   });
-  const data = historyQuery.data;
+  const rows = snapshotQuery.data?.rows ?? [];
+  const selectedRun = snapshotQuery.data?.run ?? null;
+  const summaryItems = useMemo(
+    () => buildRunSummaryItems(selectedRun),
+    [selectedRun],
+  );
+
+  const refreshData = () => {
+    void snapshotsQuery.refetch();
+    void snapshotQuery.refetch();
+  };
 
   return (
-    <section className="mx-auto max-w-[1500px] px-4 py-6">
-      <div className="mb-5 flex flex-wrap items-end justify-between gap-4">
+    <section className="mx-auto max-w-[1800px] px-3 py-5 sm:px-4">
+      <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
         <div>
-          <p className="text-sm uppercase tracking-wide text-[var(--muted)]">
-            {t.history.research}
-          </p>
-          <h1 className="mt-1 text-3xl font-semibold">{t.history.title}</h1>
-          <p className="mt-2 max-w-2xl text-sm leading-6 text-[var(--muted)]">
-            {t.history.subtitle}
+          <p className="text-xs uppercase text-[var(--muted)]">Research</p>
+          <h1 className="mt-1 text-2xl font-semibold sm:text-3xl">
+            Historical Research
+          </h1>
+          <p className="mt-2 max-w-3xl text-sm leading-6 text-[var(--muted)]">
+            {historyDisclaimer}
           </p>
         </div>
         <button
           type="button"
-          onClick={() => void historyQuery.refetch()}
-          disabled={historyQuery.isFetching}
+          onClick={refreshData}
+          disabled={snapshotsQuery.isFetching || snapshotQuery.isFetching}
           className="rounded-md border border-[var(--border)] px-3 py-2 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-60"
         >
-          {historyQuery.isFetching ? t.common.refreshing : t.common.refresh}
+          {snapshotsQuery.isFetching || snapshotQuery.isFetching
+            ? "Refreshing"
+            : "Refresh"}
         </button>
       </div>
 
-      {historyQuery.isError ? (
-        <StatePanel
-          title={t.history.errorTitle}
-          message={
-            historyQuery.error instanceof Error
-              ? historyQuery.error.message
-              : "History request failed."
-          }
-        />
-      ) : historyQuery.isLoading ? (
-        <StatePanel
-          title={t.history.loadingTitle}
-          message={t.history.loadingMessage}
-        />
-      ) : !data || data.snapshots.length === 0 ? (
-        <StatePanel
-          title={t.history.emptyTitle}
-          message={t.history.emptyMessage}
-        />
-      ) : (
-        <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_360px]">
-          <div className="space-y-5">
-            <SummaryCards data={data} />
-            <EvaluationSection
-              data={evaluationQuery.data ?? null}
-              isLoading={evaluationQuery.isLoading || evaluationQuery.isFetching}
-              isError={evaluationQuery.isError}
-              errorMessage={
-                evaluationQuery.error instanceof Error
-                  ? evaluationQuery.error.message
-                  : "Evaluation request failed."
-              }
-              onRefresh={() => void evaluationQuery.refetch()}
-            />
-            <DistributionSection
-              title={t.history.signalDistribution}
-              items={data.summary.bySignal}
-            />
-            <DistributionSection
-              title={t.history.phaseDistribution}
-              items={data.summary.byPhase}
-            />
-            <SnapshotTable snapshots={data.snapshots} />
+      <section className="mb-4 rounded-md border border-[var(--border)] bg-[var(--panel)] p-4">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h2 className="text-base font-semibold">Timeframe</h2>
+            <p className="mt-1 text-xs text-[var(--muted)]">
+              Single-timeframe stored scan runs only.
+            </p>
           </div>
-          <aside className="space-y-5">
-            <DistributionSection
-              title={t.history.alignmentDistribution}
-              items={data.summary.byAlignment}
-            />
-            <DistributionSection
-              title={t.history.modeDistribution}
-              items={data.summary.byMode}
-            />
-            <LatestSnapshot snapshot={data.snapshots[0]} />
-          </aside>
+          <div className="flex rounded-md border border-[var(--border)] p-1">
+            {HISTORY_TIMEFRAMES.map((option) => (
+              <button
+                key={option}
+                type="button"
+                onClick={() => setTimeframe(option)}
+                className={`min-w-12 rounded px-3 py-1.5 text-sm font-semibold ${
+                  option === timeframe
+                    ? "bg-[var(--foreground)] text-[var(--background)]"
+                    : "text-[var(--muted)] hover:text-[var(--foreground)]"
+                }`}
+              >
+                {option}
+              </button>
+            ))}
+          </div>
         </div>
-      )}
+      </section>
+
+      <div className="grid gap-4 xl:grid-cols-[360px_minmax(0,1fr)]">
+        <section className="rounded-md border border-[var(--border)] bg-[var(--panel)] p-4">
+          <div className="mb-3">
+            <h2 className="text-base font-semibold">Recent Successful Runs</h2>
+            <p className="mt-1 text-xs text-[var(--muted)]">
+              Showing recent successful {timeframe} runs from Postgres.
+            </p>
+          </div>
+          {snapshotsQuery.isError ? (
+            <StatePanel
+              title="History unavailable"
+              message={formatQueryError(snapshotsQuery.error)}
+            />
+          ) : snapshotsQuery.isLoading ? (
+            <StatePanel title="Loading runs" message="Loading stored scan runs." />
+          ) : snapshots.length === 0 ? (
+            <StatePanel
+              title="No stored runs"
+              message={`No successful ${timeframe} historical snapshots are available.`}
+            />
+          ) : (
+            <div className="max-h-[680px] space-y-2 overflow-y-auto pr-1">
+              {snapshots.map((run) => (
+                <button
+                  key={run.runId}
+                  type="button"
+                  onClick={() => setManualSelectedRunId(run.runId)}
+                  className={`w-full rounded-md border p-3 text-left transition ${
+                    run.runId === selectedRunId
+                      ? "border-[var(--foreground)] bg-[#111820]"
+                      : "border-[var(--border)] hover:border-[var(--muted)]"
+                  }`}
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-semibold">{run.runId}</p>
+                      <p className="mt-1 text-xs text-[var(--muted)]">
+                        Finished {formatDateTime(run.finishedAt)}
+                      </p>
+                    </div>
+                    <span className="rounded border border-[var(--border)] px-2 py-1 text-xs font-semibold">
+                      {run.timeframe}
+                    </span>
+                  </div>
+                  <div className="mt-3 grid grid-cols-2 gap-2 text-xs text-[var(--muted)]">
+                    <span>Scanned {formatCount(run.symbolsScanned)}</span>
+                    <span>Signals {formatCount(run.signalsCreated)}</span>
+                    <span>Skipped {formatCount(run.skipped)}</span>
+                    <span>{formatFullUniverse(run)}</span>
+                  </div>
+                </button>
+              ))}
+            </div>
+          )}
+        </section>
+
+        <div className="space-y-4">
+          <section className="rounded-md border border-[var(--border)] bg-[var(--panel)] p-4">
+            <div className="mb-3 flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <h2 className="text-base font-semibold">Selected Stored Run</h2>
+                <p className="mt-1 text-xs text-[var(--muted)]">
+                  Stored scanner metadata for the selected historical run.
+                </p>
+              </div>
+              {snapshotQuery.data ? (
+                <span className="rounded border border-[var(--border)] px-2 py-1 text-xs font-semibold text-[var(--muted)]">
+                  {snapshotQuery.data.metadata.rowCount} rows, full stored set
+                </span>
+              ) : null}
+            </div>
+            {snapshotQuery.isError ? (
+              <StatePanel
+                title="Snapshot unavailable"
+                message={formatQueryError(snapshotQuery.error)}
+              />
+            ) : snapshotQuery.isLoading && selectedRunId ? (
+              <StatePanel
+                title="Loading snapshot"
+                message="Loading selected historical scan rows."
+              />
+            ) : !selectedRun ? (
+              <StatePanel
+                title="No run selected"
+                message="Select a successful run to review its stored snapshot."
+              />
+            ) : (
+              <div className="grid gap-2 md:grid-cols-3 xl:grid-cols-4">
+                {summaryItems.map((item) => (
+                  <Metric key={item.label} label={item.label} value={item.value} />
+                ))}
+              </div>
+            )}
+          </section>
+
+          <SnapshotTable rows={rows} isLoading={snapshotQuery.isFetching} />
+        </div>
+      </div>
     </section>
   );
 }
 
-function EvaluationSection({
-  data,
+function SnapshotTable({
+  rows,
   isLoading,
-  isError,
-  errorMessage,
-  onRefresh,
 }: {
-  data: HistoryEvaluationApiResponse | null;
+  rows: HistoricalSnapshotRow[];
   isLoading: boolean;
-  isError: boolean;
-  errorMessage: string;
-  onRefresh: () => void;
 }) {
-  const { dictionary: t } = useLanguage();
-  const signalRows = data
-    ? Object.entries(data.summary.bySignal).sort(
-        (left, right) => right[1].completedCount - left[1].completedCount,
-      )
-    : [];
-
   return (
     <section className="rounded-md border border-[var(--border)] bg-[var(--panel)] p-4">
-      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h2 className="text-lg font-semibold">{t.history.forwardEvaluation}</h2>
+          <h2 className="text-base font-semibold">Snapshot Rows</h2>
           <p className="mt-1 text-xs text-[var(--muted)]">
-            {t.history.forwardEvaluationHelp}
+            Full stored single-timeframe result set. Current Symbol Research links
+            open the current research view.
           </p>
         </div>
-        <button
-          type="button"
-          onClick={onRefresh}
-          disabled={isLoading}
-          className="rounded-md border border-[var(--border)] px-3 py-2 text-xs font-semibold disabled:cursor-not-allowed disabled:opacity-60"
-        >
-          {isLoading ? t.history.evaluating : t.history.evaluate}
-        </button>
+        <span className="text-xs text-[var(--muted)]">
+          {isLoading ? "Refreshing" : `${rows.length} rows`}
+        </span>
       </div>
-
-      {isError ? (
-        <p className="text-sm text-[var(--danger)]">{errorMessage}</p>
-      ) : isLoading && !data ? (
-        <p className="text-sm text-[var(--muted)]">{t.history.evaluating}.</p>
-      ) : !data || data.itemCount === 0 ? (
-        <p className="text-sm text-[var(--muted)]">{t.history.noEvaluations}</p>
+      {rows.length === 0 ? (
+        <StatePanel
+          title="No rows"
+          message="No scan signals are available for the selected stored run."
+        />
       ) : (
-        <div className="space-y-4">
-          <div className="grid gap-2 md:grid-cols-3">
-            <Metric label={t.history.evaluated} value={String(data.summary.evaluationCount)} />
-            <Metric label={t.history.completed} value={String(data.summary.completedCount)} />
-            <Metric label={t.history.pending} value={String(data.summary.pendingCount)} />
-          </div>
-          {signalRows.length === 0 ? (
-            <p className="text-sm text-[var(--muted)]">
-              {t.history.noSignalBuckets}
-            </p>
-          ) : (
-            <>
-              <EvaluationSignalCards rows={signalRows} />
-              <div className="overflow-x-auto">
-                <table className="w-full min-w-[720px] border-collapse text-left text-sm">
-                  <thead className="bg-[#0d131a] text-xs uppercase text-[var(--muted)]">
-                    <tr>
-                      <th className="px-3 py-3 font-semibold">{t.common.signal}</th>
-                      <th className="px-3 py-3 font-semibold">{t.history.completed}</th>
-                      <th className="px-3 py-3 font-semibold">{t.history.pending}</th>
-                      <th className="px-3 py-3 font-semibold">{t.history.hitRate}</th>
-                      <th className="px-3 py-3 font-semibold">{t.history.avgReturn}</th>
-                      <th className="px-3 py-3 font-semibold">{t.history.avgMaxUp}</th>
-                      <th className="px-3 py-3 font-semibold">{t.history.avgMaxDown}</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {signalRows.map(([signal, bucket]) => (
-                      <tr key={signal} className="border-t border-[var(--border)]">
-                        <td className="px-3 py-3">
-                          {signal in t.signal
-                            ? t.signal[signal as keyof typeof t.signal]
-                            : formatEnum(signal)}
-                        </td>
-                        <td className="px-3 py-3 tabular-nums">
-                          {bucket.completedCount}
-                        </td>
-                        <td className="px-3 py-3 tabular-nums">
-                          {bucket.pendingCount}
-                        </td>
-                        <td className="px-3 py-3 tabular-nums">
-                          {formatPercentRatio(bucket.hitRate)}
-                        </td>
-                        <td className="px-3 py-3 tabular-nums">
-                          {formatSignedPercent(bucket.avgReturnPct)}
-                        </td>
-                        <td className="px-3 py-3 tabular-nums">
-                          {formatSignedPercent(bucket.avgMaxUpPct)}
-                        </td>
-                        <td className="px-3 py-3 tabular-nums">
-                          {formatSignedPercent(bucket.avgMaxDownPct)}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </>
-          )}
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[1180px] border-collapse text-left text-sm">
+            <thead className="bg-[#0d131a] text-xs uppercase text-[var(--muted)]">
+              <tr>
+                <th className="px-3 py-3 font-semibold">#</th>
+                <th className="px-3 py-3 font-semibold">Symbol</th>
+                <th className="px-3 py-3 font-semibold">Market</th>
+                <th className="px-3 py-3 font-semibold">Group</th>
+                <th className="px-3 py-3 font-semibold">Label</th>
+                <th className="px-3 py-3 font-semibold">Primary Signal</th>
+                <th className="px-3 py-3 font-semibold">Risk Notes</th>
+                <th className="px-3 py-3 font-semibold">Rank Score</th>
+                <th className="px-3 py-3 font-semibold">Components</th>
+                <th className="px-3 py-3 font-semibold">Versions</th>
+                <th className="px-3 py-3 font-semibold">Research</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((row, index) => (
+                <tr key={row.id} className="border-t border-[var(--border)]">
+                  <td className="px-3 py-3 tabular-nums text-[var(--muted)]">
+                    {index + 1}
+                  </td>
+                  <td className="px-3 py-3 font-semibold">{row.symbol}</td>
+                  <td className="px-3 py-3 text-xs text-[var(--muted)]">
+                    {formatMarket(row)}
+                  </td>
+                  <td className="px-3 py-3">
+                    {formatGroupLabel(normalizeGroupKey(row.group))}
+                  </td>
+                  <td className="px-3 py-3">{formatSignalLabel(row.label)}</td>
+                  <td className="px-3 py-3">{row.primarySignal ?? "-"}</td>
+                  <td className="max-w-[280px] px-3 py-3 text-xs leading-5 text-[var(--muted)]">
+                    {formatRiskNotes(row)}
+                  </td>
+                  <td className="px-3 py-3 tabular-nums">
+                    {formatScore(row.rankScore)}
+                  </td>
+                  <td className="px-3 py-3 text-xs leading-5 text-[var(--muted)]">
+                    {formatComponentScores(row.componentScores)}
+                  </td>
+                  <td className="px-3 py-3 text-xs leading-5 text-[var(--muted)]">
+                    {formatVersions(row)}
+                  </td>
+                  <td className="px-3 py-3">
+                    <Link
+                      href={buildSymbolResearchHref({
+                        exchange: row.exchange ?? "binance",
+                        symbol: row.symbol,
+                        timeframe: row.timeframe,
+                        assetClass,
+                      })}
+                      className="text-xs font-semibold text-[var(--accent)]"
+                    >
+                      Current research
+                    </Link>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       )}
     </section>
-  );
-}
-
-function EvaluationSignalCards({
-  rows,
-}: {
-  rows: Array<[string, EvaluationSummaryBucket]>;
-}) {
-  const { dictionary: t } = useLanguage();
-
-  return (
-    <div>
-      <h3 className="mb-3 text-sm font-semibold">{t.history.validationSummary}</h3>
-      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-        {rows.slice(0, 6).map(([signal, bucket]) => {
-          const hitRate = bucket.hitRate ?? 0;
-
-          return (
-            <div
-              key={signal}
-              className="rounded-md border border-[var(--border)] bg-[#0b0f14] p-3"
-            >
-              <div className="flex items-center justify-between gap-3">
-                <span className="text-sm font-semibold">
-                  {signal in t.signal
-                    ? t.signal[signal as keyof typeof t.signal]
-                    : formatEnum(signal)}
-                </span>
-                <span className="text-xs tabular-nums text-[var(--muted)]">
-                  {bucket.completedCount} {t.history.completed}
-                </span>
-              </div>
-              <div className="mt-3 grid grid-cols-2 gap-2 text-sm">
-                <Metric
-                  label={t.history.hitRate}
-                  value={formatPercentRatio(bucket.hitRate)}
-                />
-                <Metric
-                  label={t.history.avgReturn}
-                  value={formatSignedPercent(bucket.avgReturnPct)}
-                />
-              </div>
-              <div className="mt-3 h-2 overflow-hidden rounded-full bg-[#111820]">
-                <div
-                  className="h-full rounded-full bg-[var(--accent)]"
-                  style={{ width: `${hitRate * 100}%` }}
-                />
-              </div>
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
-function SummaryCards({ data }: { data: HistoryApiResponse }) {
-  const { dictionary: t } = useLanguage();
-  const cards = [
-    [t.history.snapshots, String(data.summary.snapshotCount)],
-    [t.history.results, String(data.summary.resultCount)],
-    [
-      t.history.latest,
-      data.summary.latestAt ? formatDateTime(data.summary.latestAt) : t.common.notAvailable,
-    ],
-  ];
-
-  return (
-    <div className="grid gap-3 md:grid-cols-3">
-      {cards.map(([label, value]) => (
-        <div
-          key={label}
-          className="rounded-md border border-[var(--border)] bg-[var(--panel)] p-4"
-        >
-          <div className="text-xs uppercase tracking-wide text-[var(--muted)]">
-            {label}
-          </div>
-          <div className="mt-2 text-xl font-semibold">{value}</div>
-        </div>
-      ))}
-    </div>
   );
 }
 
 function Metric({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-md border border-[var(--border)] bg-[#0b0f14] p-3">
-      <div className="text-xs text-[var(--muted)]">{label}</div>
-      <div className="mt-1 font-semibold">{value}</div>
+    <div className="rounded-md border border-[var(--border)] p-3">
+      <p className="text-xs text-[var(--muted)]">{label}</p>
+      <p className="mt-1 break-words text-sm font-semibold">{value}</p>
     </div>
-  );
-}
-
-function DistributionSection({
-  title,
-  items,
-}: {
-  title: string;
-  items: Record<string, number>;
-}) {
-  const { dictionary: t } = useLanguage();
-  const rows = Object.entries(items).sort((left, right) => right[1] - left[1]);
-  const total = rows.reduce((sum, [, count]) => sum + count, 0);
-
-  return (
-    <section className="rounded-md border border-[var(--border)] bg-[var(--panel)] p-4">
-      <h2 className="mb-4 text-lg font-semibold">{title}</h2>
-      {rows.length === 0 ? (
-        <p className="text-sm text-[var(--muted)]">{t.history.noData}</p>
-      ) : (
-        <div className="space-y-3">
-          {rows.map(([label, count]) => (
-            <div key={label}>
-              <div className="mb-1 flex items-center justify-between gap-3 text-sm">
-                <span>{formatTranslatedEnum(label, t)}</span>
-                <span className="tabular-nums text-[var(--muted)]">{count}</span>
-              </div>
-              <div className="h-2 overflow-hidden rounded-full bg-[#0b0f14]">
-                <div
-                  className="h-full rounded-full bg-[var(--accent)]"
-                  style={{ width: `${total > 0 ? (count / total) * 100 : 0}%` }}
-                />
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-    </section>
-  );
-}
-
-function SnapshotTable({ snapshots }: { snapshots: StoredScanSnapshot[] }) {
-  const { dictionary: t } = useLanguage();
-
-  return (
-    <section className="overflow-hidden rounded-md border border-[var(--border)] bg-[var(--panel)]">
-      <div className="border-b border-[var(--border)] px-4 py-3">
-        <h2 className="text-lg font-semibold">{t.history.recentSnapshots}</h2>
-      </div>
-      <div className="overflow-x-auto">
-        <table className="w-full min-w-[820px] border-collapse text-left text-sm">
-          <thead className="bg-[#0d131a] text-xs uppercase text-[var(--muted)]">
-            <tr>
-              <th className="px-3 py-3 font-semibold">{t.history.created}</th>
-              <th className="px-3 py-3 font-semibold">{t.scanner.mode}</th>
-              <th className="px-3 py-3 font-semibold">{t.history.scope}</th>
-              <th className="px-3 py-3 font-semibold">{t.scanner.limit}</th>
-              <th className="px-3 py-3 font-semibold">{t.history.results}</th>
-              <th className="px-3 py-3 font-semibold">{t.history.errors}</th>
-              <th className="px-3 py-3 font-semibold">{t.history.topSymbols}</th>
-            </tr>
-          </thead>
-          <tbody>
-            {snapshots.map((snapshot) => (
-              <tr key={snapshot.id} className="border-t border-[var(--border)]">
-                <td className="px-3 py-3">{formatDateTime(snapshot.createdAt)}</td>
-                <td className="px-3 py-3">{formatMode(snapshot.mode, t)}</td>
-                <td className="px-3 py-3">{formatScope(snapshot, t)}</td>
-                <td className="px-3 py-3 tabular-nums">{snapshot.limit}</td>
-                <td className="px-3 py-3 tabular-nums">{snapshot.itemCount}</td>
-                <td className="px-3 py-3 tabular-nums">{snapshot.errorsCount}</td>
-                <td className="px-3 py-3">
-                  {snapshot.results
-                    .slice(0, 4)
-                    .map((result) => result.symbol)
-                    .join(", ")}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </section>
-  );
-}
-
-function LatestSnapshot({ snapshot }: { snapshot: StoredScanSnapshot }) {
-  const { dictionary: t } = useLanguage();
-
-  return (
-    <section className="rounded-md border border-[var(--border)] bg-[var(--panel)] p-4">
-      <h2 className="mb-4 text-lg font-semibold">{t.history.latestLeaders}</h2>
-      <div className="space-y-2">
-        {snapshot.results.slice(0, 8).map((result) => (
-          <div
-            key={`${snapshot.id}-${result.symbol}`}
-            className="rounded-md border border-[var(--border)] bg-[#0b0f14] p-3"
-          >
-            <div className="flex items-center justify-between gap-3">
-              <span className="font-semibold">{result.symbol}</span>
-              <span className="text-sm tabular-nums text-[var(--muted)]">
-                {result.rankScore.toFixed(1)}
-              </span>
-            </div>
-            <div className="mt-1 text-xs text-[var(--muted)]">
-              {t.signal[result.signalState]} · {t.phase[result.phase]}
-            </div>
-          </div>
-        ))}
-      </div>
-    </section>
   );
 }
 
 function StatePanel({ title, message }: { title: string; message: string }) {
   return (
-    <div className="flex min-h-96 flex-col items-center justify-center rounded-md border border-[var(--border)] bg-[var(--panel)] px-6 py-10 text-center">
-      <h2 className="text-xl font-semibold">{title}</h2>
-      <p className="mt-2 max-w-md text-sm leading-6 text-[var(--muted)]">
-        {message}
-      </p>
+    <div className="rounded-md border border-[var(--border)] p-4">
+      <h3 className="text-sm font-semibold">{title}</h3>
+      <p className="mt-1 text-sm leading-6 text-[var(--muted)]">{message}</p>
     </div>
   );
 }
 
-async function fetchHistory(limit: number) {
-  const response = await fetch(`/api/history/scans?limit=${limit}`);
-
-  if (!response.ok) {
-    const body = (await response.json().catch(() => null)) as
-      | { error?: string; message?: string }
-      | null;
-    throw new Error(body?.message ?? body?.error ?? "History request failed.");
+function buildRunSummaryItems(run: HistoricalSnapshotRun | null) {
+  if (!run) {
+    return [];
   }
 
-  return (await response.json()) as HistoryApiResponse;
+  return [
+    ["Run ID", run.runId],
+    ["Timeframe", run.timeframe],
+    ["Started", formatDateTime(run.startedAt)],
+    ["Finished", formatDateTime(run.finishedAt)],
+    ["Universe", run.universe ?? "-"],
+    ["Asset Class", assetClass],
+    ["Symbols Total", formatCount(run.symbolsTotal)],
+    ["Symbols Scanned", formatCount(run.symbolsScanned)],
+    ["Signals Created", formatCount(run.signalsCreated)],
+    ["Skipped", formatCount(run.skipped)],
+    ["Failed", formatCount(run.failedSymbols)],
+    ["Full Universe", formatFullUniverse(run)],
+    ["Scanner Version", run.scannerVersion ?? "-"],
+    ["Scoring Version", run.scoringVersion ?? "-"],
+  ].map(([label, value]) => ({ label, value }));
 }
 
-async function fetchEvaluation({
-  limit,
-  horizon,
-  resultLimit,
+async function fetchHistoricalSnapshots({
+  timeframe,
+  assetClass,
+  signal,
 }: {
+  timeframe: HistoryTimeframe;
+  assetClass: string;
+  signal?: AbortSignal;
+}) {
+  const response = await fetch(
+    buildHistoricalSnapshotsUrl({ timeframe, assetClass, limit: snapshotsLimit }),
+    { signal },
+  );
+
+  if (!response.ok) {
+    throw new Error(`Failed to load historical snapshots (${response.status}).`);
+  }
+
+  return (await response.json()) as HistoricalSnapshotsResponse;
+}
+
+async function fetchHistoricalSnapshot({
+  runId,
+  assetClass,
+  signal,
+}: {
+  runId: string;
+  assetClass: string;
+  signal?: AbortSignal;
+}) {
+  const response = await fetch(
+    buildHistoricalSnapshotUrl({ runId, assetClass }),
+    { signal },
+  );
+
+  if (!response.ok) {
+    throw new Error(`Failed to load historical snapshot (${response.status}).`);
+  }
+
+  return (await response.json()) as HistoricalSnapshotDetailResponse;
+}
+
+export function buildHistoricalSnapshotsUrl({
+  timeframe,
+  assetClass,
+  limit,
+  tradeApiBaseUrl = process.env.NEXT_PUBLIC_TRADE_API_BASE_URL,
+}: {
+  timeframe: string;
+  assetClass: string;
   limit: number;
-  horizon: "24h";
-  resultLimit: number;
+  tradeApiBaseUrl?: string;
 }) {
   const params = new URLSearchParams({
+    timeframe,
+    assetClass,
     limit: String(limit),
-    horizon: String(horizon),
-    resultLimit: String(resultLimit),
   });
-  const response = await fetch(`/api/history/evaluate?${params.toString()}`);
+  const baseUrl = tradeApiBaseUrl?.trim().replace(/\/+$/, "") ?? "";
 
-  if (!response.ok) {
-    const body = (await response.json().catch(() => null)) as
-      | { error?: string; message?: string }
-      | null;
-    throw new Error(
-      body?.message ?? body?.error ?? "Evaluation request failed.",
-    );
-  }
-
-  return (await response.json()) as HistoryEvaluationApiResponse;
+  return `${baseUrl}/api/history/snapshots?${params.toString()}`;
 }
 
-function formatScope(snapshot: StoredScanSnapshot, t: Dictionary) {
-  if (snapshot.mode === "mtf") {
-    return snapshot.timeframes?.map((timeframe) => t.timeframe[timeframe]).join(" / ");
-  }
+export function buildHistoricalSnapshotUrl({
+  runId,
+  assetClass,
+  tradeApiBaseUrl = process.env.NEXT_PUBLIC_TRADE_API_BASE_URL,
+}: {
+  runId: string;
+  assetClass: string;
+  tradeApiBaseUrl?: string;
+}) {
+  const params = new URLSearchParams({ runId, assetClass });
+  const baseUrl = tradeApiBaseUrl?.trim().replace(/\/+$/, "") ?? "";
 
-  return snapshot.timeframe ? t.timeframe[snapshot.timeframe] : t.common.notAvailable;
+  return `${baseUrl}/api/history/snapshot?${params.toString()}`;
 }
 
-function formatMode(mode: StoredScanSnapshot["mode"], t: Dictionary) {
-  return mode === "mtf" ? t.scanner.mtfMode : t.scanner.singleMode;
+function formatQueryError(error: unknown) {
+  return error instanceof Error ? error.message : "Request failed.";
 }
 
-function formatTranslatedEnum(value: string, t: Dictionary) {
-  if (value in t.signal) {
-    return t.signal[value as keyof typeof t.signal];
-  }
-
-  if (value in t.phase) {
-    return t.phase[value as keyof typeof t.phase];
-  }
-
-  if (value in t.alignment) {
-    return t.alignment[value as keyof typeof t.alignment];
-  }
-
-  if (value === "single" || value === "mtf") {
-    return formatMode(value, t);
-  }
-
-  return formatEnum(value);
+function formatCount(value: number | null | undefined) {
+  return typeof value === "number" && Number.isFinite(value)
+    ? value.toLocaleString()
+    : "-";
 }
 
-function formatDateTime(value: string) {
-  return new Date(value).toLocaleString();
-}
-
-function formatSignedPercent(value: number | null) {
-  if (value === null) {
-    return "n/a";
+function formatFullUniverse(run: HistoricalSnapshotRun) {
+  if (run.isLikelyFullUniverse === true) {
+    return "Likely full universe";
   }
 
-  return `${value > 0 ? "+" : ""}${value.toFixed(2)}%`;
-}
-
-function formatPercentRatio(value: number | null) {
-  if (value === null) {
-    return "n/a";
+  if (run.isLikelyFullUniverse === false) {
+    return "Limited or unknown";
   }
 
-  return `${(value * 100).toFixed(0)}%`;
+  return "Unknown universe";
 }
 
-function formatEnum(value: string) {
-  return value
-    .toLowerCase()
-    .split("_")
-    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
-    .join(" ");
+function formatMarket(row: HistoricalSnapshotRow) {
+  const exchange = row.exchange ?? "binance";
+  const market = row.market ?? "spot";
+
+  return `${exchange} / ${market}`;
+}
+
+function formatRiskNotes(row: HistoricalSnapshotRow) {
+  const riskTypes = row.riskTypes?.length
+    ? `Risk types: ${row.riskTypes.join(", ")}.`
+    : "";
+  const notes = row.riskNotes ?? "";
+  const text = [notes, riskTypes].filter(Boolean).join(" ");
+
+  return text || "-";
+}
+
+function formatComponentScores(
+  scores: HistoricalSnapshotRow["componentScores"],
+) {
+  if (!scores) {
+    return "-";
+  }
+
+  return [
+    ["Opp", scores.opportunityScore],
+    ["Conf", scores.confirmationScore],
+    ["Risk", scores.riskScore],
+    ["Trend", scores.trendScore],
+    ["Mom", scores.momentumScore],
+  ]
+    .map(([label, value]) => `${label} ${formatScore(value as number | null)}`)
+    .join(" / ");
+}
+
+function formatVersions(row: HistoricalSnapshotRow) {
+  return [
+    row.scannerVersion ? `Scanner ${row.scannerVersion}` : null,
+    row.scoringVersion ? `Scoring ${row.scoringVersion}` : null,
+  ]
+    .filter(Boolean)
+    .join(" / ") || "-";
 }
