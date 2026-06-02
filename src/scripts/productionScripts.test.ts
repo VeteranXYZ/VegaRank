@@ -16,36 +16,138 @@ const scriptPath = path.join(
   process.cwd(),
   "scripts/production/run-1h-production.sh",
 );
+const sharedScriptPath = path.join(
+  process.cwd(),
+  "scripts/production/run-timeframe-production.sh",
+);
 const readText = (filePath: string) => readFileSync(filePath, "utf8");
+const productionConfigs = [
+  { timeframe: "1h", staleLockSeconds: "5400", targetCount: "5000" },
+  { timeframe: "4h", staleLockSeconds: "14400", targetCount: "5000" },
+  { timeframe: "1d", staleLockSeconds: "43200", targetCount: "3000" },
+  { timeframe: "1w", staleLockSeconds: "86400", targetCount: "1000" },
+] as const;
 
 describe("production scripts", () => {
-  it("tracks the hourly 1h production job and README BaoTa command", () => {
-    const script = readText(scriptPath);
+  it("tracks production timeframe scripts, package commands, and README BaoTa commands", () => {
+    const sharedScript = readText(sharedScriptPath);
     const readme = readText(path.join(process.cwd(), "README.md"));
-    const backfillCommand =
-      "pnpm market:backfill:pg -- --timeframe 1h --all-symbols --asset-class crypto --target-count 5000 --limit 1000 --confirm-large-sync";
-    const scannerCommand =
-      "pnpm scanner:run:pg -- --timeframe 1h --all-symbols --asset-class crypto --limit 1000 --confirm-large-sync";
-    const baotaCommand =
-      "cd /home/ubuntu/apps/trade-scanner && /home/ubuntu/apps/trade-scanner/scripts/production/run-1h-production.sh >> /home/ubuntu/apps/trade-scanner/.data/logs/run-1h-production.log 2>&1";
+    const packageJson = JSON.parse(
+      readText(path.join(process.cwd(), "package.json")),
+    ) as { scripts: Record<string, string> };
 
-    expect(script).toContain("#!/usr/bin/env bash");
-    expect(script).toContain("set -euo pipefail");
-    expect(script).toContain("STALE_LOCK_SECONDS=5400");
-    expect(script).toContain("source \".env\"");
-    expect(script).toContain("DATABASE_URL REDIS_URL");
-    expect(script).toContain("Missing required environment variables");
-    expect(script).toContain("local status=$?");
-    expect(script).toContain("exit \"$status\"");
-    expect(script).toContain(".data/locks");
-    expect(script).toContain("run-1h-production.lock");
-    expect(script).toContain(backfillCommand);
-    expect(script).toContain(scannerCommand);
-    expect(readme).toContain(baotaCommand);
-    expect(readme).toContain("every hour at minute 5");
+    expect(sharedScript).toContain("#!/usr/bin/env bash");
+    expect(sharedScript).toContain("set -euo pipefail");
+    expect(sharedScript).toContain("source \".env\"");
+    expect(sharedScript).toContain("DATABASE_URL REDIS_URL");
+    expect(sharedScript).toContain("Missing required environment variables");
+    expect(sharedScript).toContain("local status=$?");
+    expect(sharedScript).toContain("exit \"$status\"");
+    expect(sharedScript).toContain(".data/locks");
+    expect(sharedScript).toContain("run-${TIMEFRAME}-production.lock");
+    expect(sharedScript).toContain("pnpm market:backfill:pg");
+    expect(sharedScript).toContain("pnpm scanner:run:pg");
+
+    for (const { timeframe, staleLockSeconds, targetCount } of productionConfigs) {
+      const wrapperPath = path.join(
+        process.cwd(),
+        `scripts/production/run-${timeframe}-production.sh`,
+      );
+      const wrapper = readText(wrapperPath);
+
+      expect(sharedScript).toContain(`STALE_LOCK_SECONDS=${staleLockSeconds}`);
+      expect(sharedScript).toContain(`TARGET_COUNT=${targetCount}`);
+      expect(wrapper).toContain("set -euo pipefail");
+      expect(wrapper).toContain(`run-timeframe-production.sh\" ${timeframe}`);
+      expect(packageJson.scripts[`production:${timeframe}`]).toBe(
+        `bash scripts/production/run-${timeframe}-production.sh`,
+      );
+      expect(readme).toContain(`pnpm production:${timeframe}`);
+      expect(readme).toContain(`production-${timeframe}.log`);
+    }
+
+    expect(readme).toContain(
+      "cd /home/ubuntu/apps/trade-scanner && /home/ubuntu/apps/trade-scanner/scripts/production/run-1h-production.sh >> /home/ubuntu/apps/trade-scanner/.data/logs/run-1h-production.log 2>&1",
+    );
   });
 
-  it("preserves child command failures and releases the lock", () => {
+  it.each(productionConfigs)(
+    "runs %s backfill and scanner with timeframe-specific config",
+    ({ timeframe, targetCount }) => {
+      const projectDir = mkdtempSync(path.join(os.tmpdir(), "trade-scanner-prod-"));
+      const binDir = path.join(projectDir, "bin");
+      const fakePnpm = path.join(binDir, "pnpm");
+      const callsFile = path.join(projectDir, "pnpm-calls.log");
+      const wrapperPath = path.join(
+        process.cwd(),
+        `scripts/production/run-${timeframe}-production.sh`,
+      );
+
+      try {
+        mkdirSync(binDir, { recursive: true });
+        writeFileSync(
+          path.join(projectDir, ".env"),
+          [
+            "DATABASE_URL=postgres://trade_scanner:test@localhost:5432/trade_scanner",
+            "REDIS_URL=redis://localhost:6379",
+            "",
+          ].join("\n"),
+        );
+        writeFileSync(
+          fakePnpm,
+          [
+            "#!/usr/bin/env bash",
+            "printf '%s\\n' \"$*\" >> \"$PNPM_CALLS_FILE\"",
+            "exit 0",
+            "",
+          ].join("\n"),
+        );
+        chmodSync(fakePnpm, 0o755);
+
+        const result = spawnSync("bash", [wrapperPath], {
+          cwd: process.cwd(),
+          encoding: "utf8",
+          env: {
+            ...process.env,
+            PATH: `${binDir}:${process.env.PATH ?? ""}`,
+            PNPM_CALLS_FILE: callsFile,
+            PROJECT_DIR: projectDir,
+          },
+        });
+        const calls = readText(callsFile);
+
+        expect(result.status).toBe(0);
+        expect(result.stdout).toContain(`Starting ${timeframe} production job.`);
+        expect(result.stdout).toContain(
+          `Acquired lock: .data/locks/run-${timeframe}-production.lock`,
+        );
+        expect(result.stdout).toContain(
+          `Released lock: .data/locks/run-${timeframe}-production.lock`,
+        );
+        expect(calls).toContain(
+          `market:backfill:pg -- --timeframe ${timeframe} --all-symbols --asset-class crypto --target-count ${targetCount} --limit 1000 --confirm-large-sync`,
+        );
+        expect(calls).toContain(
+          `scanner:run:pg -- --timeframe ${timeframe} --all-symbols --asset-class crypto --limit 1000 --confirm-large-sync`,
+        );
+      } finally {
+        rmSync(projectDir, { recursive: true, force: true });
+      }
+    },
+  );
+
+  it("rejects invalid production timeframe arguments clearly", () => {
+    const result = spawnSync("bash", [sharedScriptPath, "2h"], {
+      cwd: process.cwd(),
+      encoding: "utf8",
+    });
+
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain("Usage:");
+    expect(result.stderr).toContain("<1h|4h|1d|1w>");
+  });
+
+  it("preserves child command failures and releases the timeframe lock", () => {
     const projectDir = mkdtempSync(path.join(os.tmpdir(), "trade-scanner-prod-"));
     const binDir = path.join(projectDir, "bin");
     const fakePnpm = path.join(binDir, "pnpm");

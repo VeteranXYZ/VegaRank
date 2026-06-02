@@ -556,47 +556,72 @@ Expected caveats:
   candles. Those skips are counted in `symbols_skipped`; fake signals are not
   created for insufficient history.
 - `1h` may initially have limited Historical Behavior samples. Backfill and scan
-  it explicitly when needed; no automatic hourly 1h scanner schedule is added here.
+  it explicitly before enabling a schedule; this repository does not install cron
+  or BaoTa tasks automatically.
 
-### 1h Production Hourly Script
+### Production Timeframe Scripts
 
-The repo-tracked `scripts/production/run-1h-production.sh` script is intended
-for BaoTa / BT Panel to call once per hour. It creates `.data/logs` and
-`.data/locks`, uses `.data/locks/run-1h-production.lock` to prevent overlapping
-runs, treats locks older than `5400` seconds as stale, then runs the existing
-PostgreSQL 1h backfill and scanner commands with `--target-count 5000`.
+The repo-tracked `scripts/production/run-*-production.sh` scripts are intended
+for BaoTa / BT Panel to call after each timeframe's candle close. They create
+`.data/logs` and `.data/locks`, use independent timeframe-specific lock files to
+prevent overlapping runs, clean stale locks, then run the PostgreSQL market
+backfill before the scanner.
+
+Tracked runner commands:
+
+| Timeframe | Package command | Stale lock | Backfill target |
+| --- | --- | ---: | ---: |
+| 1h | `pnpm production:1h` | 5400s | 5000 |
+| 4h | `pnpm production:4h` | 14400s | 5000 |
+| 1d | `pnpm production:1d` | 43200s | 3000 |
+| 1w | `pnpm production:1w` | 86400s | 1000 |
 
 Manual one-off run from the VPS project directory:
 
 ```bash
 cd /home/ubuntu/apps/trade-scanner
 mkdir -p .data/logs .data/locks
-scripts/production/run-1h-production.sh
+pnpm production:4h
 ```
 
-BaoTa scheduled task command:
+Suggested BaoTa scheduled task commands:
+
+```bash
+# 1h: hourly, slightly after the hour
+cd /home/ubuntu/apps/trade-scanner && pnpm production:1h >> .data/logs/production-1h.log 2>&1
+
+# 4h: every 4 hours, after candle close
+cd /home/ubuntu/apps/trade-scanner && pnpm production:4h >> .data/logs/production-4h.log 2>&1
+
+# 1d: daily after UTC daily candle close
+cd /home/ubuntu/apps/trade-scanner && pnpm production:1d >> .data/logs/production-1d.log 2>&1
+
+# 1w: weekly after UTC weekly candle close
+cd /home/ubuntu/apps/trade-scanner && pnpm production:1w >> .data/logs/production-1w.log 2>&1
+```
+
+If BaoTa requires absolute script paths instead of package commands, call the
+matching wrapper directly, for example:
 
 ```bash
 cd /home/ubuntu/apps/trade-scanner && /home/ubuntu/apps/trade-scanner/scripts/production/run-1h-production.sh >> /home/ubuntu/apps/trade-scanner/.data/logs/run-1h-production.log 2>&1
 ```
 
-Recommended schedule: every hour at minute 5.
-
 Log checks:
 
 ```bash
-tail -n 120 .data/logs/run-1h-production.log
-tail -f .data/logs/run-1h-production.log
+tail -n 120 .data/logs/production-4h.log
+tail -f .data/logs/production-4h.log
 ```
 
 Production API verification:
 
 ```bash
-curl 'https://api.auere.com/api/scan/latest?timeframe=1h&assetClass=crypto&limit=100' \
+curl 'https://api.auere.com/api/scan/latest?timeframe=4h&assetClass=crypto&limit=5' \
   | jq '{ok, timeframe, count, run: {id: .run.id, status: .run.status, symbolsTotal: .run.symbolsTotal, symbolsScanned: .run.symbolsScanned, signalsCreated: .run.signalsCreated}, latestRunSelection: .summary.latestRunSelection}'
 
-curl 'https://api.auere.com/api/symbol/research?exchange=binance&symbol=BTCUSDT&timeframe=1h' \
-  | jq '{ok, timeframe, group: .latest.signal.resultGroup, behaviorAvailable: .behaviorDiagnostics.available, behaviorReason: .behaviorDiagnostics.reason}'
+pnpm smoke:production
+pnpm check:coverage
 ```
 
 Operational notes:
