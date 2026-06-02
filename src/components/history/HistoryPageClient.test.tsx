@@ -8,9 +8,11 @@ import {
   buildHistoricalSnapshotUrl,
   buildHistoricalSnapshotsUrl,
   classifyForwardObservationMaturity,
+  deriveForwardObservationUiState,
   ForwardObservationSection,
   formatHistoryDateTime,
   formatHistoryPrimarySignal,
+  getForwardObservationRowsRunId,
   getObservationProbeRuns,
   HistoryPageClient,
   selectForwardObservationResult,
@@ -130,17 +132,21 @@ describe("HistoryPageClient display formatting", () => {
 
   it("renders Forward Observation with neutral copy and full row visibility", () => {
     const response = makeObservationResponse();
+    const readiness = makeReadinessResponse({
+      selectedRun: makeReadinessRun({ run: response.run }),
+      observationRun: makeReadinessRun({ run: response.run }),
+    });
     const html = renderToStaticMarkup(
       createElement(ForwardObservationSection, {
         window: 3,
         onWindowChange: () => undefined,
         response,
-        maturity: classifyForwardObservationMaturity(response),
-        observationRun: response.run,
-        selectionMode: "selected",
-        isLoading: false,
-        isFetching: false,
-        error: null,
+        readiness,
+        uiState: makeUiState({
+          selectedRunId: response.run.runId,
+          readiness,
+          response,
+        }),
       }),
     );
 
@@ -174,90 +180,66 @@ describe("HistoryPageClient display formatting", () => {
     expect(html).not.toContain("top-100");
   });
 
-  it("renders all-future-candle-missing observations as a compact not-ready state", () => {
-    const response = makeObservationResponse({
-      metadata: {
+  it("renders stale market coverage as a compact unavailable state", () => {
+    const selectedRun = makeObservationRun({
+      runId: "11111111-1111-4111-8111-111111111111",
+    });
+    const readiness = makeReadinessResponse({
+      selectedRun: makeReadinessRun({
+        run: selectedRun,
+        state: "not_ready",
+        blocker: "market_data_coverage",
         rowCount: 3,
         completeCount: 0,
         partialCount: 0,
         missingCount: 3,
+        dominantMissingReason: "no_future_candles",
+        dominantMissingReasonCount: 3,
+        expectedCompleteTime: "2026-06-02T12:00:00.000Z",
+      }),
+      observationRun: null,
+      recommendedRun: null,
+      blocker: "market_data_coverage",
+      coverage: {
+        latestOpenTime: "2026-06-01T20:00:00.000Z",
+        latestOpenTimeSymbolCount: 100,
+        totalSymbols: 413,
       },
-      rows: [
-        makeObservationRow({
-          id: "missing-1",
-          symbol: "AAAUSDT",
-          observedClose: null,
-          observedChangePct: null,
-          maxDrawdownPct: null,
-          dataStatus: "missing",
-          missingReason: "no_future_candles",
-        }),
-        makeObservationRow({
-          id: "missing-2",
-          symbol: "BBBUSDT",
-          observedClose: null,
-          observedChangePct: null,
-          maxDrawdownPct: null,
-          dataStatus: "missing",
-          missingReason: "no_future_candles",
-        }),
-        makeObservationRow({
-          id: "missing-3",
-          symbol: "CCCUSDT",
-          observedClose: null,
-          observedChangePct: null,
-          maxDrawdownPct: null,
-          dataStatus: "missing",
-          missingReason: "no_future_candles",
-        }),
-      ],
+    });
+    const uiState = makeUiState({
+      selectedRunId: selectedRun.runId,
+      readiness,
+      response: null,
     });
     const html = renderToStaticMarkup(
       createElement(ForwardObservationSection, {
         window: 3,
         onWindowChange: () => undefined,
-        response,
-        readiness: makeReadinessResponse({
-          selectedRun: makeReadinessRun({
-            run: response.run,
-            state: "not_ready",
-            blocker: "market_data_coverage",
-            rowCount: 3,
-            completeCount: 0,
-            partialCount: 0,
-            missingCount: 3,
-            dominantMissingReason: "no_future_candles",
-            dominantMissingReasonCount: 3,
-            expectedCompleteTime: "2026-06-02T12:00:00.000Z",
-          }),
-          observationRun: null,
-          recommendedRun: null,
-          blocker: "market_data_coverage",
-          coverage: {
-            latestOpenTime: "2026-06-01T20:00:00.000Z",
-            latestOpenTimeSymbolCount: 100,
-            totalSymbols: 413,
-          },
-        }),
-        maturity: classifyForwardObservationMaturity(response),
-        observationRun: response.run,
-        selectionMode: "not_ready",
-        isLoading: false,
-        isFetching: false,
-        error: null,
+        response: null,
+        readiness,
+        uiState,
       }),
     );
 
-    expect(html).toContain("Forward observation is not ready yet");
-    expect(html).toContain("Market candle coverage is not far enough");
-    expect(html).toContain("No completed future candles yet");
+    expect(uiState.status).toBe("no_observable_run");
+    expect(getForwardObservationRowsRunId({
+      selectedRunId: selectedRun.runId,
+      readiness,
+      readinessError: null,
+    })).toBeNull();
+    expect(html).toContain("Forward observation unavailable");
+    expect(html).toContain(
+      "stored market candles do not yet cover enough completed future candles",
+    );
+    expect(html).toContain("Dominant Reason");
+    expect(html).toContain("Market candle coverage");
     expect(html).toContain("Latest Candle");
     expect(html).toContain("2026-06-01 20:00");
     expect(html).toContain("100 / 413");
-    expect(html).toContain("For 4h + 3 candles, expect roughly 12 hours");
     expect(html).toContain("Complete");
     expect(html).toContain("Partial");
     expect(html).toContain("Missing");
+    expect(html).not.toContain("Loading observation rows");
     expect(html).not.toContain("Observed Change");
     expect(html).not.toContain("Max Drawdown");
     expect(html).not.toContain("AAAUSDT");
@@ -343,60 +325,260 @@ describe("HistoryPageClient display formatting", () => {
       finishedAt: "2026-06-02T02:52:00.000Z",
     });
     const response = makeObservationResponse({ run: recommendedRun });
+    const readiness = makeReadinessResponse({
+      selectedRun: makeReadinessRun({
+        run: selectedRun,
+        state: "not_ready",
+        blocker: "market_data_coverage",
+        rowCount: 409,
+        completeCount: 0,
+        partialCount: 0,
+        missingCount: 409,
+        dominantMissingReason: "no_future_candles",
+        dominantMissingReasonCount: 409,
+      }),
+      recommendedRun: makeReadinessRun({
+        run: recommendedRun,
+        state: "ready",
+        blocker: "observable",
+        rowCount: 409,
+        completeCount: 0,
+        partialCount: 96,
+        missingCount: 313,
+        dominantMissingReason: "no_future_candles",
+        dominantMissingReasonCount: 313,
+      }),
+      observationRun: makeReadinessRun({
+        run: recommendedRun,
+        state: "ready",
+        blocker: "observable",
+        rowCount: 409,
+        completeCount: 0,
+        partialCount: 96,
+        missingCount: 313,
+        dominantMissingReason: "no_future_candles",
+        dominantMissingReasonCount: 313,
+      }),
+      blocker: "market_data_coverage",
+    });
+    const uiState = makeUiState({
+      selectedRunId: selectedRun.runId,
+      readiness,
+      response,
+    });
     const html = renderToStaticMarkup(
       createElement(ForwardObservationSection, {
         window: 3,
         onWindowChange: () => undefined,
         response,
-        readiness: makeReadinessResponse({
-          selectedRun: makeReadinessRun({
-            run: selectedRun,
-            state: "not_ready",
-            blocker: "market_data_coverage",
-            rowCount: 409,
-            completeCount: 0,
-            partialCount: 0,
-            missingCount: 409,
-            dominantMissingReason: "no_future_candles",
-            dominantMissingReasonCount: 409,
-          }),
-          recommendedRun: makeReadinessRun({
-            run: recommendedRun,
-            state: "ready",
-            blocker: "observable",
-            rowCount: 409,
-            completeCount: 0,
-            partialCount: 96,
-            missingCount: 313,
-            dominantMissingReason: "no_future_candles",
-            dominantMissingReasonCount: 313,
-          }),
-          observationRun: makeReadinessRun({
-            run: recommendedRun,
-            state: "ready",
-            blocker: "observable",
-            rowCount: 409,
-            completeCount: 0,
-            partialCount: 96,
-            missingCount: 313,
-            dominantMissingReason: "no_future_candles",
-            dominantMissingReasonCount: 313,
-          }),
-          blocker: "market_data_coverage",
-        }),
-        maturity: classifyForwardObservationMaturity(response),
-        observationRun: recommendedRun,
-        selectionMode: "observable",
-        isLoading: false,
-        isFetching: false,
-        error: null,
+        readiness,
+        uiState,
       }),
     );
 
+    expect(uiState.status).toBe("observation_ready");
+    expect(getForwardObservationRowsRunId({
+      selectedRunId: selectedRun.runId,
+      readiness,
+      readinessError: null,
+    })).toBe(recommendedRun.runId);
     expect(html).toContain("Using most recent observable run");
     expect(html).toContain("Selected stored run 11111111");
     expect(html).toContain("Observation run 22222222");
-    expect(html).toContain("Finished 2026-06-02 02:52");
+    expect(html).toContain("Observation finished 2026-06-02 02:52");
+  });
+
+  it("renders readiness unavailable without enabling observation row fetch", () => {
+    const selectedRunId = "11111111-1111-4111-8111-111111111111";
+    const uiState = makeUiState({
+      selectedRunId,
+      readiness: null,
+      response: null,
+      readinessError: "Unable to load observation readiness (404).",
+    });
+    const html = renderToStaticMarkup(
+      createElement(ForwardObservationSection, {
+        window: 3,
+        onWindowChange: () => undefined,
+        response: null,
+        readiness: null,
+        uiState,
+      }),
+    );
+
+    expect(uiState.status).toBe("readiness_unavailable");
+    expect(getForwardObservationRowsRunId({
+      selectedRunId,
+      readiness: null,
+      readinessError: uiState.readinessError,
+    })).toBeNull();
+    expect(html).toContain("Observation readiness unavailable");
+    expect(html).toContain(
+      "Forward Observation readiness could not be determined",
+    );
+    expect(html).not.toContain("Loading observation rows");
+    expect(html).not.toContain("Observed Change");
+  });
+
+  it("renders too-recent selected runs without fetching all-missing rows", () => {
+    const selectedRun = makeObservationRun({
+      runId: "11111111-1111-4111-8111-111111111111",
+    });
+    const readiness = makeReadinessResponse({
+      selectedRun: makeReadinessRun({
+        run: selectedRun,
+        state: "not_ready",
+        blocker: "time_maturity",
+        rowCount: 409,
+        completeCount: 0,
+        partialCount: 0,
+        missingCount: 409,
+        dominantMissingReason: "no_future_candles",
+        dominantMissingReasonCount: 409,
+        expectedCompleteTime: "2026-06-02T12:00:00.000Z",
+      }),
+      recommendedRun: null,
+      observationRun: null,
+      blocker: "time_maturity",
+    });
+    const uiState = makeUiState({
+      selectedRunId: selectedRun.runId,
+      readiness,
+      response: null,
+    });
+    const html = renderToStaticMarkup(
+      createElement(ForwardObservationSection, {
+        window: 3,
+        onWindowChange: () => undefined,
+        response: null,
+        readiness,
+        uiState,
+      }),
+    );
+
+    expect(uiState.status).toBe("not_ready_for_selected_run");
+    expect(getForwardObservationRowsRunId({
+      selectedRunId: selectedRun.runId,
+      readiness,
+      readinessError: null,
+    })).toBeNull();
+    expect(html).toContain("Forward observation is not ready yet");
+    expect(html).toContain("This snapshot is too recent");
+    expect(html).toContain("For 4h + 3 candles, expect roughly 12 hours");
+    expect(html).not.toContain("Loading observation rows");
+    expect(html).not.toContain("Observed Change");
+  });
+
+  it("uses the selected run when readiness says the selected run is ready", () => {
+    const selectedRun = makeObservationRun({
+      runId: "11111111-1111-4111-8111-111111111111",
+    });
+    const readiness = makeReadinessResponse({
+      selectedRun: makeReadinessRun({ run: selectedRun }),
+      observationRun: makeReadinessRun({ run: selectedRun }),
+    });
+    const response = makeObservationResponse({ run: selectedRun });
+    const uiState = makeUiState({
+      selectedRunId: selectedRun.runId,
+      readiness,
+      response,
+    });
+    const html = renderToStaticMarkup(
+      createElement(ForwardObservationSection, {
+        window: 3,
+        onWindowChange: () => undefined,
+        response,
+        readiness,
+        uiState,
+      }),
+    );
+
+    expect(uiState.status).toBe("observation_ready");
+    expect(getForwardObservationRowsRunId({
+      selectedRunId: selectedRun.runId,
+      readiness,
+      readinessError: null,
+    })).toBe(selectedRun.runId);
+    expect(html).toContain("Using selected run");
+    expect(html).toContain("Observation run 11111111");
+    expect(html).toContain("Observed Change");
+  });
+
+  it("renders observation row fetch failures without endless loading", () => {
+    const selectedRun = makeObservationRun({
+      runId: "11111111-1111-4111-8111-111111111111",
+    });
+    const readiness = makeReadinessResponse({
+      selectedRun: makeReadinessRun({ run: selectedRun }),
+      observationRun: makeReadinessRun({ run: selectedRun }),
+    });
+    const uiState = makeUiState({
+      selectedRunId: selectedRun.runId,
+      readiness,
+      response: null,
+      observationRowsError: "Unable to load forward observation (503).",
+    });
+    const html = renderToStaticMarkup(
+      createElement(ForwardObservationSection, {
+        window: 3,
+        onWindowChange: () => undefined,
+        response: null,
+        readiness,
+        uiState,
+      }),
+    );
+
+    expect(uiState.status).toBe("observation_rows_error");
+    expect(html).toContain("Observation rows unavailable");
+    expect(html).toContain("Unable to load forward observation (503).");
+    expect(html).not.toContain("Loading observation rows");
+  });
+
+  it("shows row-loading copy only for a concrete observation run request", () => {
+    const selectedRun = makeObservationRun({
+      runId: "11111111-1111-4111-8111-111111111111",
+    });
+    const readinessLoadingState = makeUiState({
+      selectedRunId: selectedRun.runId,
+      readiness: null,
+      response: null,
+      readinessIsLoading: true,
+      observationIsLoading: false,
+    });
+    const readinessLoadingHtml = renderToStaticMarkup(
+      createElement(ForwardObservationSection, {
+        window: 3,
+        onWindowChange: () => undefined,
+        response: null,
+        readiness: null,
+        uiState: readinessLoadingState,
+      }),
+    );
+    const readiness = makeReadinessResponse({
+      selectedRun: makeReadinessRun({ run: selectedRun }),
+      observationRun: makeReadinessRun({ run: selectedRun }),
+    });
+    const rowsLoadingState = makeUiState({
+      selectedRunId: selectedRun.runId,
+      readiness,
+      response: null,
+      observationIsLoading: true,
+    });
+    const rowsLoadingHtml = renderToStaticMarkup(
+      createElement(ForwardObservationSection, {
+        window: 3,
+        onWindowChange: () => undefined,
+        response: null,
+        readiness,
+        uiState: rowsLoadingState,
+      }),
+    );
+
+    expect(readinessLoadingState.status).toBe("loading_readiness");
+    expect(readinessLoadingHtml).toContain("Loading observation readiness");
+    expect(readinessLoadingHtml).not.toContain("Loading observation rows");
+    expect(rowsLoadingState.status).toBe("loading_observation_rows");
+    expect(rowsLoadingHtml).toContain("Loading observation rows");
   });
 
   it("keeps observation probing bounded and adjusts the probe range by window", () => {
@@ -429,6 +611,52 @@ describe("HistoryPageClient display formatting", () => {
     ).toEqual(snapshots.slice(5, 10).map((run) => run.runId));
   });
 });
+
+function makeUiState(
+  overrides: Partial<{
+    selectedRunId: string | null;
+    readiness: ReturnType<typeof makeReadinessResponse> | null;
+    response: ReturnType<typeof makeObservationResponse> | null;
+    readinessIsLoading: boolean;
+    readinessError: string | null;
+    observationRunId: string | null;
+    observationIsLoading: boolean;
+    observationIsFetching: boolean;
+    observationRowsError: string | null;
+  }> = {},
+) {
+  const readiness =
+    overrides.readiness === undefined
+      ? makeReadinessResponse()
+      : overrides.readiness;
+  const response = overrides.response ?? null;
+  const selectedRunId =
+    overrides.selectedRunId ??
+    readiness?.selectedRun?.run.runId ??
+    response?.run.runId ??
+    null;
+  const readinessError = overrides.readinessError ?? null;
+  const observationRunId =
+    overrides.observationRunId ??
+    getForwardObservationRowsRunId({
+      selectedRunId,
+      readiness,
+      readinessError,
+    });
+
+  return deriveForwardObservationUiState({
+    selectedRunId,
+    readiness,
+    readinessIsLoading: overrides.readinessIsLoading ?? false,
+    readinessError,
+    response,
+    observationRunId,
+    observationIsLoading: overrides.observationIsLoading ?? false,
+    observationIsFetching: overrides.observationIsFetching ?? false,
+    observationRowsError: overrides.observationRowsError ?? null,
+    fallbackWindow: 3,
+  });
+}
 
 function makeHistoryRow(overrides: {
   id: string;
@@ -554,8 +782,10 @@ function makeReadinessResponse(
   return {
     ok: true,
     selectedRun,
-    recommendedRun: overrides.recommendedRun ?? null,
-    observationRun: overrides.observationRun ?? selectedRun,
+    recommendedRun:
+      "recommendedRun" in overrides ? overrides.recommendedRun ?? null : null,
+    observationRun:
+      "observationRun" in overrides ? overrides.observationRun ?? null : selectedRun,
     coverage: {
       timeframe: "4h" as const,
       assetClass: "crypto",
