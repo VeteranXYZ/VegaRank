@@ -217,16 +217,25 @@ describe("HistoryPageClient display formatting", () => {
     expect(html).toContain("3 candles");
     expect(html).toContain("5 candles");
     expect(html).toContain("10 candles");
-    expect(html).toContain("Window");
-    expect(html).toContain("Total Rows");
-    expect(html).toContain("Returned Rows");
+    expect(html).toContain("Observation Summary");
+    expect(html).toContain("Rows observed");
     expect(html).toContain("Complete");
     expect(html).toContain("Partial");
     expect(html).toContain("Missing");
+    expect(html).toContain("Median observed change");
+    expect(html).toContain("Average observed change");
+    expect(html).toContain("Median max drawdown");
+    expect(html).toContain("Observation coverage");
+    expect(html).toContain("Limited (33.33%)");
+    expect(html).toContain("Group distribution");
+    expect(html).toContain("Notable historical examples");
     expect(html).toContain("Forward Observation is measured from the observation run");
     expect(html).toContain("Complete means enough future candles exist");
     expect(html).toContain("Partial means fewer future candles are available");
     expect(html).toContain("Missing means required future candles are unavailable");
+    expect(html).toContain("Historical observations describe what happened after a stored scanner run");
+    expect(html).toContain("They do not predict future outcomes and are not financial advice");
+    expect(html).toContain("It is not signal confidence or prediction quality");
     expect(html).toContain("Observed Change");
     expect(html).toContain("Max Drawdown");
     expect(html).toContain("Data Status");
@@ -244,6 +253,103 @@ describe("HistoryPageClient display formatting", () => {
     expect(html).not.toContain("Show More");
     expect(html).not.toContain("Pagination");
     expect(html).not.toContain("top-100");
+  });
+
+  it("renders Observation Summary distribution and notable examples from complete rows only", () => {
+    const response = makeObservationResponse({
+      rows: [
+        makeObservationRow({
+          id: "eligible-complete",
+          symbol: "ELIGIBLEUSDT",
+          group: "eligible",
+          observedChangePct: 8,
+          maxDrawdownPct: -2,
+          dataStatus: "complete",
+          missingReason: null,
+        }),
+        makeObservationRow({
+          id: "watch-complete",
+          symbol: "WATCHUSDT",
+          group: "watch",
+          observedChangePct: 2,
+          maxDrawdownPct: -4,
+          dataStatus: "complete",
+          missingReason: null,
+        }),
+        makeObservationRow({
+          id: "risk-complete",
+          symbol: "RISKUSDT",
+          group: "risk",
+          observedChangePct: -6,
+          maxDrawdownPct: -12,
+          dataStatus: "complete",
+          missingReason: null,
+        }),
+        makeObservationRow({
+          id: "partial-ignored",
+          symbol: "PARTIALUSDT",
+          group: "eligible",
+          observedChangePct: 80,
+          maxDrawdownPct: -80,
+          dataStatus: "partial",
+          missingReason: "insufficient_future_candles",
+        }),
+        makeObservationRow({
+          id: "missing-ignored",
+          symbol: "MISSINGUSDT",
+          group: "risk",
+          observedChangePct: -80,
+          maxDrawdownPct: -80,
+          dataStatus: "missing",
+          missingReason: "no_future_candles",
+        }),
+      ],
+    });
+    const readiness = makeReadinessResponse({
+      selectedRun: makeReadinessRun({ run: response.run }),
+      observationRun: makeReadinessRun({ run: response.run }),
+    });
+    const html = renderToStaticMarkup(
+      createElement(ForwardObservationSection, {
+        window: 3,
+        onWindowChange: () => undefined,
+        response,
+        readiness,
+        uiState: makeUiState({
+          selectedRunId: response.run.runId,
+          readiness,
+          response,
+        }),
+      }),
+    );
+
+    expect(html).toContain("Rows observed");
+    expect(html).toContain(">5<");
+    expect(html).toContain("Mixed (60.00%)");
+    expect(html).toContain("2.00%");
+    expect(html).toContain("1.33%");
+    expect(html).toContain("-4.00%");
+    expect(html).toContain("Eligible");
+    expect(html).toContain("Watch");
+    expect(html).toContain("Risk");
+    expect(html).toContain("Largest positive observed changes");
+    expect(html).toContain("Largest negative observed changes");
+    expect(html).toContain("Largest observed drawdowns");
+    expect(html).toContain("ELIGIBLEUSDT");
+    expect(html).toContain("WATCHUSDT");
+    expect(html).toContain("RISKUSDT");
+    expect(html).not.toContain("PARTIALUSDT</span>");
+    expect(html).not.toContain("MISSINGUSDT</span>");
+    expect(html).not.toContain("win rate");
+    expect(html).not.toContain("accuracy");
+    expect(html).not.toContain("success rate");
+    expect(html).not.toContain("buy");
+    expect(html).not.toContain("sell");
+    expect(html).not.toContain("entry");
+    expect(html).not.toContain("exit");
+    expect(html).not.toContain("target");
+    expect(html).not.toContain("stop loss");
+    expect(html).not.toContain("PnL");
   });
 
   it("renders stale market coverage as a compact unavailable state", () => {
@@ -1191,6 +1297,7 @@ function makeObservationCandidate(
 function makeObservationRow(overrides: {
   id: string;
   symbol: string;
+  group?: string | null;
   observedClose?: number | null;
   observedChangePct?: number | null;
   maxDrawdownPct?: number | null;
@@ -1204,7 +1311,7 @@ function makeObservationRow(overrides: {
     exchange: "binance",
     market: "spot",
     timeframe: "4h" as const,
-    group: "risk",
+    group: overrides.group ?? "risk",
     label: "breakdown_risk",
     primarySignal: "Risk review",
     rankScore: 12,

@@ -10,6 +10,12 @@ import {
   normalizeGroupKey,
 } from "@/components/scanner/latestScanUi";
 import { buildSymbolResearchHref } from "@/components/symbol/symbolResearchLinks";
+import {
+  buildObservationSummary,
+  type ObservationGroupSummary,
+  type ObservationNotableExample,
+  type ObservationSummary,
+} from "./historyObservationSummary";
 
 const HISTORY_TIMEFRAMES = ["1h", "4h", "1d", "1w"] as const;
 const OBSERVATION_WINDOWS = [1, 3, 5, 10] as const;
@@ -19,6 +25,7 @@ const maxObservationProbeRuns = 12;
 const historyDisclaimer =
   "Research-only. Not financial advice. Historical observations are not predictions.";
 const emptyHistoricalSnapshotRuns: HistoricalSnapshotRun[] = [];
+const emptyHistoricalObservationRows: HistoricalSnapshotObservationRow[] = [];
 export const recentRunsPanelClassName =
   "rounded-md border border-[var(--border)] bg-[var(--panel)] p-4 xl:sticky xl:top-4 xl:flex xl:max-h-[calc(100vh-2rem)] xl:flex-col xl:overflow-hidden";
 export const recentRunsScrollContainerClassName =
@@ -727,7 +734,7 @@ export function ForwardObservationSection({
   readiness?: HistoricalObservationReadinessResponse | null;
   uiState: ForwardObservationUiState;
 }) {
-  const rows = response?.rows ?? [];
+  const rows = response?.rows ?? emptyHistoricalObservationRows;
   const summary = uiState.summary;
   const selectedReadiness = readiness?.selectedRun ?? null;
   const selectedReadinessRun = selectedReadiness?.run ?? uiState.selectedRun;
@@ -737,6 +744,23 @@ export function ForwardObservationSection({
     uiState,
     readiness: readiness ?? null,
   });
+  const observationSummary = useMemo(
+    () =>
+      buildObservationSummary({
+        rows,
+        counts: summary
+          ? {
+              totalRows: summary.totalRows,
+              completeCount: summary.completeCount,
+              partialCount: summary.partialCount,
+              missingCount: summary.missingCount,
+            }
+          : null,
+      }),
+    [rows, summary],
+  );
+  const showObservationSummary =
+    uiState.status === "observation_ready" && rows.length > 0;
 
   return (
     <section className="rounded-md border border-[var(--border)] bg-[var(--panel)] p-4">
@@ -809,7 +833,7 @@ export function ForwardObservationSection({
         </p>
       ) : null}
 
-      {summary ? (
+      {summary && !showObservationSummary ? (
         <div className="mb-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-7">
           <Metric label="Window" value={`${summary.window} candles`} />
           <Metric label="Timeframe" value={summary.timeframe} />
@@ -819,6 +843,10 @@ export function ForwardObservationSection({
           <Metric label="Partial" value={formatCount(summary.partialCount)} />
           <Metric label="Missing" value={formatCount(summary.missingCount)} />
         </div>
+      ) : null}
+
+      {showObservationSummary ? (
+        <ObservationSummarySection summary={observationSummary} />
       ) : null}
 
       <ObservationDataStatusLegend />
@@ -1040,6 +1068,209 @@ function ObservationDataStatusLegend() {
         sync gaps. These statuses are research context, not scanner algorithm
         failures or predictions.
       </p>
+    </div>
+  );
+}
+
+function ObservationSummarySection({
+  summary,
+}: {
+  summary: ObservationSummary;
+}) {
+  return (
+    <section className="mb-3 rounded-md border border-[var(--border)] p-4">
+      <div className="mb-3">
+        <h3 className="text-sm font-semibold">Observation Summary</h3>
+        <p className="mt-1 max-w-3xl text-xs leading-5 text-[var(--muted)]">
+          Historical observations describe what happened after a stored scanner
+          run. They do not predict future outcomes and are not financial advice.
+        </p>
+      </div>
+
+      <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+        <Metric label="Rows observed" value={formatCount(summary.totalRows)} />
+        <Metric label="Complete" value={formatCount(summary.completeCount)} />
+        <Metric label="Partial" value={formatCount(summary.partialCount)} />
+        <Metric label="Missing" value={formatCount(summary.missingCount)} />
+        <Metric
+          label="Median observed change"
+          value={formatObservationSummaryPercent(summary.medianObservedChangePct)}
+        />
+        <Metric
+          label="Average observed change"
+          value={formatObservationSummaryPercent(summary.averageObservedChangePct)}
+        />
+        <Metric
+          label="Median max drawdown"
+          value={formatObservationSummaryPercent(summary.medianMaxDrawdownPct)}
+        />
+        <Metric
+          label="Observation coverage"
+          value={`${summary.coverageLabel} (${formatObservationPercent(
+            summary.completePct,
+          )})`}
+        />
+      </div>
+
+      <p className="mt-3 max-w-3xl text-xs leading-5 text-[var(--muted)]">
+        Observation coverage describes how many rows have enough future candles
+        for the selected window. It is not signal confidence or prediction
+        quality.
+      </p>
+
+      <GroupDistributionTable groups={summary.groups} />
+      <NotableHistoricalExamples summary={summary} />
+    </section>
+  );
+}
+
+function GroupDistributionTable({
+  groups,
+}: {
+  groups: ObservationGroupSummary[];
+}) {
+  return (
+    <div className="mt-4">
+      <h4 className="text-sm font-semibold">Group distribution</h4>
+      <p className="mt-1 max-w-3xl text-xs leading-5 text-[var(--muted)]">
+        Group metrics use complete rows only so partial and missing observations
+        do not get counted as zero.
+      </p>
+      {groups.length === 0 ? (
+        <p className="mt-3 text-sm text-[var(--muted)]">
+          Not enough complete rows
+        </p>
+      ) : (
+        <div className="mt-3 overflow-x-auto">
+          <table className="w-full min-w-[860px] border-collapse text-left text-sm">
+            <thead className="bg-[#0d131a] text-xs uppercase text-[var(--muted)]">
+              <tr>
+                <th className="px-3 py-3 font-semibold">Group</th>
+                <th className="px-3 py-3 font-semibold">Rows</th>
+                <th className="px-3 py-3 font-semibold">Complete</th>
+                <th className="px-3 py-3 font-semibold">Partial</th>
+                <th className="px-3 py-3 font-semibold">Missing</th>
+                <th className="px-3 py-3 font-semibold">
+                  Median observed change
+                </th>
+                <th className="px-3 py-3 font-semibold">
+                  Average observed change
+                </th>
+                <th className="px-3 py-3 font-semibold">Median max drawdown</th>
+              </tr>
+            </thead>
+            <tbody>
+              {groups.map((group) => (
+                <tr key={group.groupKey} className="border-t border-[var(--border)]">
+                  <td className="px-3 py-3 font-semibold">{group.groupLabel}</td>
+                  <td className="px-3 py-3 tabular-nums">
+                    {formatCount(group.rows)}
+                  </td>
+                  <td className="px-3 py-3 tabular-nums">
+                    {formatCount(group.complete)}
+                  </td>
+                  <td className="px-3 py-3 tabular-nums">
+                    {formatCount(group.partial)}
+                  </td>
+                  <td className="px-3 py-3 tabular-nums">
+                    {formatCount(group.missing)}
+                  </td>
+                  <td className="px-3 py-3 tabular-nums">
+                    {formatObservationSummaryPercent(
+                      group.medianObservedChangePct,
+                    )}
+                  </td>
+                  <td className="px-3 py-3 tabular-nums">
+                    {formatObservationSummaryPercent(
+                      group.averageObservedChangePct,
+                    )}
+                  </td>
+                  <td className="px-3 py-3 tabular-nums">
+                    {formatObservationSummaryPercent(group.medianMaxDrawdownPct)}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function NotableHistoricalExamples({
+  summary,
+}: {
+  summary: ObservationSummary;
+}) {
+  return (
+    <div className="mt-4">
+      <h4 className="text-sm font-semibold">Notable historical examples</h4>
+      <p className="mt-1 max-w-3xl text-xs leading-5 text-[var(--muted)]">
+        These examples are historical observations for the selected window, not
+        predictions or trade recommendations.
+      </p>
+      <div className="mt-3 grid gap-3 lg:grid-cols-3">
+        <NotableExampleList
+          title="Largest positive observed changes"
+          examples={summary.notable.largestPositiveObservedChanges}
+        />
+        <NotableExampleList
+          title="Largest negative observed changes"
+          examples={summary.notable.largestNegativeObservedChanges}
+        />
+        <NotableExampleList
+          title="Largest observed drawdowns"
+          examples={summary.notable.largestObservedDrawdowns}
+        />
+      </div>
+    </div>
+  );
+}
+
+function NotableExampleList({
+  title,
+  examples,
+}: {
+  title: string;
+  examples: ObservationNotableExample[];
+}) {
+  return (
+    <div className="rounded-md border border-[var(--border)] p-3">
+      <h5 className="text-xs font-semibold uppercase tracking-normal text-[var(--muted)]">
+        {title}
+      </h5>
+      {examples.length === 0 ? (
+        <p className="mt-2 text-sm text-[var(--muted)]">
+          Not enough complete rows
+        </p>
+      ) : (
+        <ul className="mt-2 space-y-2">
+          {examples.map((example) => (
+            <li
+              key={`${title}-${example.symbol}`}
+              className="rounded border border-[var(--border)] p-2 text-xs"
+            >
+              <div className="flex items-start justify-between gap-2">
+                <span className="font-semibold">{example.symbol}</span>
+                <span className="text-[var(--muted)]">{example.groupLabel}</span>
+              </div>
+              <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-[var(--muted)]">
+                <span>
+                  Observed change{" "}
+                  {formatObservationPercent(example.observedChangePct)}
+                </span>
+                {example.maxDrawdownPct !== null ? (
+                  <span>
+                    Max drawdown{" "}
+                    {formatObservationPercent(example.maxDrawdownPct)}
+                  </span>
+                ) : null}
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   );
 }
@@ -2265,6 +2496,12 @@ function formatObservationPercent(value: number | null | undefined) {
   return typeof value === "number" && Number.isFinite(value)
     ? `${value.toFixed(2)}%`
     : "-";
+}
+
+function formatObservationSummaryPercent(value: number | null | undefined) {
+  return typeof value === "number" && Number.isFinite(value)
+    ? formatObservationPercent(value)
+    : "Not enough complete rows";
 }
 
 function formatDataStatus(value: ObservationDataStatus) {
