@@ -146,6 +146,17 @@ export type MtfScreenerPreset = {
   description: string;
 };
 
+export type MtfResearchBucketId = MtfScreenerPresetId;
+
+export type MtfResearchBucket = MtfScreenerPreset & {
+  id: MtfResearchBucketId;
+  implication: string;
+};
+
+export type MtfResearchBucketCount = MtfResearchBucket & {
+  count: number;
+};
+
 export type MtfHigherTimeframeHealthCode =
   | "higher_tf_ok"
   | "one_day_risk"
@@ -167,12 +178,12 @@ export const mtfScreenerPresets: MtfScreenerPreset[] = [
   },
   {
     id: "mtf_strength",
-    label: "Multi-timeframe Strength",
+    label: "MTF Strength",
     description: "1h eligible, 4h and 1d constructive, 1w not risk.",
   },
   {
     id: "higher_timeframe_safe_watchlist",
-    label: "Higher-timeframe Safe Watchlist",
+    label: "Higher-TF Watchlist",
     description: "4h constructive with 1d and 1w not in risk.",
   },
   {
@@ -186,6 +197,21 @@ export const mtfScreenerPresets: MtfScreenerPreset[] = [
     description: "1h or 4h is in the risk group.",
   },
 ];
+
+const mtfResearchBucketImplications: Record<MtfResearchBucketId, string> = {
+  short_term_repair: "Review group for short-term repair context before deeper research.",
+  mtf_strength: "Research set for aligned MTF structure, not a recommendation.",
+  higher_timeframe_safe_watchlist: "Triage group for higher-timeframe review context.",
+  overheated_caution: "Caution review group for stretched near-term conditions.",
+  breakdown_risk: "Risk triage group for defensive review.",
+};
+
+export const mtfResearchBuckets: MtfResearchBucket[] = mtfScreenerPresets.map(
+  (preset) => ({
+    ...preset,
+    implication: mtfResearchBucketImplications[preset.id],
+  }),
+);
 
 export const defaultMtfScreenerFilters: MtfScreenerFilters = {
   groups: {
@@ -311,6 +337,16 @@ export function filterMtfScreenerRowsBySearch(
   return rows.filter((row) => row.symbol.toUpperCase().includes(normalizedQuery));
 }
 
+export function countMtfResearchBuckets(
+  rows: MtfScreenerRow[],
+): MtfResearchBucketCount[] {
+  return mtfResearchBuckets.map((bucket) => ({
+    ...bucket,
+    count: rows.filter((row) => doesMtfRowMatchResearchBucket(row, bucket.id))
+      .length,
+  }));
+}
+
 export function sortMtfScreenerRows(
   rows: MtfScreenerRow[],
   sort: MtfScreenerSortState = defaultMtfScreenerSort,
@@ -387,6 +423,13 @@ export function doesMtfRowMatchPreset(
     case "breakdown_risk":
       return isMtfRisk(row, "1h") || isMtfRisk(row, "4h");
   }
+}
+
+export function doesMtfRowMatchResearchBucket(
+  row: MtfScreenerRow,
+  bucketId: MtfResearchBucketId,
+) {
+  return doesMtfRowMatchPreset(row, bucketId);
 }
 
 export function getMtfPresetDescription(

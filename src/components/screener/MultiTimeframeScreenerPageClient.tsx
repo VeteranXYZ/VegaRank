@@ -13,6 +13,7 @@ import {
   MTF_SCREENER_TIMEFRAMES,
   buildMtfScreenerRowsFromResponse,
   buildMtfSymbolResearchHref,
+  countMtfResearchBuckets,
   defaultMtfScreenerSort,
   defaultMtfScreenerFilters,
   filterMtfScreenerRowsBySearch,
@@ -22,10 +23,8 @@ import {
   formatMtfRank,
   getMtfHigherTimeframeHealth,
   getMtfPrimarySignal,
-  getMtfPresetDescription,
   getMtfRiskNotesSummary,
   getMtfSymbolResearchTimeframe,
-  mtfScreenerPresets,
   mtfScreenerGroupFilterOptions,
   mtfScreenerSortOptions,
   type MtfLatestScreenerResponse,
@@ -80,6 +79,11 @@ export function MultiTimeframeScreenerPageClient() {
     () => sortMtfScreenerRows(searchedRows, sortState),
     [searchedRows, sortState],
   );
+  const isFullTableActive =
+    presetId === "custom" &&
+    symbolSearch.trim() === "" &&
+    areMtfScreenerFiltersDefault(filters) &&
+    isMtfScreenerDefaultSort(sortState);
 
   const updateGroupFilter = (
     timeframe: MtfScreenerTimeframe,
@@ -162,10 +166,17 @@ export function MultiTimeframeScreenerPageClient() {
         />
       </div>
 
+      <MtfResearchBucketsPanel
+        rows={rows}
+        presetId={presetId}
+        isFullTableActive={isFullTableActive}
+        onBucketSelect={applyPreset}
+        onClear={clearFilters}
+      />
+
       <div className="grid min-h-0 flex-1 gap-2 xl:grid-cols-[270px_minmax(0,1fr)]">
         <MtfScreenerControls
           filters={filters}
-          presetId={presetId}
           symbolSearch={symbolSearch}
           sortState={sortState}
           onSymbolSearchChange={setSymbolSearch}
@@ -174,7 +185,6 @@ export function MultiTimeframeScreenerPageClient() {
           onGroupChange={updateGroupFilter}
           onMinRankChange={updateMinRank}
           onExcludeRiskChange={updateExcludeRisk}
-          onPreset={applyPreset}
           onClear={clearFilters}
         />
 
@@ -322,9 +332,98 @@ export function buildMtfLatestScanUrl({
   return `${baseUrl}/api/scan/mtf-latest?${params.toString()}`;
 }
 
+export function MtfResearchBucketsPanel({
+  rows,
+  presetId,
+  isFullTableActive,
+  onBucketSelect,
+  onClear,
+}: {
+  rows: MtfScreenerRow[];
+  presetId: MtfScreenerPresetId | "custom";
+  isFullTableActive: boolean;
+  onBucketSelect: (presetId: MtfScreenerPresetId) => void;
+  onClear: () => void;
+}) {
+  const buckets = countMtfResearchBuckets(rows);
+
+  return (
+    <section className="mb-2 border border-[var(--border)] bg-[var(--panel)] px-3 py-2">
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <div>
+          <h2 className="text-xs font-semibold text-[var(--foreground)]">
+            Research Buckets
+          </h2>
+          <p className="mt-1 max-w-4xl text-[11px] leading-5 text-[var(--muted)]">
+            Triage groups for research starting points. Counts use the full
+            joined screener universe before search or filter narrowing.
+            Research-only triage based on existing MTF scanner groups. Not
+            financial advice.
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={onClear}
+          aria-pressed={isFullTableActive}
+          className={`min-h-9 border px-3 py-1.5 text-left text-[11px] ${
+            isFullTableActive
+              ? "border-[var(--accent)] bg-[#0d1714] text-[var(--foreground)]"
+              : "border-[var(--border)] text-[var(--muted)] hover:border-[var(--info)] hover:text-[var(--foreground)]"
+          }`}
+        >
+          <span className="block font-semibold">Full Table</span>
+          <span className="block font-mono tabular-nums">
+            {rows.length} joined symbols
+          </span>
+        </button>
+      </div>
+
+      <div className="mt-2 grid gap-2 md:grid-cols-2 xl:grid-cols-5">
+        {buckets.map((bucket) => {
+          const isActive = presetId === bucket.id;
+
+          return (
+            <button
+              key={bucket.id}
+              type="button"
+              title={bucket.implication}
+              onClick={() => onBucketSelect(bucket.id)}
+              aria-pressed={isActive}
+              className={`min-h-[104px] border px-2.5 py-2 text-left ${
+                isActive
+                  ? "border-[var(--accent)] bg-[#0d1714] text-[var(--foreground)]"
+                  : "border-[var(--border)] bg-[#080d12] text-[var(--muted)] hover:border-[var(--info)] hover:text-[var(--foreground)]"
+              }`}
+            >
+              <span className="flex items-start justify-between gap-2">
+                <span className="text-[11px] font-semibold text-[var(--foreground)]">
+                  {bucket.label}
+                </span>
+                <span className="text-right">
+                  <span className="block font-mono text-sm tabular-nums text-[var(--foreground)]">
+                    {bucket.count}
+                  </span>
+                  <span className="block text-[10px] leading-3 text-[var(--muted)]">
+                    matching symbols
+                  </span>
+                </span>
+              </span>
+              <span className="mt-1 block text-[11px] leading-4">
+                {bucket.description}
+              </span>
+              <span className="mt-1 block text-[10px] leading-4 text-[var(--muted)]">
+                {bucket.implication}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
 function MtfScreenerControls({
   filters,
-  presetId,
   symbolSearch,
   sortState,
   onSymbolSearchChange,
@@ -333,11 +432,9 @@ function MtfScreenerControls({
   onGroupChange,
   onMinRankChange,
   onExcludeRiskChange,
-  onPreset,
   onClear,
 }: {
   filters: MtfScreenerFilters;
-  presetId: MtfScreenerPresetId | "custom";
   symbolSearch: string;
   sortState: MtfScreenerSortState;
   onSymbolSearchChange: (value: string) => void;
@@ -349,11 +446,8 @@ function MtfScreenerControls({
   ) => void;
   onMinRankChange: (timeframe: MtfScreenerTimeframe, value: string) => void;
   onExcludeRiskChange: (key: "exclude1dRisk" | "exclude1wRisk") => void;
-  onPreset: (presetId: MtfScreenerPresetId) => void;
   onClear: () => void;
 }) {
-  const presetDescription = getMtfPresetDescription(presetId);
-
   return (
     <aside className="border border-[var(--border)] bg-[var(--panel)] p-3 xl:h-full xl:overflow-y-auto">
       <div className="mb-3 flex items-center justify-between gap-2">
@@ -421,34 +515,6 @@ function MtfScreenerControls({
             <option value="asc">Low to high</option>
           </select>
         </label>
-      </section>
-
-      <section className="mt-4 space-y-2">
-        <h3 className="text-[11px] font-semibold uppercase text-[var(--muted)]">
-          Presets
-        </h3>
-        <div className="space-y-1.5">
-          {mtfScreenerPresets.map((preset) => (
-            <button
-              key={preset.id}
-              type="button"
-              title={preset.description}
-              onClick={() => onPreset(preset.id)}
-              className={`w-full border px-2 py-1.5 text-left text-[11px] ${
-                presetId === preset.id
-                  ? "border-[var(--accent)] bg-[#0d1714] text-[var(--foreground)]"
-                  : "border-[var(--border)] text-[var(--muted)]"
-              }`}
-            >
-              {preset.label}
-            </button>
-          ))}
-        </div>
-        {presetDescription ? (
-          <p className="border border-[var(--border)] bg-[#080d12] px-2 py-1.5 text-[11px] leading-4 text-[var(--muted)]">
-            {presetDescription}
-          </p>
-        ) : null}
       </section>
 
       <section className="mt-4 space-y-3">
@@ -692,6 +758,25 @@ function getMtfErrorMessage(error: unknown) {
   return error instanceof Error && error.message
     ? error.message
     : "Unable to load multi-timeframe screener data.";
+}
+
+function areMtfScreenerFiltersDefault(filters: MtfScreenerFilters) {
+  return (
+    MTF_SCREENER_TIMEFRAMES.every(
+      (timeframe) =>
+        filters.groups[timeframe] === defaultMtfScreenerFilters.groups[timeframe] &&
+        filters.minRank[timeframe] === defaultMtfScreenerFilters.minRank[timeframe],
+    ) &&
+    filters.exclude1dRisk === defaultMtfScreenerFilters.exclude1dRisk &&
+    filters.exclude1wRisk === defaultMtfScreenerFilters.exclude1wRisk
+  );
+}
+
+function isMtfScreenerDefaultSort(sortState: MtfScreenerSortState) {
+  return (
+    sortState.field === defaultMtfScreenerSort.field &&
+    sortState.direction === defaultMtfScreenerSort.direction
+  );
 }
 
 const controlClass =

@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 import { MarketContextPanel } from "@/components/market-context/MarketContextPanel";
 import {
   buildMtfLatestScanUrl,
+  MtfResearchBucketsPanel,
   MtfScreenerTable,
 } from "./MultiTimeframeScreenerPageClient";
 import {
@@ -19,6 +20,53 @@ describe("MultiTimeframeScreenerTable", () => {
         tradeApiBaseUrl: "https://api.auere.com/",
       }),
     ).toBe("https://api.auere.com/api/scan/mtf-latest?assetClass=crypto");
+  });
+
+  it("renders the research buckets panel with conservative copy and counts", () => {
+    const rows = buildMtfScreenerRows({
+      "1h": makeResponse("1h", [
+        makeItem({ symbol: "REPAIRUSDT", timeframe: "1h", resultGroup: "watch" }),
+        makeItem({ symbol: "MTFUSDT", timeframe: "1h", resultGroup: "eligible" }),
+        makeItem({ symbol: "HOTUSDT", timeframe: "1h", resultGroup: "overheated" }),
+      ]),
+      "4h": makeResponse("4h", [
+        makeItem({ symbol: "REPAIRUSDT", timeframe: "4h", resultGroup: "watch" }),
+        makeItem({ symbol: "MTFUSDT", timeframe: "4h", resultGroup: "eligible" }),
+      ]),
+      "1d": makeResponse("1d", [
+        makeItem({ symbol: "REPAIRUSDT", timeframe: "1d", resultGroup: "neutral" }),
+        makeItem({ symbol: "MTFUSDT", timeframe: "1d", resultGroup: "watch" }),
+      ]),
+      "1w": makeResponse("1w", [
+        makeItem({ symbol: "REPAIRUSDT", timeframe: "1w", resultGroup: "neutral" }),
+        makeItem({ symbol: "MTFUSDT", timeframe: "1w", resultGroup: "neutral" }),
+      ]),
+    });
+    const html = renderToStaticMarkup(
+      createElement(MtfResearchBucketsPanel, {
+        rows,
+        presetId: "custom",
+        isFullTableActive: true,
+        onBucketSelect: noop,
+        onClear: noop,
+      }),
+    );
+
+    expect(html).toContain("Research Buckets");
+    expect(html).toContain("research starting points");
+    expect(html).toContain(
+      "Research-only triage based on existing MTF scanner groups. Not financial advice.",
+    );
+    expect(html).toContain("Full Table");
+    expect(html).toContain("3 joined symbols");
+    expect(html).toContain("Short-term Repair");
+    expect(html).toContain("MTF Strength");
+    expect(html).toContain("Higher-TF Watchlist");
+    expect(html).toContain("matching symbols");
+    expect(html).toContain(">2</span>");
+    expect(html).not.toContain("Best");
+    expect(html).not.toContain("Opportunity");
+    expect(html).not.toContain("Picks");
   });
 
   it("renders missing timeframes and symbol research links", () => {
@@ -150,6 +198,8 @@ describe("MultiTimeframeScreenerTable", () => {
     expect(html).toContain("Matching Symbols");
   });
 });
+
+function noop() {}
 
 function makeResponse(
   timeframe: "1h" | "4h" | "1d" | "1w",

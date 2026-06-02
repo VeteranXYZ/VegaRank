@@ -3,8 +3,10 @@ import {
   buildMtfScreenerRows,
   buildMtfScreenerRowsFromResponse,
   buildMtfSymbolResearchHref,
+  countMtfResearchBuckets,
   defaultMtfScreenerFilters,
   doesMtfRowMatchPreset,
+  doesMtfRowMatchResearchBucket,
   filterMtfScreenerRowsBySearch,
   filterMtfScreenerRows,
   formatMtfCombinedRank,
@@ -17,6 +19,8 @@ import {
   getMtfRiskNotes,
   getMtfRiskNotesSummary,
   getMtfSymbolResearchTimeframe,
+  mtfResearchBuckets,
+  mtfScreenerPresetIds,
   sortMtfScreenerRows,
   type MtfLatestScanItem,
   type MtfLatestScanResponse,
@@ -274,6 +278,58 @@ describe("multi-timeframe screener helpers", () => {
     expect(doesMtfRowMatchPreset(findRow(rows, "RISKUSDT"), "breakdown_risk")).toBe(true);
   });
 
+  it("defines research buckets for each existing preset", () => {
+    expect(mtfResearchBuckets.map((bucket) => bucket.id)).toEqual([
+      ...mtfScreenerPresetIds,
+    ]);
+    expect(mtfResearchBuckets.map((bucket) => bucket.label)).toEqual([
+      "Short-term Repair",
+      "MTF Strength",
+      "Higher-TF Watchlist",
+      "Overheated Caution",
+      "Breakdown Risk",
+    ]);
+
+    for (const bucket of mtfResearchBuckets) {
+      expect(bucket.description.length).toBeGreaterThan(0);
+      expect(bucket.implication.length).toBeGreaterThan(0);
+    }
+  });
+
+  it("counts research buckets from the full joined row set", () => {
+    const rows = makeResearchBucketRows();
+    const counts = countMtfResearchBuckets(rows);
+
+    expect(getBucketCount(counts, "short_term_repair")).toBe(1);
+    expect(getBucketCount(counts, "mtf_strength")).toBe(1);
+    expect(getBucketCount(counts, "higher_timeframe_safe_watchlist")).toBe(3);
+    expect(getBucketCount(counts, "overheated_caution")).toBe(1);
+    expect(getBucketCount(counts, "breakdown_risk")).toBe(1);
+  });
+
+  it("keeps research bucket matching aligned with preset behavior", () => {
+    const rows = makeResearchBucketRows();
+    const counts = countMtfResearchBuckets(rows);
+
+    for (const bucket of mtfResearchBuckets) {
+      expect(getBucketCount(counts, bucket.id)).toBe(
+        filterMtfScreenerRows(rows, defaultMtfScreenerFilters, bucket.id).length,
+      );
+
+      for (const row of rows) {
+        expect(doesMtfRowMatchResearchBucket(row, bucket.id)).toBe(
+          doesMtfRowMatchPreset(row, bucket.id),
+        );
+      }
+    }
+  });
+
+  it("returns zero research bucket counts for empty rows", () => {
+    expect(countMtfResearchBuckets([]).map((bucket) => bucket.count)).toEqual([
+      0, 0, 0, 0, 0,
+    ]);
+  });
+
   it("labels higher-timeframe health states", () => {
     expect(
       getMtfHigherTimeframeHealth(
@@ -462,6 +518,45 @@ function findRow(
   }
 
   return row;
+}
+
+function makeResearchBucketRows() {
+  return buildMtfScreenerRows({
+    "1h": makeResponse("1h", [
+      makeItem({ symbol: "REPAIRUSDT", timeframe: "1h", resultGroup: "watch" }),
+      makeItem({ symbol: "MTFUSDT", timeframe: "1h", resultGroup: "eligible" }),
+      makeItem({ symbol: "HOTUSDT", timeframe: "1h", resultGroup: "overheated" }),
+    ]),
+    "4h": makeResponse("4h", [
+      makeItem({ symbol: "REPAIRUSDT", timeframe: "4h", resultGroup: "watch" }),
+      makeItem({ symbol: "MTFUSDT", timeframe: "4h", resultGroup: "eligible" }),
+      makeItem({ symbol: "HTFUSDT", timeframe: "4h", resultGroup: "watch" }),
+      makeItem({ symbol: "RISKUSDT", timeframe: "4h", resultGroup: "risk" }),
+    ]),
+    "1d": makeResponse("1d", [
+      makeItem({ symbol: "REPAIRUSDT", timeframe: "1d", resultGroup: "neutral" }),
+      makeItem({ symbol: "MTFUSDT", timeframe: "1d", resultGroup: "watch" }),
+      makeItem({ symbol: "HTFUSDT", timeframe: "1d", resultGroup: "neutral" }),
+    ]),
+    "1w": makeResponse("1w", [
+      makeItem({ symbol: "REPAIRUSDT", timeframe: "1w", resultGroup: "neutral" }),
+      makeItem({ symbol: "MTFUSDT", timeframe: "1w", resultGroup: "neutral" }),
+      makeItem({ symbol: "HTFUSDT", timeframe: "1w", resultGroup: "neutral" }),
+    ]),
+  });
+}
+
+function getBucketCount(
+  counts: ReturnType<typeof countMtfResearchBuckets>,
+  bucketId: (typeof mtfScreenerPresetIds)[number],
+) {
+  const bucket = counts.find((item) => item.id === bucketId);
+
+  if (!bucket) {
+    throw new Error(`Expected count for ${bucketId}`);
+  }
+
+  return bucket.count;
 }
 
 function makeItem(
