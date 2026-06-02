@@ -8,6 +8,16 @@ import {
   isSymbolAssetClassFilter,
   type SymbolAssetClassFilter,
 } from "@/lib/market-data/symbolClassification";
+import {
+  MARKET_CONTEXT_SYMBOLS,
+  MARKET_CONTEXT_TIMEFRAMES,
+  buildMarketContextResponse,
+  createUnavailableMarketContextProxy,
+  type AvailableMarketContextProxy,
+  type MarketContextProxyMap,
+  type MarketContextRunContext,
+  type MarketContextTimeframe,
+} from "@/lib/market-context/marketContext";
 import { buildLatestScanResponse } from "@/lib/scanner/latestScanResponse";
 import {
   classifyScanResultGroup,
@@ -157,6 +167,11 @@ export async function handleTradeApiRequest(
 
     if (url.pathname === "/api/signal/evaluation") {
       await handleSignalEvaluation(response, url);
+      return;
+    }
+
+    if (url.pathname === "/api/market/context") {
+      await handleMarketContext(response, url);
       return;
     }
 
@@ -982,6 +997,118 @@ async function handleMarketDataCoverage(response: http.ServerResponse, url: URL)
   }
 }
 
+async function handleMarketContext(response: http.ServerResponse, url: URL) {
+  const assetClass = parseAssetClassParam(url.searchParams.get("assetClass"));
+
+  if (!assetClass.valid) {
+    sendJson(response, 400, {
+      ok: false,
+      service: serviceName,
+      error: "INVALID_ASSET_CLASS",
+    });
+    return;
+  }
+
+  if (assetClass.value !== "crypto") {
+    sendJson(response, 400, {
+      ok: false,
+      service: serviceName,
+      error: "UNSUPPORTED_ASSET_CLASS",
+      assetClass: assetClass.value,
+    });
+    return;
+  }
+
+  const store = new PgScannerResultsStore();
+  const preferFullUniverse = shouldPreferFullUniverseLatestRun({
+    assetClass: assetClass.value,
+    includeNonScanner: false,
+  });
+
+  try {
+    const timeframeResults = await Promise.all(
+      MARKET_CONTEXT_TIMEFRAMES.map(async (timeframe) => {
+        const run = await store.getLatestScanRun({
+          timeframe,
+          assetClass: assetClass.value,
+          preferFullUniverse,
+          minExpectedSymbols: LATEST_SCAN_FULL_UNIVERSE_MIN_SYMBOLS,
+        });
+
+        if (!run) {
+          return {
+            timeframe,
+            run: null,
+            signals: [],
+          };
+        }
+
+        const signals = await store.listLatestScanSignalsForRun({
+          scanRunId: run.id,
+          timeframe,
+          assetClass: assetClass.value,
+          includeNonScanner: false,
+          includeMarketContext: false,
+        });
+
+        return {
+          timeframe,
+          run: buildMtfLatestRunMetadata({
+            run,
+            assetClass: assetClass.value,
+            preferredFullUniverse: preferFullUniverse,
+          }),
+          signals,
+        };
+      }),
+    );
+    const proxies = createMarketContextProxyMap();
+
+    for (const result of timeframeResults) {
+      const runContext = getMarketContextRunContext(result.run);
+      const signalsBySymbol = new Map(
+        result.signals.map((signal) => [
+          signal.symbol.trim().toUpperCase(),
+          signal,
+        ]),
+      );
+
+      for (const symbol of MARKET_CONTEXT_SYMBOLS) {
+        const signal = signalsBySymbol.get(symbol);
+
+        proxies[symbol][result.timeframe] = signal
+          ? buildAvailableMarketContextProxy({
+              signal,
+              timeframe: result.timeframe,
+              runContext,
+            })
+          : createUnavailableMarketContextProxy(
+              result.timeframe,
+              result.run ? "missing_symbol" : "no_latest_signal",
+            );
+      }
+    }
+
+    sendJson(response, 200, {
+      ...buildMarketContextResponse({
+        assetClass: assetClass.value,
+        proxies,
+      }),
+      service: serviceName,
+      source: "postgres",
+    });
+  } catch (error) {
+    sendJson(response, 503, {
+      ok: false,
+      service: serviceName,
+      source: "postgres",
+      error: sanitizeConnectionError(error, "POSTGRES_UNAVAILABLE"),
+    });
+  } finally {
+    await store.close().catch(() => undefined);
+  }
+}
+
 async function handleLatestScan(response: http.ServerResponse, url: URL) {
   const timeframe = url.searchParams.get("timeframe")?.trim() ?? "4h";
   const assetClass = parseAssetClassParam(url.searchParams.get("assetClass"));
@@ -1325,6 +1452,73 @@ function buildMtfLatestSignalItem(
     setupType: signal.primaryStructure,
     ...review,
   };
+}
+
+function createMarketContextProxyMap(): MarketContextProxyMap {
+  return {
+    BTCUSDT: createMarketContextTimeframeMap(),
+    ETHUSDT: createMarketContextTimeframeMap(),
+  };
+}
+
+function createMarketContextTimeframeMap() {
+  return {
+    "1w": createUnavailableMarketContextProxy("1w", "insufficient_data"),
+    "1d": createUnavailableMarketContextProxy("1d", "insufficient_data"),
+    "4h": createUnavailableMarketContextProxy("4h", "insufficient_data"),
+  };
+}
+
+function getMarketContextRunContext(
+  run: MtfLatestRunMetadata | null,
+): MarketContextRunContext {
+  if (!run) {
+    return "unknown";
+  }
+
+  if (
+    run.latestRunSelection.preferredFullUniverse &&
+    run.latestRunSelection.isLikelyFullUniverse
+  ) {
+    return "selected_full_universe";
+  }
+
+  return run.isLikelyFullUniverse ? "full_universe" : "smaller_or_manual";
+}
+
+function buildAvailableMarketContextProxy({
+  signal,
+  timeframe,
+  runContext,
+}: {
+  signal: LatestScanSignalRecord;
+  timeframe: MarketContextTimeframe;
+  runContext: MarketContextRunContext;
+}): AvailableMarketContextProxy {
+  const group = classifyScanResultGroup(signal);
+  const review = getScanResultReview({ ...signal, resultGroup: group });
+
+  return {
+    available: true,
+    timeframe,
+    group,
+    signalLabel: signal.signalLabel,
+    rankScore: signal.rankScore,
+    actionBias: signal.actionBias,
+    primaryStructure: signal.primaryStructure,
+    detectedRiskTypes: normalizeMarketContextRiskTypes(signal.detectedRiskTypes),
+    statusNote: review.statusNote,
+    cautionLevel: review.cautionLevel,
+    scanTime: signal.scanTime,
+    candleOpenTime: signal.candleOpenTime,
+    runContext,
+  };
+}
+
+function normalizeMarketContextRiskTypes(value: unknown[] | null | undefined) {
+  return (Array.isArray(value) ? value : []).filter(
+    (riskType): riskType is string => typeof riskType === "string",
+  );
 }
 
 function createMtfTimeframeMap<T>(value: T): MtfLatestTimeframeMap<T> {

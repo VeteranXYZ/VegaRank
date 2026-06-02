@@ -475,6 +475,229 @@ describe("trade-api latest scan run selection", () => {
   });
 });
 
+describe("trade-api market context", () => {
+  beforeEach(() => {
+    resetScannerMocks();
+    resetSymbolResearchMocks();
+  });
+
+  it("returns read-only market context from selected BTC and ETH latest runs", async () => {
+    getLatestScanRunMock.mockImplementation(({ timeframe }: { timeframe: string }) =>
+      Promise.resolve(
+        makeRun(`full-${timeframe}`, {
+          timeframe,
+          symbolsTotal: 413,
+          symbolsScanned: 409,
+          signalsCreated: 409,
+          params: { assetClass: "crypto", allSymbols: true },
+        }),
+      ),
+    );
+    listLatestScanSignalsForRunMock.mockImplementation(
+      ({ timeframe }: { timeframe: string }) => {
+        const signalsByTimeframe: Record<
+          string,
+          ReturnType<typeof makeResearchSignal>[]
+        > = {
+          "1w": [
+            makeResearchSignal({
+              id: "btc-1w",
+              scanRunId: "full-1w",
+              symbol: "BTCUSDT",
+              timeframe: "1w",
+              rankScore: 92,
+            }),
+            makeResearchSignal({
+              id: "eth-1w",
+              scanRunId: "full-1w",
+              symbol: "ETHUSDT",
+              timeframe: "1w",
+              rankScore: 88,
+            }),
+          ],
+          "1d": [
+            makeResearchSignal({
+              id: "btc-1d",
+              scanRunId: "full-1d",
+              symbol: "BTCUSDT",
+              timeframe: "1d",
+              rankScore: 84,
+            }),
+            makeResearchSignal({
+              id: "eth-1d",
+              scanRunId: "full-1d",
+              symbol: "ETHUSDT",
+              timeframe: "1d",
+              rankScore: 76,
+            }),
+          ],
+          "4h": [
+            makeResearchSignal({
+              id: "btc-4h",
+              scanRunId: "full-4h",
+              symbol: "BTCUSDT",
+              timeframe: "4h",
+              rankScore: 42,
+              signalLabel: "watch",
+              actionBias: "watch_only",
+            }),
+            makeResearchSignal({
+              id: "eth-4h",
+              scanRunId: "full-4h",
+              symbol: "ETHUSDT",
+              timeframe: "4h",
+              rankScore: 34,
+              signalLabel: "watch",
+              actionBias: "watch_only",
+            }),
+          ],
+        };
+
+        return Promise.resolve(signalsByTimeframe[timeframe] ?? []);
+      },
+    );
+
+    const response = await requestTradeApi(
+      "/api/market/context?assetClass=crypto",
+    );
+    const body = JSON.parse(response.body);
+
+    expect(response.status).toBe(200);
+    expect(body.ok).toBe(true);
+    expect(body.service).toBe("trade-api");
+    expect(body.source).toBe("postgres");
+    expect(body.assetClass).toBe("crypto");
+    expect(body.context).toMatchObject({
+      structuralContext: "long_term_risk_on",
+      marketContext: "risk_on",
+      tacticalContext: "short_term_repair",
+      combinedContext: "bull_trend_continuation",
+      confidence: "high",
+    });
+    expect(body.proxies.BTCUSDT["1d"]).toMatchObject({
+      available: true,
+      timeframe: "1d",
+      group: "eligible",
+      signalLabel: "confirmed",
+      rankScore: 84,
+      runContext: "selected_full_universe",
+    });
+    expect(body.proxies.ETHUSDT["4h"]).toMatchObject({
+      available: true,
+      group: "watch",
+    });
+    expect(body.rules).toMatchObject({
+      primaryDriver: "BTCUSDT",
+      confirmationAsset: "ETHUSDT",
+      researchOnly: true,
+    });
+    expect(getLatestScanRunMock).toHaveBeenNthCalledWith(1, {
+      timeframe: "1w",
+      assetClass: "crypto",
+      preferFullUniverse: true,
+      minExpectedSymbols: 300,
+    });
+    expect(getLatestScanRunMock).toHaveBeenNthCalledWith(3, {
+      timeframe: "4h",
+      assetClass: "crypto",
+      preferFullUniverse: true,
+      minExpectedSymbols: 300,
+    });
+    expect(listLatestScanSignalsForRunMock).toHaveBeenCalledWith({
+      scanRunId: "full-1d",
+      timeframe: "1d",
+      assetClass: "crypto",
+      includeNonScanner: false,
+      includeMarketContext: false,
+    });
+    expect(closeMock).toHaveBeenCalled();
+  });
+
+  it("rejects unsupported asset classes before opening Postgres", async () => {
+    const response = await requestTradeApi(
+      "/api/market/context?assetClass=stable",
+    );
+    const body = JSON.parse(response.body);
+
+    expect(response.status).toBe(400);
+    expect(body.error).toBe("UNSUPPORTED_ASSET_CLASS");
+    expect(pgScannerResultsStoreMock).not.toHaveBeenCalled();
+  });
+
+  it("marks missing runs and missing symbols as unavailable proxy states", async () => {
+    getLatestScanRunMock.mockImplementation(({ timeframe }: { timeframe: string }) =>
+      Promise.resolve(
+        timeframe === "1w"
+          ? null
+          : makeRun(`full-${timeframe}`, {
+              timeframe,
+              symbolsTotal: 413,
+              symbolsScanned: 409,
+              signalsCreated: 1,
+              params: { assetClass: "crypto", allSymbols: true },
+            }),
+      ),
+    );
+    listLatestScanSignalsForRunMock.mockImplementation(
+      ({ timeframe }: { timeframe: string }) => {
+        if (timeframe === "1d") {
+          return Promise.resolve([
+            makeResearchSignal({
+              id: "eth-1d",
+              scanRunId: "full-1d",
+              symbol: "ETHUSDT",
+              timeframe: "1d",
+              rankScore: 44,
+            }),
+          ]);
+        }
+
+        return Promise.resolve([
+          makeResearchSignal({
+            id: "btc-4h",
+            scanRunId: "full-4h",
+            symbol: "BTCUSDT",
+            timeframe: "4h",
+            rankScore: -74,
+            signalLabel: "breakdown_risk",
+            actionBias: "avoid",
+            primaryStructure: "trend_breakdown",
+            detectedRiskTypes: ["trend_breakdown_risk"],
+          }),
+        ]);
+      },
+    );
+
+    const response = await requestTradeApi("/api/market/context");
+    const body = JSON.parse(response.body);
+
+    expect(response.status).toBe(200);
+    expect(body.context.combinedContext).toBe("insufficient_data");
+    expect(body.context.confidence).toBe("low");
+    expect(body.proxies.BTCUSDT["1w"]).toEqual({
+      available: false,
+      timeframe: "1w",
+      reason: "no_latest_signal",
+    });
+    expect(body.proxies.BTCUSDT["1d"]).toEqual({
+      available: false,
+      timeframe: "1d",
+      reason: "missing_symbol",
+    });
+    expect(body.proxies.BTCUSDT["4h"]).toMatchObject({
+      available: true,
+      group: "risk",
+      runContext: "selected_full_universe",
+    });
+    expect(body.summary.warnings).toContain(
+      "Some proxy timeframe data is unavailable.",
+    );
+    expect(listLatestScanSignalsForRunMock).not.toHaveBeenCalledWith(
+      expect.objectContaining({ timeframe: "1w" }),
+    );
+  });
+});
+
 describe("trade-api multi-timeframe latest screener", () => {
   beforeEach(() => {
     resetScannerMocks();
