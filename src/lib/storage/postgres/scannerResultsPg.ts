@@ -107,6 +107,21 @@ export type HistoricalSnapshotObservationsResult = {
   rows: HistoricalSnapshotObservationRecord[];
 };
 
+export type HistoricalObservationMarketCandleCoverageBucket = {
+  latestOpenTime: string | null;
+  symbolCount: number;
+};
+
+export type HistoricalObservationMarketCandleCoverage = {
+  timeframe: string;
+  assetClass: SymbolAssetClassFilter;
+  totalSymbols: number;
+  symbolsWithCandles: number;
+  latestOpenTime: string | null;
+  latestOpenTimeSymbolCount: number;
+  buckets: HistoricalObservationMarketCandleCoverageBucket[];
+};
+
 export function isLikelyFullUniverseRun({
   run,
   assetClass,
@@ -250,6 +265,11 @@ type HistoricalSnapshotObservationRow = LatestScanSignalRow & {
 type HistoricalSnapshotForwardCandle = {
   close: number;
   low: number;
+};
+
+type HistoricalObservationMarketCandleCoverageRow = {
+  latest_open_time: Date | string | null;
+  symbol_count: string;
 };
 
 export class PgScannerResultsStore {
@@ -639,6 +659,69 @@ export class PgScannerResultsStore {
     });
 
     return { run, rows };
+  }
+
+  async getHistoricalObservationMarketCandleCoverage({
+    timeframe,
+    assetClass = "crypto",
+    includeNonScanner = false,
+    includeMarketContext = false,
+  }: {
+    timeframe: string;
+    assetClass?: SymbolAssetClassFilter;
+    includeNonScanner?: boolean;
+    includeMarketContext?: boolean;
+  }): Promise<HistoricalObservationMarketCandleCoverage> {
+    const params: unknown[] = [timeframe];
+    const filters = [
+      "s.exchange = 'binance'",
+      "s.market = 'spot'",
+      "s.is_enabled = true",
+    ];
+
+    if (assetClass !== "all") {
+      params.push(assetClass);
+      filters.push(`s.asset_class = $${params.length}`);
+    }
+
+    if (!includeNonScanner) {
+      filters.push("s.is_scanner_eligible = true");
+    }
+
+    if (!includeMarketContext) {
+      filters.push("s.is_market_context = false");
+    }
+
+    const result =
+      await this.pool.query<HistoricalObservationMarketCandleCoverageRow>(
+        `
+          SELECT
+            latest.latest_open_time,
+            COUNT(*) AS symbol_count
+          FROM symbols s
+          LEFT JOIN LATERAL (
+            SELECT c.open_time AS latest_open_time
+            FROM market_candles c
+            WHERE c.symbol_id = s.id
+              AND c.exchange = s.exchange
+              AND c.market = s.market
+              AND c.timeframe = $1
+            ORDER BY c.open_time DESC
+            LIMIT 1
+          ) latest
+            ON true
+          WHERE ${filters.join("\n            AND ")}
+          GROUP BY latest.latest_open_time
+          ORDER BY latest.latest_open_time DESC NULLS LAST
+        `,
+        params,
+      );
+
+    return toHistoricalObservationMarketCandleCoverage({
+      timeframe,
+      assetClass,
+      rows: result.rows,
+    });
   }
 
   async listHistoricalSnapshotObservationsForRun({
@@ -1049,6 +1132,44 @@ function toHistoricalSnapshotObservationAnchorSource(
   }
 
   return "unavailable";
+}
+
+function toHistoricalObservationMarketCandleCoverage({
+  timeframe,
+  assetClass,
+  rows,
+}: {
+  timeframe: string;
+  assetClass: SymbolAssetClassFilter;
+  rows: HistoricalObservationMarketCandleCoverageRow[];
+}): HistoricalObservationMarketCandleCoverage {
+  const buckets = rows.map((row) => ({
+    latestOpenTime: row.latest_open_time
+      ? new Date(row.latest_open_time).toISOString()
+      : null,
+    symbolCount: Number(row.symbol_count ?? 0),
+  }));
+  const totalSymbols = buckets.reduce(
+    (total, bucket) => total + bucket.symbolCount,
+    0,
+  );
+  const symbolsWithCandles = buckets.reduce(
+    (total, bucket) =>
+      total + (bucket.latestOpenTime === null ? 0 : bucket.symbolCount),
+    0,
+  );
+  const latestBucket =
+    buckets.find((bucket) => bucket.latestOpenTime !== null) ?? null;
+
+  return {
+    timeframe,
+    assetClass,
+    totalSymbols,
+    symbolsWithCandles,
+    latestOpenTime: latestBucket?.latestOpenTime ?? null,
+    latestOpenTimeSymbolCount: latestBucket?.symbolCount ?? 0,
+    buckets,
+  };
 }
 
 export function normalizeHistoricalSnapshotObservationWindow(

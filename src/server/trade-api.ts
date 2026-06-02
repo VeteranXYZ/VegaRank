@@ -32,6 +32,7 @@ import {
   PgScannerResultsStore,
   isLikelyFullUniverseRun,
   normalizeHistoricalSnapshotObservationWindow,
+  type HistoricalObservationMarketCandleCoverage,
   type HistoricalSnapshotObservationRecord,
   type HistoricalSnapshotObservationWindow,
   type LatestScanSignalRecord,
@@ -76,6 +77,7 @@ const SIGNAL_EVALUATION_TIMEFRAMES = ["1h", "4h", "1d", "1w"] as const;
 const HISTORY_SNAPSHOT_TIMEFRAMES = ["1h", "4h", "1d", "1w"] as const;
 const HISTORY_RESEARCH_DISCLAIMER =
   "Research-only. Not financial advice. Historical observations are not predictions.";
+const HISTORY_OBSERVATION_READINESS_CANDIDATE_LIMIT = 25;
 const allowedOrigins = new Set([
   "https://s.bitcoinmind.com",
   "http://localhost:3000",
@@ -100,6 +102,32 @@ type MtfLatestRunMetadata = Pick<
 > & {
   isLikelyFullUniverse: boolean;
   latestRunSelection: ReturnType<typeof buildLatestRunSelectionMetadata>;
+};
+type HistoryObservationReadinessState =
+  | "ready"
+  | "not_ready"
+  | "unavailable";
+type HistoryObservationReadinessBlocker =
+  | "observable"
+  | "time_maturity"
+  | "market_data_coverage"
+  | "mixed"
+  | "unavailable"
+  | "no_runs";
+type HistoryObservationRunAssessment = {
+  run: ScanRunRecord;
+  state: HistoryObservationReadinessState;
+  blocker: HistoryObservationReadinessBlocker;
+  isObservable: boolean;
+  isLimited: boolean;
+  rowCount: number;
+  completeCount: number;
+  partialCount: number;
+  missingCount: number;
+  dominantMissingReason: string | null;
+  dominantMissingReasonCount: number;
+  latestAnchorTime: string | null;
+  expectedCompleteTime: string | null;
 };
 
 export function createTradeApiServer() {
@@ -211,6 +239,11 @@ export async function handleTradeApiRequest(
 
     if (url.pathname === "/api/history/snapshot") {
       await handleHistorySnapshot(response, url);
+      return;
+    }
+
+    if (url.pathname === "/api/history/observation-readiness") {
+      await handleHistoryObservationReadiness(response, url);
       return;
     }
 
@@ -2223,6 +2256,177 @@ async function handleHistorySnapshot(response: http.ServerResponse, url: URL) {
   }
 }
 
+async function handleHistoryObservationReadiness(
+  response: http.ServerResponse,
+  url: URL,
+) {
+  const timeframe = parseHistorySnapshotTimeframeParam(
+    url.searchParams.get("timeframe"),
+  );
+  const rawRunId = url.searchParams.get("runId");
+  const runId =
+    rawRunId === null || rawRunId.trim() === ""
+      ? ({ valid: true, value: null } as const)
+      : parseHistoryRunIdParam(rawRunId);
+  const assetClass = parseAssetClassParam(url.searchParams.get("assetClass"));
+  const window = parseHistoryObservationWindowParam(
+    url.searchParams.get("window"),
+  );
+
+  if (!timeframe.valid) {
+    sendJson(response, 400, {
+      ok: false,
+      service: serviceName,
+      error: "INVALID_TIMEFRAME",
+    });
+    return;
+  }
+
+  if (!runId.valid) {
+    sendJson(response, 400, {
+      ok: false,
+      service: serviceName,
+      error: {
+        code: "INVALID_RUN_ID",
+        message: "Invalid run id.",
+      },
+    });
+    return;
+  }
+
+  if (!window.valid) {
+    sendJson(response, 400, {
+      ok: false,
+      service: serviceName,
+      error: {
+        code: "INVALID_WINDOW",
+        message: `Observation window must be ${HISTORICAL_SNAPSHOT_OBSERVATION_WINDOWS.join(", ")} completed candles.`,
+      },
+    });
+    return;
+  }
+
+  if (!assetClass.valid) {
+    sendJson(response, 400, {
+      ok: false,
+      service: serviceName,
+      error: "INVALID_ASSET_CLASS",
+    });
+    return;
+  }
+
+  const store = new PgScannerResultsStore();
+
+  try {
+    const [runs, coverage] = await Promise.all([
+      store.listHistoricalScanRuns({
+        timeframe: timeframe.value,
+        assetClass: assetClass.value,
+        limit: HISTORY_OBSERVATION_READINESS_CANDIDATE_LIMIT,
+      }),
+      store.getHistoricalObservationMarketCandleCoverage({
+        timeframe: timeframe.value,
+        assetClass: assetClass.value,
+        includeNonScanner: false,
+        includeMarketContext: false,
+      }),
+    ]);
+    const selectedRun = runId.value
+      ? await store.getHistoricalScanRun({
+          scanRunId: runId.value,
+          timeframe: timeframe.value,
+          assetClass: assetClass.value,
+        })
+      : runs[0] ?? null;
+
+    if (runId.value && !selectedRun) {
+      sendJson(response, 404, {
+        ok: false,
+        service: serviceName,
+        source: "postgres",
+        error: "SNAPSHOT_NOT_FOUND",
+      });
+      return;
+    }
+
+    const selectedAssessment = selectedRun
+      ? await buildHistoryObservationRunAssessment({
+          store,
+          run: selectedRun,
+          assetClass: assetClass.value,
+          window: window.value,
+          coverage,
+        })
+      : null;
+    const candidateRuns = selectedRun
+      ? runs.filter((run) => run.id !== selectedRun.id)
+      : runs;
+    const recommendation =
+      selectedAssessment?.state === "ready"
+        ? null
+        : await findRecommendedHistoryObservationRun({
+            store,
+            runs: candidateRuns,
+            assetClass: assetClass.value,
+            window: window.value,
+            coverage,
+          });
+    const observationRun =
+      selectedAssessment?.state === "ready"
+        ? selectedAssessment
+        : recommendation;
+    const readinessBlocker =
+      selectedAssessment?.blocker ??
+      (runs.length === 0 ? "no_runs" : "unavailable");
+
+    sendJson(response, 200, {
+      ok: true,
+      service: serviceName,
+      source: "postgres",
+      selectedRun: selectedAssessment
+        ? buildHistoryObservationReadinessRun({
+            assessment: selectedAssessment,
+            assetClass: assetClass.value,
+          })
+        : null,
+      recommendedRun: recommendation
+        ? buildHistoryObservationReadinessRun({
+            assessment: recommendation,
+            assetClass: assetClass.value,
+          })
+        : null,
+      observationRun: observationRun
+        ? buildHistoryObservationReadinessRun({
+            assessment: observationRun,
+            assetClass: assetClass.value,
+          })
+        : null,
+      coverage: buildHistoryObservationCoverage(coverage),
+      metadata: {
+        timeframe: timeframe.value,
+        assetClass: assetClass.value,
+        window: window.value,
+        selectedWindow: window.value,
+        windowUnit: "completed_candles",
+        blocker: readinessBlocker,
+        candidateCount: runs.length,
+        candidateLimit: HISTORY_OBSERVATION_READINESS_CANDIDATE_LIMIT,
+        fullUniverseMinExpectedSymbols: LATEST_SCAN_FULL_UNIVERSE_MIN_SYMBOLS,
+        disclaimer: HISTORY_RESEARCH_DISCLAIMER,
+      },
+    });
+  } catch (error) {
+    sendJson(response, 503, {
+      ok: false,
+      service: serviceName,
+      source: "postgres",
+      error: sanitizeConnectionError(error, "POSTGRES_UNAVAILABLE"),
+    });
+  } finally {
+    await store.close().catch(() => undefined);
+  }
+}
+
 async function handleHistorySnapshotObservations(
   response: http.ServerResponse,
   url: URL,
@@ -2400,6 +2604,162 @@ function buildHistoricalSnapshotObservationRow(
 function buildHistoricalSnapshotObservationCounts(
   rows: ReturnType<typeof buildHistoricalSnapshotObservationRow>[],
 ) {
+  return countHistoricalSnapshotObservationStatuses(rows);
+}
+
+async function findRecommendedHistoryObservationRun({
+  store,
+  runs,
+  assetClass,
+  window,
+  coverage,
+}: {
+  store: PgScannerResultsStore;
+  runs: ScanRunRecord[];
+  assetClass: SymbolAssetClassFilter;
+  window: HistoricalSnapshotObservationWindow;
+  coverage: HistoricalObservationMarketCandleCoverage;
+}) {
+  let firstObservableRun: HistoryObservationRunAssessment | null = null;
+  let firstFullUniverseObservableRun: HistoryObservationRunAssessment | null =
+    null;
+
+  for (const run of runs) {
+    const assessment = await buildHistoryObservationRunAssessment({
+      store,
+      run,
+      assetClass,
+      window,
+      coverage,
+    });
+
+    if (assessment.state !== "ready") {
+      continue;
+    }
+
+    firstObservableRun ??= assessment;
+
+    if (!assessment.isLimited) {
+      firstFullUniverseObservableRun ??= assessment;
+    }
+  }
+
+  return firstFullUniverseObservableRun ?? firstObservableRun;
+}
+
+async function buildHistoryObservationRunAssessment({
+  store,
+  run,
+  assetClass,
+  window,
+  coverage,
+}: {
+  store: PgScannerResultsStore;
+  run: ScanRunRecord;
+  assetClass: SymbolAssetClassFilter;
+  window: HistoricalSnapshotObservationWindow;
+  coverage: HistoricalObservationMarketCandleCoverage;
+}): Promise<HistoryObservationRunAssessment> {
+  const rows = await store.listHistoricalSnapshotObservationsForRun({
+    scanRunId: run.id,
+    timeframe: run.timeframe,
+    assetClass,
+    includeNonScanner: false,
+    includeMarketContext: false,
+    window,
+  });
+  const counts = countHistoricalSnapshotObservationStatuses(rows);
+  const { reason, count } =
+    getDominantHistoricalSnapshotObservationMissingReason(rows);
+  const latestAnchorTime = getLatestHistoricalSnapshotAnchorTime(rows);
+  const expectedCompleteTime = latestAnchorTime
+    ? addObservationWindowToIsoTime({
+        isoTime: latestAnchorTime,
+        timeframe: run.timeframe,
+        window,
+      })
+    : null;
+  const state = classifyHistoryObservationReadinessState({
+    rowCount: rows.length,
+    completeCount: counts.complete,
+    partialCount: counts.partial,
+    missingCount: counts.missing,
+    dominantMissingReason: reason,
+  });
+  const blocker = classifyHistoryObservationBlocker({
+    state,
+    dominantMissingReason: reason,
+    latestAnchorTime,
+    expectedCompleteTime,
+    coverage,
+  });
+  const isLikelyFullUniverse = isLikelyFullUniverseRun({
+    run,
+    assetClass,
+    minExpectedSymbols: LATEST_SCAN_FULL_UNIVERSE_MIN_SYMBOLS,
+  });
+
+  return {
+    run,
+    state,
+    blocker,
+    isObservable: state === "ready",
+    isLimited: !isLikelyFullUniverse,
+    rowCount: rows.length,
+    completeCount: counts.complete,
+    partialCount: counts.partial,
+    missingCount: counts.missing,
+    dominantMissingReason: reason,
+    dominantMissingReasonCount: count,
+    latestAnchorTime,
+    expectedCompleteTime,
+  };
+}
+
+function buildHistoryObservationReadinessRun({
+  assessment,
+  assetClass,
+}: {
+  assessment: HistoryObservationRunAssessment;
+  assetClass: SymbolAssetClassFilter;
+}) {
+  return {
+    run: buildHistoricalSnapshotRunMetadata({
+      run: assessment.run,
+      assetClass,
+    }),
+    state: assessment.state,
+    blocker: assessment.blocker,
+    isObservable: assessment.isObservable,
+    isLimited: assessment.isLimited,
+    rowCount: assessment.rowCount,
+    completeCount: assessment.completeCount,
+    partialCount: assessment.partialCount,
+    missingCount: assessment.missingCount,
+    dominantMissingReason: assessment.dominantMissingReason,
+    dominantMissingReasonCount: assessment.dominantMissingReasonCount,
+    latestAnchorTime: assessment.latestAnchorTime,
+    expectedCompleteTime: assessment.expectedCompleteTime,
+  };
+}
+
+function buildHistoryObservationCoverage(
+  coverage: HistoricalObservationMarketCandleCoverage,
+) {
+  return {
+    ...coverage,
+    latestOpenTimeCoveragePct:
+      coverage.totalSymbols > 0
+        ? Math.round(
+            (coverage.latestOpenTimeSymbolCount / coverage.totalSymbols) * 10_000,
+          ) / 100
+        : null,
+  };
+}
+
+function countHistoricalSnapshotObservationStatuses(
+  rows: Array<{ dataStatus: HistoricalSnapshotObservationRecord["dataStatus"] }>,
+) {
   return rows.reduce(
     (counts, row) => ({
       complete: counts.complete + (row.dataStatus === "complete" ? 1 : 0),
@@ -2408,6 +2768,180 @@ function buildHistoricalSnapshotObservationCounts(
     }),
     { complete: 0, partial: 0, missing: 0 },
   );
+}
+
+function getDominantHistoricalSnapshotObservationMissingReason(
+  rows: Array<{ missingReason: string | null }>,
+) {
+  const counts = new Map<string, number>();
+
+  for (const row of rows) {
+    if (!row.missingReason) {
+      continue;
+    }
+
+    counts.set(row.missingReason, (counts.get(row.missingReason) ?? 0) + 1);
+  }
+
+  return [...counts.entries()].reduce(
+    (dominant, [reason, count]) =>
+      count > dominant.count ? { reason, count } : dominant,
+    { reason: null as string | null, count: 0 },
+  );
+}
+
+function getLatestHistoricalSnapshotAnchorTime(
+  rows: HistoricalSnapshotObservationRecord[],
+) {
+  const latestMs = rows.reduce((latest, row) => {
+    if (!row.anchorTime) {
+      return latest;
+    }
+
+    const anchorMs = Date.parse(row.anchorTime);
+
+    return Number.isFinite(anchorMs) && anchorMs > latest ? anchorMs : latest;
+  }, Number.NEGATIVE_INFINITY);
+
+  return Number.isFinite(latestMs) ? new Date(latestMs).toISOString() : null;
+}
+
+function classifyHistoryObservationReadinessState({
+  rowCount,
+  completeCount,
+  partialCount,
+  missingCount,
+  dominantMissingReason,
+}: {
+  rowCount: number;
+  completeCount: number;
+  partialCount: number;
+  missingCount: number;
+  dominantMissingReason: string | null;
+}): HistoryObservationReadinessState {
+  if (rowCount <= 0) {
+    return "unavailable";
+  }
+
+  if (completeCount + partialCount > 0) {
+    return "ready";
+  }
+
+  const allRowsMissing = missingCount === rowCount;
+
+  return allRowsMissing &&
+    isHistoricalObservationFutureCandleMissingReason(dominantMissingReason)
+    ? "not_ready"
+    : "unavailable";
+}
+
+function classifyHistoryObservationBlocker({
+  state,
+  dominantMissingReason,
+  latestAnchorTime,
+  expectedCompleteTime,
+  coverage,
+}: {
+  state: HistoryObservationReadinessState;
+  dominantMissingReason: string | null;
+  latestAnchorTime: string | null;
+  expectedCompleteTime: string | null;
+  coverage: HistoricalObservationMarketCandleCoverage;
+}): HistoryObservationReadinessBlocker {
+  if (state === "ready") {
+    return "observable";
+  }
+
+  if (state === "unavailable") {
+    return "unavailable";
+  }
+
+  if (!isHistoricalObservationFutureCandleMissingReason(dominantMissingReason)) {
+    return "unavailable";
+  }
+
+  const nowMs = Date.now();
+  const latestAnchorMs = latestAnchorTime ? Date.parse(latestAnchorTime) : null;
+  const expectedCompleteMs = expectedCompleteTime
+    ? Date.parse(expectedCompleteTime)
+    : null;
+  const latestCoverageMs = coverage.latestOpenTime
+    ? Date.parse(coverage.latestOpenTime)
+    : null;
+
+  if (
+    expectedCompleteMs !== null &&
+    Number.isFinite(expectedCompleteMs) &&
+    nowMs < expectedCompleteMs
+  ) {
+    return "time_maturity";
+  }
+
+  if (latestCoverageMs === null || !Number.isFinite(latestCoverageMs)) {
+    return "market_data_coverage";
+  }
+
+  if (
+    expectedCompleteMs !== null &&
+    Number.isFinite(expectedCompleteMs) &&
+    latestCoverageMs < expectedCompleteMs
+  ) {
+    return "market_data_coverage";
+  }
+
+  if (
+    latestAnchorMs !== null &&
+    Number.isFinite(latestAnchorMs) &&
+    latestCoverageMs <= latestAnchorMs
+  ) {
+    return "market_data_coverage";
+  }
+
+  return "mixed";
+}
+
+function isHistoricalObservationFutureCandleMissingReason(
+  reason: string | null,
+) {
+  return (
+    reason === "no_future_candles" ||
+    reason === "insufficient_future_candles" ||
+    reason === "run_after_latest_candle"
+  );
+}
+
+function addObservationWindowToIsoTime({
+  isoTime,
+  timeframe,
+  window,
+}: {
+  isoTime: string;
+  timeframe: string;
+  window: HistoricalSnapshotObservationWindow;
+}) {
+  const baseMs = Date.parse(isoTime);
+  const durationMs = getHistoryObservationTimeframeMs(timeframe);
+
+  if (!Number.isFinite(baseMs) || durationMs === null) {
+    return null;
+  }
+
+  return new Date(baseMs + durationMs * window).toISOString();
+}
+
+function getHistoryObservationTimeframeMs(timeframe: string) {
+  switch (timeframe) {
+    case "1h":
+      return 60 * 60 * 1000;
+    case "4h":
+      return 4 * 60 * 60 * 1000;
+    case "1d":
+      return 24 * 60 * 60 * 1000;
+    case "1w":
+      return 7 * 24 * 60 * 60 * 1000;
+    default:
+      return null;
+  }
 }
 
 function buildHistoricalSnapshotRow(signal: LatestScanSignalRecord) {

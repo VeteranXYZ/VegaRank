@@ -7,6 +7,10 @@ const listLatestScanSignalsForRunMock = vi.hoisted(() => vi.fn());
 const listHistoricalScanRunsMock = vi.hoisted(() => vi.fn());
 const getHistoricalScanRunMock = vi.hoisted(() => vi.fn());
 const getHistoricalSnapshotObservationsMock = vi.hoisted(() => vi.fn());
+const listHistoricalSnapshotObservationsForRunMock = vi.hoisted(() => vi.fn());
+const getHistoricalObservationMarketCandleCoverageMock = vi.hoisted(() =>
+  vi.fn(),
+);
 const closeMock = vi.hoisted(() => vi.fn());
 const getSymbolResearchLatestSignalPgMock = vi.hoisted(() => vi.fn());
 const getSymbolSignalHistoryPgMock = vi.hoisted(() => vi.fn());
@@ -25,6 +29,10 @@ const pgScannerResultsStoreMock = vi.hoisted(() =>
       listHistoricalScanRuns: listHistoricalScanRunsMock,
       getHistoricalScanRun: getHistoricalScanRunMock,
       getHistoricalSnapshotObservations: getHistoricalSnapshotObservationsMock,
+      listHistoricalSnapshotObservationsForRun:
+        listHistoricalSnapshotObservationsForRunMock,
+      getHistoricalObservationMarketCandleCoverage:
+        getHistoricalObservationMarketCandleCoverageMock,
       close: closeMock,
     };
   }),
@@ -790,6 +798,255 @@ describe("trade-api historical snapshots", () => {
     expect(body.error).toBe("INTERNAL_ERROR");
     expect(response.body).not.toContain("22P02");
     expect(response.body).not.toContain("Dependency health check failed");
+  });
+
+  it("returns observation readiness with an older full-universe recommendation", async () => {
+    const olderRunId = "f4a432e8-d387-4708-b94b-b6717b66e628";
+    const selectedRun = makeRun(historyRunId, {
+      symbolsTotal: 413,
+      symbolsScanned: 409,
+      signalsCreated: 409,
+      params: { assetClass: "crypto", allSymbols: true },
+    });
+    const olderRun = makeRun(olderRunId, {
+      symbolsTotal: 413,
+      symbolsScanned: 409,
+      signalsCreated: 409,
+      params: { assetClass: "crypto", allSymbols: true },
+    });
+
+    listHistoricalScanRunsMock.mockResolvedValue([selectedRun, olderRun]);
+    getHistoricalScanRunMock.mockResolvedValue(selectedRun);
+    getHistoricalObservationMarketCandleCoverageMock.mockResolvedValue(
+      makeObservationCoverage({
+        latestOpenTime: "2026-06-01T20:00:00.000Z",
+        latestOpenTimeSymbolCount: 100,
+        buckets: [
+          { latestOpenTime: "2026-06-01T20:00:00.000Z", symbolCount: 100 },
+          { latestOpenTime: "2026-05-31T00:00:00.000Z", symbolCount: 313 },
+        ],
+      }),
+    );
+    listHistoricalSnapshotObservationsForRunMock.mockImplementation(
+      ({ scanRunId }: { scanRunId: string }) =>
+        Promise.resolve(
+          scanRunId === historyRunId
+            ? [
+                makeObservationRecord({
+                  id: "selected-missing-1",
+                  scanRunId,
+                  symbol: "AAAUSDT",
+                  anchorTime: "2026-05-31T00:00:00.000Z",
+                  observedClose: null,
+                  observedChangePct: null,
+                  maxDrawdownPct: null,
+                  dataStatus: "missing",
+                  missingReason: "no_future_candles",
+                  forwardCandlesAvailable: 0,
+                }),
+                makeObservationRecord({
+                  id: "selected-missing-2",
+                  scanRunId,
+                  symbol: "BBBUSDT",
+                  anchorTime: "2026-06-01T20:00:00.000Z",
+                  observedClose: null,
+                  observedChangePct: null,
+                  maxDrawdownPct: null,
+                  dataStatus: "missing",
+                  missingReason: "no_future_candles",
+                  forwardCandlesAvailable: 0,
+                }),
+              ]
+            : [
+                makeObservationRecord({
+                  id: "older-partial",
+                  scanRunId,
+                  symbol: "SEIUSDT",
+                  dataStatus: "partial",
+                  missingReason: "insufficient_future_candles",
+                  forwardCandlesAvailable: 1,
+                }),
+              ],
+        ),
+    );
+
+    const response = await requestTradeApi(
+      `/api/history/observation-readiness?timeframe=4h&runId=${historyRunId}&assetClass=crypto&window=3`,
+    );
+    const body = JSON.parse(response.body);
+
+    expect(response.status).toBe(200);
+    expect(body.ok).toBe(true);
+    expect(body.selectedRun).toMatchObject({
+      state: "not_ready",
+      blocker: "market_data_coverage",
+      rowCount: 2,
+      completeCount: 0,
+      partialCount: 0,
+      missingCount: 2,
+      dominantMissingReason: "no_future_candles",
+      latestAnchorTime: "2026-06-01T20:00:00.000Z",
+      expectedCompleteTime: "2026-06-02T08:00:00.000Z",
+    });
+    expect(body.recommendedRun).toMatchObject({
+      state: "ready",
+      isLimited: false,
+      partialCount: 1,
+      run: {
+        runId: olderRunId,
+        isLikelyFullUniverse: true,
+      },
+    });
+    expect(body.observationRun.run.runId).toBe(olderRunId);
+    expect(body.coverage).toMatchObject({
+      latestOpenTime: "2026-06-01T20:00:00.000Z",
+      latestOpenTimeSymbolCount: 100,
+      latestOpenTimeCoveragePct: 24.21,
+    });
+    expect(body.metadata).toMatchObject({
+      timeframe: "4h",
+      window: 3,
+      blocker: "market_data_coverage",
+      candidateLimit: 25,
+    });
+    expect(listHistoricalSnapshotObservationsForRunMock).toHaveBeenCalledWith({
+      scanRunId: historyRunId,
+      timeframe: "4h",
+      assetClass: "crypto",
+      includeNonScanner: false,
+      includeMarketContext: false,
+      window: 3,
+    });
+  });
+
+  it("reports market coverage as the blocker when no run is observable", async () => {
+    const staleRun = makeRun(historyRunId, {
+      symbolsTotal: 413,
+      symbolsScanned: 409,
+      signalsCreated: 409,
+      params: { assetClass: "crypto", allSymbols: true },
+    });
+
+    listHistoricalScanRunsMock.mockResolvedValue([staleRun]);
+    getHistoricalScanRunMock.mockResolvedValue(staleRun);
+    getHistoricalObservationMarketCandleCoverageMock.mockResolvedValue(
+      makeObservationCoverage({
+        latestOpenTime: "2026-05-31T00:00:00.000Z",
+        latestOpenTimeSymbolCount: 413,
+      }),
+    );
+    listHistoricalSnapshotObservationsForRunMock.mockResolvedValue([
+      makeObservationRecord({
+        id: "missing",
+        scanRunId: historyRunId,
+        symbol: "SEIUSDT",
+        anchorTime: "2026-06-01T20:00:00.000Z",
+        observedClose: null,
+        observedChangePct: null,
+        maxDrawdownPct: null,
+        dataStatus: "missing",
+        missingReason: "no_future_candles",
+        forwardCandlesAvailable: 0,
+      }),
+    ]);
+
+    const response = await requestTradeApi(
+      `/api/history/observation-readiness?timeframe=4h&runId=${historyRunId}&window=3`,
+    );
+    const body = JSON.parse(response.body);
+
+    expect(response.status).toBe(200);
+    expect(body.selectedRun.blocker).toBe("market_data_coverage");
+    expect(body.recommendedRun).toBeNull();
+    expect(body.observationRun).toBeNull();
+    expect(body.coverage.latestOpenTime).toBe("2026-05-31T00:00:00.000Z");
+  });
+
+  it("falls back to a limited observable run when no full-universe run is observable", async () => {
+    const selectedRun = makeRun(historyRunId, {
+      symbolsTotal: 413,
+      symbolsScanned: 409,
+      signalsCreated: 409,
+      params: { assetClass: "crypto", allSymbols: true },
+    });
+    const limitedRun = makeRun("244271a6-0802-46d4-a61d-74f93cf7591a", {
+      symbolsTotal: 100,
+      symbolsScanned: 96,
+      signalsCreated: 96,
+    });
+
+    listHistoricalScanRunsMock.mockResolvedValue([selectedRun, limitedRun]);
+    getHistoricalScanRunMock.mockResolvedValue(selectedRun);
+    listHistoricalSnapshotObservationsForRunMock.mockImplementation(
+      ({ scanRunId }: { scanRunId: string }) =>
+        Promise.resolve(
+          scanRunId === selectedRun.id
+            ? [
+                makeObservationRecord({
+                  id: "selected-missing",
+                  scanRunId,
+                  symbol: "AAAUSDT",
+                  observedClose: null,
+                  observedChangePct: null,
+                  maxDrawdownPct: null,
+                  dataStatus: "missing",
+                  missingReason: "no_future_candles",
+                  forwardCandlesAvailable: 0,
+                }),
+              ]
+            : [
+                makeObservationRecord({
+                  id: "limited-complete",
+                  scanRunId,
+                  symbol: "SEIUSDT",
+                  dataStatus: "complete",
+                  missingReason: null,
+                }),
+              ],
+        ),
+    );
+
+    const response = await requestTradeApi(
+      `/api/history/observation-readiness?timeframe=4h&runId=${historyRunId}&window=3`,
+    );
+    const body = JSON.parse(response.body);
+
+    expect(response.status).toBe(200);
+    expect(body.recommendedRun).toMatchObject({
+      state: "ready",
+      isLimited: true,
+      run: {
+        runId: limitedRun.id,
+        isLikelyFullUniverse: false,
+      },
+    });
+    expect(body.observationRun.run.runId).toBe(limitedRun.id);
+  });
+
+  it("rejects invalid observation readiness filters before opening the store", async () => {
+    const invalidWindowResponse = await requestTradeApi(
+      `/api/history/observation-readiness?timeframe=4h&runId=${historyRunId}&window=2`,
+    );
+    const malformedRunResponse = await requestTradeApi(
+      "/api/history/observation-readiness?timeframe=4h&runId=abc&window=3",
+    );
+    const invalidTimeframeResponse = await requestTradeApi(
+      `/api/history/observation-readiness?timeframe=15m&runId=${historyRunId}&window=3`,
+    );
+
+    expect(invalidWindowResponse.status).toBe(400);
+    expect(JSON.parse(invalidWindowResponse.body).error).toMatchObject({
+      code: "INVALID_WINDOW",
+    });
+    expect(malformedRunResponse.status).toBe(400);
+    expect(JSON.parse(malformedRunResponse.body).error).toMatchObject({
+      code: "INVALID_RUN_ID",
+    });
+    expect(invalidTimeframeResponse.status).toBe(400);
+    expect(JSON.parse(invalidTimeframeResponse.body).error).toBe(
+      "INVALID_TIMEFRAME",
+    );
+    expect(pgScannerResultsStoreMock).not.toHaveBeenCalled();
   });
 });
 
@@ -1715,6 +1972,12 @@ function resetScannerMocks() {
   getHistoricalScanRunMock.mockResolvedValue(null);
   getHistoricalSnapshotObservationsMock.mockReset();
   getHistoricalSnapshotObservationsMock.mockResolvedValue({ run: null, rows: [] });
+  listHistoricalSnapshotObservationsForRunMock.mockReset();
+  listHistoricalSnapshotObservationsForRunMock.mockResolvedValue([]);
+  getHistoricalObservationMarketCandleCoverageMock.mockReset();
+  getHistoricalObservationMarketCandleCoverageMock.mockResolvedValue(
+    makeObservationCoverage(),
+  );
   closeMock.mockReset();
   closeMock.mockResolvedValue(undefined);
   pgScannerResultsStoreMock.mockClear();
@@ -1910,6 +2173,33 @@ function makeObservationRecord(
     dataStatus: overrides.dataStatus ?? "complete",
     missingReason: overrides.missingReason ?? null,
     forwardCandlesAvailable: overrides.forwardCandlesAvailable ?? 3,
+  };
+}
+
+function makeObservationCoverage(
+  overrides: Partial<{
+    timeframe: string;
+    totalSymbols: number;
+    symbolsWithCandles: number;
+    latestOpenTime: string | null;
+    latestOpenTimeSymbolCount: number;
+    buckets: Array<{ latestOpenTime: string | null; symbolCount: number }>;
+  }> = {},
+) {
+  return {
+    timeframe: overrides.timeframe ?? "4h",
+    assetClass: "crypto" as const,
+    totalSymbols: overrides.totalSymbols ?? 413,
+    symbolsWithCandles: overrides.symbolsWithCandles ?? 413,
+    latestOpenTime:
+      overrides.latestOpenTime ?? "2026-06-02T12:00:00.000Z",
+    latestOpenTimeSymbolCount: overrides.latestOpenTimeSymbolCount ?? 413,
+    buckets: overrides.buckets ?? [
+      {
+        latestOpenTime: overrides.latestOpenTime ?? "2026-06-02T12:00:00.000Z",
+        symbolCount: overrides.latestOpenTimeSymbolCount ?? 413,
+      },
+    ],
   };
 }
 

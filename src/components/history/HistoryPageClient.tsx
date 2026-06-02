@@ -1,6 +1,6 @@
 "use client";
 
-import { useQueries, useQuery } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import {
@@ -27,6 +27,17 @@ const unsafePrimarySignalLabelMap: Record<string, string> = {
 type HistoryTimeframe = (typeof HISTORY_TIMEFRAMES)[number];
 type ObservationWindow = (typeof OBSERVATION_WINDOWS)[number];
 type ObservationDataStatus = "complete" | "partial" | "missing";
+type ObservationReadinessBlocker =
+  | "observable"
+  | "time_maturity"
+  | "market_data_coverage"
+  | "mixed"
+  | "unavailable"
+  | "no_runs";
+type HistoricalObservationReadinessState =
+  | "ready"
+  | "not_ready"
+  | "unavailable";
 type ForwardObservationMaturityState =
   | "ready"
   | "not_ready"
@@ -157,6 +168,56 @@ type HistoricalSnapshotObservationsResponse = {
   };
 };
 
+type HistoricalObservationCoverage = {
+  timeframe: HistoryTimeframe;
+  assetClass: string;
+  totalSymbols: number;
+  symbolsWithCandles: number;
+  latestOpenTime: string | null;
+  latestOpenTimeSymbolCount: number;
+  latestOpenTimeCoveragePct?: number | null;
+  buckets: Array<{
+    latestOpenTime: string | null;
+    symbolCount: number;
+  }>;
+};
+
+type HistoricalObservationReadinessRun = {
+  run: HistoricalSnapshotRun;
+  state: HistoricalObservationReadinessState;
+  blocker: ObservationReadinessBlocker;
+  isObservable: boolean;
+  isLimited: boolean;
+  rowCount: number;
+  completeCount: number;
+  partialCount: number;
+  missingCount: number;
+  dominantMissingReason: string | null;
+  dominantMissingReasonCount: number;
+  latestAnchorTime: string | null;
+  expectedCompleteTime: string | null;
+};
+
+type HistoricalObservationReadinessResponse = {
+  ok: boolean;
+  selectedRun: HistoricalObservationReadinessRun | null;
+  recommendedRun: HistoricalObservationReadinessRun | null;
+  observationRun: HistoricalObservationReadinessRun | null;
+  coverage: HistoricalObservationCoverage;
+  metadata: {
+    timeframe: HistoryTimeframe;
+    assetClass: string;
+    window: ObservationWindow;
+    selectedWindow: ObservationWindow;
+    windowUnit: "completed_candles";
+    blocker: ObservationReadinessBlocker;
+    candidateCount: number;
+    candidateLimit: number;
+    fullUniverseMinExpectedSymbols: number;
+    disclaimer: string;
+  };
+};
+
 type ForwardObservationMaturity = {
   state: ForwardObservationMaturityState;
   readyCount: number;
@@ -216,47 +277,47 @@ export function HistoryPageClient() {
     enabled: selectedRunId !== null,
     staleTime: 60_000,
   });
-  const observationProbeRuns = useMemo(
-    () =>
-      getObservationProbeRuns({
-        snapshots,
-        selectedRunId,
-        window: observationWindow,
-      }),
-    [snapshots, selectedRunId, observationWindow],
-  );
-  const observationQueries = useQueries({
-    queries: observationProbeRuns.map((run) => ({
-      queryKey: [
-        "history-snapshot-observations",
-        run.runId,
+  const readinessQuery = useQuery({
+    queryKey: [
+      "history-observation-readiness",
+      timeframe,
+      selectedRunId,
+      assetClass,
+      observationWindow,
+    ],
+    queryFn: ({ signal }) =>
+      fetchHistoricalObservationReadiness({
+        timeframe,
+        runId: selectedRunId,
         assetClass,
-        observationWindow,
-      ],
-      queryFn: ({ signal }: { signal?: AbortSignal }) =>
-        fetchHistoricalSnapshotObservations({
-          runId: run.runId,
-          assetClass,
-          window: observationWindow,
-          signal,
-        }),
-      enabled: selectedRunId !== null,
-      staleTime: 60_000,
-    })),
+        window: observationWindow,
+        signal,
+      }),
+    enabled: selectedRunId !== null,
+    staleTime: 60_000,
   });
-  const observationSelection = selectForwardObservationResult({
+  const observationRunId =
+    readinessQuery.data?.observationRun?.run.runId ?? null;
+  const observationQuery = useQuery({
+    queryKey: [
+      "history-snapshot-observations",
+      observationRunId,
+      assetClass,
+      observationWindow,
+    ],
+    queryFn: ({ signal }) =>
+      fetchHistoricalSnapshotObservations({
+        runId: observationRunId ?? "",
+        assetClass,
+        window: observationWindow,
+        signal,
+      }),
+    enabled: observationRunId !== null,
+    staleTime: 60_000,
+  });
+  const observationSelectionMode = getForwardObservationSelectionMode({
     selectedRunId,
-    candidates: observationProbeRuns.map((run, index) => {
-      const query = observationQueries[index];
-
-      return {
-        run,
-        response: query?.data ?? null,
-        isLoading: query?.isLoading ?? false,
-        isFetching: query?.isFetching ?? false,
-        error: query?.isError ? formatQueryError(query.error) : null,
-      };
-    }),
+    readiness: readinessQuery.data ?? null,
   });
   const rows = snapshotQuery.data?.rows ?? [];
   const selectedRun = snapshotQuery.data?.run ?? null;
@@ -269,15 +330,17 @@ export function HistoryPageClient() {
     void snapshotsQuery.refetch();
     if (selectedRunId !== null) {
       void snapshotQuery.refetch();
-      for (const query of observationQueries) {
-        void query.refetch();
+      void readinessQuery.refetch();
+      if (observationRunId !== null) {
+        void observationQuery.refetch();
       }
     }
   };
   const isRefreshing =
     snapshotsQuery.isFetching ||
     snapshotQuery.isFetching ||
-    observationSelection.isFetching;
+    readinessQuery.isFetching ||
+    observationQuery.isFetching;
 
   return (
     <section className="mx-auto max-w-[1800px] px-3 py-5 sm:px-4">
@@ -426,13 +489,33 @@ export function HistoryPageClient() {
           <ForwardObservationSection
             window={observationWindow}
             onWindowChange={setObservationWindow}
-            response={observationSelection.response}
-            maturity={observationSelection.maturity}
-            observationRun={observationSelection.run}
-            selectionMode={observationSelection.mode}
-            isLoading={selectedRunId !== null && observationSelection.isLoading}
-            isFetching={observationSelection.isFetching}
-            error={observationSelection.error}
+            response={observationQuery.data ?? null}
+            readiness={readinessQuery.data ?? null}
+            maturity={classifyForwardObservationMaturity(
+              observationQuery.data ?? null,
+            )}
+            observationRun={
+              observationQuery.data?.run ??
+              readinessQuery.data?.observationRun?.run ??
+              readinessQuery.data?.selectedRun?.run ??
+              null
+            }
+            selectionMode={observationSelectionMode}
+            isLoading={
+              selectedRunId !== null &&
+              (readinessQuery.isLoading ||
+                (observationRunId !== null && observationQuery.isLoading))
+            }
+            isFetching={
+              readinessQuery.isFetching || observationQuery.isFetching
+            }
+            error={
+              readinessQuery.isError
+                ? formatQueryError(readinessQuery.error)
+                : observationQuery.isError
+                  ? formatQueryError(observationQuery.error)
+                  : null
+            }
           />
 
           <SnapshotTable rows={rows} isLoading={snapshotQuery.isFetching} />
@@ -446,6 +529,7 @@ export function ForwardObservationSection({
   window,
   onWindowChange,
   response,
+  readiness,
   maturity,
   observationRun,
   selectionMode,
@@ -456,6 +540,7 @@ export function ForwardObservationSection({
   window: ObservationWindow;
   onWindowChange: (window: ObservationWindow) => void;
   response: HistoricalSnapshotObservationsResponse | null;
+  readiness?: HistoricalObservationReadinessResponse | null;
   maturity: ForwardObservationMaturity | null;
   observationRun: HistoricalSnapshotRun | null;
   selectionMode: ForwardObservationSelectionMode;
@@ -465,8 +550,38 @@ export function ForwardObservationSection({
 }) {
   const rows = response?.rows ?? [];
   const metadata = response?.metadata ?? null;
+  const readinessSummaryRun =
+    readiness?.observationRun ?? readiness?.selectedRun ?? null;
+  const summary = metadata
+    ? {
+        window: metadata.window,
+        timeframe: metadata.timeframe,
+        rowCount: metadata.rowCount,
+        completeCount: metadata.completeCount,
+        partialCount: metadata.partialCount,
+        missingCount: metadata.missingCount,
+      }
+    : readinessSummaryRun
+      ? {
+          window: readiness?.metadata.window ?? window,
+          timeframe: readiness?.metadata.timeframe ?? observationRun?.timeframe ?? "4h",
+          rowCount: readinessSummaryRun.rowCount,
+          completeCount: readinessSummaryRun.completeCount,
+          partialCount: readinessSummaryRun.partialCount,
+          missingCount: readinessSummaryRun.missingCount,
+        }
+      : null;
   const effectiveMaturity =
-    maturity ?? classifyForwardObservationMaturity(response);
+    response && maturity
+      ? maturity
+      : readinessSummaryRun
+        ? buildForwardObservationMaturityFromReadiness(readinessSummaryRun)
+        : classifyForwardObservationMaturity(response);
+  const selectedReadinessRun = readiness?.selectedRun?.run ?? null;
+  const shouldShowSelectedRunBadge =
+    selectedReadinessRun &&
+    observationRun &&
+    selectedReadinessRun.runId !== observationRun.runId;
 
   return (
     <section className="rounded-md border border-[var(--border)] bg-[var(--panel)] p-4">
@@ -498,8 +613,13 @@ export function ForwardObservationSection({
         </div>
       </div>
 
-      {metadata || observationRun ? (
+      {metadata || observationRun || readiness ? (
         <div className="mb-3 flex flex-wrap gap-2 text-xs text-[var(--muted)]">
+          {shouldShowSelectedRunBadge ? (
+            <span className="rounded border border-[var(--border)] px-2 py-1">
+              Selected stored run {shortRunId(selectedReadinessRun.runId)}
+            </span>
+          ) : null}
           <span className="rounded border border-[var(--border)] px-2 py-1">
             Observation run {shortRunId(observationRun?.runId)}
           </span>
@@ -512,14 +632,14 @@ export function ForwardObservationSection({
         </div>
       ) : null}
 
-      {metadata ? (
+      {summary ? (
         <div className="mb-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-6">
-          <Metric label="Selected Window" value={`${metadata.window} candles`} />
-          <Metric label="Timeframe" value={metadata.timeframe} />
-          <Metric label="Rows" value={formatCount(metadata.rowCount)} />
-          <Metric label="Complete" value={formatCount(metadata.completeCount)} />
-          <Metric label="Partial" value={formatCount(metadata.partialCount)} />
-          <Metric label="Missing" value={formatCount(metadata.missingCount)} />
+          <Metric label="Selected Window" value={`${summary.window} candles`} />
+          <Metric label="Timeframe" value={summary.timeframe} />
+          <Metric label="Rows" value={formatCount(summary.rowCount)} />
+          <Metric label="Complete" value={formatCount(summary.completeCount)} />
+          <Metric label="Partial" value={formatCount(summary.partialCount)} />
+          <Metric label="Missing" value={formatCount(summary.missingCount)} />
         </div>
       ) : null}
 
@@ -530,12 +650,13 @@ export function ForwardObservationSection({
           title="Loading observation"
           message="Loading forward observation rows."
         />
-      ) : metadata && effectiveMaturity.state === "not_ready" ? (
+      ) : summary && effectiveMaturity.state === "not_ready" ? (
         <ForwardObservationNotReadyPanel
-          metadata={metadata}
+          summary={summary}
           maturity={effectiveMaturity}
+          readiness={readiness ?? null}
         />
-      ) : metadata && effectiveMaturity.state === "empty_or_unavailable" ? (
+      ) : summary && effectiveMaturity.state === "empty_or_unavailable" ? (
         <StatePanel
           title="Observation unavailable"
           message="Forward observation data is unavailable for the selected window."
@@ -608,38 +729,66 @@ export function ForwardObservationSection({
 }
 
 function ForwardObservationNotReadyPanel({
-  metadata,
+  summary,
   maturity,
+  readiness,
 }: {
-  metadata: HistoricalSnapshotObservationsResponse["metadata"];
+  summary: {
+    window: ObservationWindow;
+    timeframe: HistoryTimeframe;
+    rowCount: number;
+    completeCount: number;
+    partialCount: number;
+    missingCount: number;
+  };
   maturity: ForwardObservationMaturity;
+  readiness: HistoricalObservationReadinessResponse | null;
 }) {
+  const coverage = readiness?.coverage ?? null;
+  const selectedReadiness = readiness?.selectedRun ?? null;
+
   return (
     <div className="rounded-md border border-[var(--border)] p-4">
       <h3 className="text-sm font-semibold">
         Forward observation is not ready yet
       </h3>
       <p className="mt-2 max-w-3xl text-sm leading-6 text-[var(--muted)]">
-        This snapshot is too recent for the selected forward window. Forward
-        Observation uses completed future candles in the selected timeframe.
-        Choose an older run or a shorter window.
+        {formatObservationReadinessMessage(readiness)}
       </p>
       <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
-        <Metric label="Selected Window" value={`${metadata.window} candles`} />
-        <Metric label="Timeframe" value={metadata.timeframe} />
-        <Metric label="Rows" value={formatCount(metadata.rowCount)} />
+        <Metric label="Selected Window" value={`${summary.window} candles`} />
+        <Metric label="Timeframe" value={summary.timeframe} />
+        <Metric label="Rows" value={formatCount(summary.rowCount)} />
         <Metric
           label="Missing Reason"
           value={formatMissingReason(
             maturity.dominantMissingReason ?? "missing_data",
           )}
         />
+        {coverage ? (
+          <Metric
+            label="Latest Candle"
+            value={formatHistoryDateTime(coverage.latestOpenTime)}
+          />
+        ) : null}
+        {coverage ? (
+          <Metric
+            label="Latest Coverage"
+            value={formatLatestCoverage(coverage)}
+          />
+        ) : null}
+        {selectedReadiness?.expectedCompleteTime ? (
+          <Metric
+            label="Rough Maturity"
+            value={formatHistoryDateTime(selectedReadiness.expectedCompleteTime)}
+          />
+        ) : null}
       </div>
       <p className="mt-3 text-xs leading-5 text-[var(--muted)]">
-        For {metadata.timeframe} + {metadata.window}{" "}
-        {metadata.window === 1 ? "candle" : "candles"}, expect roughly{" "}
-        {formatApproximateObservationWait(metadata.timeframe, metadata.window)}{" "}
-        after the anchor before a complete {metadata.window}-candle observation
+        For {summary.timeframe} + {summary.window}{" "}
+        {summary.window === 1 ? "candle" : "candles"}, expect roughly{" "}
+        {formatApproximateObservationWait(summary.timeframe, summary.window)}{" "}
+        after the anchor before a complete {summary.window}-candle observation
         can exist. Candle sync timing and missing market data can affect
         availability.
       </p>
@@ -939,6 +1088,34 @@ export function selectForwardObservationResult({
   });
 }
 
+function getForwardObservationSelectionMode({
+  selectedRunId,
+  readiness,
+}: {
+  selectedRunId: string | null;
+  readiness: HistoricalObservationReadinessResponse | null;
+}): ForwardObservationSelectionMode {
+  if (!selectedRunId || !readiness) {
+    return "unavailable";
+  }
+
+  const observationRunId = readiness.observationRun?.run.runId ?? null;
+
+  if (observationRunId && observationRunId !== selectedRunId) {
+    return "observable";
+  }
+
+  if (observationRunId === selectedRunId) {
+    return "selected";
+  }
+
+  if (readiness.selectedRun?.state === "not_ready") {
+    return "not_ready";
+  }
+
+  return "unavailable";
+}
+
 function buildRunSummaryItems(run: HistoricalSnapshotRun | null) {
   if (!run) {
     return [];
@@ -1029,6 +1206,38 @@ async function fetchHistoricalSnapshotObservations({
   return (await response.json()) as HistoricalSnapshotObservationsResponse;
 }
 
+async function fetchHistoricalObservationReadiness({
+  timeframe,
+  runId,
+  assetClass,
+  window,
+  signal,
+}: {
+  timeframe: HistoryTimeframe;
+  runId: string | null;
+  assetClass: string;
+  window: ObservationWindow;
+  signal?: AbortSignal;
+}) {
+  const response = await fetch(
+    buildHistoricalObservationReadinessUrl({
+      timeframe,
+      runId,
+      assetClass,
+      window,
+    }),
+    { signal },
+  );
+
+  if (!response.ok) {
+    throw new Error(
+      `Unable to load observation readiness (${response.status}).`,
+    );
+  }
+
+  return (await response.json()) as HistoricalObservationReadinessResponse;
+}
+
 export function buildHistoricalSnapshotsUrl({
   timeframe,
   assetClass,
@@ -1084,6 +1293,35 @@ export function buildHistoricalSnapshotObservationsUrl({
   const baseUrl = tradeApiBaseUrl?.trim().replace(/\/+$/, "") ?? "";
 
   return `${baseUrl}/api/history/snapshot-observations?${params.toString()}`;
+}
+
+export function buildHistoricalObservationReadinessUrl({
+  timeframe,
+  runId,
+  assetClass,
+  window,
+  tradeApiBaseUrl = process.env.NEXT_PUBLIC_TRADE_API_BASE_URL,
+}: {
+  timeframe: string;
+  runId?: string | null;
+  assetClass: string;
+  window: ObservationWindow;
+  tradeApiBaseUrl?: string;
+}) {
+  const params = new URLSearchParams({
+    timeframe,
+    assetClass,
+    window: String(window),
+  });
+  const trimmedRunId = runId?.trim() ?? "";
+
+  if (trimmedRunId) {
+    params.set("runId", trimmedRunId);
+  }
+
+  const baseUrl = tradeApiBaseUrl?.trim().replace(/\/+$/, "") ?? "";
+
+  return `${baseUrl}/api/history/observation-readiness?${params.toString()}`;
 }
 
 function formatQueryError(error: unknown) {
@@ -1179,6 +1417,40 @@ function formatMissingReason(value: string) {
     default:
       return "Missing data";
   }
+}
+
+function formatObservationReadinessMessage(
+  readiness: HistoricalObservationReadinessResponse | null,
+) {
+  const blocker = readiness?.metadata.blocker;
+
+  switch (blocker) {
+    case "market_data_coverage":
+      return "Market candle coverage is not far enough for this forward window. Forward Observation uses completed future candles in the selected timeframe.";
+    case "time_maturity":
+      return "This snapshot is too recent for the selected forward window. Forward Observation uses completed future candles in the selected timeframe.";
+    case "mixed":
+      return "Forward observation is blocked by a mix of time maturity and market candle coverage. Refresh after candle coverage advances.";
+    case "no_runs":
+      return "No successful stored runs are available for this timeframe.";
+    case "unavailable":
+      return "Forward observation data is unavailable for the selected window.";
+    case "observable":
+      return "Forward observation rows are available for this window.";
+    default:
+      return "Forward observation is not ready for the selected window.";
+  }
+}
+
+function formatLatestCoverage(coverage: HistoricalObservationCoverage) {
+  const count = formatCount(coverage.latestOpenTimeSymbolCount);
+  const total = formatCount(coverage.totalSymbols);
+  const pct =
+    typeof coverage.latestOpenTimeCoveragePct === "number"
+      ? `, ${coverage.latestOpenTimeCoveragePct.toFixed(2)}%`
+      : "";
+
+  return `${count} / ${total}${pct}`;
 }
 
 function formatApproximateObservationWait(
@@ -1293,6 +1565,24 @@ function isFutureCandleMissingReason(reason: string | null) {
     reason === "insufficient_future_candles" ||
     reason === "run_after_latest_candle"
   );
+}
+
+function buildForwardObservationMaturityFromReadiness(
+  readinessRun: HistoricalObservationReadinessRun,
+): ForwardObservationMaturity {
+  return {
+    state:
+      readinessRun.state === "unavailable"
+        ? "empty_or_unavailable"
+        : readinessRun.state,
+    readyCount: readinessRun.completeCount + readinessRun.partialCount,
+    rowCount: readinessRun.rowCount,
+    completeCount: readinessRun.completeCount,
+    partialCount: readinessRun.partialCount,
+    missingCount: readinessRun.missingCount,
+    dominantMissingReason: readinessRun.dominantMissingReason,
+    dominantMissingReasonCount: readinessRun.dominantMissingReasonCount,
+  };
 }
 
 function emptyForwardObservationMaturity(): ForwardObservationMaturity {

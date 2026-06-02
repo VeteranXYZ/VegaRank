@@ -491,6 +491,67 @@ describe("PgScannerResultsStore latest scan queries", () => {
     });
   });
 
+  it("summarizes latest market candle coverage for observation readiness", async () => {
+    const queries: string[] = [];
+    const paramsList: unknown[][] = [];
+    const store = new PgScannerResultsStore(
+      makePool((sql, params) => {
+        queries.push(sql);
+        paramsList.push(params);
+
+        return {
+          rows: [
+            {
+              latest_open_time: "2026-06-01T20:00:00.000Z",
+              symbol_count: "100",
+            },
+            {
+              latest_open_time: "2026-05-31T00:00:00.000Z",
+              symbol_count: "308",
+            },
+            {
+              latest_open_time: null,
+              symbol_count: "5",
+            },
+          ],
+        };
+      }),
+    );
+
+    const coverage = await store.getHistoricalObservationMarketCandleCoverage({
+      timeframe: "4h",
+      assetClass: "crypto",
+    });
+
+    expect(coverage).toEqual({
+      timeframe: "4h",
+      assetClass: "crypto",
+      totalSymbols: 413,
+      symbolsWithCandles: 408,
+      latestOpenTime: "2026-06-01T20:00:00.000Z",
+      latestOpenTimeSymbolCount: 100,
+      buckets: [
+        {
+          latestOpenTime: "2026-06-01T20:00:00.000Z",
+          symbolCount: 100,
+        },
+        {
+          latestOpenTime: "2026-05-31T00:00:00.000Z",
+          symbolCount: 308,
+        },
+        {
+          latestOpenTime: null,
+          symbolCount: 5,
+        },
+      ],
+    });
+    expect(paramsList[0]).toEqual(["4h", "crypto"]);
+    expect(queries[0]).toContain("LEFT JOIN LATERAL");
+    expect(queries[0]).toContain("ORDER BY c.open_time DESC");
+    expect(queries[0]).toContain("s.is_scanner_eligible = true");
+    expect(queries[0]).toContain("s.is_market_context = false");
+  });
+
   it("validates supported forward observation windows", async () => {
     expect(normalizeHistoricalSnapshotObservationWindow(1)).toBe(1);
     expect(normalizeHistoricalSnapshotObservationWindow(3)).toBe(3);

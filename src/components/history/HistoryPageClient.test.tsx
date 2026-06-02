@@ -3,6 +3,7 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import {
+  buildHistoricalObservationReadinessUrl,
   buildHistoricalSnapshotObservationsUrl,
   buildHistoricalSnapshotUrl,
   buildHistoricalSnapshotsUrl,
@@ -38,6 +39,17 @@ describe("HistoryPageClient API URLs", () => {
       }),
     ).toBe(
       `https://api.auere.com/api/history/snapshot?runId=${runId}&assetClass=crypto`,
+    );
+    expect(
+      buildHistoricalObservationReadinessUrl({
+        timeframe: "4h",
+        runId,
+        assetClass: "crypto",
+        window: 3,
+        tradeApiBaseUrl: "https://api.auere.com/",
+      }),
+    ).toBe(
+      `https://api.auere.com/api/history/observation-readiness?timeframe=4h&assetClass=crypto&window=3&runId=${runId}`,
     );
     expect(
       buildHistoricalSnapshotObservationsUrl({
@@ -205,6 +217,28 @@ describe("HistoryPageClient display formatting", () => {
         window: 3,
         onWindowChange: () => undefined,
         response,
+        readiness: makeReadinessResponse({
+          selectedRun: makeReadinessRun({
+            run: response.run,
+            state: "not_ready",
+            blocker: "market_data_coverage",
+            rowCount: 3,
+            completeCount: 0,
+            partialCount: 0,
+            missingCount: 3,
+            dominantMissingReason: "no_future_candles",
+            dominantMissingReasonCount: 3,
+            expectedCompleteTime: "2026-06-02T12:00:00.000Z",
+          }),
+          observationRun: null,
+          recommendedRun: null,
+          blocker: "market_data_coverage",
+          coverage: {
+            latestOpenTime: "2026-06-01T20:00:00.000Z",
+            latestOpenTimeSymbolCount: 100,
+            totalSymbols: 413,
+          },
+        }),
         maturity: classifyForwardObservationMaturity(response),
         observationRun: response.run,
         selectionMode: "not_ready",
@@ -215,8 +249,11 @@ describe("HistoryPageClient display formatting", () => {
     );
 
     expect(html).toContain("Forward observation is not ready yet");
-    expect(html).toContain("This snapshot is too recent");
+    expect(html).toContain("Market candle coverage is not far enough");
     expect(html).toContain("No completed future candles yet");
+    expect(html).toContain("Latest Candle");
+    expect(html).toContain("2026-06-01 20:00");
+    expect(html).toContain("100 / 413");
     expect(html).toContain("For 4h + 3 candles, expect roughly 12 hours");
     expect(html).toContain("Complete");
     expect(html).toContain("Partial");
@@ -294,6 +331,72 @@ describe("HistoryPageClient display formatting", () => {
     expect(selection.mode).toBe("observable");
     expect(selection.run?.runId).toBe(olderRun.runId);
     expect(selection.response?.metadata.completeCount).toBe(1);
+  });
+
+  it("labels recommended observable runs without changing the selected stored run", () => {
+    const selectedRun = makeObservationRun({
+      runId: "11111111-1111-4111-8111-111111111111",
+      finishedAt: "2026-06-02T15:05:15.000Z",
+    });
+    const recommendedRun = makeObservationRun({
+      runId: "22222222-2222-4222-8222-222222222222",
+      finishedAt: "2026-06-02T02:52:00.000Z",
+    });
+    const response = makeObservationResponse({ run: recommendedRun });
+    const html = renderToStaticMarkup(
+      createElement(ForwardObservationSection, {
+        window: 3,
+        onWindowChange: () => undefined,
+        response,
+        readiness: makeReadinessResponse({
+          selectedRun: makeReadinessRun({
+            run: selectedRun,
+            state: "not_ready",
+            blocker: "market_data_coverage",
+            rowCount: 409,
+            completeCount: 0,
+            partialCount: 0,
+            missingCount: 409,
+            dominantMissingReason: "no_future_candles",
+            dominantMissingReasonCount: 409,
+          }),
+          recommendedRun: makeReadinessRun({
+            run: recommendedRun,
+            state: "ready",
+            blocker: "observable",
+            rowCount: 409,
+            completeCount: 0,
+            partialCount: 96,
+            missingCount: 313,
+            dominantMissingReason: "no_future_candles",
+            dominantMissingReasonCount: 313,
+          }),
+          observationRun: makeReadinessRun({
+            run: recommendedRun,
+            state: "ready",
+            blocker: "observable",
+            rowCount: 409,
+            completeCount: 0,
+            partialCount: 96,
+            missingCount: 313,
+            dominantMissingReason: "no_future_candles",
+            dominantMissingReasonCount: 313,
+          }),
+          blocker: "market_data_coverage",
+        }),
+        maturity: classifyForwardObservationMaturity(response),
+        observationRun: recommendedRun,
+        selectionMode: "observable",
+        isLoading: false,
+        isFetching: false,
+        error: null,
+      }),
+    );
+
+    expect(html).toContain("Using most recent observable run");
+    expect(html).toContain("Selected stored run 11111111");
+    expect(html).toContain("Observation run 22222222");
+    expect(html).toContain("Finished 2026-06-02 02:52");
   });
 
   it("keeps observation probing bounded and adjusts the probe range by window", () => {
@@ -426,11 +529,114 @@ function makeObservationResponse(
   };
 }
 
+function makeReadinessResponse(
+  overrides: Partial<{
+    selectedRun: ReturnType<typeof makeReadinessRun> | null;
+    recommendedRun: ReturnType<typeof makeReadinessRun> | null;
+    observationRun: ReturnType<typeof makeReadinessRun> | null;
+    blocker:
+      | "observable"
+      | "time_maturity"
+      | "market_data_coverage"
+      | "mixed"
+      | "unavailable"
+      | "no_runs";
+    coverage: Partial<{
+      latestOpenTime: string | null;
+      latestOpenTimeSymbolCount: number;
+      totalSymbols: number;
+      symbolsWithCandles: number;
+    }>;
+  }> = {},
+) {
+  const selectedRun = overrides.selectedRun ?? makeReadinessRun();
+
+  return {
+    ok: true,
+    selectedRun,
+    recommendedRun: overrides.recommendedRun ?? null,
+    observationRun: overrides.observationRun ?? selectedRun,
+    coverage: {
+      timeframe: "4h" as const,
+      assetClass: "crypto",
+      totalSymbols: overrides.coverage?.totalSymbols ?? 413,
+      symbolsWithCandles: overrides.coverage?.symbolsWithCandles ?? 413,
+      latestOpenTime:
+        overrides.coverage?.latestOpenTime ?? "2026-06-02T12:00:00.000Z",
+      latestOpenTimeSymbolCount:
+        overrides.coverage?.latestOpenTimeSymbolCount ?? 413,
+      latestOpenTimeCoveragePct: 100,
+      buckets: [
+        {
+          latestOpenTime:
+            overrides.coverage?.latestOpenTime ?? "2026-06-02T12:00:00.000Z",
+          symbolCount: overrides.coverage?.latestOpenTimeSymbolCount ?? 413,
+        },
+      ],
+    },
+    metadata: {
+      timeframe: "4h" as const,
+      assetClass: "crypto",
+      window: 3 as const,
+      selectedWindow: 3 as const,
+      windowUnit: "completed_candles" as const,
+      blocker: overrides.blocker ?? "observable",
+      candidateCount: 2,
+      candidateLimit: 25,
+      fullUniverseMinExpectedSymbols: 300,
+      disclaimer:
+        "Research-only. Not financial advice. Historical observations are not predictions.",
+    },
+  };
+}
+
+function makeReadinessRun(
+  overrides: Partial<{
+    run: ReturnType<typeof makeObservationRun>;
+    state: "ready" | "not_ready" | "unavailable";
+    blocker:
+      | "observable"
+      | "time_maturity"
+      | "market_data_coverage"
+      | "mixed"
+      | "unavailable"
+      | "no_runs";
+    rowCount: number;
+    completeCount: number;
+    partialCount: number;
+    missingCount: number;
+    dominantMissingReason: string | null;
+    dominantMissingReasonCount: number;
+    latestAnchorTime: string | null;
+    expectedCompleteTime: string | null;
+  }> = {},
+) {
+  const state = overrides.state ?? "ready";
+
+  return {
+    run: overrides.run ?? makeObservationRun(),
+    state,
+    blocker: overrides.blocker ?? (state === "ready" ? "observable" : "unavailable"),
+    isObservable: state === "ready",
+    isLimited: overrides.run?.isLikelyFullUniverse === false,
+    rowCount: overrides.rowCount ?? 3,
+    completeCount: overrides.completeCount ?? (state === "ready" ? 1 : 0),
+    partialCount: overrides.partialCount ?? 0,
+    missingCount: overrides.missingCount ?? (state === "ready" ? 2 : 3),
+    dominantMissingReason: overrides.dominantMissingReason ?? null,
+    dominantMissingReasonCount: overrides.dominantMissingReasonCount ?? 0,
+    latestAnchorTime:
+      overrides.latestAnchorTime ?? "2026-06-02T00:00:00.000Z",
+    expectedCompleteTime: overrides.expectedCompleteTime ?? null,
+  };
+}
+
 function makeObservationRun(
   overrides: Partial<{
     runId: string;
     timeframe: "1h" | "4h" | "1d" | "1w";
     finishedAt: string;
+    isLikelyFullUniverse: boolean;
   }> = {},
 ) {
   return {
@@ -440,6 +646,7 @@ function makeObservationRun(
     symbolsScanned: 409,
     signalsCreated: 409,
     finishedAt: overrides.finishedAt ?? "2026-06-02T08:05:00.000Z",
+    isLikelyFullUniverse: overrides.isLikelyFullUniverse ?? true,
   };
 }
 
