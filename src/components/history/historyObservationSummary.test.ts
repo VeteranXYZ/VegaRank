@@ -223,6 +223,7 @@ describe("historyObservationSummary", () => {
     expect(summary.medianObservedChangePct).toBeNull();
     expect(summary.averageObservedChangePct).toBeNull();
     expect(summary.medianMaxDrawdownPct).toBeNull();
+    expect(summary.hasPartialOnlyCoverage).toBe(true);
     expect(summary.notable.largestPositiveObservedChanges).toEqual([]);
     expect(summary.notable.largestNegativeObservedChanges).toEqual([]);
     expect(summary.notable.largestObservedDrawdowns).toEqual([]);

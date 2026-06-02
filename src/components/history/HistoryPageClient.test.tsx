@@ -235,7 +235,7 @@ describe("HistoryPageClient display formatting", () => {
     expect(html).toContain("Missing means required future candles are unavailable");
     expect(html).toContain("Historical observations describe what happened after a stored scanner run");
     expect(html).toContain("They do not predict future outcomes and are not financial advice");
-    expect(html).toContain("It is not signal confidence or prediction quality");
+    expect(html).toContain("It is not a prediction and does not describe future outcomes");
     expect(html).toContain("Observed Change");
     expect(html).toContain("Max Drawdown");
     expect(html).toContain("Data Status");
@@ -253,6 +253,162 @@ describe("HistoryPageClient display formatting", () => {
     expect(html).not.toContain("Show More");
     expect(html).not.toContain("Pagination");
     expect(html).not.toContain("top-100");
+  });
+
+  it("renders ready mature observation rows without readiness loading or missing diagnostics", () => {
+    const selectedRun = makeObservationRun({
+      runId: "selected-not-ready",
+      finishedAt: "2026-06-02T15:05:15.000Z",
+    });
+    const observationRun = makeObservationRun({
+      runId: "mature-ready",
+      finishedAt: "2026-06-02T02:52:00.000Z",
+    });
+    const readiness = makeReadinessResponse({
+      selectedRun: makeReadinessRun({
+        run: selectedRun,
+        state: "not_ready",
+        blocker: "time_maturity",
+        rowCount: 3,
+        completeCount: 0,
+        partialCount: 0,
+        missingCount: 3,
+        dominantMissingReason: "no_future_candles",
+        dominantMissingReasonCount: 3,
+      }),
+      observationRun: makeReadinessRun({
+        run: observationRun,
+        state: "ready",
+        blocker: "observable",
+        rowCount: 3,
+        completeCount: 3,
+        partialCount: 0,
+        missingCount: 0,
+      }),
+      blocker: "time_maturity",
+    });
+    const response = makeObservationResponse({
+      run: observationRun,
+      rows: [
+        makeObservationRow({
+          id: "complete-a",
+          symbol: "AAAUSDT",
+          observedChangePct: 4,
+          maxDrawdownPct: -2,
+          dataStatus: "complete",
+          missingReason: null,
+        }),
+        makeObservationRow({
+          id: "complete-b",
+          symbol: "BBBUSDT",
+          observedChangePct: 2,
+          maxDrawdownPct: -1,
+          dataStatus: "complete",
+          missingReason: null,
+        }),
+      ],
+    });
+    const uiState = makeUiState({
+      selectedRunId: selectedRun.runId,
+      readiness,
+      response,
+    });
+    const html = renderToStaticMarkup(
+      createElement(ForwardObservationSection, {
+        window: 3,
+        onWindowChange: () => undefined,
+        response,
+        readiness,
+        uiState,
+      }),
+    );
+
+    expect(uiState.status).toBe("observation_ready");
+    expect(html).toContain("Mode: Using mature observation run");
+    expect(html).toContain("Selected stored run: selected, status: Waiting for future candles");
+    expect(html).toContain("Observation run: mature-r, status: Ready");
+    expect(html).toContain("Observation Summary");
+    expect(html).not.toContain("Loading observation readiness");
+    expect(html).not.toContain("Forward observation unavailable");
+    expect(html).not.toContain("Dominant Reason");
+    expect(html).not.toContain("Missing data");
+  });
+
+  it("keeps ready observation context visible while observation rows are loading", () => {
+    const selectedRun = makeObservationRun({
+      runId: "selected-not-ready",
+      finishedAt: "2026-06-02T15:05:15.000Z",
+    });
+    const observationRun = makeObservationRun({
+      runId: "mature-ready",
+      finishedAt: "2026-06-02T02:52:00.000Z",
+    });
+    const readiness = makeReadinessResponse({
+      selectedRun: makeReadinessRun({
+        run: selectedRun,
+        state: "not_ready",
+        blocker: "time_maturity",
+        dominantMissingReason: "no_future_candles",
+        dominantMissingReasonCount: 3,
+      }),
+      observationRun: makeReadinessRun({ run: observationRun }),
+      blocker: "time_maturity",
+    });
+    const uiState = makeUiState({
+      selectedRunId: selectedRun.runId,
+      readiness,
+      response: null,
+      observationIsLoading: true,
+    });
+    const html = renderToStaticMarkup(
+      createElement(ForwardObservationSection, {
+        window: 3,
+        onWindowChange: () => undefined,
+        response: null,
+        readiness,
+        uiState,
+      }),
+    );
+
+    expect(uiState.status).toBe("loading_observation_rows");
+    expect(html).toContain("Mode: Using mature observation run");
+    expect(html).toContain("Selected stored run: selected, status: Waiting for future candles");
+    expect(html).toContain("Observation run: mature-r, status: Ready");
+    expect(html).toContain("Loading observation rows");
+    expect(html).not.toContain("Loading observation readiness");
+    expect(html).not.toContain("Dominant Reason");
+    expect(html).not.toContain("Missing data");
+  });
+
+  it("uses a ready observationRun runId for snapshot observation rows", () => {
+    const selectedRun = makeObservationRun({ runId: "selected-not-ready" });
+    const observationRun = makeObservationRun({ runId: "mature-ready" });
+    const readiness = makeReadinessResponse({
+      selectedRun: makeReadinessRun({
+        run: selectedRun,
+        state: "not_ready",
+        blocker: "time_maturity",
+      }),
+      observationRun: makeReadinessRun({
+        run: observationRun,
+        state: "ready",
+      }),
+    });
+    const rowsRunId = getForwardObservationRowsRunId({
+      selectedRunId: selectedRun.runId,
+      readiness,
+      readinessError: null,
+    });
+    const url = buildHistoricalSnapshotObservationsUrl({
+      runId: rowsRunId ?? "",
+      assetClass: "crypto",
+      window: 3,
+      tradeApiBaseUrl: "https://api.auere.com",
+    });
+
+    expect(rowsRunId).toBe("mature-ready");
+    expect(url).toContain("runId=mature-ready");
+    expect(url).not.toContain("selected-not-ready");
   });
 
   it("renders Observation Summary distribution and notable examples from complete rows only", () => {
@@ -350,6 +506,77 @@ describe("HistoryPageClient display formatting", () => {
     expect(html).not.toContain("target");
     expect(html).not.toContain("stop loss");
     expect(html).not.toContain("PnL");
+  });
+
+  it("explains partial-only coverage without using partial rows for summary metrics", () => {
+    const response = makeObservationResponse({
+      rows: [
+        makeObservationRow({
+          id: "partial-positive",
+          symbol: "PARTIALUPUSDT",
+          group: "watch",
+          observedChangePct: 12,
+          maxDrawdownPct: -3,
+          dataStatus: "partial",
+          missingReason: "insufficient_future_candles",
+        }),
+        makeObservationRow({
+          id: "partial-negative",
+          symbol: "PARTIALDOWNUSDT",
+          group: "risk",
+          observedChangePct: -9,
+          maxDrawdownPct: -11,
+          dataStatus: "partial",
+          missingReason: "insufficient_future_candles",
+        }),
+        makeObservationRow({
+          id: "missing-row",
+          symbol: "MISSINGUSDT",
+          group: "neutral",
+          observedClose: null,
+          observedChangePct: null,
+          maxDrawdownPct: null,
+          dataStatus: "missing",
+          missingReason: "no_future_candles",
+        }),
+      ],
+    });
+    const readiness = makeReadinessResponse({
+      selectedRun: makeReadinessRun({ run: response.run }),
+      observationRun: makeReadinessRun({
+        run: response.run,
+        completeCount: 0,
+        partialCount: 2,
+        missingCount: 1,
+      }),
+    });
+    const html = renderToStaticMarkup(
+      createElement(ForwardObservationSection, {
+        window: 3,
+        onWindowChange: () => undefined,
+        response,
+        readiness,
+        uiState: makeUiState({
+          selectedRunId: response.run.runId,
+          readiness,
+          response,
+        }),
+      }),
+    );
+
+    expect(html).toContain("Observation Summary");
+    expect(html).toContain("Partial observations are available");
+    expect(html).toContain("Complete-row distribution metrics stay empty");
+    expect(html).toContain("Partial rows are shown in the table for research context only");
+    expect(html.match(/Not enough complete rows/g)?.length ?? 0).toBeGreaterThan(3);
+    expect(html).toContain("PARTIALUPUSDT");
+    expect(html).toContain("PARTIALDOWNUSDT");
+    expect(html).toContain("Insufficient future candles");
+    expect(html).toContain("Largest positive observed changes");
+    expect(html).toContain("Largest negative observed changes");
+    expect(html).toContain("Largest observed drawdowns");
+    expect(html).not.toContain("12.00%</span></div></li>");
+    expect(html).not.toContain("-9.00%</span></div></li>");
   });
 
   it("renders stale market coverage as a compact unavailable state", () => {

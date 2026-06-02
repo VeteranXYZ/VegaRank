@@ -941,10 +941,11 @@ function ForwardObservationStatePanel({
     readiness,
   });
   const showDiagnostics =
-    summary !== null ||
-    coverage !== null ||
-    selectedReadiness !== null ||
-    readiness?.recommendedRun !== null;
+    !hasReadyObservationContext(uiState) &&
+    (summary !== null ||
+      coverage !== null ||
+      selectedReadiness !== null ||
+      readiness?.recommendedRun !== null);
 
   return (
     <div className="rounded-md border border-[var(--border)] p-4">
@@ -1114,9 +1115,18 @@ function ObservationSummarySection({
 
       <p className="mt-3 max-w-3xl text-xs leading-5 text-[var(--muted)]">
         Observation coverage describes how many rows have enough future candles
-        for the selected window. It is not signal confidence or prediction
-        quality.
+        for the selected window. It is not a prediction and does not describe
+        future outcomes.
       </p>
+
+      {summary.hasPartialOnlyCoverage ? (
+        <p className="mt-3 max-w-3xl text-xs leading-5 text-[var(--muted)]">
+          Partial observations are available, but they do not cover the full
+          selected forward window. Complete-row distribution metrics stay empty
+          until enough full-window observations are available. Partial rows are
+          shown in the table for research context only.
+        </p>
+      ) : null}
 
       <GroupDistributionTable groups={summary.groups} />
       <NotableHistoricalExamples summary={summary} />
@@ -1302,6 +1312,14 @@ function getForwardObservationPanelTitle(uiState: ForwardObservationUiState) {
     case "observation_ready":
       return "Forward observation ready";
   }
+}
+
+function hasReadyObservationContext(uiState: ForwardObservationUiState) {
+  return (
+    uiState.observationRun !== null &&
+    (uiState.selectionMode === "selected" ||
+      uiState.selectionMode === "observable")
+  );
 }
 
 function getForwardObservationPanelMessage({
@@ -1801,7 +1819,11 @@ export function getForwardObservationRowsRunId({
     return readiness.observationRun.run.runId;
   }
 
-  if (readiness.selectedRun?.state === "ready") {
+  if (
+    readiness.selectedRun?.state === "ready" &&
+    (!readiness.observationRun ||
+      readiness.observationRun.run.runId === readiness.selectedRun.run.runId)
+  ) {
     return readiness.selectedRun.run.runId;
   }
 
@@ -1854,6 +1876,8 @@ export function deriveForwardObservationUiState({
     selectedRunId,
     readiness,
   });
+  const effectiveObservationRunId =
+    observationRunId ?? observationReadinessRun?.run.runId ?? null;
   const blocker =
     readiness?.selectedRun?.blocker ?? readiness?.metadata.blocker ?? null;
   const base = {
@@ -1896,7 +1920,7 @@ export function deriveForwardObservationUiState({
     };
   }
 
-  if (!observationRunId || !observationReadinessRun) {
+  if (!effectiveObservationRunId || !observationReadinessRun) {
     return {
       ...base,
       status:
@@ -1943,7 +1967,7 @@ export function deriveForwardObservationUiState({
   return {
     ...base,
     status:
-      observationRunId === selectedRunId
+      effectiveObservationRunId === selectedRunId
         ? "using_selected_run"
         : "using_recommended_observable_run",
   };

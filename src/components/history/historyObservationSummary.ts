@@ -46,6 +46,7 @@ export type ObservationSummary = ObservationSummaryStats & {
   missingCount: number;
   completePct: number;
   coverageLabel: ObservationCoverageLabel;
+  hasPartialOnlyCoverage: boolean;
   groups: ObservationGroupSummary[];
   notable: {
     largestPositiveObservedChanges: ObservationNotableExample[];
@@ -114,6 +115,7 @@ export function buildObservationSummary({
       completeCount,
       totalRows,
     }),
+    hasPartialOnlyCoverage: completeCount === 0 && partialCount > 0,
     ...stats,
     groups: buildGroupSummaries(rows),
     notable: buildNotableExamples(completeRows),
