@@ -15,6 +15,12 @@ import {
   saveWatchlistSymbols,
   type WatchlistStorage,
 } from "@/components/watchlist/watchlistUi";
+import { MarketContextPanel } from "@/components/market-context/MarketContextPanel";
+import {
+  fetchMarketContext,
+  isMarketContextResponse,
+  type MarketContextResponse,
+} from "@/components/market-context/marketContextUi";
 import {
   buildBehaviorReadout,
   buildBehaviorSampleQuality,
@@ -263,6 +269,7 @@ const defaultHistoryLimit = 30;
 const defaultCandleLimit = 120;
 const defaultTimeframe = "4h";
 const symbolResearchTimeframes = ["4h", "1d", "1w", "1h"] as const;
+const symbolResearchMarketContextAssetClass = "crypto";
 
 export function SymbolResearchPageClient({
   exchange,
@@ -295,6 +302,16 @@ export function SymbolResearchPageClient({
   const query = useQuery({
     queryKey: ["symbol-research", queryParams],
     queryFn: ({ signal }) => fetchSymbolResearch({ ...queryParams, signal }),
+    staleTime: 60_000,
+  });
+  const marketContextQuery = useQuery({
+    queryKey: ["market-context", symbolResearchMarketContextAssetClass],
+    queryFn: ({ signal }) =>
+      fetchMarketContext({
+        assetClass: symbolResearchMarketContextAssetClass,
+        signal,
+        tradeApiBaseUrl,
+      }),
     staleTime: 60_000,
   });
   const signalEvaluationParams = useMemo(
@@ -565,6 +582,13 @@ export function SymbolResearchPageClient({
       timeframe: selectedTimeframe,
     },
   );
+  const marketContextImplication = buildSymbolMarketContextImplication({
+    data: marketContextQuery.data,
+    isError: marketContextQuery.isError,
+    selectedGroup: latestSignal.resultGroup ?? interpretation.group,
+    selectedTimeframe,
+    timeframeSnapshots,
+  });
   const candleRowsNotice = getCandleRowsNotice(candles);
 
   return (
@@ -658,6 +682,15 @@ export function SymbolResearchPageClient({
           </div>
         </Panel>
       </div>
+
+      <MarketContextPanel
+        variant="compact"
+        data={marketContextQuery.data}
+        isLoading={marketContextQuery.isLoading}
+        isError={marketContextQuery.isError}
+        implication={marketContextImplication}
+        className="mt-4"
+      />
 
       <ResearchDecisionSummaryPanel summary={decisionSummary} />
 
@@ -934,6 +967,62 @@ export function buildSignalEvaluationUrl({
   return `${getTradeApiBaseUrl(tradeApiBaseUrl)}/api/signal/evaluation?${params.toString()}`;
 }
 
+export function buildSymbolMarketContextImplication({
+  data,
+  isError = false,
+  selectedGroup,
+  selectedTimeframe,
+  timeframeSnapshots,
+}: {
+  data?: MarketContextResponse | null;
+  isError?: boolean;
+  selectedGroup?: string | null;
+  selectedTimeframe?: string | null;
+  timeframeSnapshots?: Array<{
+    timeframe?: string | null;
+    resultGroup?: string | null;
+  }> | null;
+}) {
+  if (isError || !isMarketContextResponse(data)) {
+    return "Market context is unavailable. Symbol research data is still shown normally.";
+  }
+
+  const group = normalizeSymbolMarketContextGroup(selectedGroup);
+  const timeframe = selectedTimeframe?.trim() || "selected timeframe";
+  const higherTimeframeRiskNote = hasHigherTimeframeRisk({
+    selectedTimeframe: timeframe,
+    timeframeSnapshots,
+  })
+    ? " Higher-timeframe risk in the symbol snapshot also raises the confirmation bar."
+    : "";
+
+  if (isRiskOrientedSymbolMarketContext(data)) {
+    if (group === "risk") {
+      return `Broader context reinforces caution. The selected ${timeframe} symbol is already classified as risk, so repair should require stronger confirmation.${higherTimeframeRiskNote}`;
+    }
+
+    if (group === "eligible" || group === "watch") {
+      return `Broader context is risk-oriented, so this ${timeframe} symbol's constructive setup should be treated as a repair candidate rather than a clean standalone trend signal.${higherTimeframeRiskNote}`;
+    }
+
+    return `Broader context is risk-oriented. Use it as a backdrop only; symbol-level structure remains the primary research input.${higherTimeframeRiskNote}`;
+  }
+
+  if (isConstructiveSymbolMarketContext(data)) {
+    if (group === "eligible") {
+      return `Broader context is more supportive, but symbol-level confirmation and invalidation rules still remain primary.${higherTimeframeRiskNote}`;
+    }
+
+    return `Broader context is more supportive. Use it as context only; symbol-level signal remains primary.${higherTimeframeRiskNote}`;
+  }
+
+  if (isMixedSymbolMarketContext(data)) {
+    return `Broader context is mixed. Use it as a backdrop only; symbol-level structure remains the primary research input.${higherTimeframeRiskNote}`;
+  }
+
+  return `BTC/ETH proxy context is available for the ${timeframe} review. Symbol-level signal remains primary.${higherTimeframeRiskNote}`;
+}
+
 export function getTradeApiBaseUrl(
   value: string | null | undefined = process.env.NEXT_PUBLIC_TRADE_API_BASE_URL,
 ) {
@@ -953,6 +1042,97 @@ export function getSymbolResearchApiOriginLabel(
     return new URL(normalizedBaseUrl).origin;
   } catch {
     return "same-origin";
+  }
+}
+
+function normalizeSymbolMarketContextGroup(value: string | null | undefined) {
+  const normalized = value?.trim().toLowerCase() ?? "";
+
+  if (normalized === "risk") {
+    return "risk";
+  }
+
+  if (normalized === "eligible") {
+    return "eligible";
+  }
+
+  if (normalized === "watch" || normalized.startsWith("watch_")) {
+    return "watch";
+  }
+
+  return normalized || "neutral";
+}
+
+function isRiskOrientedSymbolMarketContext(data: MarketContextResponse) {
+  const { combinedContext, marketContext, tacticalContext } = data.context;
+
+  return (
+    combinedContext === "unstable_transition" ||
+    combinedContext === "risk_off_continuation" ||
+    marketContext.includes("risk_off") ||
+    tacticalContext.includes("weakness")
+  );
+}
+
+function isConstructiveSymbolMarketContext(data: MarketContextResponse) {
+  const { combinedContext, marketContext } = data.context;
+
+  return (
+    combinedContext === "bull_trend_continuation" ||
+    (marketContext.includes("risk_on") && !isRiskOrientedSymbolMarketContext(data))
+  );
+}
+
+function isMixedSymbolMarketContext(data: MarketContextResponse) {
+  const { combinedContext, structuralContext, marketContext, tacticalContext } =
+    data.context;
+
+  return [combinedContext, structuralContext, marketContext, tacticalContext].some(
+    (value) => value.includes("mixed"),
+  );
+}
+
+function hasHigherTimeframeRisk({
+  selectedTimeframe,
+  timeframeSnapshots,
+}: {
+  selectedTimeframe: string;
+  timeframeSnapshots?: Array<{
+    timeframe?: string | null;
+    resultGroup?: string | null;
+  }> | null;
+}) {
+  const selectedRank = getSymbolResearchTimeframeRank(selectedTimeframe);
+
+  if (selectedRank === null) {
+    return false;
+  }
+
+  return Boolean(
+    timeframeSnapshots?.some((snapshot) => {
+      const snapshotRank = getSymbolResearchTimeframeRank(snapshot.timeframe);
+
+      return (
+        snapshotRank !== null &&
+        snapshotRank > selectedRank &&
+        normalizeSymbolMarketContextGroup(snapshot.resultGroup) === "risk"
+      );
+    }),
+  );
+}
+
+function getSymbolResearchTimeframeRank(value: string | null | undefined) {
+  switch (value?.trim().toLowerCase()) {
+    case "1h":
+      return 0;
+    case "4h":
+      return 1;
+    case "1d":
+      return 2;
+    case "1w":
+      return 3;
+    default:
+      return null;
   }
 }
 

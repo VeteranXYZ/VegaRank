@@ -5,6 +5,7 @@ import {
   fetchMarketContext,
   formatMarketContextLabel,
   getEthConfirmationLabel,
+  isMarketContextResponse,
   type MarketContextResponse,
 } from "./marketContextUi";
 
@@ -128,6 +129,27 @@ describe("marketContextUi", () => {
     expect(view.title).toBe("Market context unavailable");
     expect(view.description).toContain("Screener and watchlist data are still shown");
     expect(view.unavailable).toBe(true);
+  });
+
+  it("treats ok false and malformed context payloads as unavailable", () => {
+    expect(isMarketContextResponse({ ok: false })).toBe(false);
+    expect(isMarketContextResponse({ ok: true, context: null })).toBe(false);
+
+    expect(
+      buildMarketContextPanelView({
+        data: { ok: false } as MarketContextResponse,
+      }).unavailable,
+    ).toBe(true);
+    expect(
+      buildMarketContextPanelView({
+        data: {
+          ok: true,
+          context: {
+            combinedContext: "mixed_transition",
+          },
+        } as MarketContextResponse,
+      }).title,
+    ).toBe("Market context unavailable");
   });
 });
 

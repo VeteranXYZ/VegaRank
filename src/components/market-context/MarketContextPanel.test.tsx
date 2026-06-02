@@ -21,10 +21,37 @@ describe("MarketContextPanel", () => {
     expect(html).toContain("BTC market layer");
     expect(html).toContain("BTC tactical layer");
     expect(html).toContain("ETH confirmation");
+    expect(html).toContain("Layer notes");
+    expect(html).toContain("BTC 1w structural context: Long-term mixed.");
     expect(html).toContain("Research implication");
     expect(html).toContain("Backdrop, not signal");
     expect(html).toContain("does not change rankings");
     expect(html).toContain("does not alter symbol-level classifications");
+  });
+
+  it("renders compact symbol research context without full layer notes", () => {
+    const html = renderToStaticMarkup(
+      createElement(MarketContextPanel, {
+        variant: "compact",
+        data: makeMarketContextResponse(),
+        implication:
+          "Broader context is risk-oriented, so this 4h symbol's constructive setup should be treated as a repair candidate rather than a clean standalone trend signal.",
+      }),
+    );
+
+    expect(html).toContain("Market backdrop");
+    expect(html).toContain("Risk-oriented transition");
+    expect(html).toContain("Broader regime context is shown as a backdrop only");
+    expect(html).toContain("does not alter this symbol&#x27;s scanner classification");
+    expect(html).toContain("Broad regime");
+    expect(html).toContain("BTC structural layer");
+    expect(html).toContain("BTC market layer");
+    expect(html).toContain("BTC tactical layer");
+    expect(html).toContain("ETH confirmation");
+    expect(html).toContain("Confidence");
+    expect(html).toContain("repair candidate");
+    expect(html).not.toContain("Layer notes");
+    expect(html).not.toContain("BTC 1w structural context: Long-term mixed.");
   });
 
   it("renders constructive and mixed states with concise titles", () => {

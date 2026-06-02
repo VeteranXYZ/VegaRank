@@ -18,6 +18,7 @@ vi.mock("next/navigation", () => ({
 import {
   buildSignalEvaluationUrl,
   buildScannerReturnHref,
+  buildSymbolMarketContextImplication,
   buildSymbolResearchSwitchHref,
   buildSymbolResearchTimeframeHref,
   buildSymbolResearchUrl,
@@ -28,6 +29,7 @@ import {
   SymbolResearchPageClient,
   SymbolWatchlistControl,
 } from "./SymbolResearchPageClient";
+import type { MarketContextResponse } from "@/components/market-context/marketContextUi";
 import type { WatchlistStorage } from "@/components/watchlist/watchlistUi";
 
 const ORIGINAL_ENV = { ...process.env };
@@ -220,6 +222,56 @@ describe("symbol research navigation helpers", () => {
   });
 });
 
+describe("symbol market context implication copy", () => {
+  it("builds display-only implication copy without changing classification", () => {
+    expect(
+      buildSymbolMarketContextImplication({
+        data: makeMarketContextResponse(),
+        selectedGroup: "risk",
+        selectedTimeframe: "4h",
+      }),
+    ).toContain(
+      "selected 4h symbol is already classified as risk, so repair should require stronger confirmation",
+    );
+
+    expect(
+      buildSymbolMarketContextImplication({
+        data: makeMarketContextResponse(),
+        selectedGroup: "eligible",
+        selectedTimeframe: "4h",
+        timeframeSnapshots: [{ timeframe: "1d", resultGroup: "risk" }],
+      }),
+    ).toContain("Higher-timeframe risk in the symbol snapshot");
+
+    expect(
+      buildSymbolMarketContextImplication({
+        data: makeMarketContextResponse({
+          context: {
+            structuralContext: "long_term_risk_on",
+            marketContext: "risk_on",
+            tacticalContext: "short_term_repair",
+            combinedContext: "bull_trend_continuation",
+            confidence: "high",
+          },
+        }),
+        selectedGroup: "eligible",
+        selectedTimeframe: "1d",
+      }),
+    ).toBe(
+      "Broader context is more supportive, but symbol-level confirmation and invalidation rules still remain primary.",
+    );
+
+    expect(
+      buildSymbolMarketContextImplication({
+        data: null,
+        isError: true,
+        selectedGroup: "eligible",
+        selectedTimeframe: "4h",
+      }),
+    ).toBe("Market context is unavailable. Symbol research data is still shown normally.");
+  });
+});
+
 describe("SymbolResearchPageClient unavailable state", () => {
   beforeEach(() => {
     pushMock.mockReset();
@@ -353,6 +405,81 @@ describe("SymbolResearchPageClient success state", () => {
     expect(html).toContain("Most recent prior observations with available forward returns.");
     expect(html).toContain("In Watchlist");
     expect(html).toContain('href="/watchlist"');
+  });
+
+  it("renders compact market context when the market context API returns valid data", () => {
+    useQueryMock.mockImplementation(
+      ({ queryKey }: { queryKey: [string, unknown] }) => {
+        const data =
+          queryKey[0] === "market-context"
+            ? makeMarketContextResponse()
+            : queryKey[0] === "signal-evaluation"
+              ? null
+              : makeSuccessResponse();
+
+        return {
+          isLoading: false,
+          isError: false,
+          isFetching: false,
+          refetch: vi.fn(),
+          data,
+        };
+      },
+    );
+
+    const html = renderToStaticMarkup(
+      createElement(SymbolResearchPageClient, {
+        exchange: "binance",
+        symbol: "SEIUSDT",
+      }),
+    );
+    const marketContextCall = useQueryMock.mock.calls.find(
+      ([options]) => options.queryKey[0] === "market-context",
+    );
+
+    expect(html).toContain("Market backdrop");
+    expect(html).toContain("Risk-oriented transition");
+    expect(html).toContain("Broader regime context is shown as a backdrop only");
+    expect(html).toContain("does not alter this symbol");
+    expect(html).toContain("Broad regime");
+    expect(html).toContain("BTC structural layer");
+    expect(html).toContain("BTC market layer");
+    expect(html).toContain("BTC tactical layer");
+    expect(html).toContain("ETH confirmation");
+    expect(html).toContain("Confidence");
+    expect(html).toContain("repair candidate");
+    expect(html).toContain("Research Decision Summary");
+    expect(marketContextCall?.[0].queryKey).toEqual(["market-context", "crypto"]);
+    expect(JSON.stringify(marketContextCall?.[0].queryKey)).not.toContain("SEIUSDT");
+  });
+
+  it("keeps decision summary and current classification visible when market context fails", () => {
+    useQueryMock.mockImplementation(
+      ({ queryKey }: { queryKey: [string, unknown] }) => ({
+        isLoading: false,
+        isError: queryKey[0] === "market-context",
+        isFetching: false,
+        refetch: vi.fn(),
+        data:
+          queryKey[0] === "signal-evaluation"
+            ? null
+            : queryKey[0] === "market-context"
+              ? undefined
+              : makeSuccessResponse(),
+      }),
+    );
+
+    const html = renderToStaticMarkup(
+      createElement(SymbolResearchPageClient, {
+        exchange: "binance",
+        symbol: "SEIUSDT",
+      }),
+    );
+
+    expect(html).toContain("Market context unavailable");
+    expect(html).toContain("Symbol research data is still shown normally");
+    expect(html).toContain("Research Decision Summary");
+    expect(html).toContain("Current Classification");
   });
 
   it("renders the Signal Evaluation card from the broad-market response", () => {
@@ -689,6 +816,51 @@ function makeSignalEvaluationHorizon(
     bestReturnPct: 8,
     worstReturnPct: -12,
     ...overrides,
+  };
+}
+
+function makeMarketContextResponse(
+  overrides: Partial<MarketContextResponse> = {},
+): MarketContextResponse {
+  const base: MarketContextResponse = {
+    ok: true,
+    assetClass: "crypto",
+    context: {
+      structuralContext: "long_term_mixed",
+      marketContext: "risk_off",
+      tacticalContext: "short_term_weakness",
+      combinedContext: "unstable_transition",
+      confidence: "medium",
+    },
+    summary: {
+      title: "Risk-oriented transition",
+      description:
+        "BTC daily and tactical contexts are risk-oriented while weekly BTC remains mixed. ETH confirms broader weakness, so short-term repairs should be reviewed with caution.",
+      researchPosture: "mixed",
+      keyPoints: [
+        "BTC 1w structural context: long term mixed.",
+        "BTC 1d market context: risk off.",
+        "BTC 4h tactical context: short term weakness.",
+        "ETH confirmation: confirms broader risk.",
+      ],
+      warnings: ["Research-only context. Not a trading signal."],
+    },
+    rules: {
+      researchOnly: true,
+    },
+  };
+
+  return {
+    ...base,
+    ...overrides,
+    context: {
+      ...base.context,
+      ...overrides.context,
+    },
+    summary: {
+      ...base.summary,
+      ...overrides.summary,
+    },
   };
 }
 

@@ -22,7 +22,7 @@ export type MarketContextResponse = {
 };
 
 export type MarketContextPanelState = {
-  data?: MarketContextResponse;
+  data?: MarketContextResponse | null;
   isLoading?: boolean;
   isError?: boolean;
 };
@@ -149,6 +149,10 @@ export function buildMarketContextPanelView({
     return buildUnavailableMarketContextView();
   }
 
+  if (!isMarketContextResponse(data)) {
+    return buildUnavailableMarketContextView();
+  }
+
   const confirmationLabel = getEthConfirmationLabel(data);
 
   return {
@@ -209,6 +213,34 @@ export function buildUnavailableMarketContextView(): MarketContextPanelView {
     ],
     unavailable: true,
   };
+}
+
+export function isMarketContextResponse(
+  value: unknown,
+): value is MarketContextResponse {
+  if (!isRecord(value) || value.ok !== true) {
+    return false;
+  }
+
+  const context = value.context;
+  const summary = value.summary;
+
+  return (
+    isRecord(context) &&
+    isRecord(summary) &&
+    isString(context.structuralContext) &&
+    isString(context.marketContext) &&
+    isString(context.tacticalContext) &&
+    isString(context.combinedContext) &&
+    isString(context.confidence) &&
+    isString(summary.title) &&
+    isString(summary.description) &&
+    isString(summary.researchPosture) &&
+    Array.isArray(summary.keyPoints) &&
+    summary.keyPoints.every(isString) &&
+    Array.isArray(summary.warnings) &&
+    summary.warnings.every(isString)
+  );
 }
 
 export function formatMarketContextLabel(value: string | null | undefined) {
@@ -354,6 +386,14 @@ function getConfirmationTone(label: string): MarketContextChip["tone"] {
   }
 
   return "neutral";
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+function isString(value: unknown): value is string {
+  return typeof value === "string";
 }
 
 function toSentenceCase(value: string) {

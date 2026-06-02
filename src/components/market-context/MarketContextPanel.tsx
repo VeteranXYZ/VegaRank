@@ -3,27 +3,47 @@ import {
   type MarketContextPanelState,
 } from "./marketContextUi";
 
+type MarketContextPanelProps = MarketContextPanelState & {
+  variant?: "full" | "compact";
+  implication?: string;
+  className?: string;
+};
+
 export function MarketContextPanel({
   data,
   isLoading = false,
   isError = false,
-}: MarketContextPanelState) {
+  variant = "full",
+  implication,
+  className,
+}: MarketContextPanelProps) {
   const view = buildMarketContextPanelView({ data, isLoading, isError });
+  const isCompact = variant === "compact";
+  const description = isCompact
+    ? getCompactDescription(view.unavailable)
+    : view.description;
+  const implicationText =
+    implication || getDefaultImplication(view.contextNote, isCompact);
 
   return (
-    <section className="border border-[var(--border)] bg-[var(--panel)] px-3 py-3 shadow-[inset_3px_0_0_rgba(56,189,248,0.28)]">
+    <section
+      className={joinClassNames(
+        "border border-[var(--border)] bg-[var(--panel)] px-3 py-3 shadow-[inset_3px_0_0_rgba(56,189,248,0.28)]",
+        className,
+      )}
+    >
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="text-[10px] font-semibold uppercase tracking-wide text-[var(--muted)]">
-            Market Context
+            {isCompact ? "Market backdrop" : "Market Context"}
           </div>
           <h2 className="mt-1 text-sm font-semibold text-[var(--foreground)]">
             {view.title}
           </h2>
           <p className="mt-1 max-w-5xl text-[11px] leading-5 text-[var(--muted)]">
-            BTC/ETH regime backdrop for research-only interpretation. This is
-            not a scanner signal and does not change rankings or
-            classifications.
+            {isCompact
+              ? "BTC/ETH proxy context for research-only interpretation. Context only; does not alter this symbol's scanner classification."
+              : "BTC/ETH regime backdrop for research-only interpretation. This is not a scanner signal and does not change rankings or classifications."}
           </p>
         </div>
         <div className="flex flex-wrap gap-1.5 text-[10px] font-semibold uppercase text-[var(--muted)]">
@@ -37,7 +57,7 @@ export function MarketContextPanel({
       </div>
 
       <p className="mt-3 max-w-6xl text-xs leading-5 text-[var(--foreground)]">
-        {view.description}
+        {description}
       </p>
 
       <div className="mt-3 flex flex-wrap gap-1.5">
@@ -56,7 +76,7 @@ export function MarketContextPanel({
         ))}
       </div>
 
-      {view.keyPoints.length > 0 ? (
+      {!isCompact && view.keyPoints.length > 0 ? (
         <div className="mt-3 border-t border-[var(--border)] pt-2">
           <div className="text-[10px] font-semibold uppercase text-[var(--muted)]">
             Layer notes
@@ -79,14 +99,34 @@ export function MarketContextPanel({
           Research implication
         </div>
         <p className="mt-1 text-[11px] leading-4 text-[var(--muted)]">
-          {view.contextNote}
-          {view.contextNote.includes("informational")
+          {implicationText}
+          {implicationText.includes("informational") || isCompact
             ? ""
             : " This context is informational and does not alter symbol-level classifications."}
         </p>
       </div>
     </section>
   );
+}
+
+function getCompactDescription(unavailable: boolean) {
+  if (unavailable) {
+    return "Market context is unavailable. Symbol research data is still shown normally.";
+  }
+
+  return "Broader regime context is shown as a backdrop only. Symbol-level signal remains primary.";
+}
+
+function getDefaultImplication(contextNote: string, isCompact: boolean) {
+  if (isCompact && contextNote.includes("informational")) {
+    return "Does not alter this symbol's scanner classification.";
+  }
+
+  return contextNote;
+}
+
+function joinClassNames(...values: Array<string | undefined>) {
+  return values.filter(Boolean).join(" ");
 }
 
 function getChipClassName(tone: "constructive" | "risk" | "mixed" | "neutral") {
