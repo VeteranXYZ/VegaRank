@@ -1,6 +1,7 @@
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
+import { MarketContextPanel } from "@/components/market-context/MarketContextPanel";
 import {
   buildMtfLatestScanUrl,
   MtfScreenerTable,
@@ -93,6 +94,60 @@ describe("MultiTimeframeScreenerTable", () => {
     expect(html).toContain("+1 more");
     expect(html).toContain("1w:");
     expect(html).toContain("Open 4h Research");
+  });
+
+  it("renders all rows without show-more or pagination behavior", () => {
+    const symbols = ["AAA", "BBB", "CCC", "DDD", "EEE", "FFF", "GGG", "HHH"];
+    const rows = buildMtfScreenerRows({
+      "4h": makeResponse(
+        "4h",
+        symbols.map((symbol, index) =>
+          makeItem({
+            symbol: `${symbol}USDT`,
+            timeframe: "4h",
+            resultGroup: index % 2 === 0 ? "watch" : "neutral",
+            rankScore: 50 + index,
+          }),
+        ),
+      ),
+    });
+    const html = renderToStaticMarkup(
+      createElement(MtfScreenerTable, { rows }),
+    );
+
+    for (const symbol of symbols) {
+      expect(html).toContain(`${symbol}USDT`);
+    }
+
+    expect(html).toContain("8 research rows");
+    expect(html).not.toContain("Show More");
+    expect(html).not.toContain("show more");
+    expect(html).not.toContain("Pagination");
+  });
+
+  it("still renders screener rows when market context is unavailable", () => {
+    const rows = buildMtfScreenerRows({
+      "4h": makeResponse("4h", [
+        makeItem({
+          symbol: "BTCUSDT",
+          timeframe: "4h",
+          resultGroup: "risk",
+          rankScore: -24,
+        }),
+      ]),
+    });
+    const html = renderToStaticMarkup(
+      createElement(
+        "div",
+        null,
+        createElement(MarketContextPanel, { isError: true }),
+        createElement(MtfScreenerTable, { rows }),
+      ),
+    );
+
+    expect(html).toContain("Market context unavailable");
+    expect(html).toContain("BTCUSDT");
+    expect(html).toContain("Matching Symbols");
   });
 });
 

@@ -1,0 +1,87 @@
+import {
+  buildMarketContextPanelView,
+  type MarketContextPanelState,
+} from "./marketContextUi";
+
+export function MarketContextPanel({
+  data,
+  isLoading = false,
+  isError = false,
+}: MarketContextPanelState) {
+  const view = buildMarketContextPanelView({ data, isLoading, isError });
+
+  return (
+    <section className="border border-[var(--border)] bg-[var(--panel)] px-3 py-3 shadow-[inset_3px_0_0_rgba(56,189,248,0.28)]">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="text-[10px] font-semibold uppercase tracking-wide text-[var(--muted)]">
+            Market Context
+          </div>
+          <h2 className="mt-1 text-sm font-semibold text-[var(--foreground)]">
+            {view.title}
+          </h2>
+          <p className="mt-1 max-w-5xl text-[11px] leading-5 text-[var(--muted)]">
+            Broader BTC/ETH context used only as a research backdrop. It does
+            not change symbol rankings or scanner classifications.
+          </p>
+        </div>
+        <div className="text-[10px] font-semibold uppercase text-[var(--muted)]">
+          Research only
+        </div>
+      </div>
+
+      <p className="mt-3 max-w-6xl text-xs leading-5 text-[var(--foreground)]">
+        {view.description}
+      </p>
+
+      <div className="mt-3 flex flex-wrap gap-1.5">
+        {view.chips.map((chip) => (
+          <span
+            key={`${chip.label}-${chip.value}`}
+            className={`inline-flex items-center gap-1 border px-2 py-1 text-[11px] ${getChipClassName(
+              chip.tone,
+            )}`}
+          >
+            <span className="font-semibold text-[var(--muted)]">
+              {chip.label}
+            </span>
+            <span>{chip.value}</span>
+          </span>
+        ))}
+      </div>
+
+      {view.keyPoints.length > 0 ? (
+        <ul className="mt-3 grid gap-1.5 md:grid-cols-2">
+          {view.keyPoints.map((point) => (
+            <li
+              key={point}
+              className="border border-[var(--border)] bg-[#080d12] px-2 py-1.5 text-[11px] leading-4 text-[var(--muted)]"
+            >
+              {point}
+            </li>
+          ))}
+        </ul>
+      ) : null}
+
+      <p className="mt-3 border-t border-[var(--border)] pt-2 text-[11px] leading-4 text-[var(--muted)]">
+        {view.contextNote}
+        {view.contextNote.includes("informational")
+          ? ""
+          : " This context is informational and does not alter symbol-level classifications."}
+      </p>
+    </section>
+  );
+}
+
+function getChipClassName(tone: "constructive" | "risk" | "mixed" | "neutral") {
+  switch (tone) {
+    case "constructive":
+      return "border-emerald-500/40 bg-emerald-500/5 text-emerald-200";
+    case "risk":
+      return "border-rose-500/45 bg-rose-500/5 text-rose-200";
+    case "mixed":
+      return "border-amber-500/45 bg-amber-500/5 text-amber-100";
+    case "neutral":
+      return "border-[var(--border)] bg-[#080d12] text-[var(--muted)]";
+  }
+}

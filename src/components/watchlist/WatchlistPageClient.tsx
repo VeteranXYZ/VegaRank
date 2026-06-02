@@ -3,6 +3,8 @@
 import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
+import { MarketContextPanel } from "@/components/market-context/MarketContextPanel";
+import { fetchMarketContext } from "@/components/market-context/marketContextUi";
 import { formatDateTime } from "@/components/scanner/latestScanUi";
 import {
   MTF_SCREENER_TIMEFRAMES,
@@ -70,6 +72,13 @@ export function WatchlistPageClient() {
     refetchOnWindowFocus: false,
     retry: false,
     staleTime: Number.POSITIVE_INFINITY,
+  });
+  const marketContextQuery = useQuery({
+    queryKey: ["market-context", assetClass],
+    queryFn: ({ signal }) => fetchMarketContext({ assetClass, signal }),
+    refetchOnWindowFocus: false,
+    retry: false,
+    staleTime: 60_000,
   });
 
   useEffect(() => {
@@ -201,6 +210,10 @@ export function WatchlistPageClient() {
   const updateSortDirection = (direction: WatchlistSortDirection) => {
     setSortState((current) => ({ ...current, direction }));
   };
+  const refreshData = () => {
+    void latestQuery.refetch();
+    void marketContextQuery.refetch();
+  };
 
   return (
     <section className="mx-auto flex min-h-[calc(100vh-1px)] max-w-[1800px] flex-col px-2 py-2">
@@ -217,14 +230,24 @@ export function WatchlistPageClient() {
           </div>
           <button
             type="button"
-            onClick={() => void latestQuery.refetch()}
-            disabled={latestQuery.isFetching}
+            onClick={refreshData}
+            disabled={latestQuery.isFetching || marketContextQuery.isFetching}
             className="h-7 border border-[var(--border)] px-2 text-[11px] font-semibold text-[var(--foreground)] disabled:cursor-not-allowed disabled:opacity-60"
           >
-            {latestQuery.isFetching ? "Refreshing" : "Refresh Data"}
+            {latestQuery.isFetching || marketContextQuery.isFetching
+              ? "Refreshing"
+              : "Refresh Data"}
           </button>
         </div>
       </header>
+
+      <div className="mb-2">
+        <MarketContextPanel
+          data={marketContextQuery.data}
+          isLoading={marketContextQuery.isLoading}
+          isError={marketContextQuery.isError}
+        />
+      </div>
 
       <div className="grid min-h-0 flex-1 gap-2 xl:grid-cols-[300px_minmax(0,1fr)]">
         <WatchlistControls

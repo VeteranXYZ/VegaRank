@@ -7,6 +7,8 @@ import {
   formatDateTime,
   formatGroupLabel,
 } from "@/components/scanner/latestScanUi";
+import { MarketContextPanel } from "@/components/market-context/MarketContextPanel";
+import { fetchMarketContext } from "@/components/market-context/marketContextUi";
 import {
   MTF_SCREENER_TIMEFRAMES,
   buildMtfScreenerRowsFromResponse,
@@ -54,6 +56,12 @@ export function MultiTimeframeScreenerPageClient() {
   const latestQuery = useQuery({
     queryKey: ["mtf-latest-screener", assetClass],
     queryFn: ({ signal }) => fetchMtfLatestScans({ signal }),
+    staleTime: 60_000,
+  });
+  const marketContextQuery = useQuery({
+    queryKey: ["market-context", assetClass],
+    queryFn: ({ signal }) => fetchMarketContext({ assetClass, signal }),
+    retry: false,
     staleTime: 60_000,
   });
   const rows = useMemo(
@@ -115,6 +123,10 @@ export function MultiTimeframeScreenerPageClient() {
     setSymbolSearch("");
     setSortState(defaultMtfScreenerSort);
   };
+  const refreshData = () => {
+    void latestQuery.refetch();
+    void marketContextQuery.refetch();
+  };
 
   return (
     <section className="mx-auto flex min-h-[calc(100vh-1px)] max-w-[1800px] flex-col px-2 py-2">
@@ -131,14 +143,24 @@ export function MultiTimeframeScreenerPageClient() {
           </div>
           <button
             type="button"
-            onClick={() => void latestQuery.refetch()}
-            disabled={latestQuery.isFetching}
+            onClick={refreshData}
+            disabled={latestQuery.isFetching || marketContextQuery.isFetching}
             className="h-7 border border-[var(--border)] px-2 text-[11px] font-semibold text-[var(--foreground)] disabled:cursor-not-allowed disabled:opacity-60"
           >
-            {latestQuery.isFetching ? "Refreshing" : "Refresh"}
+            {latestQuery.isFetching || marketContextQuery.isFetching
+              ? "Refreshing"
+              : "Refresh"}
           </button>
         </div>
       </header>
+
+      <div className="mb-2">
+        <MarketContextPanel
+          data={marketContextQuery.data}
+          isLoading={marketContextQuery.isLoading}
+          isError={marketContextQuery.isError}
+        />
+      </div>
 
       <div className="grid min-h-0 flex-1 gap-2 xl:grid-cols-[270px_minmax(0,1fr)]">
         <MtfScreenerControls

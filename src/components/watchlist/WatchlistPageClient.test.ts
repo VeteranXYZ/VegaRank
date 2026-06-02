@@ -1,6 +1,7 @@
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
+import { MarketContextPanel } from "@/components/market-context/MarketContextPanel";
 import {
   WatchlistSummaryCards,
   WatchlistResearchSummaryPanel,
@@ -131,6 +132,42 @@ describe("WatchlistPageClient", () => {
     expect(html).toContain("8 watchlist rows");
     expect(html).not.toContain("Show More");
     expect(html).not.toContain("show more");
+    expect(html).not.toContain("Pagination");
+  });
+
+  it("still renders watchlist rows when market context is unavailable", () => {
+    const rows = buildWatchlistRows(
+      ["BTC", "ETH"],
+      buildMtfScreenerRows({
+        "4h": makeResponse("4h", [
+          makeItem({
+            symbol: "BTCUSDT",
+            timeframe: "4h",
+            resultGroup: "risk",
+            rankScore: -24,
+          }),
+          makeItem({
+            symbol: "ETHUSDT",
+            timeframe: "4h",
+            resultGroup: "risk",
+            rankScore: -20,
+          }),
+        ]),
+      }),
+    );
+    const html = renderToStaticMarkup(
+      createElement(
+        "div",
+        null,
+        createElement(MarketContextPanel, { isError: true }),
+        createElement(WatchlistTable, { rows }),
+      ),
+    );
+
+    expect(html).toContain("Market context unavailable");
+    expect(html).toContain("BTCUSDT");
+    expect(html).toContain("ETHUSDT");
+    expect(html).toContain("Selected Symbols");
   });
 
   it("renders compact remove actions when a row removal handler is provided", () => {
