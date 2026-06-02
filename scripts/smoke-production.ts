@@ -7,7 +7,7 @@ type SmokeMessage = {
   title: string;
   details: string[];
 };
-type FetchLike = (
+export type FetchLike = (
   input: string,
   init?: { method: "GET" },
 ) => Promise<{
