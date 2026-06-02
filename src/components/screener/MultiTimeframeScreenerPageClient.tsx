@@ -137,8 +137,8 @@ export function MultiTimeframeScreenerPageClient() {
               Multi-Timeframe Screener
             </h1>
             <p className="mt-1 max-w-3xl text-[11px] leading-5 text-[var(--muted)]">
-              Research-only, not financial advice view joining latest selected
-              1h, 4h, 1d, and 1w scan states for Binance USDT crypto symbols.
+              Research-only MTF view for Binance USDT crypto symbols. All
+              matching rows remain visible by default.
             </p>
           </div>
           <button
@@ -541,11 +541,11 @@ function MtfScreenerSourcePanel({
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
           <h2 className="text-xs font-semibold text-[var(--foreground)]">
-            Data Source
+            Data Source / Run Freshness
           </h2>
           <p className="mt-1 text-[11px] text-[var(--muted)]">
-            Full latest-run screener API, asset class crypto, joined across 1h,
-            4h, 1d, and 1w.
+            Latest selected crypto scanner runs joined across 1h, 4h, 1d, and
+            1w.
           </p>
         </div>
         <div className="text-[11px] text-[var(--muted)]">
@@ -653,7 +653,16 @@ function RiskNotesCell({ row }: { row: MtfScreenerRow }) {
 
   return (
     <div className="space-y-1 leading-4">
-      <span>{summary.visibleNotes.join("; ")}</span>
+      <div className="flex flex-wrap gap-1">
+        {summary.visibleNotes.map((note) => (
+          <span
+            key={note}
+            className="border border-[var(--border)] bg-[#080d12] px-1.5 py-0.5"
+          >
+            {note}
+          </span>
+        ))}
+      </div>
       {summary.hiddenCount > 0 ? (
         <details className="text-[10px] text-[var(--muted)]">
           <summary className="cursor-pointer text-[var(--foreground)]">

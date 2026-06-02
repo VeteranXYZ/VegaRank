@@ -16,7 +16,14 @@ describe("MarketContextPanel", () => {
     expect(html).toContain("Risk-oriented transition");
     expect(html).toContain("Confirms broader risk");
     expect(html).toContain("Medium confidence");
-    expect(html).toContain("does not change symbol rankings");
+    expect(html).toContain("Broad regime");
+    expect(html).toContain("BTC structural layer");
+    expect(html).toContain("BTC market layer");
+    expect(html).toContain("BTC tactical layer");
+    expect(html).toContain("ETH confirmation");
+    expect(html).toContain("Research implication");
+    expect(html).toContain("Backdrop, not signal");
+    expect(html).toContain("does not change rankings");
     expect(html).toContain("does not alter symbol-level classifications");
   });
 

@@ -66,7 +66,15 @@ describe("marketContextUi", () => {
     expect(view.chips).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
-          label: "Confirmation",
+          label: "Broad regime",
+          value: "Risk-oriented transition",
+        }),
+        expect.objectContaining({
+          label: "BTC structural layer",
+          value: "Long-term mixed",
+        }),
+        expect.objectContaining({
+          label: "ETH confirmation",
           value: "Confirms broader risk",
         }),
         expect.objectContaining({

@@ -21,12 +21,18 @@ export function MarketContextPanel({
             {view.title}
           </h2>
           <p className="mt-1 max-w-5xl text-[11px] leading-5 text-[var(--muted)]">
-            Broader BTC/ETH context used only as a research backdrop. It does
-            not change symbol rankings or scanner classifications.
+            BTC/ETH regime backdrop for research-only interpretation. This is
+            not a scanner signal and does not change rankings or
+            classifications.
           </p>
         </div>
-        <div className="text-[10px] font-semibold uppercase text-[var(--muted)]">
-          Research only
+        <div className="flex flex-wrap gap-1.5 text-[10px] font-semibold uppercase text-[var(--muted)]">
+          <span className="border border-[var(--border)] px-1.5 py-0.5">
+            Research-only
+          </span>
+          <span className="border border-[var(--border)] px-1.5 py-0.5">
+            Backdrop, not signal
+          </span>
         </div>
       </div>
 
@@ -51,7 +57,11 @@ export function MarketContextPanel({
       </div>
 
       {view.keyPoints.length > 0 ? (
-        <ul className="mt-3 grid gap-1.5 md:grid-cols-2">
+        <div className="mt-3 border-t border-[var(--border)] pt-2">
+          <div className="text-[10px] font-semibold uppercase text-[var(--muted)]">
+            Layer notes
+          </div>
+          <ul className="mt-2 grid gap-1.5 md:grid-cols-2">
           {view.keyPoints.map((point) => (
             <li
               key={point}
@@ -60,15 +70,21 @@ export function MarketContextPanel({
               {point}
             </li>
           ))}
-        </ul>
+          </ul>
+        </div>
       ) : null}
 
-      <p className="mt-3 border-t border-[var(--border)] pt-2 text-[11px] leading-4 text-[var(--muted)]">
-        {view.contextNote}
-        {view.contextNote.includes("informational")
-          ? ""
-          : " This context is informational and does not alter symbol-level classifications."}
-      </p>
+      <div className="mt-3 border-t border-[var(--border)] pt-2">
+        <div className="text-[10px] font-semibold uppercase text-[var(--muted)]">
+          Research implication
+        </div>
+        <p className="mt-1 text-[11px] leading-4 text-[var(--muted)]">
+          {view.contextNote}
+          {view.contextNote.includes("informational")
+            ? ""
+            : " This context is informational and does not alter symbol-level classifications."}
+        </p>
+      </div>
     </section>
   );
 }

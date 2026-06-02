@@ -133,7 +133,7 @@ export function buildMarketContextPanelView({
         description:
           "Loading broader BTC/ETH research backdrop. Screener and watchlist data are still shown normally.",
         contextNote:
-          "This context is informational and does not alter symbol-level classifications.",
+          "Market context is loading as a backdrop only; symbol-level data remains visible.",
         keyPoints: [],
         chips: [
           {
@@ -158,22 +158,27 @@ export function buildMarketContextPanelView({
     keyPoints: formatMarketContextKeyPoints(data.summary.keyPoints),
     chips: [
       {
-        label: "Structural",
+        label: "Broad regime",
+        value: formatMarketContextLabel(data.context.combinedContext),
+        tone: getContextTone(data.context.combinedContext),
+      },
+      {
+        label: "BTC structural layer",
         value: formatMarketContextLabel(data.context.structuralContext),
         tone: getContextTone(data.context.structuralContext),
       },
       {
-        label: "Market",
+        label: "BTC market layer",
         value: formatMarketContextLabel(data.context.marketContext),
         tone: getContextTone(data.context.marketContext),
       },
       {
-        label: "Tactical",
+        label: "BTC tactical layer",
         value: formatMarketContextLabel(data.context.tacticalContext),
         tone: getContextTone(data.context.tacticalContext),
       },
       {
-        label: "Confirmation",
+        label: "ETH confirmation",
         value: confirmationLabel,
         tone: getConfirmationTone(confirmationLabel),
       },
@@ -274,7 +279,7 @@ function getMarketContextPanelNote(data: MarketContextResponse) {
   }
 
   if (data.context.combinedContext === "bull_trend_continuation") {
-    return "This is research context only and does not turn scanner results into trade instructions.";
+    return "This is research context only and does not convert scanner results into instructions.";
   }
 
   if (data.context.combinedContext === "mixed_transition") {

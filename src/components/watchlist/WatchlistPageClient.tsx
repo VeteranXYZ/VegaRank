@@ -224,8 +224,8 @@ export function WatchlistPageClient() {
               Watchlist Multi-Timeframe
             </h1>
             <p className="mt-1 max-w-3xl text-[11px] leading-5 text-[var(--muted)]">
-              Research-only view for selected Binance USDT crypto symbols
-              across 1h, 4h, 1d, and 1w latest scan states.
+              Research-only MTF view for selected Binance USDT crypto symbols.
+              All selected symbols remain visible by default.
             </p>
           </div>
           <button
@@ -466,6 +466,9 @@ export function WatchlistResearchSummaryPanel({
             <h2 className="text-xs font-semibold text-[var(--foreground)]">
               Watchlist Research Summary
             </h2>
+            <span className="border border-[var(--border)] px-1.5 py-0.5 text-[10px] font-semibold uppercase text-[var(--muted)]">
+              Research-only
+            </span>
             <span className="border border-[var(--border)] px-1.5 py-0.5 text-[11px] font-semibold text-[var(--foreground)]">
               {summary.conditionLabel}
             </span>
@@ -497,12 +500,12 @@ export function WatchlistResearchSummaryPanel({
 
       <div className="mt-3 grid gap-4 border-t border-[var(--border)] pt-3 lg:grid-cols-3">
         <ResearchSummaryList
-          title="Best Research Candidates"
-          emptyText="No clear short-term watch states."
+          title="Manual Review Candidates"
+          emptyText="No high-priority manual-review states."
           items={summary.bestResearchCandidates}
         />
         <ResearchSummaryList
-          title="Highest Risk / Avoid-First"
+          title="Risk-First Review"
           emptyText="No concentrated risk flags."
           items={summary.highestRiskSymbols}
         />
@@ -803,11 +806,10 @@ function WatchlistSourcePanel({
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
           <h2 className="text-xs font-semibold text-[var(--foreground)]">
-            Data Source
+            Data Source / Run Freshness
           </h2>
           <p className="mt-1 text-[11px] text-[var(--muted)]">
-            Latest multi-timeframe API, asset class crypto, filtered to the
-            saved watchlist.
+            Latest selected crypto scanner runs joined across watchlist symbols.
           </p>
         </div>
         <div className="text-[11px] text-[var(--muted)]">
@@ -866,7 +868,9 @@ function ResearchSummaryList({
                   {item.symbol}
                 </span>
                 <span className="text-[10px] uppercase text-[var(--muted)]">
-                  {item.timeframe ? `${item.timeframe} research` : "Research only"}
+                  {item.timeframe
+                    ? `${item.timeframe} manual review`
+                    : "Research-only"}
                 </span>
               </div>
               <p className="mt-0.5 text-[11px] leading-4 text-[var(--muted)]">
@@ -968,7 +972,16 @@ function RiskNotesCell({ row }: { row: WatchlistRow }) {
 
   return (
     <div className="space-y-1 leading-4">
-      <span>{summary.visibleNotes.join("; ")}</span>
+      <div className="flex flex-wrap gap-1">
+        {summary.visibleNotes.map((note) => (
+          <span
+            key={note}
+            className="border border-[var(--border)] bg-[#080d12] px-1.5 py-0.5"
+          >
+            {note}
+          </span>
+        ))}
+      </div>
       {summary.hiddenCount > 0 ? (
         <details className="text-[10px] text-[var(--muted)]">
           <summary className="cursor-pointer text-[var(--foreground)]">

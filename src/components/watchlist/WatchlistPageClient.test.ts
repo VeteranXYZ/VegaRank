@@ -59,7 +59,12 @@ describe("WatchlistPageClient", () => {
 
     expect(html).toContain("Total selected symbols");
     expect(html).toContain("Watchlist Research Summary");
+    expect(html).toContain("Research-only");
     expect(html).toContain("Research posture");
+    expect(html).toContain("Manual Review Candidates");
+    expect(html).toContain("Risk-First Review");
+    expect(html).toContain("Data Gaps");
+    expect(html).not.toContain("Best Research Candidates");
     expect(html).toContain("Selected Symbols");
     expect(html).toContain("BTCUSDT");
     expect(html).toContain("SEIUSDT");
