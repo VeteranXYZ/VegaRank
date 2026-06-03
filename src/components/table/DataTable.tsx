@@ -125,20 +125,20 @@ export function DataTableHeaderCell<TKey extends string>({
                 : "justify-start"
           } ${
             isActive
-              ? "border-[var(--accent-border)] bg-[var(--accent-soft)] text-[var(--foreground)] shadow-[inset_0_-2px_0_var(--accent)]"
-              : "border-transparent text-[var(--muted)] hover:border-[var(--border-strong)] hover:bg-[var(--panel-elevated)] hover:text-[var(--foreground)]"
+              ? "border-[var(--accent-border)] bg-[var(--panel)] text-[var(--foreground)] shadow-[inset_0_-2px_0_var(--accent)]"
+              : "border-transparent text-[var(--muted)] hover:border-[var(--border-medium)] hover:bg-[var(--panel)] hover:text-[var(--foreground)]"
           }`}
         >
           <span className="truncate">{children}</span>
           <span
             aria-hidden="true"
-            className={`min-w-7 text-right text-[9px] font-bold ${
+            className={`min-w-4 text-right text-[9px] font-bold ${
               isActive ? "text-[var(--accent)]" : "text-[var(--muted-2)]"
             }`}
           >
             {isActive && sortState
               ? formatDataSortDirection(sortState.direction)
-              : "SORT"}
+              : "\u2195"}
           </span>
         </button>
       ) : (
@@ -163,7 +163,7 @@ export function DataTableCell({
 }) {
   return (
     <td
-      className={`h-[var(--table-row-height)] max-w-0 px-2 py-1.5 align-middle text-[11px] leading-4 text-[var(--muted)] ${alignClass[align]} ${className}`}
+      className={`h-[var(--table-row-height)] max-w-0 px-2 py-1 align-middle text-[11px] leading-4 text-[var(--muted)] ${alignClass[align]} ${className}`}
     >
       {truncate ? (
         <div className="truncate" title={title}>

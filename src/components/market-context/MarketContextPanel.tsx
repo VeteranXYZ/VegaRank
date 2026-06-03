@@ -28,7 +28,7 @@ export function MarketContextPanel({
   return (
     <section
       className={joinClassNames(
-        "border border-l-4 border-[var(--border)] border-l-[var(--info)] bg-[var(--panel)] px-3 py-3 shadow-[var(--shadow-panel)]",
+        "border border-l-4 border-[var(--border)] border-l-[var(--info)] bg-[var(--panel)] px-3 py-2.5 shadow-[var(--shadow-panel)]",
         className,
       )}
     >
@@ -40,7 +40,7 @@ export function MarketContextPanel({
           <h2 className="mt-1 text-sm font-semibold text-[var(--foreground)]">
             {view.title}
           </h2>
-          <p className="mt-1 max-w-5xl text-[11px] leading-5 text-[var(--muted)]">
+          <p className="mt-1 max-w-4xl text-[11px] leading-5 text-[var(--muted)]">
             {isCompact
               ? "BTC/ETH proxy context for research-only interpretation. Context only; does not alter this symbol's scanner classification."
               : "BTC/ETH regime backdrop for research-only interpretation. This is not a scanner signal and does not change rankings or classifications."}
@@ -56,15 +56,15 @@ export function MarketContextPanel({
         </div>
       </div>
 
-      <p className="mt-3 max-w-6xl text-xs leading-5 text-[var(--foreground)]">
+      <p className="mt-2 max-w-5xl text-xs leading-5 text-[var(--foreground)]">
         {description}
       </p>
 
-      <div className="mt-3 flex flex-wrap gap-1.5">
+      <div className="mt-2 flex flex-wrap gap-1.5">
         {view.chips.map((chip) => (
           <span
             key={`${chip.label}-${chip.value}`}
-            className={`inline-flex items-center gap-1 border px-2 py-1 text-[11px] ${getChipClassName(
+            className={`inline-flex items-center gap-1 border px-1.5 py-0.5 text-[11px] ${getChipClassName(
               chip.tone,
             )}`}
           >
@@ -77,15 +77,15 @@ export function MarketContextPanel({
       </div>
 
       {!isCompact && view.keyPoints.length > 0 ? (
-        <div className="mt-3 border-t border-[var(--border)] pt-2">
+        <div className="mt-2 border-t border-[var(--border)] pt-2">
           <div className="text-[10px] font-semibold uppercase text-[var(--muted)]">
             Layer notes
           </div>
-          <ul className="mt-2 grid gap-1.5 md:grid-cols-2">
+          <ul className="mt-1.5 grid gap-1.5 md:grid-cols-2">
           {view.keyPoints.map((point) => (
             <li
               key={point}
-              className="border border-[var(--border)] bg-[var(--panel-2)] px-2 py-1.5 text-[11px] leading-4 text-[var(--muted)]"
+              className="border-l-2 border-l-[var(--info)] bg-[var(--panel)] px-2 py-1 text-[11px] leading-4 text-[var(--muted)]"
             >
               {point}
             </li>
@@ -94,7 +94,7 @@ export function MarketContextPanel({
         </div>
       ) : null}
 
-      <div className="mt-3 border-t border-[var(--border)] pt-2">
+      <div className="mt-2 border-t border-[var(--border)] pt-2">
         <div className="text-[10px] font-semibold uppercase text-[var(--muted)]">
           Research implication
         </div>

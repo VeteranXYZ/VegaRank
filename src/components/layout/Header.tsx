@@ -17,8 +17,8 @@ export function Header() {
   const pathname = usePathname();
 
   return (
-    <header className="sticky top-0 z-40 border-b border-[var(--border)] bg-[var(--header-bg)] shadow-[var(--shadow-panel)] backdrop-blur">
-      <div className="mx-auto flex min-h-10 max-w-[1800px] flex-wrap items-center justify-between gap-2 px-2 py-1 sm:px-3">
+    <header className="sticky top-0 z-40 border-b border-[var(--border)] bg-[var(--header-bg)] backdrop-blur">
+      <div className="mx-auto flex min-h-9 max-w-[1760px] flex-wrap items-center justify-between gap-2 px-2 py-1 sm:px-3">
         <Link
           href="/"
           className="flex items-center gap-2 text-[13px] font-semibold leading-none text-[var(--foreground)]"
@@ -41,7 +41,7 @@ export function Header() {
                 href={item.href}
                 className={`border px-2 py-1 transition ${
                   isActive
-                    ? "border-[var(--accent-border)] bg-[var(--accent-soft)] text-[var(--accent)] shadow-[inset_0_-2px_0_var(--accent)]"
+                  ? "border-[var(--accent-border)] bg-[var(--panel)] text-[var(--accent)] shadow-[inset_0_-2px_0_var(--accent)]"
                     : "border-transparent hover:border-[var(--border-medium)] hover:bg-[var(--row-hover)] hover:text-[var(--foreground)]"
                 }`}
               >

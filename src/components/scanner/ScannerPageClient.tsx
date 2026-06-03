@@ -231,7 +231,7 @@ export function ScannerPageClient() {
   }
 
   return (
-    <section className="mx-auto flex min-h-[calc(100vh-1px)] max-w-[1800px] flex-col px-2 py-2">
+    <section className="mx-auto flex min-h-[calc(100vh-1px)] max-w-[1760px] flex-col bg-[var(--workspace-background)] px-2 py-2">
       <div className="mb-1.5 border border-l-4 border-[var(--border)] border-l-[var(--accent)] bg-[var(--panel)] px-2.5 py-1.5 font-mono shadow-[var(--shadow-panel)]">
         <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] leading-5 text-[var(--muted)]">
           <h1 className="mr-1 text-sm font-semibold text-[var(--foreground)]">

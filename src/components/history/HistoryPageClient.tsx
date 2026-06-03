@@ -59,9 +59,9 @@ const historyObservationReadinessQueryName =
 const historySnapshotObservationsQueryName =
   "history-snapshot-observations";
 export const recentRunsPanelClassName =
-  "border border-[var(--border)] bg-[var(--panel)] p-3 shadow-[var(--shadow-panel)] xl:sticky xl:top-12 xl:flex xl:max-h-[calc(100vh-2rem)] xl:flex-col xl:overflow-hidden";
+  "border border-[var(--border)] bg-[var(--panel)] p-2.5 shadow-[var(--shadow-panel)] xl:sticky xl:top-12 xl:flex xl:max-h-[calc(100vh-2rem)] xl:flex-col xl:overflow-hidden";
 export const recentRunsScrollContainerClassName =
-  "space-y-2 pr-1 xl:min-h-0 xl:flex-1 xl:overflow-y-auto xl:overscroll-contain xl:border xl:border-[var(--border)] xl:bg-[var(--panel-muted)] xl:p-2";
+  "space-y-1.5 pr-1 xl:min-h-0 xl:flex-1 xl:overflow-y-auto xl:overscroll-contain";
 const unsafePrimarySignalLabelMap: Record<string, string> = {
   "do not chase": "Overheated caution",
   avoid: "Risk review",
@@ -600,14 +600,16 @@ export function HistoryPageClient() {
         ]}
       />
 
-      <PageSection
-        title="Timeframe"
-        description="Single-timeframe stored scan runs only."
-        className="mb-2"
-        tone="neutral"
-        bodyClassName="px-3 py-2"
-      >
-        <div className="flex flex-wrap items-center gap-1 border border-[var(--border)] bg-[var(--panel-muted)] p-1">
+      <div className="mb-2 flex flex-wrap items-center gap-3 border border-[var(--border)] bg-[var(--panel)] px-3 py-2">
+        <div>
+          <h2 className="text-[11px] font-semibold uppercase text-[var(--muted)]">
+            Timeframe
+          </h2>
+          <p className="text-[11px] text-[var(--muted)]">
+            Single-timeframe stored scan runs only.
+          </p>
+        </div>
+        <div className="flex flex-wrap items-center gap-1 border border-[var(--border)] bg-[var(--panel)] p-1">
           {HISTORY_TIMEFRAMES.map((option) => (
             <button
               key={option}
@@ -624,11 +626,11 @@ export function HistoryPageClient() {
             </button>
           ))}
         </div>
-      </PageSection>
+      </div>
 
       <ResearchWorkflowSummary />
 
-      <div className="grid gap-3 xl:grid-cols-[340px_minmax(0,1fr)] xl:items-start">
+      <div className="grid gap-3 xl:grid-cols-[300px_minmax(0,1fr)] xl:items-start">
         <RecentSuccessfulRunsPanel
           timeframe={timeframe}
           snapshots={snapshots}
@@ -659,7 +661,7 @@ export function HistoryPageClient() {
               ) : null
             }
           >
-            <ResearchNotice tone="info" className="mb-3">
+            <ResearchNotice tone="info" className="mb-2">
               Forward Observation may use a different mature observation run.
               Snapshot Rows remain tied to this selected snapshot.
             </ResearchNotice>
@@ -679,11 +681,12 @@ export function HistoryPageClient() {
                 message="Select a successful run to review its stored snapshot."
               />
             ) : (
-              <div className="grid gap-2 md:grid-cols-3 xl:grid-cols-4">
-                {summaryItems.map((item) => (
-                  <Metric key={item.label} label={item.label} value={item.value} />
-                ))}
-              </div>
+              <MetadataStrip
+                items={summaryItems.map((item, index) => ({
+                  ...item,
+                  tone: (index < 2 ? "accent" : "neutral") as StatusTone,
+                }))}
+              />
             )}
           </PageSection>
 
@@ -704,17 +707,22 @@ export function HistoryPageClient() {
 
 function ResearchWorkflowSummary() {
   return (
-    <PageSection
-      title="History Research Workflow"
-      description="Read the page as selected snapshot first, mature observation context second. Observation metrics and Observation Rows use the Forward Observation run; Snapshot Rows stay tied to the selected run."
-      className="mb-2"
-      tone="observation"
-    >
-      <div className="grid gap-2 md:grid-cols-5">
+    <section className="mb-2 border border-l-4 border-[var(--border)] border-l-[var(--section-observation)] bg-[var(--panel)] px-3 py-2">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h2 className="text-[13px] font-semibold">History Research Workflow</h2>
+          <p className="mt-1 max-w-5xl text-[11px] leading-5 text-[var(--muted)]">
+            Read the page as selected snapshot first, mature observation context
+            second. Observation metrics and Observation Rows use the Forward
+            Observation run; Snapshot Rows stay tied to the selected run.
+          </p>
+        </div>
+      </div>
+      <div className="mt-2 grid gap-2 md:grid-cols-5">
         {historyWorkflowSteps.map((step) => (
           <div
             key={step.label}
-            className="border border-[var(--border)] bg-[var(--panel-muted)] p-2.5"
+            className="border-l-2 border-l-[var(--section-observation)] bg-[var(--panel)] py-1 pl-2 pr-1"
           >
             <p className="text-[11px] font-semibold text-[var(--foreground)]">
               {step.label}
@@ -725,7 +733,7 @@ function ResearchWorkflowSummary() {
           </div>
         ))}
       </div>
-    </PageSection>
+    </section>
   );
 }
 
@@ -758,7 +766,7 @@ export function RecentSuccessfulRunsPanel({
       data-testid="recent-runs-panel"
       aria-label="Recent successful runs"
     >
-      <div className="mb-3 shrink-0 border-b border-[var(--border)] pb-2">
+      <div className="mb-2 shrink-0 border-b border-[var(--border)] pb-2">
         <div className="flex items-center justify-between gap-2">
           <h2 className="text-sm font-semibold">Recent Successful Runs</h2>
           <StatusBadge tone="accent">{timeframe}</StatusBadge>
@@ -830,7 +838,7 @@ export function RecentSuccessfulRunsPanel({
                     ))}
                   </div>
                 ) : null}
-                <div className="mt-2 grid grid-cols-2 gap-x-2 gap-y-1 text-[11px] text-[var(--muted)]">
+                <div className="mt-2 grid grid-cols-2 gap-x-2 gap-y-1 text-[10px] text-[var(--muted)]">
                   <span>Scanned {formatCount(run.symbolsScanned)}</span>
                   <span>Signals {formatCount(run.signalsCreated)}</span>
                   <span>Skipped {formatCount(run.skipped)}</span>
@@ -881,17 +889,17 @@ function formatRecentRunCardClassName(
   isSelected: boolean,
 ) {
   const base =
-    "w-full border p-2.5 text-left transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent)]";
+    "w-full border border-l-4 p-2 text-left transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent)]";
 
   if (isSelected) {
-    return `${base} border-[var(--accent)] bg-[var(--accent-soft)]`;
+    return `${base} border-[var(--accent)] border-l-[var(--accent)] bg-[var(--panel)] shadow-[inset_0_-2px_0_var(--accent)]`;
   }
 
   if (run.isLikelyFullUniverse === true) {
-    return `${base} border-[var(--border)] bg-[var(--panel)] hover:border-[var(--border-strong)] hover:bg-[var(--row-hover)]`;
+    return `${base} border-[var(--border)] border-l-[var(--complete)] bg-[var(--panel)] hover:border-[var(--border-strong)] hover:bg-[var(--row-hover)]`;
   }
 
-  return `${base} border-[var(--border)] bg-[var(--panel)] opacity-75 hover:border-[var(--border-strong)] hover:opacity-100`;
+  return `${base} border-[var(--border)] border-l-[var(--partial)] bg-[var(--panel)] opacity-75 hover:border-[var(--border-strong)] hover:opacity-100`;
 }
 
 function getRecentRunBadgeTone(badge: string) {
@@ -1014,7 +1022,7 @@ export function ForwardObservationSection({
       description="Observation source and historical metrics. Research-only, not predictions. If the selected stored run is not mature yet, this section may use the latest mature full-universe run for observation metrics."
       tone="observation"
       actions={
-        <div className="flex border border-[var(--border)] bg-[var(--panel-muted)] p-1">
+        <div className="flex border border-[var(--border)] bg-[var(--panel)] p-1">
           {OBSERVATION_WINDOWS.map((option) => (
             <button
               key={option}
@@ -1033,7 +1041,7 @@ export function ForwardObservationSection({
         </div>
       }
     >
-      <div className="mb-3 flex flex-wrap items-center gap-2">
+      <div className="mb-2 flex flex-wrap items-center gap-2">
         <StatusBadge
           tone={
             uiState.status === "observation_ready"
@@ -1052,24 +1060,24 @@ export function ForwardObservationSection({
       </div>
 
       {summary || observationRun || selectedReadinessRun || readiness ? (
-        <MetadataStrip items={observationMetadata} className="mb-3" />
+        <MetadataStrip items={observationMetadata} className="mb-2" />
       ) : null}
 
       {observationRun ? (
-        <ResearchNotice tone="info" className="mb-3">
+        <ResearchNotice tone="info" className="mb-2">
           Observation Summary, Research Takeaways, and Observation Rows use this
           observation run. Snapshot Rows remain tied to the selected snapshot.
         </ResearchNotice>
       ) : null}
 
       {readyContextNote ? (
-        <ResearchNotice tone="warning" className="mb-3">
+        <ResearchNotice tone="warning" className="mb-2">
           {readyContextNote}
         </ResearchNotice>
       ) : null}
 
       {summary && !showObservationSummary ? (
-        <div className="mb-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-7">
+        <div className="mb-2 grid gap-x-4 gap-y-2 sm:grid-cols-2 lg:grid-cols-7">
           <Metric label="Window" value={`${summary.window} candles`} />
           <Metric label="Timeframe" value={summary.timeframe} />
           <Metric label="Total Rows" value={formatCount(summary.totalRows)} />
@@ -1150,7 +1158,7 @@ export function ObservationRowsTable({
 
   return (
     <div className="border-t border-[var(--border)] pt-3">
-      <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+      <div className="mb-2 flex flex-wrap items-center justify-between gap-3">
         <div>
           <h3 className="text-sm font-semibold">Observation Rows</h3>
           <p className="mt-1 text-xs text-[var(--muted)]">
@@ -1165,8 +1173,8 @@ export function ObservationRowsTable({
         </StatusBadge>
       </div>
 
-      <div className="mb-3 border border-[var(--border)] bg-[var(--panel-muted)] p-3">
-        <div className="grid gap-3 lg:grid-cols-2">
+      <div className="mb-2 border border-[var(--border)] bg-[var(--panel)] px-2 py-2">
+        <div className="grid gap-2 lg:grid-cols-2">
           <ObservationRowsFilterGroup
             label="Data status"
             options={observationRowsDataStatusFilters}
@@ -1180,13 +1188,13 @@ export function ObservationRowsTable({
             onSelect={(value) => setGroupFilter(value)}
           />
         </div>
-        <p className="mt-3 text-[11px] leading-5 text-[var(--muted)]">
+        <p className="mt-2 text-[11px] leading-5 text-[var(--muted)]">
           {formatObservationRowsFilterCount({
             visibleCount: visibleRows.length,
             totalCount: rows.length,
           })}
         </p>
-        <p className="mt-1 text-[11px] leading-5 text-[var(--muted)]">
+        <p className="mt-0.5 text-[11px] leading-5 text-[var(--muted)]">
           Filters only change the Observation Rows table view. They do not
           change summary metrics.
         </p>
@@ -1572,13 +1580,13 @@ function ForwardObservationStatePanel({
       readiness?.recommendedRun !== null);
 
   return (
-    <div className="border border-[var(--border)] bg-[var(--panel-muted)] p-3">
+    <div className="border-l-2 border-l-[var(--section-summary)] bg-[var(--panel)] py-1 pl-3 pr-2">
       <h3 className="text-sm font-semibold">{title}</h3>
       <p className="mt-1 max-w-3xl text-xs leading-5 text-[var(--muted)]">
         {message}
       </p>
       {showDiagnostics ? (
-        <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="mt-3 grid gap-x-4 gap-y-2 sm:grid-cols-2 lg:grid-cols-4">
           {summary ? (
             <Metric label="Window" value={`${summary.window} candles`} />
           ) : null}
@@ -1683,7 +1691,7 @@ function ForwardObservationStatePanel({
 
 function ObservationDataStatusLegend() {
   return (
-    <div className="mb-3 border border-l-4 border-[var(--border)] border-l-[var(--section-rows)] bg-[var(--section-rows-bg)] p-3 text-xs leading-5 text-[var(--muted)]">
+    <div className="mb-3 border border-l-4 border-[var(--border)] border-l-[var(--section-rows)] bg-[var(--panel)] px-3 py-2 text-xs leading-5 text-[var(--muted)]">
       <p className="font-semibold text-[var(--foreground)]">Data status</p>
       <p className="mt-1">
         Complete means enough future candles exist for the selected forward
@@ -1708,7 +1716,7 @@ function ObservationSummarySection({
   });
 
   return (
-    <section className="mb-3 border border-l-4 border-[var(--border)] border-l-[var(--section-summary)] bg-[var(--section-summary-bg)] p-3">
+    <section className="mb-3 border border-l-4 border-[var(--border)] border-l-[var(--section-summary)] bg-[var(--panel)] p-3">
       <div className="mb-3">
         <h3 className="text-sm font-semibold">Observation Summary</h3>
         <p className="mt-1 max-w-3xl text-xs leading-5 text-[var(--muted)]">
@@ -1719,7 +1727,7 @@ function ObservationSummarySection({
         </p>
       </div>
 
-      <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-x-4 gap-y-2 sm:grid-cols-2 lg:grid-cols-4">
         <Metric label="Rows observed" value={formatCount(summary.totalRows)} tone="info" />
         <Metric
           label="Complete"
@@ -1784,7 +1792,7 @@ function ObservationSummarySection({
 
 function ResearchTakeaways({ takeaways }: { takeaways: string[] }) {
   return (
-    <div className="mt-4 border border-l-4 border-[var(--border)] border-l-[var(--section-takeaway)] bg-[var(--section-takeaway-bg)] p-3">
+    <div className="mt-3 border border-l-4 border-[var(--border)] border-l-[var(--section-takeaway)] bg-[var(--panel)] p-3">
       <h4 className="text-sm font-semibold">Research Takeaways</h4>
       <ul className="mt-2 list-disc space-y-1 pl-4 text-xs leading-5 text-[var(--muted)]">
         {takeaways.map((takeaway) => (
@@ -2000,7 +2008,7 @@ function NotableExampleList({
           {examples.map((example) => (
             <li
               key={`${title}-${example.symbol}`}
-              className="border border-[var(--border)] bg-[var(--panel-muted)] p-2 text-xs"
+              className="border-t border-[var(--border)] py-2 text-xs first:border-t-0"
             >
               <div className="flex items-start justify-between gap-2">
                 <span className="font-semibold">{example.symbol}</span>

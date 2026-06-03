@@ -364,7 +364,7 @@ export function SymbolResearchPageClient({
 
   if (query.isLoading) {
     return (
-      <main className="mx-auto w-full max-w-[1800px] px-2 py-2 text-[var(--foreground)] sm:px-3">
+      <main className="mx-auto w-full max-w-[1760px] bg-[var(--workspace-background)] px-2 py-2 text-[var(--foreground)] sm:px-3">
         <SymbolResearchNavigation
           key={normalizedSymbol}
           exchange={exchange}
@@ -393,7 +393,7 @@ export function SymbolResearchPageClient({
     const errorMessage = getSymbolResearchErrorDisplayMessage(query.error);
 
     return (
-      <main className="mx-auto w-full max-w-[1800px] px-2 py-2 text-[var(--foreground)] sm:px-3">
+      <main className="mx-auto w-full max-w-[1760px] bg-[var(--workspace-background)] px-2 py-2 text-[var(--foreground)] sm:px-3">
         <SymbolResearchNavigation
           key={normalizedSymbol}
           exchange={exchange}
@@ -421,7 +421,7 @@ export function SymbolResearchPageClient({
 
   if (!data) {
     return (
-      <main className="mx-auto w-full max-w-[1800px] px-2 py-2 text-[var(--foreground)] sm:px-3">
+      <main className="mx-auto w-full max-w-[1760px] bg-[var(--workspace-background)] px-2 py-2 text-[var(--foreground)] sm:px-3">
         <SymbolResearchNavigation
           key={normalizedSymbol}
           exchange={exchange}
@@ -471,7 +471,7 @@ export function SymbolResearchPageClient({
     });
 
     return (
-      <main className="mx-auto w-full max-w-[1800px] px-2 py-2 text-[var(--foreground)] sm:px-3">
+      <main className="mx-auto w-full max-w-[1760px] bg-[var(--workspace-background)] px-2 py-2 text-[var(--foreground)] sm:px-3">
         <SymbolResearchNavigation
           key={unavailableSymbol}
           exchange={exchange}
@@ -489,7 +489,7 @@ export function SymbolResearchPageClient({
         {timeframeAvailability ? (
           <TimeframeAvailabilityPanel
             rows={timeframeAvailability}
-            className="mb-4"
+            className="mb-2"
           />
         ) : null}
         <SymbolResearchUnavailableState
@@ -511,7 +511,7 @@ export function SymbolResearchPageClient({
 
   if (!latestSignal) {
     return (
-      <main className="mx-auto w-full max-w-[1800px] px-2 py-2 text-[var(--foreground)] sm:px-3">
+      <main className="mx-auto w-full max-w-[1760px] bg-[var(--workspace-background)] px-2 py-2 text-[var(--foreground)] sm:px-3">
         <SymbolResearchNavigation
           key={normalizedSymbol}
           exchange={exchange}
@@ -608,7 +608,7 @@ export function SymbolResearchPageClient({
   const candleRowsNotice = getCandleRowsNotice(candles);
 
   return (
-    <main className="mx-auto w-full max-w-[1800px] px-2 py-2 text-[var(--foreground)] sm:px-3">
+    <main className="mx-auto w-full max-w-[1760px] bg-[var(--workspace-background)] px-2 py-2 text-[var(--foreground)] sm:px-3">
       <SymbolResearchNavigation
         key={data.symbol.symbol}
         exchange={exchange}
@@ -624,18 +624,20 @@ export function SymbolResearchPageClient({
         availabilityRows={timeframeAvailability}
       />
 
-      <header className="mb-2 border border-[var(--border)] bg-[var(--panel)] px-3 py-3 shadow-[var(--shadow-panel)]">
+      <header className="mb-2 border border-l-4 border-[var(--border)] border-l-[var(--accent)] bg-[var(--panel)] px-3 py-2.5 shadow-[var(--shadow-panel)]">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
-            <p className="text-xs uppercase tracking-wide text-[var(--muted)]">
+            <p className="text-[10px] font-semibold uppercase tracking-normal text-[var(--muted)]">
               Symbol Research
             </p>
-            <h1 className="mt-1 text-xl font-semibold">{data.symbol.symbol}</h1>
-            <p className="mt-2 text-xs text-[var(--muted)]">
+            <h1 className="mt-0.5 text-lg font-semibold leading-6">
+              {data.symbol.symbol}
+            </h1>
+            <p className="mt-1 text-xs text-[var(--muted)]">
               {data.symbol.exchange} · {data.symbol.market} · {selectedTimeframe} ·{" "}
               {toTitleCase(data.symbol.assetClass)}
             </p>
-            <p className="mt-3 max-w-3xl text-xs leading-5 text-[var(--muted)]">
+            <p className="mt-2 max-w-3xl text-xs leading-5 text-[var(--muted)]">
               {longResearchDisclaimer}
             </p>
           </div>
@@ -679,9 +681,9 @@ export function SymbolResearchPageClient({
         title="Current Signal Structure"
         description="Current scanner classification, score components, confirmation areas, caution points, and selected run context."
       >
-        <div className="grid gap-4 xl:grid-cols-[minmax(0,1.05fr)_minmax(320px,0.95fr)]">
+        <div className="grid gap-3 xl:grid-cols-[minmax(0,1.05fr)_minmax(320px,0.95fr)]">
           <Panel title="Current Classification">
-            <div className="grid gap-3 sm:grid-cols-2">
+            <div className="grid gap-2 sm:grid-cols-2">
               <Fact label="Group" value={formatSymbolResearchGroup(interpretation.group)} />
               <Fact label="Signal" value={interpretation.label} />
               <Fact
@@ -706,7 +708,7 @@ export function SymbolResearchPageClient({
               {getSymbolResearchScoreRows(scoreBreakdown).map((row) => (
                 <div
                   key={row.label}
-                  className="border border-[var(--border)] bg-[var(--panel-2)] px-3 py-2"
+                  className="border-l-2 border-l-[var(--accent)] bg-[var(--panel)] px-2.5 py-1.5"
                 >
                   <div className="text-[11px] uppercase text-[var(--muted)]">
                     {row.label}
@@ -720,9 +722,9 @@ export function SymbolResearchPageClient({
           </Panel>
         </div>
 
-        <div className="grid gap-4 xl:grid-cols-[minmax(0,1.35fr)_minmax(320px,0.65fr)]">
+        <div className="grid gap-3 xl:grid-cols-[minmax(0,1.35fr)_minmax(320px,0.65fr)]">
           <Panel title="Research Summary">
-            <div className="grid gap-4 lg:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)]">
+            <div className="grid gap-3 lg:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)]">
               <div>
                 <div className="text-[11px] uppercase text-[var(--muted)]">
                   Current Stance
@@ -734,7 +736,7 @@ export function SymbolResearchPageClient({
                   {researchSummary.runBasis}
                 </p>
               </div>
-              <div className="grid gap-4 md:grid-cols-3">
+              <div className="grid gap-3 md:grid-cols-3">
                 <SummaryList title="Why" values={researchSummary.why} />
                 <SummaryList
                   title="Next Confirmation"
@@ -756,10 +758,10 @@ export function SymbolResearchPageClient({
               <Fact label="API Origin" value={apiOrigin} />
             </div>
             <p
-              className={`mt-3 border px-3 py-2 text-xs ${
+              className={`mt-3 border border-l-4 px-3 py-2 text-xs ${
                 diagnostics.hasWarning
-                  ? "border-[var(--warning-border)] bg-[var(--warning-bg)] text-[var(--warning)]"
-                  : "border-[var(--border)] bg-[var(--panel-2)] text-[var(--muted)]"
+                  ? "border-[var(--warning-border)] border-l-[var(--warning)] bg-[var(--panel)] text-[var(--warning)]"
+                  : "border-[var(--border)] border-l-[var(--neutral)] bg-[var(--panel)] text-[var(--muted)]"
               }`}
             >
               {diagnostics.notice}
@@ -1299,13 +1301,13 @@ function SymbolResearchNavigation({
   };
 
   return (
-    <section className="mb-3 border border-[var(--border)] bg-[var(--panel)] px-3 py-3">
-      <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+    <section className="mb-2 border border-[var(--border)] bg-[var(--panel)] px-3 py-2">
+      <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
             <Link
               href={scannerReturnHref}
-              className="border border-[var(--border)] px-3 py-1.5 text-xs font-semibold text-[var(--foreground)] hover:border-[var(--info)]"
+              className="ui-button h-8 px-3 text-xs"
             >
               Back to Scanner
             </Link>
@@ -1313,7 +1315,7 @@ function SymbolResearchNavigation({
               type="button"
               onClick={onRefresh}
               disabled={isFetching}
-              className="border border-[var(--border)] px-3 py-1.5 text-xs font-semibold text-[var(--foreground)] disabled:cursor-not-allowed disabled:opacity-60"
+              className="ui-button h-8 px-3 text-xs disabled:cursor-not-allowed disabled:opacity-60"
             >
               {isFetching ? "Refreshing" : "Refresh"}
             </button>
@@ -1339,13 +1341,13 @@ function SymbolResearchNavigation({
             <input
               value={symbolInput}
               onChange={(event) => setSymbolInput(event.target.value)}
-              className="h-9 w-full border border-[var(--border)] bg-[var(--panel-2)] px-3 text-sm text-[var(--foreground)] outline-none focus:border-[var(--info)]"
+              className="h-8 w-full border border-[var(--border)] bg-[var(--control)] px-3 text-sm text-[var(--foreground)] outline-none focus:border-[var(--accent)]"
               placeholder="SEIUSDT"
             />
           </label>
           <button
             type="submit"
-            className="h-9 border border-[var(--border)] px-3 text-xs font-semibold text-[var(--foreground)] hover:border-[var(--info)]"
+            className="ui-button ui-button-primary h-8 px-3 text-xs"
           >
             Open Symbol
           </button>
@@ -1354,7 +1356,7 @@ function SymbolResearchNavigation({
 
       <nav
         aria-label="Timeframe quick switch"
-        className="mt-3 flex flex-wrap gap-2 text-xs"
+        className="mt-2 flex flex-wrap gap-1.5 text-xs"
       >
         {timeframeOptions.map((option) => {
           const className = getTimeframeNavigationClass(option);
@@ -1452,14 +1454,14 @@ export function SymbolWatchlistControl({
         <button
           type="button"
           onClick={addToWatchlist}
-          className="border border-[var(--border)] px-2 py-1 text-[11px] font-semibold text-[var(--foreground)] hover:border-[var(--info)]"
+          className="ui-button h-7 px-2 text-[11px]"
         >
           Add to Watchlist
         </button>
       )}
       <Link
         href="/watchlist"
-        className="border border-[var(--border)] px-2 py-1 text-[11px] font-semibold text-[var(--foreground)] hover:border-[var(--info)]"
+        className="ui-button h-7 px-2 text-[11px]"
       >
         Open Watchlist
       </Link>
@@ -1526,10 +1528,10 @@ function TimeframeAvailabilityPanel({
 
 function getTimeframeNavigationClass(option: SymbolResearchTimeframeNavigationOption) {
   const base =
-    "inline-flex items-center gap-1.5 border px-3 py-1.5 font-semibold";
+    "inline-flex items-center gap-1.5 border px-2.5 py-1 font-semibold";
 
   if (option.status === "planned") {
-    return `${base} border-[var(--border)] bg-[var(--panel-2)] text-[var(--muted)] opacity-70`;
+    return `${base} border-[var(--border)] bg-[var(--panel)] text-[var(--muted)] opacity-70`;
   }
 
   if (option.status === "selected_unavailable") {
@@ -1537,11 +1539,11 @@ function getTimeframeNavigationClass(option: SymbolResearchTimeframeNavigationOp
   }
 
   if (option.status === "unavailable") {
-    return `${base} border-[var(--border)] bg-[var(--panel-2)] text-[var(--muted)] hover:border-[var(--warning-border)] hover:text-[var(--foreground)]`;
+    return `${base} border-[var(--border)] bg-[var(--panel)] text-[var(--muted)] hover:border-[var(--warning-border)] hover:text-[var(--foreground)]`;
   }
 
   if (option.isSelected) {
-    return `${base} border-[var(--info)] bg-[var(--info-bg)] text-[var(--foreground)]`;
+    return `${base} border-[var(--accent)] bg-[var(--panel)] text-[var(--accent)] shadow-[inset_0_-2px_0_var(--accent)]`;
   }
 
   return `${base} border-[var(--border)] text-[var(--muted)] hover:border-[var(--info)] hover:text-[var(--foreground)]`;
@@ -1561,14 +1563,14 @@ function ResearchState({
   loading?: boolean;
 }) {
   return (
-    <section className="border border-[var(--border)] bg-[var(--panel)] px-4 py-8">
+    <section className="border border-l-4 border-[var(--border)] border-l-[var(--accent)] bg-[var(--panel)] px-4 py-6">
       <h1 className="text-xl font-semibold">{title}</h1>
       <p className="mt-2 text-sm text-[var(--muted)]">{message}</p>
       {loading ? (
         <div className="mt-5 grid gap-2 sm:grid-cols-3">
-          <div className="h-16 border border-[var(--border)] bg-[var(--panel-2)]" />
-          <div className="h-16 border border-[var(--border)] bg-[var(--panel-2)]" />
-          <div className="h-16 border border-[var(--border)] bg-[var(--panel-2)]" />
+          <div className="h-12 border border-[var(--border)] bg-[var(--panel)]" />
+          <div className="h-12 border border-[var(--border)] bg-[var(--panel)]" />
+          <div className="h-12 border border-[var(--border)] bg-[var(--panel)]" />
         </div>
       ) : null}
       {apiOrigin ? (
@@ -1577,7 +1579,7 @@ function ResearchState({
       {scannerReturnHref ? (
         <Link
           href={scannerReturnHref}
-          className="mt-4 inline-flex border border-[var(--border)] px-3 py-1.5 text-xs font-semibold text-[var(--foreground)] hover:border-[var(--info)]"
+          className="ui-button mt-4 h-8 px-3 text-xs"
         >
           Back to Scanner
         </Link>
@@ -1594,7 +1596,7 @@ function SymbolResearchUnavailableState({
   apiOrigin?: string;
 }) {
   return (
-    <section className="border border-[var(--border)] bg-[var(--panel)] px-4 py-5">
+    <section className="border border-l-4 border-[var(--border)] border-l-[var(--warning)] bg-[var(--panel)] px-4 py-5">
       <p className="text-xs uppercase tracking-wide text-[var(--muted)]">
         Symbol Research
       </p>
@@ -1608,7 +1610,7 @@ function SymbolResearchUnavailableState({
         {apiOrigin ? <Fact label="API Origin" value={apiOrigin} /> : null}
       </div>
 
-      <div className="mt-5 border border-[var(--border)] bg-[var(--panel-2)] px-3 py-3">
+      <div className="mt-5 border border-[var(--border)] bg-[var(--panel)] px-3 py-3">
         <h2 className="text-sm font-semibold">Suggested next checks</h2>
         <ul className="mt-2 space-y-1.5 text-sm text-[var(--muted)]">
           {content.suggestions.map((suggestion) => (
@@ -1632,9 +1634,9 @@ function ResearchWorkflowSection({
   children: ReactNode;
 }) {
   return (
-    <section className={className || "mt-6"}>
-      <div className="mb-3">
-        <h2 className="text-xs font-semibold uppercase tracking-wide text-[var(--muted)]">
+    <section className={className || "mt-4"}>
+      <div className="mb-2 border-t border-[var(--border)] pt-3">
+        <h2 className="text-[11px] font-semibold uppercase tracking-normal text-[var(--muted)]">
           {title}
         </h2>
         {description ? (
@@ -1643,7 +1645,7 @@ function ResearchWorkflowSection({
           </p>
         ) : null}
       </div>
-      <div className="space-y-4">{children}</div>
+      <div className="space-y-3">{children}</div>
     </section>
   );
 }
@@ -1657,7 +1659,7 @@ function ResearchDecisionSummaryPanel({
 }) {
   return (
     <Panel title="Research Decision Summary" className={className}>
-      <div className="grid gap-4 lg:grid-cols-[minmax(0,0.7fr)_minmax(0,1.3fr)]">
+      <div className="grid gap-3 lg:grid-cols-[minmax(0,0.7fr)_minmax(0,1.3fr)]">
         <div>
           <div className="text-[11px] uppercase text-[var(--muted)]">
             Summary
@@ -1670,7 +1672,7 @@ function ResearchDecisionSummaryPanel({
             historical context.
           </p>
         </div>
-        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+        <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
           <Fact label="Current Stance" value={summary.currentStance} />
           <Fact
             label="Multi-Timeframe Alignment"
@@ -1702,7 +1704,7 @@ function SignalEvaluationPanel({
 }) {
   return (
     <Panel title="Signal Evaluation" className={className}>
-      <p className="mb-4 max-w-3xl text-sm text-[var(--muted)]">
+      <p className="mb-3 max-w-3xl text-sm text-[var(--muted)]">
         Across the broader market, how this signal type has behaved historically.
         Separate from this symbol&apos;s own history.
       </p>
@@ -1712,7 +1714,7 @@ function SignalEvaluationPanel({
         </p>
       ) : (
         <>
-          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
             <Fact
               label="Historical Orientation"
               value={readout.expectedDirectionLabel}
@@ -1726,10 +1728,10 @@ function SignalEvaluationPanel({
             <Fact label="Historical Positive Rate" value={readout.positiveRate} />
           </div>
           <div
-            className={`mt-4 border px-3 py-3 text-sm ${
+            className={`mt-3 border border-l-4 px-3 py-2.5 text-sm ${
               isError || !readout.available
-                ? "border-[var(--border)] bg-[var(--panel-2)] text-[var(--muted)]"
-                : "border-[var(--border)] bg-[var(--info-bg)] text-[var(--foreground)]"
+                ? "border-[var(--border)] border-l-[var(--neutral)] bg-[var(--panel)] text-[var(--muted)]"
+                : "border-[var(--border)] border-l-[var(--info)] bg-[var(--panel)] text-[var(--foreground)]"
             }`}
           >
             <div className="text-[11px] uppercase text-[var(--muted)]">
@@ -1761,9 +1763,9 @@ function Panel({
 }) {
   return (
     <section
-      className={`min-w-0 border border-[var(--border)] bg-[var(--panel)] px-4 py-4 ${className}`}
+      className={`min-w-0 border border-[var(--border)] bg-[var(--panel)] px-3 py-3 ${className}`}
     >
-      <h2 className="mb-3 text-sm font-semibold">{title}</h2>
+      <h2 className="mb-2 text-sm font-semibold">{title}</h2>
       {children}
     </section>
   );
@@ -1771,7 +1773,7 @@ function Panel({
 
 function Fact({ label, value }: { label: string; value: string }) {
   return (
-    <div className="min-w-0">
+    <div className="min-w-0 border-l-2 border-l-[var(--border-medium)] py-0.5 pl-2">
       <div className="text-[11px] uppercase text-[var(--muted)]">{label}</div>
       <div className="mt-1 break-words text-sm text-[var(--foreground)]">{value}</div>
     </div>
@@ -1833,7 +1835,7 @@ function JsonBlock({ title, value }: { title: string; value: unknown }) {
   return (
     <div>
       <h3 className="text-[11px] uppercase text-[var(--muted)]">{title}</h3>
-      <pre className="mt-2 max-h-64 overflow-auto whitespace-pre-wrap border border-[var(--border)] bg-[var(--panel-2)] p-3 text-[11px] leading-5 text-[var(--muted)]">
+      <pre className="mt-2 max-h-64 overflow-auto whitespace-pre-wrap border border-[var(--border)] bg-[var(--panel)] p-3 text-[11px] leading-5 text-[var(--muted)]">
         {JSON.stringify(value ?? null, null, 2)}
       </pre>
     </div>
@@ -1854,12 +1856,12 @@ function ResponsiveTable({
   }
 
   return (
-    <div className="overflow-x-auto">
+    <div className="overflow-x-auto bg-[var(--panel-data)]">
       <table className="w-full min-w-[760px] border-collapse text-left text-xs">
         <thead className="bg-[var(--table-header)] text-[10px] uppercase text-[var(--muted)]">
           <tr>
             {headers.map((header) => (
-              <th key={header} className="px-2 py-1.5">
+              <th key={header} className="border-b border-[var(--border-medium)] px-2 py-1.5">
                 {header}
               </th>
             ))}
@@ -1867,9 +1869,16 @@ function ResponsiveTable({
         </thead>
         <tbody>
           {rows.map((row, index) => (
-            <tr key={`${row[0]}-${index}`} className="border-t border-[var(--border)]">
+            <tr
+              key={`${row[0]}-${index}`}
+              className="border-t border-[var(--border)] odd:bg-[var(--panel-data)] even:bg-[var(--panel-muted)] hover:bg-[var(--row-hover)]"
+            >
               {row.map((cell, cellIndex) => (
-                <td key={`${headers[cellIndex]}-${cell}`} className="px-2 py-1.5">
+                <td
+                  key={`${headers[cellIndex]}-${cell}`}
+                  className="max-w-[220px] truncate px-2 py-1.5 text-[11px] text-[var(--muted)]"
+                  title={cell}
+                >
                   {cell}
                 </td>
               ))}

@@ -58,22 +58,32 @@ const toneClass: Record<StatusTone, string> = {
     "border-[var(--missing-border)] bg-[var(--missing-bg)] text-[var(--missing)]",
 };
 
+const toneAccentClass: Record<StatusTone, string> = {
+  neutral: "border-l-[var(--neutral-border)] text-[var(--neutral)]",
+  accent: "border-l-[var(--accent)] text-[var(--accent)]",
+  positive: "border-l-[var(--positive)] text-[var(--positive)]",
+  negative: "border-l-[var(--negative)] text-[var(--negative)]",
+  warning: "border-l-[var(--warning)] text-[var(--warning)]",
+  danger: "border-l-[var(--danger)] text-[var(--danger)]",
+  info: "border-l-[var(--info)] text-[var(--info)]",
+  eligible: "border-l-[var(--eligible)] text-[var(--eligible)]",
+  watch: "border-l-[var(--watch)] text-[var(--watch)]",
+  risk: "border-l-[var(--risk)] text-[var(--risk)]",
+  overheated: "border-l-[var(--overheated)] text-[var(--overheated)]",
+  complete: "border-l-[var(--complete)] text-[var(--complete)]",
+  partial: "border-l-[var(--partial)] text-[var(--partial)]",
+  missing: "border-l-[var(--missing)] text-[var(--missing)]",
+};
+
 const sectionToneClass: Record<SectionTone, string> = {
   neutral: "border-l-[var(--section-snapshot)]",
-  selected:
-    "border-l-[var(--section-selected)] bg-[linear-gradient(90deg,var(--section-selected-bg),var(--panel)_28%)]",
-  observation:
-    "border-l-[var(--section-observation)] bg-[linear-gradient(90deg,var(--section-observation-bg),var(--panel)_28%)]",
-  summary:
-    "border-l-[var(--section-summary)] bg-[linear-gradient(90deg,var(--section-summary-bg),var(--panel)_28%)]",
-  takeaway:
-    "border-l-[var(--section-takeaway)] bg-[linear-gradient(90deg,var(--section-takeaway-bg),var(--panel)_28%)]",
-  rows:
-    "border-l-[var(--section-rows)] bg-[linear-gradient(90deg,var(--section-rows-bg),var(--panel)_28%)]",
-  snapshot:
-    "border-l-[var(--section-snapshot)] bg-[linear-gradient(90deg,var(--section-snapshot-bg),var(--panel)_28%)]",
-  screener:
-    "border-l-[var(--accent)] bg-[linear-gradient(90deg,var(--accent-soft),var(--panel)_28%)]",
+  selected: "border-l-[var(--section-selected)]",
+  observation: "border-l-[var(--section-observation)]",
+  summary: "border-l-[var(--section-summary)]",
+  takeaway: "border-l-[var(--section-takeaway)]",
+  rows: "border-l-[var(--section-rows)]",
+  snapshot: "border-l-[var(--section-snapshot)]",
+  screener: "border-l-[var(--accent)]",
 };
 
 export function PageShell({
@@ -85,7 +95,7 @@ export function PageShell({
 }) {
   return (
     <section
-      className={`mx-auto flex min-h-[calc(100vh-1px)] max-w-[1800px] flex-col bg-[var(--workspace-background)] px-2 py-2 sm:px-3 ${className}`}
+      className={`mx-auto flex min-h-[calc(100vh-1px)] max-w-[1760px] flex-col bg-[var(--workspace-background)] px-2 py-2 sm:px-3 ${className}`}
     >
       {children}
     </section>
@@ -111,7 +121,7 @@ export function PageHeader({
 }) {
   return (
     <header
-      className={`mb-2 border border-l-4 border-[var(--border)] bg-[var(--panel-elevated)] px-3 py-3 shadow-[var(--shadow-panel)] ${sectionToneClass[tone]} ${className}`}
+      className={`mb-2 border border-l-4 border-[var(--border)] bg-[var(--panel-elevated)] px-3 py-2.5 shadow-[var(--shadow-panel)] ${sectionToneClass[tone]} ${className}`}
     >
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
@@ -120,11 +130,11 @@ export function PageHeader({
               {eyebrow}
             </p>
           ) : null}
-          <h1 className="text-base font-semibold leading-6 text-[var(--foreground)]">
+          <h1 className="text-[15px] font-semibold leading-6 text-[var(--foreground)]">
             {title}
           </h1>
           {description ? (
-            <p className="mt-1 max-w-4xl text-[11px] leading-5 text-[var(--muted)]">
+            <p className="mt-0.5 max-w-4xl text-[11px] leading-5 text-[var(--muted)]">
               {description}
             </p>
           ) : null}
@@ -132,7 +142,7 @@ export function PageHeader({
         {actions ? <div className="max-w-full shrink-0">{actions}</div> : null}
       </div>
       {metadata && metadata.length > 0 ? (
-        <MetadataStrip items={metadata} className="mt-3" />
+        <MetadataStrip items={metadata} className="mt-2" />
       ) : null}
     </header>
   );
@@ -188,7 +198,7 @@ export function SectionHeader({
     >
       <div className="min-w-0">
         {title ? (
-          <h2 className="text-sm font-semibold leading-5 text-[var(--foreground)]">
+          <h2 className="text-[13px] font-semibold leading-5 text-[var(--foreground)]">
             {title}
           </h2>
         ) : null}
@@ -212,7 +222,7 @@ export function PageToolbar({
 }) {
   return (
     <div
-      className={`flex flex-wrap items-center gap-2 border border-[var(--border)] bg-[var(--panel-muted)] px-2 py-2 ${className}`}
+      className={`flex flex-wrap items-center gap-2 border border-[var(--border)] bg-[var(--panel)] px-2 py-2 ${className}`}
     >
       {children}
     </div>
@@ -249,15 +259,15 @@ export function MetadataStrip({
 }) {
   return (
     <dl
-      className={`grid gap-2 border border-[var(--border-medium)] bg-[var(--panel-tinted)] px-2 py-2 text-[11px] sm:grid-cols-2 xl:grid-cols-4 ${className}`}
+      className={`flex flex-wrap gap-x-4 gap-y-1.5 border-t border-[var(--border)] pt-2 text-[11px] ${className}`}
     >
       {items.map((item) => (
-        <div key={item.label} className="min-w-0">
-          <dt className="text-[10px] font-semibold uppercase tracking-normal text-[var(--muted)]">
+        <div key={item.label} className="min-w-0 max-w-full">
+          <dt className="inline text-[10px] font-semibold uppercase tracking-normal text-[var(--muted)]">
             {item.label}
           </dt>
           <dd
-            className={`mt-0.5 inline-flex max-w-full items-center border px-1.5 py-0.5 font-semibold ${
+            className={`ml-1 inline-flex max-w-full items-center border px-1.5 py-0.5 font-semibold ${
               toneClass[item.tone ?? "neutral"]
             }`}
           >
@@ -284,14 +294,14 @@ export function MetricCard({
 }) {
   return (
     <div
-      className={`min-w-0 border border-l-4 border-[var(--border)] bg-[var(--panel-muted)] px-2.5 py-2 ${
-        tone === "neutral" ? "border-l-[var(--neutral-border)]" : toneClass[tone]
+      className={`min-w-0 border-l-2 bg-[var(--panel)] px-2.5 py-1.5 ${
+        toneAccentClass[tone]
       } ${className}`}
     >
       <div className="truncate text-[10px] font-semibold uppercase tracking-normal text-[var(--muted)]">
         {label}
       </div>
-      <div className="mt-1 break-words text-sm font-semibold tabular-nums text-[var(--foreground)]">
+      <div className="mt-0.5 break-words text-[13px] font-semibold tabular-nums text-[var(--foreground)]">
         {value}
       </div>
       {detail ? (
@@ -337,7 +347,7 @@ export function ResearchNotice({
 }) {
   return (
     <section
-      className={`border px-3 py-2 text-[11px] leading-5 ${toneClass[tone]} ${className}`}
+      className={`border border-l-2 border-[var(--border)] bg-[var(--panel)] px-3 py-2 text-[11px] leading-5 ${toneAccentClass[tone]} ${className}`}
     >
       {children}
     </section>

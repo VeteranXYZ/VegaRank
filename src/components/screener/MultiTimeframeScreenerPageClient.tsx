@@ -21,7 +21,6 @@ import {
 import {
   ControlGroup,
   EmptyState,
-  getStatusToneClass,
   MetricCard,
   PageHeader,
   PageSection,
@@ -228,8 +227,9 @@ export function MultiTimeframeScreenerPageClient() {
         ]}
       />
 
-      <div className="mb-2">
+      <div className="mb-2 max-w-[1120px]">
         <MarketContextPanel
+          variant="compact"
           data={marketContextQuery.data}
           isLoading={marketContextQuery.isLoading}
           isError={marketContextQuery.isError}
@@ -244,7 +244,7 @@ export function MultiTimeframeScreenerPageClient() {
         onClear={clearFilters}
       />
 
-      <div className="grid min-h-0 flex-1 gap-2 xl:grid-cols-[270px_minmax(0,1fr)]">
+      <div className="grid min-h-0 flex-1 gap-2 xl:grid-cols-[260px_minmax(0,1fr)]">
         <MtfScreenerControls
           filters={filters}
           symbolSearch={symbolSearch}
@@ -389,7 +389,7 @@ export function MtfScreenerTable({
             {rows.map((row) => (
               <tr
                 key={row.symbol}
-                className="group border-t border-[var(--border)] align-top odd:bg-[var(--panel-data)] even:bg-[var(--panel-muted)]/70 hover:bg-[var(--row-hover)]"
+                className="group border-t border-[var(--border)] align-top odd:bg-[var(--panel-data)] even:bg-[var(--panel-muted)] hover:bg-[var(--row-hover)]"
               >
                 <DataTableCell className="sticky left-0 z-10 bg-[var(--panel)] group-hover:bg-[var(--row-hover)]">
                   <div className="font-mono text-xs font-semibold text-[var(--foreground)]">
@@ -515,7 +515,7 @@ export function MtfResearchBucketsPanel({
           aria-pressed={isFullTableActive}
           className={`min-h-8 border px-3 py-1.5 text-left text-[11px] transition ${
             isFullTableActive
-              ? "border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--foreground)]"
+              ? "border-[var(--accent)] bg-[var(--panel)] text-[var(--foreground)] shadow-[inset_0_-2px_0_var(--accent)]"
               : "border-[var(--border)] bg-[var(--control)] text-[var(--muted)] hover:border-[var(--border-strong)] hover:text-[var(--foreground)]"
           }`}
         >
@@ -539,11 +539,7 @@ export function MtfResearchBucketsPanel({
               title={bucket.implication}
               onClick={() => onBucketSelect(bucket.id)}
               aria-pressed={isActive}
-              className={`min-h-[96px] border border-l-4 px-2.5 py-2 text-left transition ${
-                isActive
-                  ? `${getStatusToneClass(tone)} shadow-[inset_0_0_0_1px_var(--accent-border)]`
-                  : `${getStatusToneClass(tone)} opacity-90 hover:opacity-100 hover:shadow-[var(--shadow-panel)]`
-              }`}
+              className={getMtfResearchBucketButtonClass(tone, isActive)}
             >
               <span className="flex items-start justify-between gap-2">
                 <span className="text-[11px] font-semibold text-[var(--foreground)]">
@@ -558,10 +554,10 @@ export function MtfResearchBucketsPanel({
                   </span>
                 </span>
               </span>
-              <span className="mt-1 block text-[11px] leading-4">
+              <span className="mt-1 block text-[11px] leading-4 text-[var(--muted)]">
                 {bucket.description}
               </span>
-              <span className="mt-1 block text-[10px] leading-4 text-[var(--muted)]">
+              <span className="mt-0.5 block truncate text-[10px] leading-4 text-[var(--muted)]">
                 {bucket.implication}
               </span>
             </button>
@@ -593,9 +589,9 @@ function MtfScreenerControls({
   onClear: () => void;
 }) {
   return (
-    <aside className="border border-[var(--border)] bg-[var(--panel)] p-3 shadow-[var(--shadow-panel)] xl:h-full xl:overflow-y-auto">
-      <div className="mb-3 flex items-center justify-between gap-2 border-b border-[var(--border)] pb-2">
-        <h2 className="text-sm font-semibold">Screener Filters</h2>
+    <aside className="border border-[var(--border)] bg-[var(--panel)] p-2.5 shadow-[var(--shadow-panel)] xl:h-fit xl:max-h-[calc(100vh-5rem)] xl:overflow-y-auto">
+      <div className="mb-2 flex items-center justify-between gap-2 border-b border-[var(--border)] pb-2">
+        <h2 className="text-[13px] font-semibold">Screener Filters</h2>
         <button
           type="button"
           onClick={onClear}
@@ -620,7 +616,7 @@ function MtfScreenerControls({
         </label>
       </ControlGroup>
 
-      <ControlGroup title="Group Filters" className="mt-4">
+      <ControlGroup title="Group Filters" className="mt-3">
         {MTF_SCREENER_TIMEFRAMES.map((timeframe) => (
           <label key={timeframe} className="block">
             <span className="mb-1 block text-[11px] text-[var(--muted)]">
@@ -646,7 +642,7 @@ function MtfScreenerControls({
         ))}
       </ControlGroup>
 
-      <ControlGroup title="Minimum Rank" className="mt-4">
+      <ControlGroup title="Minimum Rank" className="mt-3">
         {MTF_SCREENER_TIMEFRAMES.map((timeframe) => (
           <label key={timeframe} className="block">
             <span className="mb-1 block text-[11px] text-[var(--muted)]">
@@ -665,7 +661,7 @@ function MtfScreenerControls({
         ))}
       </ControlGroup>
 
-      <ControlGroup title="Risk Exclusions" className="mt-4">
+      <ControlGroup title="Risk Exclusions" className="mt-3">
         <label className="flex items-center gap-2 text-xs text-[var(--muted)]">
           <input
             type="checkbox"
@@ -722,7 +718,7 @@ export function MtfScreenerSourcePanel({
       }
       bodyClassName="px-3 py-2"
     >
-      <div className="grid gap-2 md:grid-cols-4">
+      <div className="grid gap-x-4 gap-y-2 md:grid-cols-2 xl:grid-cols-4">
         {MTF_SCREENER_TIMEFRAMES.map((timeframe) => {
           const run = data?.runs[timeframe];
           const signalCount = data?.signalCounts[timeframe] ?? 0;
@@ -973,6 +969,31 @@ function getMtfResearchBucketValueClass(tone: StatusTone) {
       return "text-[var(--risk)]";
     default:
       return "text-[var(--foreground)]";
+  }
+}
+
+function getMtfResearchBucketButtonClass(tone: StatusTone, isActive: boolean) {
+  const base =
+    "min-h-[76px] border border-l-4 bg-[var(--panel)] px-2.5 py-2 text-left transition";
+  const toneClass = getMtfResearchBucketBorderClass(tone);
+
+  return isActive
+    ? `${base} ${toneClass} border-[var(--accent)] shadow-[inset_0_-2px_0_var(--accent)]`
+    : `${base} ${toneClass} border-[var(--border)] hover:border-[var(--border-strong)] hover:bg-[var(--row-hover)]`;
+}
+
+function getMtfResearchBucketBorderClass(tone: StatusTone) {
+  switch (tone) {
+    case "eligible":
+      return "border-l-[var(--eligible)]";
+    case "watch":
+      return "border-l-[var(--watch)]";
+    case "overheated":
+      return "border-l-[var(--overheated)]";
+    case "risk":
+      return "border-l-[var(--risk)]";
+    default:
+      return "border-l-[var(--neutral)]";
   }
 }
 

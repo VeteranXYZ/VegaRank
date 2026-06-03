@@ -2,20 +2,20 @@
 
 :root {
   color-scheme: light;
-  --app-background: #e7edf3;
-  --page-background: #f3f6f9;
-  --workspace-background: #f8fafc;
+  --app-background: #f5f7f9;
+  --page-background: #fbfcfd;
+  --workspace-background: #fbfcfd;
   --panel-background: #ffffff;
-  --panel-elevated: #fdfefe;
-  --panel-muted: #f4f7fa;
-  --panel-tinted: #eaf2f5;
+  --panel-elevated: #ffffff;
+  --panel-muted: #f7f9fb;
+  --panel-tinted: #ffffff;
   --panel-data: #ffffff;
-  --table-header-background: #dfe8f0;
-  --row-hover-background: #ecf4f8;
-  --row-selected-background: #dbeef2;
-  --border-subtle: rgba(41, 57, 79, 0.16);
-  --border-medium: rgba(41, 57, 79, 0.24);
-  --border-strong: rgba(41, 57, 79, 0.36);
+  --table-header-background: #f2f5f8;
+  --row-hover-background: #f3fafb;
+  --row-selected-background: #e4f3f5;
+  --border-subtle: rgba(38, 51, 71, 0.12);
+  --border-medium: rgba(38, 51, 71, 0.18);
+  --border-strong: rgba(38, 51, 71, 0.3);
   --text-primary: #172033;
   --text-secondary: #405064;
   --text-muted: #6c7a8d;
@@ -81,10 +81,10 @@
   --muted-2: var(--text-muted);
   --panel: var(--panel-background);
   --panel-2: var(--panel-muted);
-  --panel-strong: #e5ebf1;
+  --panel-strong: #eef2f5;
   --header-bg: rgba(253, 254, 254, 0.97);
   --control: var(--panel-background);
-  --control-hover: #edf5f8;
+  --control-hover: #f3fafb;
   --table-header: var(--table-header-background);
   --row-hover: var(--row-hover-background);
   --row-selected: var(--row-selected-background);
@@ -94,8 +94,8 @@
   --space-panel: 12px;
   --button-height: 32px;
   --table-row-height: 36px;
-  --shadow-panel: 0 1px 2px rgba(15, 23, 42, 0.06);
-  --shadow-elevated: 0 8px 20px rgba(15, 23, 42, 0.08);
+  --shadow-panel: 0 1px 1px rgba(15, 23, 42, 0.035);
+  --shadow-elevated: 0 8px 18px rgba(15, 23, 42, 0.07);
 }
 
 * {
@@ -104,8 +104,7 @@
 
 body {
   margin: 0;
-  background:
-    linear-gradient(180deg, var(--page-background) 0%, var(--app-background) 100%);
+  background: var(--app-background);
   color: var(--foreground);
   font-family:
     Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
@@ -168,7 +167,7 @@ a:focus-visible {
 
 .ui-surface-muted {
   border: 1px solid var(--border);
-  background: var(--panel-2);
+  background: var(--panel);
 }
 
 .ui-button {
@@ -207,7 +206,7 @@ a:focus-visible {
   display: inline-flex;
   align-items: center;
   border: 1px solid var(--border);
-  background: var(--panel-2);
+  background: var(--panel);
   color: var(--muted);
   font-weight: 600;
 }
