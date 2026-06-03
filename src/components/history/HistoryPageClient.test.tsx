@@ -295,8 +295,9 @@ describe("HistoryPageClient display formatting", () => {
     expect(html).toContain("Scanned 409");
     expect(html).toContain("Selected");
     expect(html).toContain("Latest");
-    expect(html).toContain("Observation");
+    expect(html).toContain("Mature observation");
     expect(html).toContain("Recommended");
+    expect(html).not.toContain(">Observation<");
     expect(html).toContain("Limited or unknown");
     expect(html).toContain("opacity-75");
     expect(recentRunsPanelClassName).toContain("xl:sticky");
@@ -332,6 +333,7 @@ describe("HistoryPageClient display formatting", () => {
     expect(html).toContain("5 candles");
     expect(html).toContain("10 candles");
     expect(html).toContain("Observation Summary");
+    expect(html).toContain("Research Takeaways");
     expect(html).toContain("Rows observed");
     expect(html).toContain("Complete");
     expect(html).toContain("Partial");
@@ -355,6 +357,10 @@ describe("HistoryPageClient display formatting", () => {
     expect(html).toContain("historical observations for research context");
     expect(html).toContain("not predictions or financial advice");
     expect(html).toContain("It is not a prediction and does not describe future outcomes");
+    expect(html).toContain("Observation Rows");
+    expect(html).toContain(
+      "Historical outcome rows from the observation run shown above",
+    );
     expect(html).toContain("Observed Change");
     expect(html).toContain("Max Drawdown");
     expect(html).toContain("Data Status");
@@ -450,6 +456,14 @@ describe("HistoryPageClient display formatting", () => {
       "Mature run used for forward observation metrics",
     );
     expect(html).toContain("Observation Summary");
+    expect(html).toContain("Research Takeaways");
+    expect(html).toContain(
+      "This observation window has enough complete rows for group-level historical review",
+    );
+    expect(html).toContain("Group metrics use complete rows only");
+    expect(html).toContain(
+      "Notable examples may include outliers and should not be treated as predictions",
+    );
     expect(html).not.toContain("Loading observation readiness");
     expect(html).not.toContain("Forward observation unavailable");
     expect(html).not.toContain("Dominant Reason");
@@ -690,6 +704,12 @@ describe("HistoryPageClient display formatting", () => {
     );
 
     expect(html).toContain("Observation Summary");
+    expect(html).toContain("Research Takeaways");
+    expect(html).toContain(
+      "This observation window does not have enough complete rows for group-level conclusions",
+    );
+    expect(html).toContain("Partial rows are shown for research context only");
+    expect(html).toContain("Wait for more future candles before comparing groups");
     expect(html).toContain("Partial observations are available");
     expect(html).toContain("Complete-row distribution metrics stay empty");
     expect(html).toContain("Partial rows are shown in the table for research context only");
@@ -1009,6 +1029,14 @@ describe("HistoryPageClient display formatting", () => {
       readinessError: uiState.readinessError,
     })).toBeNull();
     expect(html).toContain("Observation readiness unavailable");
+    expect(html).toContain("Research Takeaways");
+    expect(html).toContain("Forward observation is not available for this run yet");
+    expect(html).toContain(
+      "The selected run can still be reviewed as a scanner snapshot",
+    );
+    expect(html).toContain(
+      "Historical observations are research context only, not predictions or financial advice",
+    );
     expect(html).toContain(
       "Forward Observation readiness could not be determined",
     );

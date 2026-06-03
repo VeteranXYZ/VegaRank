@@ -722,7 +722,7 @@ function buildRecentRunBadges({
 }) {
   return [
     runId === selectedRunId ? "Selected" : null,
-    runId === observationRunId ? "Observation" : null,
+    runId === observationRunId ? "Mature observation" : null,
     runId === latestRunId ? "Latest" : null,
     runId === recommendedRunId && runId !== observationRunId
       ? "Recommended"
@@ -788,6 +788,12 @@ export function ForwardObservationSection({
   );
   const showObservationSummary =
     uiState.status === "observation_ready" && rows.length > 0;
+  const stateTakeaways = showObservationSummary
+    ? []
+    : buildResearchTakeaways({
+        summary: null,
+        uiState,
+      });
 
   return (
     <section className="rounded-md border border-[var(--border)] bg-[var(--panel)] p-4">
@@ -877,6 +883,10 @@ export function ForwardObservationSection({
         <ObservationSummarySection summary={observationSummary} />
       ) : null}
 
+      {stateTakeaways.length > 0 ? (
+        <ResearchTakeaways takeaways={stateTakeaways} />
+      ) : null}
+
       <ObservationDataStatusLegend />
 
       {uiState.status !== "observation_ready" ? (
@@ -891,6 +901,17 @@ export function ForwardObservationSection({
         />
       ) : (
         <div className="overflow-x-auto">
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h3 className="text-sm font-semibold">Observation Rows</h3>
+              <p className="mt-1 text-xs text-[var(--muted)]">
+                Historical outcome rows from the observation run shown above.
+              </p>
+            </div>
+            <span className="text-xs text-[var(--muted)]">
+              {rows.length} rows
+            </span>
+          </div>
           <table className="w-full min-w-[1060px] border-collapse text-left text-sm">
             <thead className="sticky top-0 bg-[#0d131a] text-xs uppercase text-[var(--muted)]">
               <tr>
@@ -1106,6 +1127,11 @@ function ObservationSummarySection({
 }: {
   summary: ObservationSummary;
 }) {
+  const takeaways = buildResearchTakeaways({
+    summary,
+    uiState: null,
+  });
+
   return (
     <section className="mb-3 rounded-md border border-[var(--border)] p-4">
       <div className="mb-3">
@@ -1157,10 +1183,97 @@ function ObservationSummarySection({
         </p>
       ) : null}
 
+      <ResearchTakeaways takeaways={takeaways} />
       <GroupDistributionTable groups={summary.groups} />
       <NotableHistoricalExamples summary={summary} />
     </section>
   );
+}
+
+function ResearchTakeaways({ takeaways }: { takeaways: string[] }) {
+  return (
+    <div className="mt-4 rounded-md border border-[var(--border)] p-3">
+      <h4 className="text-sm font-semibold">Research Takeaways</h4>
+      <ul className="mt-2 list-disc space-y-1 pl-4 text-xs leading-5 text-[var(--muted)]">
+        {takeaways.map((takeaway) => (
+          <li key={takeaway}>{takeaway}</li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+function buildResearchTakeaways({
+  summary,
+  uiState,
+}: {
+  summary: ObservationSummary | null;
+  uiState: ForwardObservationUiState | null;
+}) {
+  if (summary) {
+    if (summary.completeCount > 0 && summary.coverageLabel === "Strong") {
+      return [
+        "This observation window has enough complete rows for group-level historical review.",
+        "Group metrics use complete rows only.",
+        "Notable examples may include outliers and should not be treated as predictions.",
+      ];
+    }
+
+    if (summary.completeCount === 0) {
+      if (summary.partialCount > 0 && summary.missingCount > 0) {
+        return [
+          "This observation window does not have enough complete rows for group-level conclusions.",
+          "Partial rows are shown for research context only while missing rows may reflect unavailable future candles, listing history, market data coverage, or sync gaps.",
+          "Wait for more future candles before comparing groups; the selected scanner snapshot can still be reviewed separately.",
+        ];
+      }
+
+      if (summary.partialCount > 0) {
+        return [
+          "This observation window does not have enough complete rows for group-level conclusions.",
+          "Partial rows are shown for research context only.",
+          "Wait for more future candles before comparing groups.",
+        ];
+      }
+
+      if (summary.missingCount > 0) {
+        return [
+          "This observation window does not have enough complete rows for group-level conclusions.",
+          "Missing rows usually reflect unavailable future candles, listing history, market data coverage, or sync gaps.",
+          "The selected scanner snapshot can still be reviewed separately.",
+        ];
+      }
+    }
+
+    return [
+      "This observation window has some complete rows, but coverage is limited for group-level historical review.",
+      "Group metrics use complete rows only.",
+      "Notable examples may include outliers and should not be treated as predictions.",
+    ];
+  }
+
+  if (!uiState || !shouldShowUnavailableResearchTakeaways(uiState.status)) {
+    return [];
+  }
+
+  return [
+    "Forward observation is not available for this run yet.",
+    "The selected run can still be reviewed as a scanner snapshot.",
+    "Historical observations are research context only, not predictions or financial advice.",
+  ];
+}
+
+function shouldShowUnavailableResearchTakeaways(
+  status: ForwardObservationUiStatus,
+) {
+  return [
+    "readiness_unavailable",
+    "not_ready_for_selected_run",
+    "no_observable_run",
+    "observation_rows_error",
+    "observation_ready_summary_missing",
+    "observation_empty",
+  ].includes(status);
 }
 
 function GroupDistributionTable({
