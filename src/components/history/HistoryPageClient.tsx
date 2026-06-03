@@ -533,10 +533,10 @@ export function HistoryPageClient() {
               <div>
                 <h2 className="text-base font-semibold">Selected Stored Run</h2>
                 <p className="mt-1 text-xs text-[var(--muted)]">
-                  Stored scanner metadata for the selected historical run.
-                  Snapshot Rows below are scanner output from this selected run.
-                  Forward Observation may use a different mature observation run
-                  when the selected stored run is still waiting for future candles.
+                  This is the scanner snapshot you selected. Snapshot Rows below
+                  come from this run. Forward Observation may use a different
+                  mature observation run for research context when this selected
+                  stored run is still waiting for future candles.
                 </p>
               </div>
               {snapshotQuery.data ? (
@@ -798,9 +798,9 @@ export function ForwardObservationSection({
             Research-only. Historical observations are not predictions.
           </p>
           <p className="mt-1 max-w-3xl text-xs leading-5 text-[var(--muted)]">
-            Forward Observation is measured from the observation run after the
-            selected number of complete future candles. It may use a mature
-            historical observation run when the selected stored run is not mature.
+            Forward Observation uses completed future candles from the observation
+            run. If the selected stored run is not mature yet, this section may
+            use the latest mature full-universe run for observation metrics.
           </p>
           <p className="mt-1 text-xs font-semibold text-[var(--muted)]">
             {formatForwardObservationUiStatusLabel(uiState)}
@@ -840,7 +840,8 @@ export function ForwardObservationSection({
           {observationRun ? (
             <span className="rounded border border-[var(--border)] px-2 py-1">
               Observation run: {shortRunId(observationRun.runId)}, status:{" "}
-              {formatReadinessRunStatus(observationReadiness)}
+              {formatReadinessRunStatus(observationReadiness)}. Mature run used
+              for forward observation metrics.
             </span>
           ) : null}
           {observationRun ? (
@@ -1110,8 +1111,9 @@ function ObservationSummarySection({
       <div className="mb-3">
         <h3 className="text-sm font-semibold">Observation Summary</h3>
         <p className="mt-1 max-w-3xl text-xs leading-5 text-[var(--muted)]">
-          Historical observations describe what happened after a stored scanner
-          run. They do not predict future outcomes and are not financial advice.
+          Observation metrics are calculated from the observation run shown in
+          Forward Observation. They are historical observations for research
+          context, not predictions or financial advice.
         </p>
       </div>
 
@@ -1515,10 +1517,9 @@ export function SnapshotTable({
         <div>
           <h2 className="text-base font-semibold">Snapshot Rows</h2>
           <p className="mt-1 text-xs text-[var(--muted)]">
-            Full scanner output from the selected stored run. Forward Observation
-            can use a different mature observation run when the selected run is
-            not ready for the forward observation window. Current Symbol Research
-            links open the current research view.
+            Snapshot Rows are the scanner output from the selected stored run.
+            They are not necessarily the same run used for Forward Observation.
+            Current Symbol Research links open the current research view.
           </p>
         </div>
         <span className="text-xs text-[var(--muted)]">
