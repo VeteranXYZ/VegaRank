@@ -26,6 +26,12 @@ const historyDisclaimer =
   "Research-only. Not financial advice. Historical observations are not predictions.";
 const emptyHistoricalSnapshotRuns: HistoricalSnapshotRun[] = [];
 const emptyHistoricalObservationRows: HistoricalSnapshotObservationRow[] = [];
+const historySnapshotsQueryName = "history-snapshots";
+const historySnapshotQueryName = "history-snapshot";
+const historyObservationReadinessQueryName =
+  "history-observation-readiness";
+const historySnapshotObservationsQueryName =
+  "history-snapshot-observations";
 export const recentRunsPanelClassName =
   "rounded-md border border-[var(--border)] bg-[var(--panel)] p-4 xl:sticky xl:top-4 xl:flex xl:max-h-[calc(100vh-2rem)] xl:flex-col xl:overflow-hidden";
 export const recentRunsScrollContainerClassName =
@@ -322,8 +328,10 @@ export function HistoryPageClient() {
   const [manualSelectedRunId, setManualSelectedRunId] = useState<string | null>(
     null,
   );
+  const [refreshingTimeframe, setRefreshingTimeframe] =
+    useState<HistoryTimeframe | null>(null);
   const snapshotsQuery = useQuery({
-    queryKey: ["history-snapshots", timeframe, assetClass],
+    queryKey: buildHistorySnapshotsQueryKey({ timeframe, assetClass }),
     queryFn: ({ signal }) =>
       fetchHistoricalSnapshots({ timeframe, assetClass, signal }),
     staleTime: 60_000,
@@ -335,7 +343,7 @@ export function HistoryPageClient() {
       : snapshots[0]?.runId ?? null;
 
   const snapshotQuery = useQuery({
-    queryKey: ["history-snapshot", selectedRunId, assetClass],
+    queryKey: buildHistorySnapshotQueryKey({ runId: selectedRunId, assetClass }),
     queryFn: ({ signal }) =>
       fetchHistoricalSnapshot({
         runId: selectedRunId ?? "",
@@ -346,13 +354,12 @@ export function HistoryPageClient() {
     staleTime: 60_000,
   });
   const readinessQuery = useQuery({
-    queryKey: [
-      "history-observation-readiness",
+    queryKey: buildHistoryObservationReadinessQueryKey({
       timeframe,
-      selectedRunId,
+      runId: selectedRunId,
       assetClass,
-      observationWindow,
-    ],
+      window: observationWindow,
+    }),
     queryFn: ({ signal }) =>
       fetchHistoricalObservationReadiness({
         timeframe,
@@ -373,12 +380,11 @@ export function HistoryPageClient() {
     readinessError,
   });
   const observationQuery = useQuery({
-    queryKey: [
-      "history-snapshot-observations",
-      observationRunId,
+    queryKey: buildHistorySnapshotObservationsQueryKey({
+      runId: observationRunId,
       assetClass,
-      observationWindow,
-    ],
+      window: observationWindow,
+    }),
     queryFn: ({ signal }) =>
       fetchHistoricalSnapshotObservations({
         runId: observationRunId ?? "",
@@ -418,20 +424,41 @@ export function HistoryPageClient() {
   );
 
   const refreshData = () => {
-    void snapshotsQuery.refetch();
+    const activeTimeframe = timeframe;
+    const refreshScope = buildHistoryRefreshScope({
+      timeframe: activeTimeframe,
+      assetClass,
+      selectedRunId,
+      observationRunId,
+      window: observationWindow,
+    });
+    const blockingRefreshes: Array<Promise<unknown>> = [
+      snapshotsQuery.refetch(),
+    ];
+
+    setRefreshingTimeframe(activeTimeframe);
+
     if (selectedRunId !== null) {
-      void snapshotQuery.refetch();
-      void readinessQuery.refetch();
-      if (observationRunId !== null) {
-        void observationQuery.refetch();
-      }
+      blockingRefreshes.push(snapshotQuery.refetch(), readinessQuery.refetch());
     }
+
+    if (refreshScope.backgroundQueryKeys.length > 0) {
+      void observationQuery.refetch();
+    }
+
+    void Promise.allSettled(blockingRefreshes).finally(() => {
+      setRefreshingTimeframe((current) =>
+        getNextRefreshingTimeframeAfterCompletion({
+          refreshingTimeframe: current,
+          completedTimeframe: activeTimeframe,
+        }),
+      );
+    });
   };
-  const isRefreshing =
-    snapshotsQuery.isFetching ||
-    snapshotQuery.isFetching ||
-    readinessQuery.isFetching ||
-    observationQuery.isFetching;
+  const isRefreshing = isHistoryRefreshActiveForTimeframe({
+    refreshingTimeframe,
+    timeframe,
+  });
 
   return (
     <section className="mx-auto max-w-[1800px] px-3 py-5 sm:px-4">
@@ -1589,6 +1616,129 @@ function StatePanel({ title, message }: { title: string; message: string }) {
       <p className="mt-1 text-sm leading-6 text-[var(--muted)]">{message}</p>
     </div>
   );
+}
+
+export function buildHistorySnapshotsQueryKey({
+  timeframe,
+  assetClass,
+}: {
+  timeframe: HistoryTimeframe;
+  assetClass: string;
+}) {
+  return [historySnapshotsQueryName, timeframe, assetClass] as const;
+}
+
+export function buildHistorySnapshotQueryKey({
+  runId,
+  assetClass,
+}: {
+  runId: string | null;
+  assetClass: string;
+}) {
+  return [historySnapshotQueryName, runId, assetClass] as const;
+}
+
+export function buildHistoryObservationReadinessQueryKey({
+  timeframe,
+  runId,
+  assetClass,
+  window,
+}: {
+  timeframe: HistoryTimeframe;
+  runId: string | null;
+  assetClass: string;
+  window: ObservationWindow;
+}) {
+  return [
+    historyObservationReadinessQueryName,
+    timeframe,
+    runId,
+    assetClass,
+    window,
+  ] as const;
+}
+
+export function buildHistorySnapshotObservationsQueryKey({
+  runId,
+  assetClass,
+  window,
+}: {
+  runId: string | null;
+  assetClass: string;
+  window: ObservationWindow;
+}) {
+  return [
+    historySnapshotObservationsQueryName,
+    runId,
+    assetClass,
+    window,
+  ] as const;
+}
+
+export function buildHistoryRefreshScope({
+  timeframe,
+  assetClass,
+  selectedRunId,
+  observationRunId,
+  window,
+}: {
+  timeframe: HistoryTimeframe;
+  assetClass: string;
+  selectedRunId: string | null;
+  observationRunId: string | null;
+  window: ObservationWindow;
+}) {
+  return {
+    timeframe,
+    blockingQueryKeys: [
+      buildHistorySnapshotsQueryKey({ timeframe, assetClass }),
+      ...(selectedRunId
+        ? [
+            buildHistorySnapshotQueryKey({
+              runId: selectedRunId,
+              assetClass,
+            }),
+            buildHistoryObservationReadinessQueryKey({
+              timeframe,
+              runId: selectedRunId,
+              assetClass,
+              window,
+            }),
+          ]
+        : []),
+    ],
+    backgroundQueryKeys: observationRunId
+      ? [
+          buildHistorySnapshotObservationsQueryKey({
+            runId: observationRunId,
+            assetClass,
+            window,
+          }),
+        ]
+      : [],
+  };
+}
+
+export function isHistoryRefreshActiveForTimeframe({
+  refreshingTimeframe,
+  timeframe,
+}: {
+  refreshingTimeframe: HistoryTimeframe | null;
+  timeframe: HistoryTimeframe;
+}) {
+  return refreshingTimeframe === timeframe;
+}
+
+export function getNextRefreshingTimeframeAfterCompletion({
+  refreshingTimeframe,
+  completedTimeframe,
+}: {
+  refreshingTimeframe: HistoryTimeframe | null;
+  completedTimeframe: HistoryTimeframe;
+}) {
+  return refreshingTimeframe === completedTimeframe
+    ? null
+    : refreshingTimeframe;
 }
 
 export function getObservationProbeRuns({

@@ -3,6 +3,7 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import {
+  buildHistoryRefreshScope,
   buildHistoricalObservationReadinessUrl,
   buildHistoricalSnapshotObservationsUrl,
   buildHistoricalSnapshotUrl,
@@ -12,9 +13,11 @@ import {
   ForwardObservationSection,
   formatHistoryDateTime,
   formatHistoryPrimarySignal,
+  getNextRefreshingTimeframeAfterCompletion,
   getForwardObservationRowsRunId,
   getObservationProbeRuns,
   HistoryPageClient,
+  isHistoryRefreshActiveForTimeframe,
   RecentSuccessfulRunsPanel,
   recentRunsPanelClassName,
   recentRunsScrollContainerClassName,
@@ -66,6 +69,111 @@ describe("HistoryPageClient API URLs", () => {
     ).toBe(
       `https://api.auere.com/api/history/snapshot-observations?runId=${runId}&assetClass=crypto&window=3`,
     );
+  });
+});
+
+describe("HistoryPageClient refresh scope", () => {
+  it("scopes 4h refresh requests to 4h data and does not request other timeframes", () => {
+    const scope = buildHistoryRefreshScope({
+      timeframe: "4h",
+      assetClass: "crypto",
+      selectedRunId: "2366b0f7-1111-4111-8111-111111111111",
+      observationRunId: "a9b5d020-2222-4222-8222-222222222222",
+      window: 3,
+    });
+    const keys = [...scope.blockingQueryKeys, ...scope.backgroundQueryKeys];
+
+    expect(scope.timeframe).toBe("4h");
+    expect(scope.blockingQueryKeys).toEqual([
+      ["history-snapshots", "4h", "crypto"],
+      [
+        "history-snapshot",
+        "2366b0f7-1111-4111-8111-111111111111",
+        "crypto",
+      ],
+      [
+        "history-observation-readiness",
+        "4h",
+        "2366b0f7-1111-4111-8111-111111111111",
+        "crypto",
+        3,
+      ],
+    ]);
+    expect(scope.backgroundQueryKeys).toEqual([
+      [
+        "history-snapshot-observations",
+        "a9b5d020-2222-4222-8222-222222222222",
+        "crypto",
+        3,
+      ],
+    ]);
+    expect(keys.some((key) => key.includes("1h"))).toBe(false);
+    expect(keys.some((key) => key.includes("1d"))).toBe(false);
+    expect(keys.some((key) => key.includes("1w"))).toBe(false);
+  });
+
+  it("switching to 1d builds only 1d-specific run and readiness keys", () => {
+    const scope = buildHistoryRefreshScope({
+      timeframe: "1d",
+      assetClass: "crypto",
+      selectedRunId: "ff5a19ed-1111-4111-8111-111111111111",
+      observationRunId: "61d67176-2222-4222-8222-222222222222",
+      window: 3,
+    });
+
+    expect(scope.blockingQueryKeys[0]).toEqual([
+      "history-snapshots",
+      "1d",
+      "crypto",
+    ]);
+    expect(scope.blockingQueryKeys[2]).toEqual([
+      "history-observation-readiness",
+      "1d",
+      "ff5a19ed-1111-4111-8111-111111111111",
+      "crypto",
+      3,
+    ]);
+    expect(scope.blockingQueryKeys).not.toContainEqual([
+      "history-snapshots",
+      "4h",
+      "crypto",
+    ]);
+  });
+
+  it("keeps the Refresh button tied to the current timeframe only", () => {
+    expect(
+      isHistoryRefreshActiveForTimeframe({
+        refreshingTimeframe: "4h",
+        timeframe: "4h",
+      }),
+    ).toBe(true);
+    expect(
+      isHistoryRefreshActiveForTimeframe({
+        refreshingTimeframe: "4h",
+        timeframe: "1d",
+      }),
+    ).toBe(false);
+    expect(
+      isHistoryRefreshActiveForTimeframe({
+        refreshingTimeframe: null,
+        timeframe: "4h",
+      }),
+    ).toBe(false);
+  });
+
+  it("clears only the completed timeframe so stale requests cannot hold the current Refresh state", () => {
+    expect(
+      getNextRefreshingTimeframeAfterCompletion({
+        refreshingTimeframe: "4h",
+        completedTimeframe: "4h",
+      }),
+    ).toBeNull();
+    expect(
+      getNextRefreshingTimeframeAfterCompletion({
+        refreshingTimeframe: "1d",
+        completedTimeframe: "4h",
+      }),
+    ).toBe("1d");
   });
 });
 
