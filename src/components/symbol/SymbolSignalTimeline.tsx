@@ -44,14 +44,14 @@ export function SymbolSignalTimeline({
       ) : (
         <>
           {items.length === 1 ? (
-            <p className="mb-3 border border-[var(--border)] bg-[#080d12] px-3 py-2 text-xs text-[var(--muted)]">
+            <p className="mb-3 border border-[var(--border)] bg-[var(--panel-2)] px-3 py-2 text-xs text-[var(--muted)]">
               Only the latest signal is available. More history will appear after future
               scans.
             </p>
           ) : null}
 
           {showSelectionNotice ? (
-            <p className="mb-3 border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-100">
+            <p className="mb-3 border border-amber-500/30 bg-[var(--warning-bg)] px-3 py-2 text-xs text-[var(--warning)]">
               Some newer history rows may come from non-preferred or smaller runs.
               Current classification uses the selected full-universe scan run.
             </p>
@@ -129,14 +129,14 @@ export function SymbolSignalTimeline({
 
 function getArticleClassName(item: NormalizedSymbolTimelineSignal) {
   if (item.timelineTone === "selected") {
-    return "border-[var(--info)] bg-[#07131a]";
+    return "border-[var(--info)] bg-[var(--info-bg)]";
   }
 
   if (item.timelineTone === "secondary") {
-    return "border-dashed border-[var(--border)] bg-[#070b10] opacity-85";
+    return "border-dashed border-[var(--border)] bg-[var(--panel-2)] opacity-85";
   }
 
-  return "border-[var(--border)] bg-[#080d12]";
+  return "border-[var(--border)] bg-[var(--panel-2)]";
 }
 
 function getDotClassName(item: NormalizedSymbolTimelineSignal) {
@@ -145,7 +145,7 @@ function getDotClassName(item: NormalizedSymbolTimelineSignal) {
   }
 
   if (item.timelineTone === "secondary") {
-    return "border-[var(--border)] bg-[#070b10]";
+    return "border-[var(--border)] bg-[var(--panel-2)]";
   }
 
   return "border-[var(--border)] bg-[var(--panel)]";
@@ -171,13 +171,13 @@ function TimelineFact({
 function getGroupClassName(group: string) {
   switch (group) {
     case "eligible":
-      return "border-emerald-500/35 bg-emerald-500/10 text-emerald-200";
+      return "border-emerald-500/35 bg-emerald-500/10 text-[var(--positive)]";
     case "watch":
-      return "border-sky-500/35 bg-sky-500/10 text-sky-200";
+      return "border-sky-500/35 bg-sky-500/10 text-[var(--info)]";
     case "overheated":
-      return "border-amber-500/35 bg-amber-500/10 text-amber-200";
+      return "border-amber-500/35 bg-[var(--warning-bg)] text-[var(--warning)]";
     case "risk":
-      return "border-rose-500/35 bg-rose-500/10 text-rose-200";
+      return "border-rose-500/35 bg-rose-500/10 text-[var(--danger)]";
     case "insufficient_history":
       return "border-zinc-500/35 bg-zinc-500/10 text-zinc-200";
     default:

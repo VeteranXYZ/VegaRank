@@ -1,23 +1,54 @@
 "use client";
 
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { useLanguage } from "@/components/providers/LanguageProvider";
+
+const navItems = [
+  { href: "/scanner", labelKey: "scanner" },
+  { href: "/screener", label: "Screener" },
+  { href: "/watchlist", label: "Watchlist" },
+  { href: "/history", labelKey: "history" },
+  { href: "/symbol/binance/BTCUSDT", labelKey: "btc" },
+] as const;
 
 export function Header() {
   const { dictionary: t } = useLanguage();
+  const pathname = usePathname();
 
   return (
-    <header className="border-b border-[var(--border)] bg-[#090e14]">
-      <div className="mx-auto flex min-h-11 max-w-[1800px] flex-wrap items-center justify-between gap-2 px-3 py-1.5 sm:px-4">
-        <Link href="/" className="text-sm font-semibold leading-none">
-          {t.nav.brand}
+    <header className="sticky top-0 z-40 border-b border-[var(--border)] bg-[var(--header-bg)] backdrop-blur">
+      <div className="mx-auto flex min-h-10 max-w-[1800px] flex-wrap items-center justify-between gap-2 px-3 py-1 sm:px-4">
+        <Link
+          href="/"
+          className="flex items-center gap-2 text-[13px] font-semibold leading-none text-[var(--foreground)]"
+        >
+          <span className="h-2 w-2 rounded-full bg-[var(--accent)]" />
+          <span>{t.nav.brand}</span>
         </Link>
-        <nav className="flex flex-wrap items-center justify-end gap-x-3 gap-y-1 text-xs text-[var(--muted)]">
-          <Link href="/scanner">{t.nav.scanner}</Link>
-          <Link href="/screener">Screener</Link>
-          <Link href="/watchlist">Watchlist</Link>
-          <Link href="/history">{t.nav.history}</Link>
-          <Link href="/symbol/binance/BTCUSDT">{t.nav.btc}</Link>
+        <nav className="flex flex-wrap items-center justify-end gap-1 text-[11px] font-semibold text-[var(--muted)]">
+          {navItems.map((item) => {
+            const label =
+              "label" in item ? item.label : t.nav[item.labelKey];
+            const isSymbolLink = item.href.startsWith("/symbol");
+            const isActive = isSymbolLink
+              ? pathname.startsWith("/symbol")
+              : pathname === item.href || pathname.startsWith(`${item.href}/`);
+
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                className={`rounded border px-2 py-1 transition ${
+                  isActive
+                    ? "border-[var(--accent)] bg-[var(--positive-bg)] text-[var(--accent)]"
+                    : "border-transparent hover:border-[var(--border)] hover:bg-[var(--row-hover)] hover:text-[var(--foreground)]"
+                }`}
+              >
+                {label}
+              </Link>
+            );
+          })}
         </nav>
       </div>
     </header>

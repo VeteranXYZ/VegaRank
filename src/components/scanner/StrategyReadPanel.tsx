@@ -10,7 +10,7 @@ export function StrategyReadPanel({ result }: StrategyReadPanelProps) {
   const missingIndicators = result.dataQuality.missingIndicators;
 
   return (
-    <section className="rounded-md border border-[var(--border)] bg-[#0b0f14]/60 p-3">
+    <section className="rounded-md border border-[var(--border)] bg-[var(--panel-2)] p-3">
       <h2 className="mb-2 text-sm font-semibold">{t.strategy.title}</h2>
 
       <div className="space-y-2">
@@ -102,12 +102,12 @@ function ReadBlock({
   text: string;
 }) {
   return (
-    <div className="rounded border border-[var(--border)] bg-[#0b0f14]/80 px-2 py-1.5">
+    <div className="rounded border border-[var(--border)] bg-[var(--panel-2)] px-2 py-1.5">
       <div className="flex flex-wrap items-center gap-1.5">
         <span className="text-[10px] uppercase tracking-wide text-[var(--muted)]">
           {label}
         </span>
-        <span className="rounded bg-[#101923] px-1.5 py-0.5 text-[11px] font-semibold">
+        <span className="rounded bg-[var(--row-selected)] px-1.5 py-0.5 text-[11px] font-semibold">
           {value}
         </span>
       </div>
@@ -135,7 +135,7 @@ function ScoreRow({
         <span>{label}</span>
         <span className="tabular-nums text-[var(--muted)]">{value.toFixed(0)}</span>
       </div>
-      <div className="h-1.5 overflow-hidden rounded-full bg-[#111820]">
+      <div className="h-1.5 overflow-hidden rounded-full bg-[var(--panel-strong)]">
         <div
           className={`h-full rounded-full ${
             risk ? "bg-[var(--warning)]" : "bg-[var(--accent)]"

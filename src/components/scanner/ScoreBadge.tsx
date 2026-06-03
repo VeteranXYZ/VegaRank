@@ -15,7 +15,7 @@ export function ScoreBadge({
 
   return (
     <span
-      className={`inline-flex items-center justify-between gap-1.5 rounded border border-[var(--border)] bg-[#0b0f14]/80 px-2 py-1 text-[11px] ${
+      className={`inline-flex items-center justify-between gap-1.5 rounded border border-[var(--border)] bg-[var(--panel-2)] px-2 py-1 text-[11px] ${
         compact ? "min-w-0" : "min-w-24"
       }`}
     >

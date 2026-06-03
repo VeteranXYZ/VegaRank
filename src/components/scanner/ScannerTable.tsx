@@ -170,7 +170,7 @@ export function ScannerTable({
                 row.original.detectedRiskTypes.length ||
                 row.original.warnings.length
               } ${t.scanner.warnings}`}
-              className="inline-flex border border-[#8f6b24]/40 bg-[#1b1710] px-1 py-0.5 text-[10px] font-semibold text-[var(--warning)]"
+              className="inline-flex border border-[#8f6b24]/40 bg-[var(--warning-bg)] px-1 py-0.5 text-[10px] font-semibold text-[var(--warning)]"
             >
               W{row.original.detectedRiskTypes.length || row.original.warnings.length}
             </span>
@@ -221,7 +221,7 @@ export function ScannerTable({
       />
 
       {partialErrors.length > 0 && (
-        <div className="border-b border-[var(--border)] bg-[#1b1710] px-2.5 py-1 text-[11px] text-[var(--warning)]">
+        <div className="border-b border-[var(--border)] bg-[var(--warning-bg)] px-2.5 py-1 text-[11px] text-[var(--warning)]">
           {partialErrors.length} {t.scanner.partialErrors}
         </div>
       )}
@@ -241,7 +241,7 @@ export function ScannerTable({
       ) : (
         <div className="min-h-0 flex-1 overflow-auto">
           <table className="w-full min-w-[940px] table-fixed border-collapse text-left text-xs">
-            <thead className="sticky top-0 z-10 bg-[#090f15] text-[10px] uppercase text-[var(--muted)] shadow-[0_1px_0_var(--border)]">
+            <thead className="sticky top-0 z-10 bg-[var(--table-header)] text-[10px] uppercase text-[var(--muted)] shadow-[0_1px_0_var(--border)]">
               {table.getHeaderGroups().map((headerGroup) => (
                 <tr key={headerGroup.id}>
                   {headerGroup.headers.map((header) => (
@@ -289,7 +289,7 @@ export function ScannerTable({
                       }
                     }}
                     className={`cursor-pointer border-t border-[var(--border)] transition ${
-                      isSelected ? "bg-[#0d1b15]" : "hover:bg-[#101923]/75"
+                      isSelected ? "bg-[var(--positive-bg)]" : "hover:bg-[var(--row-hover)]"
                     }`}
                   >
                     {row.getVisibleCells().map((cell, cellIndex) => (
@@ -333,8 +333,8 @@ function MaStatus({ result }: { result: ScanResult }) {
           key={label}
           className={`inline-flex h-4 min-w-5 items-center justify-center border px-0.5 text-[10px] font-semibold ${
             active
-              ? "border-[#2f7d46] bg-[#132119] text-[var(--accent)]"
-              : "border-[var(--border)] bg-[#0b0f14] text-[var(--muted)]"
+              ? "border-[#2f7d46] bg-[var(--positive-bg)] text-[var(--accent)]"
+              : "border-[var(--border)] bg-[var(--control)] text-[var(--muted)]"
           }`}
         >
           {label}
@@ -350,7 +350,7 @@ function CompactScores({ result }: { result: ScanResult }) {
       <span className="text-[var(--accent)]">
         O {formatSigned(result.opportunityScore, 0)}
       </span>
-      <span className="text-[#60a5fa]">
+      <span className="text-[var(--info)]">
         C {formatSigned(result.confirmationScore, 0)}
       </span>
       <span className={getRiskTextClass(result.riskScore)}>
@@ -392,7 +392,7 @@ function MacdCell({ result }: { result: ScanResult }) {
   }
 
   if (result.macd.aboveZero) {
-    return <span className="text-[#60a5fa]">{t.scanner.macdTableFlat}</span>;
+    return <span className="text-[var(--info)]">{t.scanner.macdTableFlat}</span>;
   }
 
   return <span className="text-[var(--muted)]">{t.scanner.macdTableImproving}</span>;
@@ -416,7 +416,7 @@ function getFinalScoreTextClass(finalSignalScore: number) {
   }
 
   if (finalSignalScore > 50) {
-    return "text-[#60d394]";
+    return "text-[var(--positive)]";
   }
 
   if (finalSignalScore < 0) {
@@ -431,7 +431,7 @@ function getActionTextClass(actionBias: ScanResult["actionBias"]) {
     case "eligible":
       return "font-semibold text-[var(--accent)]";
     case "watch_only":
-      return "font-semibold text-[#60a5fa]";
+      return "font-semibold text-[var(--info)]";
     case "do_not_chase":
       return "font-semibold text-[var(--warning)]";
     case "avoid":
@@ -444,20 +444,20 @@ function getActionTextClass(actionBias: ScanResult["actionBias"]) {
 function getSignalTextClass(signalLabel: ScanResult["signalLabel"]) {
   switch (signalLabel) {
     case "confirmed":
-      return "border-[#2f7d46] bg-[#132119] text-[var(--accent)]";
+      return "border-[#2f7d46] bg-[var(--positive-bg)] text-[var(--accent)]";
     case "watch":
     case "trend":
-      return "border-[#2563eb]/45 bg-[#0c1726] text-[#60a5fa]";
+      return "border-[#2563eb]/45 bg-[var(--info-bg)] text-[var(--info)]";
     case "overheated":
-      return "border-[#8f6b24]/50 bg-[#1b1710] text-[var(--warning)]";
+      return "border-[#8f6b24]/50 bg-[var(--warning-bg)] text-[var(--warning)]";
     case "distribution_risk":
     case "breakdown_risk":
-      return "border-[#7f1d1d]/60 bg-[#1b1010] text-[var(--danger)]";
+      return "border-[#7f1d1d]/60 bg-[var(--danger-bg)] text-[var(--danger)]";
     case "weak_bounce":
     case "weak":
-      return "border-[#6b7280]/45 bg-[#111820] text-[var(--muted)]";
+      return "border-[#6b7280]/45 bg-[var(--panel-strong)] text-[var(--muted)]";
     case "neutral":
-      return "border-[var(--border)] bg-[#0b0f14] text-[var(--muted)]";
+      return "border-[var(--border)] bg-[var(--control)] text-[var(--muted)]";
   }
 }
 

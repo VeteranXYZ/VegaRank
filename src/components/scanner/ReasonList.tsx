@@ -21,7 +21,7 @@ export function ReasonList({ title, items }: ReasonListProps) {
         {visibleItems.map((item) => (
           <li
             key={`${item.key}-${JSON.stringify(item.params ?? {})}`}
-            className="border-l border-[var(--border)] bg-[#0b0f14]/45 px-2 py-0.5"
+            className="border-l border-[var(--border)] bg-[var(--panel-2)] px-2 py-0.5"
           >
             {formatScannerExplanation(item, t)}
           </li>
@@ -36,7 +36,7 @@ export function ReasonList({ title, items }: ReasonListProps) {
             {hiddenItems.map((item) => (
               <li
                 key={`${item.key}-${JSON.stringify(item.params ?? {})}`}
-                className="border-l border-[var(--border)] bg-[#0b0f14]/45 px-2 py-0.5"
+                className="border-l border-[var(--border)] bg-[var(--panel-2)] px-2 py-0.5"
               >
                 {formatScannerExplanation(item, t)}
               </li>

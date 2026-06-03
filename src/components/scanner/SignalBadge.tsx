@@ -6,12 +6,12 @@ type SignalBadgeProps = {
 };
 
 export const signalToneClass: Record<ScannerSignal["state"], string> = {
-  WATCHLIST: "border-[#8f7a31]/70 bg-[#1b180d] text-[var(--warning)]",
-  CONFIRMED: "border-[#2f7d46]/70 bg-[#101b15] text-[var(--accent)]",
-  TREND_CONTINUATION: "border-[#2d5b89]/70 bg-[#0e1722] text-[#86b7ef]",
-  HIGH_RISK: "border-[#8f3a3a]/70 bg-[#211111] text-[var(--danger)]",
-  WEAK: "border-[#6d4a2f]/70 bg-[#1c140d] text-[#d8a16b]",
-  NEUTRAL: "border-[var(--border)] bg-[#0b0f14] text-[var(--muted)]",
+  WATCHLIST: "border-[#8f7a31]/70 bg-[var(--warning-bg)] text-[var(--warning)]",
+  CONFIRMED: "border-[#2f7d46]/70 bg-[var(--positive-bg)] text-[var(--accent)]",
+  TREND_CONTINUATION: "border-[#2d5b89]/70 bg-[var(--info-bg)] text-[var(--info)]",
+  HIGH_RISK: "border-[#8f3a3a]/70 bg-[var(--danger-bg)] text-[var(--danger)]",
+  WEAK: "border-[#6d4a2f]/70 bg-[var(--warning-bg)] text-[var(--warning)]",
+  NEUTRAL: "border-[var(--border)] bg-[var(--control)] text-[var(--muted)]",
 };
 
 export function SignalBadge({ signal }: SignalBadgeProps) {

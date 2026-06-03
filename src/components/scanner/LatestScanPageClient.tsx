@@ -213,7 +213,7 @@ export function LatestScanPageClient({
 
   return (
     <section className="mx-auto flex min-h-[calc(100vh-1px)] max-w-[1800px] flex-col px-2 py-2">
-      <header className="mb-2 border border-[var(--border)] bg-[#070b0f] px-3 py-2 shadow-[inset_3px_0_0_rgba(96,165,250,0.35)]">
+      <header className="mb-2 border border-[var(--border)] bg-[var(--panel)] px-3 py-2 shadow-[inset_3px_0_0_rgba(96,165,250,0.35)]">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div>
             <h1 className="text-sm font-semibold text-[var(--foreground)]">
@@ -464,12 +464,12 @@ function LatestScanSummaryPanel({
             {summaryText}
           </p>
           {showUniverseWarning && (
-            <p className="mt-1 border border-amber-500/50 bg-amber-500/10 px-2 py-1 text-[11px] font-semibold text-amber-200">
+            <p className="mt-1 border border-amber-500/50 bg-[var(--warning-bg)] px-2 py-1 text-[11px] font-semibold text-[var(--warning)]">
               This does not look like a full crypto universe scan.
             </p>
           )}
           {limitedViewWarning && (
-            <p className="mt-1 border border-[var(--border)] bg-[#111827] px-2 py-1 text-[11px] font-semibold text-[var(--foreground)]">
+            <p className="mt-1 border border-[var(--border)] bg-[var(--panel-strong)] px-2 py-1 text-[11px] font-semibold text-[var(--foreground)]">
               {limitedViewWarning}
             </p>
           )}
@@ -511,7 +511,7 @@ function LatestScanGroupSummary({ summary }: { summary: LatestScanSummary }) {
         {chips.map((chip) => (
           <span
             key={chip.group}
-            className="border border-[var(--border)] bg-[#0b0f14] px-2 py-1 text-[var(--foreground)]"
+            className="border border-[var(--border)] bg-[var(--control)] px-2 py-1 text-[var(--foreground)]"
           >
             {chip.label} {formatInteger(chip.count)}
           </span>
@@ -572,7 +572,7 @@ function LatestScanGroupSection({
       ) : (
         <div className="overflow-x-auto">
           <table className="w-full min-w-[860px] table-fixed border-collapse text-left text-xs">
-            <thead className="bg-[#090f15] text-[10px] uppercase text-[var(--muted)]">
+            <thead className="bg-[var(--table-header)] text-[10px] uppercase text-[var(--muted)]">
               <tr>
                 <th className="w-[94px] px-2 py-1.5">Symbol</th>
                 <th className="w-[72px] px-2 py-1.5">Rank</th>
@@ -637,8 +637,8 @@ function LatestScanRow({
     <tr
       className={
         isExpanded
-          ? "border-t border-[var(--border)] bg-[#101923] align-top"
-          : "border-t border-[var(--border)] align-top hover:bg-[#101923]/75"
+          ? "border-t border-[var(--border)] bg-[var(--row-selected)] align-top"
+          : "border-t border-[var(--border)] align-top hover:bg-[var(--row-hover)]"
       }
     >
       <td className="px-2 py-1.5 font-semibold text-[var(--foreground)]">
@@ -678,7 +678,7 @@ function LatestScanRow({
       <td className="px-2 py-1.5">
         <div>{formatQualityTier(item.qualityTier)}</div>
         {item.isLowQuality && (
-          <span className="mt-1 inline-block border border-[var(--border)] bg-[#15100b] px-1 py-0.5 text-[10px] text-amber-200">
+          <span className="mt-1 inline-block border border-[var(--border)] bg-[var(--warning-bg)] px-1 py-0.5 text-[10px] text-[var(--warning)]">
             Low quality
           </span>
         )}
@@ -705,7 +705,7 @@ function LatestScanRow({
 
 function LatestScanDetailsRow({ item }: { item: LatestScanItem }) {
   return (
-    <tr className="border-t border-[var(--border)] bg-[#080d12]">
+    <tr className="border-t border-[var(--border)] bg-[var(--panel-2)]">
       <td colSpan={latestScanTableColumnCount} className="px-3 py-3">
         <LatestScanDetails item={item} />
       </td>
@@ -793,7 +793,7 @@ function GroupHintList() {
 
 function SummaryMetric({ label, value }: { label: string; value: string }) {
   return (
-    <div className="border border-[var(--border)] bg-[#0b0f14]/60 px-2 py-1">
+    <div className="border border-[var(--border)] bg-[var(--panel-2)] px-2 py-1">
       <div className="truncate text-[10px] text-[var(--muted)]">{label}</div>
       <div className="mt-0.5 truncate text-xs font-semibold tabular-nums">
         {value}
@@ -857,7 +857,7 @@ function TokenList({ values, empty }: { values: string[]; empty: string }) {
       {values.map((value) => (
         <span
           key={value}
-          className="border border-[var(--border)] bg-[#0b0f14] px-1 py-0.5 text-[10px]"
+          className="border border-[var(--border)] bg-[var(--control)] px-1 py-0.5 text-[10px]"
         >
           {value}
         </span>
@@ -1236,4 +1236,4 @@ function pickRawMetrics(metrics: Record<string, unknown> | undefined) {
 }
 
 const controlClass =
-  "h-7 w-full border border-[var(--border)] bg-[#0b0f14] px-2 text-xs text-[var(--foreground)]";
+  "h-7 w-full border border-[var(--border)] bg-[var(--control)] px-2 text-xs text-[var(--foreground)]";

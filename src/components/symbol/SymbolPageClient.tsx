@@ -101,7 +101,7 @@ export function SymbolPageClient({ exchange, symbol }: SymbolPageClientProps) {
             <select
               value={timeframe}
               onChange={(event) => setTimeframe(event.target.value as Timeframe)}
-              className="rounded-md border border-[var(--border)] bg-[#0b0f14] px-3 py-2 text-[var(--foreground)]"
+              className="rounded-md border border-[var(--border)] bg-[var(--control)] px-3 py-2 text-[var(--foreground)]"
             >
               {TIMEFRAMES.map((option) => (
                 <option key={option} value={option}>
@@ -181,7 +181,7 @@ export function SymbolPageClient({ exchange, symbol }: SymbolPageClientProps) {
                   {snapshot && (
                     <IndicatorSummary snapshot={snapshot} scanResult={scanResult} />
                   )}
-                  <p className="mt-4 rounded-md border border-[var(--border)] bg-[#0b0f14] p-3 text-sm leading-6 text-[var(--muted)]">
+                  <p className="mt-4 rounded-md border border-[var(--border)] bg-[var(--control)] p-3 text-sm leading-6 text-[var(--muted)]">
                     {t.signalSummary[scanResult.signal.state]}
                   </p>
                 </div>
@@ -272,8 +272,8 @@ function MultiTimeframePanel({
               onClick={() => onSelect(option)}
               className={`min-h-28 w-full rounded-md border p-3 text-left transition ${
                 isActive
-                  ? "border-[var(--foreground)] bg-[#101923]"
-                  : "border-[var(--border)] bg-[#0b0f14] hover:border-[var(--foreground)]"
+                  ? "border-[var(--foreground)] bg-[var(--row-selected)]"
+                  : "border-[var(--border)] bg-[var(--control)] hover:border-[var(--foreground)]"
               }`}
             >
               <div className="flex items-center justify-between gap-3">
@@ -341,7 +341,7 @@ function IndicatorSummary({
       {rows.map(([label, value]) => (
         <div
           key={label}
-          className="rounded-md border border-[var(--border)] bg-[#0b0f14] p-3"
+          className="rounded-md border border-[var(--border)] bg-[var(--control)] p-3"
         >
           <dt className="text-xs text-[var(--muted)]">{label}</dt>
           <dd className="mt-1 font-semibold">{value}</dd>
@@ -364,7 +364,7 @@ function StatePanel({ title, message }: { title: string; message: string }) {
 
 function Metric({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-md border border-[var(--border)] bg-[#0b0f14] p-3">
+    <div className="rounded-md border border-[var(--border)] bg-[var(--control)] p-3">
       <div className="text-xs text-[var(--muted)]">{label}</div>
       <div className="mt-1 font-semibold">{value}</div>
     </div>

@@ -32,23 +32,23 @@ export function CandleChart({ candles }: CandleChartProps) {
     const chart = createChart(container, {
       autoSize: true,
       layout: {
-        background: { type: ColorType.Solid, color: "#0b0f14" },
-        textColor: "#8b949e",
+        background: { type: ColorType.Solid, color: "#ffffff" },
+        textColor: "#475569",
       },
       grid: {
-        vertLines: { color: "#18222d" },
-        horzLines: { color: "#18222d" },
+        vertLines: { color: "#e5eaf0" },
+        horzLines: { color: "#e5eaf0" },
       },
       rightPriceScale: {
-        borderColor: "#26313d",
+        borderColor: "#cbd5e1",
       },
       timeScale: {
-        borderColor: "#26313d",
+        borderColor: "#cbd5e1",
         timeVisible: true,
       },
       crosshair: {
-        vertLine: { color: "#8b949e" },
-        horzLine: { color: "#8b949e" },
+        vertLine: { color: "#64748b" },
+        horzLine: { color: "#64748b" },
       },
     });
 
@@ -62,7 +62,7 @@ export function CandleChart({ candles }: CandleChartProps) {
 
   if (candles.length === 0) {
     return (
-      <div className="flex h-[520px] w-full items-center justify-center rounded-md border border-[var(--border)] bg-[#0b0f14] text-sm text-[var(--muted)]">
+      <div className="flex h-[520px] w-full items-center justify-center rounded-md border border-[var(--border)] bg-[var(--panel)] text-sm text-[var(--muted)]">
         No candle data available
       </div>
     );
@@ -71,28 +71,28 @@ export function CandleChart({ candles }: CandleChartProps) {
   return (
     <div
       ref={containerRef}
-      className="h-[520px] w-full rounded-md border border-[var(--border)] bg-[#0b0f14]"
+      className="h-[520px] w-full rounded-md border border-[var(--border)] bg-[var(--panel)]"
     />
   );
 }
 
 function addSeries(chart: IChartApi, data: ChartData) {
   const candles = chart.addSeries(CandlestickSeries, {
-    upColor: "#3fb950",
-    downColor: "#ff7b72",
-    borderUpColor: "#3fb950",
-    borderDownColor: "#ff7b72",
-    wickUpColor: "#3fb950",
-    wickDownColor: "#ff7b72",
+    upColor: "#047857",
+    downColor: "#dc2626",
+    borderUpColor: "#047857",
+    borderDownColor: "#dc2626",
+    wickUpColor: "#047857",
+    wickDownColor: "#dc2626",
   });
   candles.setData(data.candles);
 
-  addLine(chart, data.ma20, "#58a6ff", "MA20", 2);
-  addLine(chart, data.ma50, "#d2a8ff", "MA50", 2);
-  addLine(chart, data.ma200, "#f2cc60", "MA200", 2);
-  addLine(chart, data.bbUpper, "#8b949e", "BB Upper", 1);
-  addLine(chart, data.bbMiddle, "#6e7681", "BB Middle", 1);
-  addLine(chart, data.bbLower, "#8b949e", "BB Lower", 1);
+  addLine(chart, data.ma20, "#2563eb", "MA20", 2);
+  addLine(chart, data.ma50, "#7c3aed", "MA50", 2);
+  addLine(chart, data.ma200, "#b45309", "MA200", 2);
+  addLine(chart, data.bbUpper, "#64748b", "BB Upper", 1);
+  addLine(chart, data.bbMiddle, "#94a3b8", "BB Middle", 1);
+  addLine(chart, data.bbLower, "#64748b", "BB Lower", 1);
 }
 
 function addLine(

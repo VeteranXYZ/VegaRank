@@ -35,7 +35,7 @@ const historySnapshotObservationsQueryName =
 export const recentRunsPanelClassName =
   "rounded-md border border-[var(--border)] bg-[var(--panel)] p-4 xl:sticky xl:top-4 xl:flex xl:max-h-[calc(100vh-2rem)] xl:flex-col xl:overflow-hidden";
 export const recentRunsScrollContainerClassName =
-  "space-y-2 pr-1 xl:min-h-0 xl:flex-1 xl:overflow-y-auto xl:overscroll-contain xl:rounded-md xl:border xl:border-[var(--border)] xl:bg-[#0d131a]/40 xl:p-2";
+  "space-y-2 pr-1 xl:min-h-0 xl:flex-1 xl:overflow-y-auto xl:overscroll-contain xl:rounded-md xl:border xl:border-[var(--border)] xl:bg-[var(--panel-2)] xl:p-2";
 const unsafePrimarySignalLabelMap: Record<string, string> = {
   "do not chase": "Overheated caution",
   avoid: "Risk review",
@@ -550,7 +550,7 @@ export function HistoryPageClient() {
                 onClick={() => setTimeframe(option)}
                 className={`min-w-12 rounded px-3 py-1.5 text-sm font-semibold ${
                   option === timeframe
-                    ? "bg-[var(--foreground)] text-[var(--background)]"
+                    ? "bg-[var(--accent)] text-on-accent"
                     : "text-[var(--muted)] hover:text-[var(--foreground)]"
                 }`}
               >
@@ -826,11 +826,11 @@ function formatRecentRunCardClassName(
     "w-full rounded-md border p-3 text-left transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent)]";
 
   if (isSelected) {
-    return `${base} border-[var(--foreground)] bg-[#111820]`;
+    return `${base} border-[var(--foreground)] bg-[var(--panel-strong)]`;
   }
 
   if (run.isLikelyFullUniverse === true) {
-    return `${base} border-[var(--border)] bg-[#0f151c] hover:border-[var(--muted)]`;
+    return `${base} border-[var(--border)] bg-[var(--panel-2)] hover:border-[var(--muted)]`;
   }
 
   return `${base} border-[var(--border)] opacity-75 hover:border-[var(--muted)] hover:opacity-100`;
@@ -909,7 +909,7 @@ export function ForwardObservationSection({
               onClick={() => onWindowChange(option)}
               className={`rounded px-3 py-1.5 text-xs font-semibold ${
                 option === window
-                  ? "bg-[var(--foreground)] text-[var(--background)]"
+                  ? "bg-[var(--accent)] text-on-accent"
                   : "text-[var(--muted)] hover:text-[var(--foreground)]"
               }`}
             >
@@ -1079,7 +1079,7 @@ export function ObservationRowsTable({
       ) : (
         <div className="overflow-x-auto">
           <table className="w-full min-w-[1060px] border-collapse text-left text-sm">
-            <thead className="sticky top-0 bg-[#0d131a] text-xs uppercase text-[var(--muted)]">
+            <thead className="sticky top-0 bg-[var(--table-header)] text-xs uppercase text-[var(--muted)]">
               <tr>
                 <th className="px-3 py-3 font-semibold">Symbol</th>
                 <th className="px-3 py-3 font-semibold">Group</th>
@@ -1211,7 +1211,7 @@ function formatObservationRowsFilterButtonClassName(isSelected: boolean) {
   const base = "rounded-md border px-2.5 py-1 text-xs font-semibold";
 
   return isSelected
-    ? `${base} border-[var(--foreground)] bg-[var(--foreground)] text-[var(--background)]`
+    ? `${base} border-[var(--foreground)] bg-[var(--accent)] text-on-accent`
     : `${base} border-[var(--border)] text-[var(--muted)] hover:text-[var(--foreground)]`;
 }
 
@@ -1220,11 +1220,11 @@ function formatObservationDataStatusBadgeClassName(
 ) {
   switch (status) {
     case "complete":
-      return "border-emerald-500/30 bg-emerald-500/10 text-emerald-200";
+      return "border-emerald-500/30 bg-emerald-500/10 text-[var(--positive)]";
     case "partial":
-      return "border-amber-500/30 bg-amber-500/10 text-amber-200";
+      return "border-amber-500/30 bg-[var(--warning-bg)] text-[var(--warning)]";
     case "missing":
-      return "border-[var(--border)] bg-[#111820] text-[var(--muted)]";
+      return "border-[var(--border)] bg-[var(--panel-strong)] text-[var(--muted)]";
   }
 }
 
@@ -1564,7 +1564,7 @@ function GroupDistributionTable({
       ) : (
         <div className="mt-3 overflow-x-auto">
           <table className="w-full min-w-[860px] border-collapse text-left text-sm">
-            <thead className="bg-[#0d131a] text-xs uppercase text-[var(--muted)]">
+            <thead className="bg-[var(--table-header)] text-xs uppercase text-[var(--muted)]">
               <tr>
                 <th className="px-3 py-3 font-semibold">Group</th>
                 <th className="px-3 py-3 font-semibold">Rows</th>
@@ -1918,7 +1918,7 @@ export function SnapshotTable({
       ) : (
         <div className="overflow-x-auto">
           <table className="w-full min-w-[1180px] border-collapse text-left text-sm">
-            <thead className="bg-[#0d131a] text-xs uppercase text-[var(--muted)]">
+            <thead className="bg-[var(--table-header)] text-xs uppercase text-[var(--muted)]">
               <tr>
                 <th className="px-3 py-3 font-semibold">#</th>
                 <th className="px-3 py-3 font-semibold">Symbol</th>

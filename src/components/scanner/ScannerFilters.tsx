@@ -362,7 +362,7 @@ export function ScannerFilters({ filters, onChange }: ScannerFiltersProps) {
                 key={preset.label}
                 type="button"
                 onClick={() => onChange(preset.filters)}
-                className="min-h-6 border border-[var(--border)] bg-[#0b0f14] px-1.5 py-0.5 text-left text-[10px] font-semibold text-[var(--foreground)] transition hover:border-[var(--foreground)]"
+                className="min-h-6 border border-[var(--border)] bg-[var(--control)] px-1.5 py-0.5 text-left text-[10px] font-semibold text-[var(--foreground)] transition hover:border-[var(--foreground)]"
               >
                 {preset.label}
               </button>
@@ -392,7 +392,7 @@ function HelpDisclosure({
 }
 
 const controlClass =
-  "h-7 w-full border border-[var(--border)] bg-[#0b0f14] px-2 text-xs text-[var(--foreground)]";
+  "h-7 w-full border border-[var(--border)] bg-[var(--control)] px-2 text-xs text-[var(--foreground)]";
 
 const defaultScannerFilters: ScannerFiltersState = {
   mode: "single",

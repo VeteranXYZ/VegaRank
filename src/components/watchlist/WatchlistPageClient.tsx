@@ -218,7 +218,7 @@ export function WatchlistPageClient() {
 
   return (
     <section className="mx-auto flex min-h-[calc(100vh-1px)] max-w-[1800px] flex-col px-2 py-2">
-      <header className="mb-2 border border-[var(--border)] bg-[#070b0f] px-3 py-3 shadow-[inset_3px_0_0_rgba(45,212,191,0.35)]">
+      <header className="mb-2 border border-[var(--border)] bg-[var(--panel)] px-3 py-3 shadow-[inset_3px_0_0_rgba(45,212,191,0.35)]">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <h1 className="text-sm font-semibold text-[var(--foreground)]">
@@ -332,7 +332,7 @@ export function WatchlistTable({
       </div>
       <div className="overflow-x-auto">
         <table className="min-w-[1400px] table-fixed text-left text-xs">
-          <thead className="bg-[#080d12] text-[11px] uppercase text-[var(--muted)]">
+          <thead className="bg-[var(--table-header)] text-[11px] uppercase text-[var(--muted)]">
             <tr>
               <HeaderCell className="w-[118px]">Symbol</HeaderCell>
               {MTF_SCREENER_TIMEFRAMES.map((timeframe) => (
@@ -357,7 +357,7 @@ export function WatchlistTable({
             {rows.map((row) => (
               <tr
                 key={row.symbol}
-                className="border-t border-[var(--border)] align-top hover:bg-[#0b1118]"
+                className="border-t border-[var(--border)] align-top hover:bg-[var(--row-hover)]"
               >
                 <BodyCell>
                   <div className="font-mono text-sm font-semibold text-[var(--foreground)]">
@@ -826,7 +826,7 @@ function WatchlistSourcePanel({
           return (
             <div
               key={timeframe}
-              className="border border-[var(--border)] bg-[#080d12] px-2 py-1.5"
+              className="border border-[var(--border)] bg-[var(--panel-2)] px-2 py-1.5"
             >
               <div className="text-[11px] font-semibold text-[var(--foreground)]">
                 {timeframe}
@@ -926,7 +926,7 @@ function WatchlistStatusNotice({
 
 function CompactNotice({ message }: { message: string }) {
   return (
-    <section className="border border-[var(--border)] bg-[#080d12] px-3 py-2 text-[11px] leading-4 text-[var(--muted)]">
+    <section className="border border-[var(--border)] bg-[var(--panel-2)] px-3 py-2 text-[11px] leading-4 text-[var(--muted)]">
       {message}
     </section>
   );
@@ -977,7 +977,7 @@ function RiskNotesCell({ row }: { row: WatchlistRow }) {
         {summary.visibleNotes.map((note) => (
           <span
             key={note}
-            className="border border-[var(--border)] bg-[#080d12] px-1.5 py-0.5"
+            className="border border-[var(--border)] bg-[var(--panel-2)] px-1.5 py-0.5"
           >
             {note}
           </span>
@@ -1043,13 +1043,13 @@ function GroupBadge({
 }) {
   const tone =
     group === "eligible"
-      ? "border-emerald-500/40 text-emerald-200"
+      ? "border-emerald-500/40 bg-[var(--positive-bg)] text-[var(--positive)]"
       : group === "watch"
-        ? "border-sky-500/40 text-sky-200"
+        ? "border-sky-500/40 bg-[var(--info-bg)] text-[var(--info)]"
         : group === "overheated"
-          ? "border-amber-500/40 text-amber-200"
+          ? "border-amber-500/40 bg-[var(--warning-bg)] text-[var(--warning)]"
           : group === "risk"
-            ? "border-rose-500/40 text-rose-200"
+            ? "border-rose-500/40 bg-[var(--danger-bg)] text-[var(--danger)]"
             : "border-[var(--border)] text-[var(--muted)]";
 
   return (
@@ -1086,6 +1086,6 @@ function formatSummaryRank(value: number) {
 }
 
 const controlClass =
-  "h-8 w-full border border-[var(--border)] bg-[#0b0f14] px-2 text-xs text-[var(--foreground)]";
+  "h-8 w-full border border-[var(--border)] bg-[var(--control)] px-2 text-xs text-[var(--foreground)]";
 const buttonClass =
   "h-8 border border-[var(--border)] px-2 text-[11px] font-semibold text-[var(--foreground)] hover:border-[var(--info)]";

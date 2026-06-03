@@ -114,7 +114,7 @@ export function HistoricalBehaviorPanel({
             <select
               value={matchMode}
               onChange={(event) => setMatchMode(event.target.value as MatchMode)}
-              className="h-7 w-full border border-[var(--border)] bg-[#0b0f14] px-2 text-xs text-[var(--foreground)]"
+              className="h-7 w-full border border-[var(--border)] bg-[var(--control)] px-2 text-xs text-[var(--foreground)]"
             >
               <option value="broad">{t.backtest.broad}</option>
               <option value="standard">{t.backtest.standard}</option>
@@ -128,7 +128,7 @@ export function HistoricalBehaviorPanel({
             >
               ?
             </summary>
-            <div className="absolute right-0 z-20 mt-1 w-64 border border-[var(--border)] bg-[#0b0f14] p-2 leading-4 shadow-xl">
+            <div className="absolute right-0 z-20 mt-1 w-64 border border-[var(--border)] bg-[var(--control)] p-2 leading-4 shadow-xl">
               <p>{t.backtest.matchModeHelp.broad}</p>
               <p className="mt-1">{t.backtest.matchModeHelp.standard}</p>
               <p className="mt-1">{t.backtest.matchModeHelp.similar}</p>
@@ -152,7 +152,7 @@ export function HistoricalBehaviorPanel({
       )}
 
       {currentError && (
-        <p className="border-l border-[var(--danger)] bg-[#211111]/60 px-2 py-1 text-[11px] leading-5 text-[var(--danger)]">
+        <p className="border-l border-[var(--danger)] bg-[var(--danger-bg)] px-2 py-1 text-[11px] leading-5 text-[var(--danger)]">
           {currentError}
         </p>
       )}
@@ -191,7 +191,7 @@ export function HistoricalBehaviorResult({
 
       <p
         className={[
-          "border-l bg-[#0b0f14]/45 px-2 py-1 text-[11px] leading-5",
+          "border-l bg-[var(--panel-2)] px-2 py-1 text-[11px] leading-5",
           isRiskSummary
             ? "border-[var(--warning)] text-[var(--warning)]"
             : "border-[var(--border)] text-[var(--muted)]",
@@ -201,7 +201,7 @@ export function HistoricalBehaviorResult({
       </p>
 
       {showSmallSampleWarning && (
-        <p className="border-l border-[var(--warning)] bg-[#201a0b]/55 px-2 py-1 text-[11px] leading-5 text-[var(--warning)]">
+        <p className="border-l border-[var(--warning)] bg-[var(--warning-bg)] px-2 py-1 text-[11px] leading-5 text-[var(--warning)]">
           {t.backtest.smallSampleWarning}
         </p>
       )}
@@ -230,7 +230,7 @@ export function HistoricalBehaviorResult({
               >
                 ?
               </summary>
-              <div className="absolute right-0 z-20 mt-1 w-72 border border-[var(--border)] bg-[#0b0f14] p-2 leading-4 shadow-xl">
+              <div className="absolute right-0 z-20 mt-1 w-72 border border-[var(--border)] bg-[var(--control)] p-2 leading-4 shadow-xl">
                 {t.backtest.metricHelp.map((line) => (
                   <p key={line} className="mb-1 last:mb-0">
                     {line}

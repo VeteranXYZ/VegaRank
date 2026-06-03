@@ -232,7 +232,7 @@ export function ScannerPageClient() {
 
   return (
     <section className="mx-auto flex min-h-[calc(100vh-1px)] max-w-[1800px] flex-col px-2 py-2">
-      <div className="mb-1.5 border border-[var(--border)] bg-[#070b0f] px-2.5 py-1.5 font-mono shadow-[inset_3px_0_0_rgba(96,165,250,0.35)]">
+      <div className="mb-1.5 border border-[var(--border)] bg-[var(--panel)] px-2.5 py-1.5 font-mono shadow-[inset_3px_0_0_rgba(96,165,250,0.35)]">
         <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] leading-5 text-[var(--muted)]">
           <h1 className="mr-1 text-sm font-semibold text-[var(--foreground)]">
             {t.scanner.title}
@@ -413,7 +413,7 @@ function ResearchEvaluationPanel({
 
 function ResearchMetric({ label, value }: { label: string; value: string }) {
   return (
-    <div className="border border-[var(--border)] bg-[#0b0f14]/60 px-1.5 py-1">
+    <div className="border border-[var(--border)] bg-[var(--panel-2)] px-1.5 py-1">
       <div className="truncate text-[10px] text-[var(--muted)]">{label}</div>
       <div className="mt-0.5 truncate text-xs font-semibold tabular-nums">
         {value}
@@ -469,26 +469,26 @@ export function ScanScopePanel({
       </div>
 
       {data?.capped && (
-        <div className="mt-1 border border-[var(--warning)]/40 bg-[#1b1710] px-2 py-0.5 text-[10px] font-semibold text-[var(--warning)]">
+        <div className="mt-1 border border-[var(--warning)]/40 bg-[var(--warning-bg)] px-2 py-0.5 text-[10px] font-semibold text-[var(--warning)]">
           {t.scanner.cappedWarning}
         </div>
       )}
 
       {data?.liveSymbolLimitApplied && (
-        <div className="mt-1 border border-[var(--warning)]/40 bg-[#1b1710] px-2 py-0.5 text-[10px] font-semibold text-[var(--warning)]">
+        <div className="mt-1 border border-[var(--warning)]/40 bg-[var(--warning-bg)] px-2 py-0.5 text-[10px] font-semibold text-[var(--warning)]">
           Live scan limited to top {formatInteger(data.liveSymbolLimit)} symbols for
           Cloudflare stability.
         </div>
       )}
 
       {data?.batchWarnings && data.batchWarnings.length > 0 && (
-        <div className="mt-1 border border-[var(--warning)]/40 bg-[#1b1710] px-2 py-0.5 text-[10px] font-semibold text-[var(--warning)]">
+        <div className="mt-1 border border-[var(--warning)]/40 bg-[var(--warning-bg)] px-2 py-0.5 text-[10px] font-semibold text-[var(--warning)]">
           Some later batches failed. Showing partial results from completed batches.
         </div>
       )}
 
       {progress && (
-        <div className="mt-0.5 border border-[var(--border)] bg-[#0b0f14] px-2 py-0.5 text-[10px] text-[var(--muted)]">
+        <div className="mt-0.5 border border-[var(--border)] bg-[var(--control)] px-2 py-0.5 text-[10px] text-[var(--muted)]">
           <span className="font-semibold text-[var(--foreground)]">
             {progress.mode === "mtf"
               ? t.scanner.scanningMtfBatch
@@ -533,7 +533,7 @@ function MtfAlignmentSummary({
           {items.map((item) => (
             <div
               key={item.alignment}
-              className="border border-[var(--border)] bg-[#0b0f14]/60 px-1.5 py-1"
+              className="border border-[var(--border)] bg-[var(--panel-2)] px-1.5 py-1"
             >
               <div className="truncate text-[10px] text-[var(--muted)]">
                 {t.alignment[item.alignment]}
@@ -541,7 +541,7 @@ function MtfAlignmentSummary({
               <div className="mt-0.5 text-xs font-semibold tabular-nums">
                 {item.count}
               </div>
-              <div className="mt-1 h-0.5 overflow-hidden bg-[#111820]">
+              <div className="mt-1 h-0.5 overflow-hidden bg-[var(--panel-strong)]">
                 <div
                   className="h-full bg-[var(--accent)]"
                   style={{ width: `${(item.count / total) * 100}%` }}

@@ -706,7 +706,7 @@ export function SymbolResearchPageClient({
               {getSymbolResearchScoreRows(scoreBreakdown).map((row) => (
                 <div
                   key={row.label}
-                  className="border border-[var(--border)] bg-[#080d12] px-3 py-2"
+                  className="border border-[var(--border)] bg-[var(--panel-2)] px-3 py-2"
                 >
                   <div className="text-[11px] uppercase text-[var(--muted)]">
                     {row.label}
@@ -758,8 +758,8 @@ export function SymbolResearchPageClient({
             <p
               className={`mt-3 border px-3 py-2 text-xs ${
                 diagnostics.hasWarning
-                  ? "border-amber-500/30 bg-amber-500/10 text-amber-100"
-                  : "border-[var(--border)] bg-[#080d12] text-[var(--muted)]"
+                  ? "border-amber-500/30 bg-[var(--warning-bg)] text-[var(--warning)]"
+                  : "border-[var(--border)] bg-[var(--panel-2)] text-[var(--muted)]"
               }`}
             >
               {diagnostics.notice}
@@ -1299,7 +1299,7 @@ function SymbolResearchNavigation({
   };
 
   return (
-    <section className="mb-3 border border-[var(--border)] bg-[#070b0f] px-3 py-3">
+    <section className="mb-3 border border-[var(--border)] bg-[var(--panel)] px-3 py-3">
       <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
@@ -1339,7 +1339,7 @@ function SymbolResearchNavigation({
             <input
               value={symbolInput}
               onChange={(event) => setSymbolInput(event.target.value)}
-              className="h-9 w-full border border-[var(--border)] bg-[#080d12] px-3 text-sm text-[var(--foreground)] outline-none focus:border-[var(--info)]"
+              className="h-9 w-full border border-[var(--border)] bg-[var(--panel-2)] px-3 text-sm text-[var(--foreground)] outline-none focus:border-[var(--info)]"
               placeholder="SEIUSDT"
             />
           </label>
@@ -1445,7 +1445,7 @@ export function SymbolWatchlistControl({
   return (
     <div className="mb-2 flex flex-wrap items-center gap-2 md:justify-end">
       {inWatchlist ? (
-        <span className="border border-emerald-500/40 px-2 py-1 text-[11px] font-semibold text-emerald-200">
+        <span className="border border-emerald-500/40 px-2 py-1 text-[11px] font-semibold text-[var(--positive)]">
           In Watchlist
         </span>
       ) : (
@@ -1529,19 +1529,19 @@ function getTimeframeNavigationClass(option: SymbolResearchTimeframeNavigationOp
     "inline-flex items-center gap-1.5 border px-3 py-1.5 font-semibold";
 
   if (option.status === "planned") {
-    return `${base} border-[var(--border)] bg-[#080d12] text-[var(--muted)] opacity-70`;
+    return `${base} border-[var(--border)] bg-[var(--panel-2)] text-[var(--muted)] opacity-70`;
   }
 
   if (option.status === "selected_unavailable") {
-    return `${base} border-amber-400/50 bg-amber-500/10 text-amber-100 hover:border-amber-300`;
+    return `${base} border-amber-400/50 bg-[var(--warning-bg)] text-[var(--warning)] hover:border-amber-300`;
   }
 
   if (option.status === "unavailable") {
-    return `${base} border-[var(--border)] bg-[#080d12] text-[var(--muted)] hover:border-amber-400/50 hover:text-[var(--foreground)]`;
+    return `${base} border-[var(--border)] bg-[var(--panel-2)] text-[var(--muted)] hover:border-amber-400/50 hover:text-[var(--foreground)]`;
   }
 
   if (option.isSelected) {
-    return `${base} border-[var(--info)] bg-[#07131a] text-[var(--foreground)]`;
+    return `${base} border-[var(--info)] bg-[var(--info-bg)] text-[var(--foreground)]`;
   }
 
   return `${base} border-[var(--border)] text-[var(--muted)] hover:border-[var(--info)] hover:text-[var(--foreground)]`;
@@ -1566,9 +1566,9 @@ function ResearchState({
       <p className="mt-2 text-sm text-[var(--muted)]">{message}</p>
       {loading ? (
         <div className="mt-5 grid gap-2 sm:grid-cols-3">
-          <div className="h-16 border border-[var(--border)] bg-[#080d12]" />
-          <div className="h-16 border border-[var(--border)] bg-[#080d12]" />
-          <div className="h-16 border border-[var(--border)] bg-[#080d12]" />
+          <div className="h-16 border border-[var(--border)] bg-[var(--panel-2)]" />
+          <div className="h-16 border border-[var(--border)] bg-[var(--panel-2)]" />
+          <div className="h-16 border border-[var(--border)] bg-[var(--panel-2)]" />
         </div>
       ) : null}
       {apiOrigin ? (
@@ -1608,7 +1608,7 @@ function SymbolResearchUnavailableState({
         {apiOrigin ? <Fact label="API Origin" value={apiOrigin} /> : null}
       </div>
 
-      <div className="mt-5 border border-[var(--border)] bg-[#080d12] px-3 py-3">
+      <div className="mt-5 border border-[var(--border)] bg-[var(--panel-2)] px-3 py-3">
         <h2 className="text-sm font-semibold">Suggested next checks</h2>
         <ul className="mt-2 space-y-1.5 text-sm text-[var(--muted)]">
           {content.suggestions.map((suggestion) => (
@@ -1728,8 +1728,8 @@ function SignalEvaluationPanel({
           <div
             className={`mt-4 border px-3 py-3 text-sm ${
               isError || !readout.available
-                ? "border-[var(--border)] bg-[#080d12] text-[var(--muted)]"
-                : "border-[var(--border)] bg-[#07131a] text-[var(--foreground)]"
+                ? "border-[var(--border)] bg-[var(--panel-2)] text-[var(--muted)]"
+                : "border-[var(--border)] bg-[var(--info-bg)] text-[var(--foreground)]"
             }`}
           >
             <div className="text-[11px] uppercase text-[var(--muted)]">
@@ -1833,7 +1833,7 @@ function JsonBlock({ title, value }: { title: string; value: unknown }) {
   return (
     <div>
       <h3 className="text-[11px] uppercase text-[var(--muted)]">{title}</h3>
-      <pre className="mt-2 max-h-64 overflow-auto whitespace-pre-wrap border border-[var(--border)] bg-[#080d12] p-3 text-[11px] leading-5 text-[var(--muted)]">
+      <pre className="mt-2 max-h-64 overflow-auto whitespace-pre-wrap border border-[var(--border)] bg-[var(--panel-2)] p-3 text-[11px] leading-5 text-[var(--muted)]">
         {JSON.stringify(value ?? null, null, 2)}
       </pre>
     </div>
@@ -1856,7 +1856,7 @@ function ResponsiveTable({
   return (
     <div className="overflow-x-auto">
       <table className="w-full min-w-[760px] border-collapse text-left text-xs">
-        <thead className="bg-[#090f15] text-[10px] uppercase text-[var(--muted)]">
+        <thead className="bg-[var(--table-header)] text-[10px] uppercase text-[var(--muted)]">
           <tr>
             {headers.map((header) => (
               <th key={header} className="px-2 py-1.5">

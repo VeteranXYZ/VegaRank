@@ -32,7 +32,7 @@ export function SignalSummaryBar({
           const label = item.signal === "ALL" ? t.common.all : t.signal[item.signal];
           const tone =
             item.signal === "ALL"
-              ? "border-[var(--border)] bg-[#0b0f14] text-[var(--foreground)]"
+              ? "border-[var(--border)] bg-[var(--control)] text-[var(--foreground)]"
               : signalToneClass[item.signal];
 
           return (

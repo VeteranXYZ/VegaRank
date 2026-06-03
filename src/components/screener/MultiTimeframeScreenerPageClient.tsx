@@ -159,7 +159,7 @@ export function MultiTimeframeScreenerPageClient() {
 
   return (
     <section className="mx-auto flex min-h-[calc(100vh-1px)] max-w-[1800px] flex-col px-2 py-2">
-      <header className="mb-2 border border-[var(--border)] bg-[#070b0f] px-3 py-3 shadow-[inset_3px_0_0_rgba(45,212,191,0.35)]">
+      <header className="mb-2 border border-[var(--border)] bg-[var(--panel)] px-3 py-3 shadow-[inset_3px_0_0_rgba(45,212,191,0.35)]">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <h1 className="text-sm font-semibold text-[var(--foreground)]">
@@ -256,11 +256,11 @@ export function MtfScreenerTable({ rows }: { rows: MtfScreenerRow[] }) {
       </div>
       <div className="overflow-x-auto">
         <table className="min-w-[1320px] table-fixed text-left text-[11px]">
-          <thead className="bg-[#080d12] text-[10px] uppercase tracking-normal text-[var(--muted)]">
+          <thead className="bg-[var(--table-header)] text-[10px] uppercase tracking-normal text-[var(--muted)]">
             <tr>
               <HeaderCell
                 rowSpan={2}
-                className="sticky left-0 z-20 w-[118px] bg-[#080d12]"
+                className="sticky left-0 z-20 w-[118px] bg-[var(--table-header)]"
               >
                 Symbol
               </HeaderCell>
@@ -299,9 +299,9 @@ export function MtfScreenerTable({ rows }: { rows: MtfScreenerRow[] }) {
             {rows.map((row) => (
               <tr
                 key={row.symbol}
-                className="group border-t border-[var(--border)] align-top hover:bg-[#0b1118]"
+                className="group border-t border-[var(--border)] align-top hover:bg-[var(--row-hover)]"
               >
-                <BodyCell className="sticky left-0 z-10 bg-[var(--panel)] group-hover:bg-[#0b1118]">
+                <BodyCell className="sticky left-0 z-10 bg-[var(--panel)] group-hover:bg-[var(--row-hover)]">
                   <div className="font-mono text-xs font-semibold text-[var(--foreground)]">
                     {row.symbol}
                   </div>
@@ -427,7 +427,7 @@ export function MtfResearchBucketsPanel({
           aria-pressed={isFullTableActive}
           className={`min-h-9 border px-3 py-1.5 text-left text-[11px] ${
             isFullTableActive
-              ? "border-[var(--accent)] bg-[#0d1714] text-[var(--foreground)]"
+              ? "border-[var(--accent)] bg-[var(--positive-bg)] text-[var(--foreground)]"
               : "border-[var(--border)] text-[var(--muted)] hover:border-[var(--info)] hover:text-[var(--foreground)]"
           }`}
         >
@@ -451,8 +451,8 @@ export function MtfResearchBucketsPanel({
               aria-pressed={isActive}
               className={`min-h-[104px] border px-2.5 py-2 text-left ${
                 isActive
-                  ? "border-[var(--accent)] bg-[#0d1714] text-[var(--foreground)]"
-                  : "border-[var(--border)] bg-[#080d12] text-[var(--muted)] hover:border-[var(--info)] hover:text-[var(--foreground)]"
+                  ? "border-[var(--accent)] bg-[var(--positive-bg)] text-[var(--foreground)]"
+                  : "border-[var(--border)] bg-[var(--panel-2)] text-[var(--muted)] hover:border-[var(--info)] hover:text-[var(--foreground)]"
               }`}
             >
               <span className="flex items-start justify-between gap-2">
@@ -699,7 +699,7 @@ export function MtfScreenerSourcePanel({
           return (
             <div
               key={timeframe}
-              className="border border-[var(--border)] bg-[#080d12] px-2 py-1.5"
+              className="border border-[var(--border)] bg-[var(--panel-2)] px-2 py-1.5"
             >
               <div className="text-[11px] font-semibold text-[var(--foreground)]">
                 {timeframe}
@@ -848,13 +848,13 @@ function GroupBadge({
 }) {
   const tone =
     group === "eligible"
-      ? "border-emerald-500/40 text-emerald-200"
+      ? "border-emerald-500/40 bg-[var(--positive-bg)] text-[var(--positive)]"
       : group === "watch"
-        ? "border-sky-500/40 text-sky-200"
+        ? "border-sky-500/40 bg-[var(--info-bg)] text-[var(--info)]"
         : group === "overheated"
-          ? "border-amber-500/40 text-amber-200"
+          ? "border-amber-500/40 bg-[var(--warning-bg)] text-[var(--warning)]"
           : group === "risk"
-            ? "border-rose-500/40 text-rose-200"
+            ? "border-rose-500/40 bg-[var(--danger-bg)] text-[var(--danger)]"
             : "border-[var(--border)] text-[var(--muted)]";
 
   return (
@@ -870,12 +870,12 @@ function HigherTimeframeHealthBadge({ row }: { row: MtfScreenerRow }) {
   const health = getMtfHigherTimeframeHealth(row);
   const tone =
     health.code === "higher_tf_ok"
-      ? "border-emerald-500/40 text-emerald-200"
+      ? "border-emerald-500/40 bg-[var(--positive-bg)] text-[var(--positive)]"
       : health.code === "limited_htf_data"
-        ? "border-sky-500/40 text-sky-200"
+        ? "border-sky-500/40 bg-[var(--info-bg)] text-[var(--info)]"
         : health.code === "higher_tf_risk"
-          ? "border-rose-500/60 text-rose-200"
-          : "border-amber-500/50 text-amber-200";
+          ? "border-rose-500/60 bg-[var(--danger-bg)] text-[var(--danger)]"
+          : "border-amber-500/50 bg-[var(--warning-bg)] text-[var(--warning)]";
 
   return (
     <span className={`inline-flex whitespace-nowrap border px-1.5 py-0.5 text-[10px] ${tone}`}>
@@ -897,7 +897,7 @@ function RiskNotesCell({ row }: { row: MtfScreenerRow }) {
         {summary.visibleNotes.map((note) => (
           <span
             key={note}
-            className="border border-[var(--border)] bg-[#080d12] px-1.5 py-px text-[10px]"
+            className="border border-[var(--border)] bg-[var(--panel-2)] px-1.5 py-px text-[10px]"
           >
             {note}
           </span>
@@ -921,7 +921,7 @@ function ResearchLink({ row }: { row: MtfScreenerRow }) {
   return (
     <Link
       href={buildMtfSymbolResearchHref({ row, timeframe })}
-      className="inline-flex min-w-[82px] justify-center border border-[var(--info)] bg-[#0b1118] px-2 py-1 text-[11px] font-semibold text-[var(--foreground)] hover:bg-[#101821]"
+      className="inline-flex min-w-[82px] justify-center border border-[var(--info)] bg-[var(--row-hover)] px-2 py-1 text-[11px] font-semibold text-[var(--foreground)] hover:bg-[var(--info-bg)]"
     >
       {timeframe} Research
     </Link>
@@ -954,4 +954,4 @@ function isMtfScreenerDefaultSort(sortState: MtfScreenerSortState) {
 }
 
 const controlClass =
-  "h-8 w-full border border-[var(--border)] bg-[#0b0f14] px-2 text-xs text-[var(--foreground)]";
+  "h-8 w-full border border-[var(--border)] bg-[var(--control)] px-2 text-xs text-[var(--foreground)]";

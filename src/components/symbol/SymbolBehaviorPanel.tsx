@@ -117,7 +117,7 @@ function SampleBadge({ behavior }: { behavior: SymbolBehavior }) {
   const sampleSize = getBehaviorSampleSize(behavior);
 
   return (
-    <div className="border border-[var(--border)] bg-[#080d12] px-3 py-2 text-xs">
+    <div className="border border-[var(--border)] bg-[var(--panel-2)] px-3 py-2 text-xs">
       <div className="text-[10px] uppercase text-[var(--muted-2)]">Sample size</div>
       <div className="mt-1 font-semibold text-[var(--foreground)]">
         {formatBehaviorSampleSize(sampleSize)} prior observations
@@ -134,7 +134,7 @@ function EmptyBehaviorState({
   coverage?: SymbolBehaviorCoverage | null;
 }) {
   return (
-    <div className="border border-[var(--border)] bg-[#080d12] px-3 py-3">
+    <div className="border border-[var(--border)] bg-[var(--panel-2)] px-3 py-3">
       <p className="text-sm font-semibold text-[var(--foreground)]">
         {getBehaviorDiagnosticsTitle(diagnostics)}
       </p>
@@ -211,10 +211,10 @@ function SampleQualityNotice({
 
   const className =
     quality.sampleQualityTone === "warning"
-      ? "border-amber-500/30 bg-amber-500/10 text-amber-100"
+      ? "border-amber-500/30 bg-[var(--warning-bg)] text-[var(--warning)]"
       : quality.sampleQualityTone === "notice"
         ? "border-sky-500/25 bg-sky-500/10 text-sky-100"
-        : "border-[var(--border)] bg-[#080d12] text-[var(--muted)]";
+        : "border-[var(--border)] bg-[var(--panel-2)] text-[var(--muted)]";
 
   return (
     <div className={`mb-3 border px-3 py-2 text-xs ${className}`}>
@@ -244,8 +244,8 @@ function HistoricalFollowThroughEvaluationCard({
   evaluation: HistoricalFollowThroughEvaluation;
 }) {
   const toneClass = evaluation.available
-    ? "border-[var(--border)] bg-[#080d12]"
-    : "border-amber-500/30 bg-amber-500/10";
+    ? "border-[var(--border)] bg-[var(--panel-2)]"
+    : "border-amber-500/30 bg-[var(--warning-bg)]";
 
   return (
     <div className={`mb-3 border px-3 py-3 ${toneClass}`}>
@@ -313,13 +313,13 @@ function getBehaviorReadoutToneClass(readout: BehaviorReadout) {
     case "constructive":
       return "border-emerald-500/30 bg-emerald-500/10";
     case "weak":
-      return "border-amber-500/30 bg-amber-500/10";
+      return "border-amber-500/30 bg-[var(--warning-bg)]";
     case "risk":
       return "border-rose-500/35 bg-rose-500/10";
     case "mixed":
       return "border-sky-500/25 bg-sky-500/10";
     case "insufficient":
-      return "border-[var(--border)] bg-[#080d12]";
+      return "border-[var(--border)] bg-[var(--panel-2)]";
   }
 }
 
@@ -333,7 +333,7 @@ function BehaviorWarnings({ warnings }: { warnings: string[] }) {
       {warnings.map((warning) => (
         <p
           key={warning}
-          className="border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-100"
+          className="border border-amber-500/30 bg-[var(--warning-bg)] px-3 py-2 text-xs text-[var(--warning)]"
         >
           {getBehaviorWarningLabel(warning)}
         </p>
@@ -350,7 +350,7 @@ function CurrentBehaviorContext({ behavior }: { behavior: SymbolBehavior }) {
   }
 
   return (
-    <div className="mt-4 border border-[var(--border)] bg-[#080d12] px-3 py-3">
+    <div className="mt-4 border border-[var(--border)] bg-[var(--panel-2)] px-3 py-3">
       <h3 className="text-sm font-semibold">Current context</h3>
       <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
         <BehaviorFact
@@ -381,7 +381,7 @@ function BehaviorHorizons({ horizons }: { horizons: SymbolBehaviorHorizonRow[] }
       </p>
       <div className="mt-3 overflow-x-auto">
         <table className="w-full min-w-[720px] border-collapse text-left text-xs">
-          <thead className="bg-[#090f15] text-[10px] uppercase text-[var(--muted)]">
+          <thead className="bg-[var(--table-header)] text-[10px] uppercase text-[var(--muted)]">
             <tr>
               <th className="px-2 py-1.5">Horizon</th>
               <th className="px-2 py-1.5 text-right">Observations</th>
@@ -458,7 +458,7 @@ function RecentBehaviorOutcomes({
       </div>
 
       {hasClusteredRuns ? (
-        <p className="mb-3 border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-100">
+        <p className="mb-3 border border-amber-500/30 bg-[var(--warning-bg)] px-3 py-2 text-xs text-[var(--warning)]">
           Several recent observations are close together in time; treat near-term
           behavior samples cautiously.
         </p>
@@ -471,7 +471,7 @@ function RecentBehaviorOutcomes({
       ) : (
         <div className="overflow-x-auto">
           <table className="w-full min-w-[760px] border-collapse text-left text-xs">
-            <thead className="bg-[#090f15] text-[10px] uppercase text-[var(--muted)]">
+            <thead className="bg-[var(--table-header)] text-[10px] uppercase text-[var(--muted)]">
               <tr>
                 <th className="px-2 py-1.5">Scan Time</th>
                 <th className="px-2 py-1.5">Group</th>
@@ -543,7 +543,7 @@ function PercentCell({ value }: { value: unknown }) {
 
 function BehaviorFact({ label, value }: { label: string; value: string }) {
   return (
-    <div className="min-w-0 border border-[var(--border)] bg-[#080d12] px-3 py-2">
+    <div className="min-w-0 border border-[var(--border)] bg-[var(--panel-2)] px-3 py-2">
       <div className="text-[10px] uppercase text-[var(--muted-2)]">{label}</div>
       <div className="mt-1 break-words text-sm text-[var(--foreground)]">
         {value}

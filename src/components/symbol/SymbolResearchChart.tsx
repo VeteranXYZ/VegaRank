@@ -68,46 +68,46 @@ export function SymbolResearchChart({
       autoSize: true,
       height: 320,
       layout: {
-        background: { type: ColorType.Solid, color: "#080d12" },
-        textColor: "#9ba7b4",
+        background: { type: ColorType.Solid, color: "#ffffff" },
+        textColor: "#475569",
         attributionLogo: true,
       },
       grid: {
-        vertLines: { color: "#16212c" },
-        horzLines: { color: "#16212c" },
+        vertLines: { color: "#e5eaf0" },
+        horzLines: { color: "#e5eaf0" },
       },
       rightPriceScale: {
-        borderColor: "#243142",
+        borderColor: "#cbd5e1",
       },
       timeScale: {
-        borderColor: "#243142",
+        borderColor: "#cbd5e1",
         timeVisible: true,
         secondsVisible: false,
       },
       crosshair: {
-        vertLine: { color: "#526173" },
-        horzLine: { color: "#526173" },
+        vertLine: { color: "#64748b" },
+        horzLine: { color: "#64748b" },
       },
       localization: {
         priceFormatter: formatChartPrice,
       },
     });
     const candlestickSeries = chart.addSeries(CandlestickSeries, {
-      upColor: "#8db8a1",
-      downColor: "#c79191",
-      borderUpColor: "#8db8a1",
-      borderDownColor: "#c79191",
-      wickUpColor: "#8db8a1",
-      wickDownColor: "#c79191",
+      upColor: "#047857",
+      downColor: "#dc2626",
+      borderUpColor: "#047857",
+      borderDownColor: "#dc2626",
+      wickUpColor: "#047857",
+      wickDownColor: "#dc2626",
     });
     const ma20Series = chart.addSeries(LineSeries, {
-      color: "#d6b45d",
+      color: "#b45309",
       lineWidth: 1,
       priceLineVisible: false,
       lastValueVisible: false,
     });
     const ma50Series = chart.addSeries(LineSeries, {
-      color: "#7aa8d8",
+      color: "#2563eb",
       lineWidth: 1,
       priceLineVisible: false,
       lastValueVisible: false,
@@ -170,11 +170,11 @@ export function SymbolResearchChart({
           <LegendValue label="Candles" value={String(candleCount)} />
           <div className="flex items-center gap-3 text-left lg:justify-end">
             <span className="inline-flex items-center gap-1">
-              <span className="h-0.5 w-5 bg-[#d6b45d]" />
+              <span className="h-0.5 w-5 bg-[var(--warning)]" />
               MA20
             </span>
             <span className="inline-flex items-center gap-1">
-              <span className="h-0.5 w-5 bg-[#7aa8d8]" />
+              <span className="h-0.5 w-5 bg-[var(--info)]" />
               MA50
             </span>
           </div>
@@ -184,10 +184,10 @@ export function SymbolResearchChart({
       {hasCandles ? (
         <div
           ref={containerRef}
-          className="h-[280px] min-w-0 overflow-hidden border border-[var(--border)] bg-[#080d12] sm:h-[340px]"
+          className="h-[280px] min-w-0 overflow-hidden border border-[var(--border)] bg-[var(--panel)] sm:h-[340px]"
         />
       ) : (
-        <div className="flex h-[220px] items-center justify-center border border-[var(--border)] bg-[#080d12] px-4 text-center text-sm text-[var(--muted)]">
+        <div className="flex h-[220px] items-center justify-center border border-[var(--border)] bg-[var(--panel)] px-4 text-center text-sm text-[var(--muted)]">
           {emptyMessage}
         </div>
       )}

@@ -43,7 +43,7 @@ export function SelectedSymbolPanel({ result }: SelectedSymbolPanelProps) {
               <PhaseBadge phase={result.phase} />
               <SignalBadge signal={result.signal} />
               {result.multiTimeframe && (
-                <span className="inline-flex h-5 items-center border border-[var(--border)] bg-[#0b0f14] px-1.5 text-[11px] font-semibold text-[var(--foreground)]">
+                <span className="inline-flex h-5 items-center border border-[var(--border)] bg-[var(--control)] px-1.5 text-[11px] font-semibold text-[var(--foreground)]">
                   {t.alignment[result.multiTimeframe.alignment]}
                 </span>
               )}
@@ -64,7 +64,7 @@ export function SelectedSymbolPanel({ result }: SelectedSymbolPanelProps) {
           <Metric label="R" value={formatSigned(result.riskScore, 0)} />
         </div>
 
-        <p className="mb-2 border-l-2 border-[var(--border)] bg-[#0b0f14]/45 px-2 py-1 text-[11px] leading-5 text-[var(--muted)]">
+        <p className="mb-2 border-l-2 border-[var(--border)] bg-[var(--panel-2)] px-2 py-1 text-[11px] leading-5 text-[var(--muted)]">
           {formatSignalLabel(result.signalLabel)} /{" "}
           {formatActionBias(result.actionBias)}
         </p>
@@ -151,7 +151,7 @@ export function SelectedSymbolPanel({ result }: SelectedSymbolPanelProps) {
               {result.multiTimeframe.timeframeResults.map((timeframeResult) => (
                 <div
                   key={timeframeResult.timeframe}
-                  className="border border-[var(--border)] bg-[#0b0f14]/55 px-2 py-1"
+                  className="border border-[var(--border)] bg-[var(--panel-2)] px-2 py-1"
                 >
                   <div className="mb-1.5 flex items-center justify-between gap-2">
                     <span className="text-xs font-semibold text-[var(--foreground)]">
@@ -268,7 +268,7 @@ export function SelectedSymbolPanel({ result }: SelectedSymbolPanelProps) {
 
 function Metric({ label, value }: { label: string; value: string }) {
   return (
-    <div className="border border-[var(--border)] bg-[#0b0f14]/65 px-1.5 py-1">
+    <div className="border border-[var(--border)] bg-[var(--panel-2)] px-1.5 py-1">
       <div className="truncate text-[10px] uppercase tracking-wide text-[var(--muted)]">
         {label}
       </div>
@@ -318,7 +318,7 @@ function TagList({ label, items }: { label: string; items: string[] }) {
           {items.map((item) => (
             <span
               key={item}
-              className="border border-[var(--border)] bg-[#0b0f14] px-1.5 py-0.5 text-[10px] text-[var(--foreground)]"
+              className="border border-[var(--border)] bg-[var(--control)] px-1.5 py-0.5 text-[10px] text-[var(--foreground)]"
             >
               {item}
             </span>

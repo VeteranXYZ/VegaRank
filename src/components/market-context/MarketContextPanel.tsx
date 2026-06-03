@@ -85,7 +85,7 @@ export function MarketContextPanel({
           {view.keyPoints.map((point) => (
             <li
               key={point}
-              className="border border-[var(--border)] bg-[#080d12] px-2 py-1.5 text-[11px] leading-4 text-[var(--muted)]"
+              className="border border-[var(--border)] bg-[var(--panel-2)] px-2 py-1.5 text-[11px] leading-4 text-[var(--muted)]"
             >
               {point}
             </li>
@@ -132,12 +132,12 @@ function joinClassNames(...values: Array<string | undefined>) {
 function getChipClassName(tone: "constructive" | "risk" | "mixed" | "neutral") {
   switch (tone) {
     case "constructive":
-      return "border-emerald-500/40 bg-emerald-500/5 text-emerald-200";
+      return "border-emerald-500/40 bg-[var(--positive-bg)] text-[var(--positive)]";
     case "risk":
-      return "border-rose-500/45 bg-rose-500/5 text-rose-200";
+      return "border-rose-500/45 bg-[var(--danger-bg)] text-[var(--danger)]";
     case "mixed":
-      return "border-amber-500/45 bg-amber-500/5 text-amber-100";
+      return "border-amber-500/45 bg-[var(--warning-bg)] text-[var(--warning)]";
     case "neutral":
-      return "border-[var(--border)] bg-[#080d12] text-[var(--muted)]";
+      return "border-[var(--border)] bg-[var(--panel-2)] text-[var(--muted)]";
   }
 }
