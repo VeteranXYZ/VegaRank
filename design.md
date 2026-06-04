@@ -88,7 +88,11 @@ The Watchlist is a selected-symbol monitoring terminal. The selected-symbol tabl
 
 The left rail should prioritize Symbols, Presets, and Filters. Import/export is a secondary collapsed affordance and must not dominate permanent rail space. Avoid generic "show more" overflow controls.
 
-Follow strict semantic color rules: blue is UI/system only, green is eligible/constructive, violet is watch/observation, red is risk, amber is hot/caution/data gap, and gray is neutral/missing/not found. Repair/recovery should not read as healthy green.
+Watchlist sorting is a table-header behavior for Symbol, timeframe, Primary, and Attention columns. Do not place Sort controls in the left rail, and do not make Research or Remove sortable.
+
+Research and Remove are system actions, not market states. Research uses blue system styling; Remove stays neutral with only light system hover treatment.
+
+Follow strict Watchlist color semantics: green means healthy, eligible, or completed; red means risk, breakdown, or invalid; yellow means warning, hot, data gap, or needs attention; gray means neutral, missing, unavailable, or not returned; blue means system action, link, selected state, or active sort. The left rail is supporting control space; the selected-symbol table remains the main object. Watchlist is desktop-first, while mobile only needs basic no-broken-layout behavior.
 
 ## Copy Rules
 

@@ -118,13 +118,15 @@ export function DataTableHeaderCell<TKey extends string>({
       colSpan={colSpan}
       rowSpan={rowSpan}
       aria-sort={ariaSort}
-      className={`h-6 border-b border-[var(--border-medium)] bg-[var(--table-header)] px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-normal text-[var(--muted)] ${alignClass[align]} ${className}`}
+      className={`h-7 border-b border-[var(--border-medium)] bg-[var(--table-header)] px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-normal text-[var(--muted)] ${alignClass[align]} ${className}`}
     >
       {isSortable && sortKey ? (
         <button
           type="button"
           onClick={() => onSortChange?.(sortKey, defaultDirection)}
-          className={`inline-flex min-h-5 w-full items-center gap-1 rounded-[3px] border px-1 py-0.5 text-[10px] font-semibold uppercase leading-[1.05] transition ${
+          data-sort-key={sortKey}
+          aria-pressed={isActive}
+          className={`inline-flex h-6 w-full items-center gap-1 rounded-[3px] border px-1 py-0.5 text-[10px] font-semibold uppercase leading-[1.05] transition ${
             align === "right"
               ? "justify-end"
               : align === "center"
@@ -132,11 +134,11 @@ export function DataTableHeaderCell<TKey extends string>({
                 : "justify-start"
           } ${
             isActive
-              ? "border-[var(--accent-border)] bg-[var(--accent-soft)] text-[var(--foreground)] shadow-[inset_0_-2px_0_var(--accent)]"
-              : "border-transparent text-[var(--muted)] hover:border-[var(--border-medium)] hover:bg-[var(--panel)] hover:text-[var(--foreground)]"
+              ? "border-[var(--accent-border)] bg-transparent text-[var(--accent)]"
+              : "border-transparent bg-transparent text-[var(--muted)] hover:border-[var(--accent-border)] hover:bg-[var(--accent-soft)] hover:text-[var(--accent)]"
           }`}
         >
-          <span className="min-w-0 whitespace-normal text-inherit">
+          <span className="min-w-0 truncate text-inherit">
             {children}
           </span>
           {isActive && sortState ? (
@@ -197,7 +199,7 @@ export function DataTableChip({
   return (
     <span
       title={title}
-      className={`inline-flex min-h-[17px] max-w-full items-center overflow-hidden whitespace-nowrap rounded-[3px] border px-1.5 py-0.5 text-[10px] font-semibold leading-none ${chipToneClass[tone]} ${className}`}
+      className={`inline-flex min-h-[18px] max-w-full items-center overflow-hidden whitespace-nowrap rounded-[4px] border px-1.5 py-0 text-[10px] font-semibold leading-4 ${chipToneClass[tone]} ${className}`}
     >
       {children}
     </span>

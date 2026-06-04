@@ -1,8 +1,10 @@
-import { createElement } from "react";
+import { createElement, type ComponentType } from "react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { MarketContextPanel } from "@/components/market-context/MarketContextPanel";
 import {
+  WatchlistPageClient,
   WatchlistSummaryCards,
   WatchlistResearchSummaryPanel,
   WatchlistTable,
@@ -219,14 +221,118 @@ describe("WatchlistPageClient", () => {
     );
 
     expect(html.match(/<button/g)).toHaveLength(7);
+    expect(html.match(/data-sort-key=/g)).toHaveLength(7);
     expect(html).toContain('aria-sort="ascending"');
+    expect(html).toContain('data-sort-key="symbol"');
+    expect(html).toContain('data-sort-key="1h_rank"');
+    expect(html).toContain('data-sort-key="4h_rank"');
+    expect(html).toContain('data-sort-key="1d_rank"');
+    expect(html).toContain('data-sort-key="1w_rank"');
+    expect(html).toContain('data-sort-key="higher_timeframe_safety"');
+    expect(html).toContain('data-sort-key="best_short_term_rank"');
     expect(html).toContain("Symbol");
+    expect(html).toContain("↑");
     expect(html).toContain("1h");
     expect(html).toContain("4h");
     expect(html).toContain("1d");
     expect(html).toContain("1w");
     expect(html).toContain("Primary");
     expect(html).toContain("Attention");
+    expect(html).not.toContain('data-sort-key="research"');
+    expect(html).not.toContain('data-sort-key="remove"');
+  });
+
+  it("does not make Research or Remove action columns sortable", () => {
+    const rows = buildWatchlistRows(
+      ["BTC", "ETH"],
+      buildMtfScreenerRows({
+        "4h": makeResponse("4h", [
+          makeItem({ symbol: "BTCUSDT", timeframe: "4h", rankScore: 75 }),
+          makeItem({ symbol: "ETHUSDT", timeframe: "4h", rankScore: 65 }),
+        ]),
+      }),
+    );
+    const html = renderToStaticMarkup(
+      createElement(WatchlistTable, {
+        rows,
+        onRemoveSymbol: () => undefined,
+        sortState: { key: "symbol", direction: "asc" },
+        onSortChange: () => undefined,
+      }),
+    );
+
+    expect(html.match(/data-sort-key=/g)).toHaveLength(7);
+    expect(html).toContain("Research");
+    expect(html).toContain("Remove");
+    expect(html).not.toContain('data-sort-key="research"');
+    expect(html).not.toContain('data-sort-key="remove"');
+  });
+
+  it("keeps the rail compact with collapsed import-export and no sort controls", () => {
+    const html = renderWatchlistVisualPage();
+    const railHtml = extractAsideHtml(html);
+    const detailsTag = railHtml.match(/<details[^>]*>/)?.[0] ?? "";
+
+    expect(railHtml).toContain("Symbols");
+    expect(railHtml).toContain("Filters");
+    expect(railHtml).toContain("Import / Export");
+    expect(railHtml).toContain("Paste symbols");
+    expect(railHtml).toContain("Copy current list");
+    expect(detailsTag).not.toMatch(/\sopen(?:=|\s|>)/);
+    expect(railHtml).not.toContain("Sort");
+    expect(railHtml).not.toContain("sort controls");
+    expect(html).not.toContain("Show more");
+    expect(html).not.toContain("Show More");
+    expect(html).not.toMatch(/[\u3400-\u9fff]/);
+  });
+
+  it("renders semantic watchlist table states without treating missing data as risk", () => {
+    const rows = buildWatchlistRows(
+      ["AAA", "BBB", "CCC", "DDD", "EEE"],
+      buildMtfScreenerRows({
+        "1h": makeResponse("1h", [
+          makeItem({
+            symbol: "AAAUSDT",
+            timeframe: "1h",
+            resultGroup: "eligible",
+            rankScore: 88,
+          }),
+          makeItem({
+            symbol: "BBBUSDT",
+            timeframe: "1h",
+            resultGroup: "risk",
+            rankScore: -12,
+          }),
+          makeItem({
+            symbol: "CCCUSDT",
+            timeframe: "1h",
+            resultGroup: "neutral",
+            rankScore: 0,
+          }),
+          makeItem({
+            symbol: "DDDUSDT",
+            timeframe: "1h",
+            resultGroup: "overheated",
+            rankScore: 93,
+          }),
+        ]),
+      }),
+    );
+    const html = renderToStaticMarkup(
+      createElement(WatchlistTable, { rows }),
+    );
+
+    expect(html).toContain("Eligible");
+    expect(html).toContain("Risk");
+    expect(html).toContain("Neutral");
+    expect(html).toContain("Hot");
+    expect(html).toContain("Missing");
+    expect(html).toContain("Not returned");
+    expect(html).toContain("border-[var(--eligible-border)]");
+    expect(html).toContain("border-[var(--risk-border)]");
+    expect(html).toContain("border-[var(--warning-border)]");
+    expect(html).toContain("border-[var(--neutral-border)]");
+    expect(html).toContain("border-[var(--missing-border)]");
   });
 
   it("renders populated visual-check watchlist coverage", () => {
@@ -269,6 +375,33 @@ describe("WatchlistPageClient", () => {
     expect(html).not.toContain("show more");
   });
 });
+
+function renderWatchlistVisualPage() {
+  const VisualWatchlistPage = WatchlistPageClient as ComponentType<{
+    visualCheckData: ReturnType<typeof buildWatchlistVisualCheckData>;
+  }>;
+  const queryClient = new QueryClient({
+    defaultOptions: {
+      queries: {
+        retry: false,
+      },
+    },
+  });
+
+  return renderToStaticMarkup(
+    createElement(
+      QueryClientProvider,
+      { client: queryClient },
+      createElement(VisualWatchlistPage, {
+        visualCheckData: buildWatchlistVisualCheckData(),
+      }),
+    ),
+  );
+}
+
+function extractAsideHtml(html: string) {
+  return html.match(/<aside[\s\S]*?<\/aside>/)?.[0] ?? "";
+}
 
 function makeResponse(
   timeframe: "1h" | "4h" | "1d" | "1w",

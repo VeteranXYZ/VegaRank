@@ -24,7 +24,7 @@ import {
   buildMtfScreenerRowsFromResponse,
   formatMtfGroup,
   formatMtfRank,
-  getMtfPrimarySignal,
+  getMtfHigherTimeframeHealth,
   getMtfRiskNotesSummary,
   type MtfLatestScreenerResponse,
   type MtfScreenerSnapshot,
@@ -526,7 +526,7 @@ export function WatchlistTable({
         </span>
       </div>
       <DataTableScroll className="xl:min-h-0 xl:flex-1 xl:overflow-auto">
-        <DataTable minWidth="min-w-[1060px]" className="table-fixed">
+        <DataTable minWidth="min-w-[990px]" className="table-fixed">
           <thead className="bg-[var(--table-header)] text-[10px] uppercase text-[var(--muted)]">
             <tr>
               <DataTableHeaderCell<WatchlistSortField>
@@ -534,7 +534,7 @@ export function WatchlistTable({
                 sortState={sortState}
                 onSortChange={onSortChange}
                 defaultDirection="asc"
-                className="sticky left-0 top-0 z-30 w-[150px] border-r border-[var(--border-medium)] bg-[var(--table-header)]"
+                className="sticky left-0 top-0 z-30 w-[136px] border-r border-[var(--border-medium)] bg-[var(--table-header)]"
               >
                 Symbol
               </DataTableHeaderCell>
@@ -546,7 +546,7 @@ export function WatchlistTable({
                   onSortChange={onSortChange}
                   defaultDirection="desc"
                   align="center"
-                  className="sticky top-0 z-20 w-[92px] border-l border-[var(--table-group)] bg-[var(--table-header-strong)] text-[var(--foreground)]"
+                  className="sticky top-0 z-20 w-[86px] border-l border-[var(--table-group)] bg-[var(--table-header-strong)]"
                 >
                   {timeframe}
                 </DataTableHeaderCell>
@@ -556,7 +556,7 @@ export function WatchlistTable({
                 sortState={sortState}
                 onSortChange={onSortChange}
                 defaultDirection="asc"
-                className="sticky top-0 z-20 w-[166px] border-l border-[var(--table-group)] bg-[var(--table-header)]"
+                className="sticky top-0 z-20 w-[140px] border-l border-[var(--table-group)] bg-[var(--table-header)]"
               >
                 Primary
               </DataTableHeaderCell>
@@ -565,20 +565,20 @@ export function WatchlistTable({
                 sortState={sortState}
                 onSortChange={onSortChange}
                 defaultDirection="desc"
-                className="sticky top-0 z-20 w-[220px] bg-[var(--table-header)]"
+                className="sticky top-0 z-20 w-[210px] bg-[var(--table-header)]"
               >
                 Attention
               </DataTableHeaderCell>
               <DataTableHeaderCell
                 align="center"
-                className="sticky top-0 z-20 w-[96px] bg-[var(--table-header)]"
+                className="sticky top-0 z-20 w-[82px] bg-[var(--table-header)]"
               >
                 Research
               </DataTableHeaderCell>
               {onRemoveSymbol ? (
                 <DataTableHeaderCell
                   align="center"
-                  className="sticky top-0 z-20 w-[78px] bg-[var(--table-header)]"
+                  className="sticky top-0 z-20 w-[70px] bg-[var(--table-header)]"
                 >
                   Remove
                 </DataTableHeaderCell>
@@ -615,10 +615,8 @@ export function WatchlistTable({
                 ))}
                 <DataTableCell
                   className="border-l border-[var(--table-group)]"
-                  truncate
-                  title={row.mtfRow ? getMtfPrimarySignal(row.mtfRow) : "Missing"}
                 >
-                  {row.mtfRow ? getMtfPrimarySignal(row.mtfRow) : "Missing"}
+                  <WatchlistPrimaryCell row={row} />
                 </DataTableCell>
                 <DataTableCell>
                   {row.mtfRow ? <RiskNotesCell row={row} /> : "Not found"}
@@ -631,7 +629,7 @@ export function WatchlistTable({
                     <button
                       type="button"
                       onClick={() => onRemoveSymbol(row.symbol)}
-                      className="inline-flex h-6 items-center border border-[var(--border)] px-1.5 text-[10px] font-semibold text-[var(--muted)] hover:border-[var(--accent-border)] hover:text-[var(--accent-hover)]"
+                      className="inline-flex h-5 min-w-[50px] items-center justify-center border border-[var(--border)] px-1.5 text-[10px] font-semibold text-[var(--muted)] hover:border-[var(--accent-border)] hover:text-[var(--accent-hover)]"
                     >
                       Remove
                     </button>
@@ -658,11 +656,11 @@ export function WatchlistSummaryCards({
     ["Found", summary.foundSymbols, "neutral"],
     ["Missing", summary.missingSymbols, "missing"],
     ["HTF Risk", summary.higherTimeframeRiskSymbols, "risk"],
-    ["Watch", summary.shortTermWatchSymbols, "watch"],
+    ["Watch", summary.shortTermWatchSymbols, "warning"],
     ...(researchSummary
       ? ([
           ["Broad Risk", researchSummary.counts.broadRiskSymbols, "risk"],
-          ["Repair", researchSummary.counts.repairInsideRiskSymbols, "watch"],
+          ["Repair", researchSummary.counts.repairInsideRiskSymbols, "warning"],
           ["Data Gaps", researchSummary.counts.missingImportantDataSymbols, "warning"],
         ] as const)
       : []),
@@ -767,7 +765,7 @@ export function buildWatchlistMtfLatestScanUrl({
   return `${baseUrl}/api/scan/mtf-latest?${params.toString()}`;
 }
 
-function WatchlistControls({
+export function WatchlistControls({
   draftInput,
   importInput,
   importStatus,
@@ -798,7 +796,7 @@ function WatchlistControls({
   ) => void;
 }) {
   return (
-    <aside className="border border-[var(--border)] bg-[var(--panel)] p-1.5 xl:min-h-0 xl:overflow-auto">
+    <aside className="border border-[var(--border)] bg-[var(--panel)] p-1.5 xl:min-h-0 xl:overflow-hidden">
       <section className="space-y-1">
         <h2 className={railSectionLabelClass}>
           Symbols
@@ -904,7 +902,7 @@ function WatchlistControls({
         <div className="space-y-1.5 border-t border-[var(--border)] p-1.5">
           <div>
             <div className="mb-0.5 flex items-center justify-between gap-2">
-              <span className={railFieldLabelClass}>Import</span>
+              <span className={railFieldLabelClass}>Paste symbols</span>
               <button type="button" onClick={onImport} className={railMiniButtonClass}>
                 Import
               </button>
@@ -923,19 +921,19 @@ function WatchlistControls({
           ) : null}
           <div>
             <div className="mb-0.5 flex items-center justify-between gap-2">
-              <span className={railFieldLabelClass}>Export</span>
+              <span className={railFieldLabelClass}>Current list</span>
               <button
                 type="button"
                 onClick={onCopyExport}
                 className={railMiniButtonClass}
               >
-                Copy
+                Copy current list
               </button>
             </div>
             <textarea
               readOnly
               value={exportText}
-              className={`${controlClass} h-10 resize-none py-1.5 leading-4`}
+              className={`${controlClass} h-9 resize-none py-1.5 leading-4`}
               placeholder="No valid symbols to export"
             />
           </div>
@@ -1178,12 +1176,27 @@ function WatchlistTimeframeCell({
   );
 }
 
+function WatchlistPrimaryCell({ row }: { row: WatchlistRow }) {
+  const primary = getWatchlistPrimaryState(row);
+
+  return (
+    <DataTableChip
+      tone={primary.tone}
+      className="w-full justify-center"
+      title={primary.title}
+    >
+      <span className="truncate">{primary.label}</span>
+    </DataTableChip>
+  );
+}
+
 function RiskNotesCell({ row }: { row: WatchlistRow }) {
   if (!row.mtfRow) {
     return <span>Not found</span>;
   }
 
   const summary = getMtfRiskNotesSummary(row.mtfRow, 2);
+  const visibleNotes = summary.visibleNotes.map(formatWatchlistAttentionNote);
 
   if (summary.notes.length === 0) {
     return <span className="text-[var(--muted-2)]">No notes</span>;
@@ -1194,9 +1207,11 @@ function RiskNotesCell({ row }: { row: WatchlistRow }) {
       className="flex min-w-0 items-center gap-1 leading-4"
       title={summary.notes.join("; ")}
     >
-      <span className="min-w-0 truncate">{summary.visibleNotes.join("; ")}</span>
+      <span className="min-w-0 truncate text-[var(--muted)]">
+        {visibleNotes.join("; ")}
+      </span>
       {summary.hiddenCount > 0 ? (
-        <span className="shrink-0 border border-[var(--border)] bg-[var(--panel)] px-1 text-[10px] font-semibold text-[var(--muted)]">
+        <span className="shrink-0 rounded-[3px] border border-[var(--border)] bg-[var(--panel)] px-1 text-[10px] font-semibold text-[var(--muted)]">
           +{summary.hiddenCount}
         </span>
       ) : null}
@@ -1212,7 +1227,7 @@ function ResearchLink({ row }: { row: WatchlistRow }) {
     return (
       <span
         aria-disabled="true"
-        className="inline-flex h-6 items-center border border-[var(--border)] px-1.5 text-[10px] font-semibold text-[var(--muted)] opacity-70"
+        className="inline-flex h-5 items-center justify-center whitespace-nowrap border border-[var(--border)] px-1.5 text-[10px] font-semibold text-[var(--muted)] opacity-70"
       >
         {row.mtfRow ? "No TF" : "Missing"}
       </span>
@@ -1222,11 +1237,71 @@ function ResearchLink({ row }: { row: WatchlistRow }) {
   return (
     <Link
       href={href}
-      className="inline-flex h-6 items-center border border-[var(--accent-border)] bg-[var(--accent-soft)] px-1.5 text-[10px] font-semibold text-[var(--accent)] hover:border-[var(--accent-hover)] hover:text-[var(--accent-hover)]"
+      className="inline-flex h-5 items-center justify-center whitespace-nowrap border border-[var(--accent-border)] bg-transparent px-1.5 text-[10px] font-semibold text-[var(--accent)] hover:bg-[var(--accent-soft)] hover:text-[var(--accent-hover)]"
     >
       {timeframe} Research
     </Link>
   );
+}
+
+function getWatchlistPrimaryState(row: WatchlistRow): {
+  label: string;
+  tone: ChipTone;
+  title: string;
+} {
+  if (!row.mtfRow) {
+    return {
+      label: "Missing",
+      tone: "missing",
+      title: "Selected symbol was not found in the latest MTF response.",
+    };
+  }
+
+  const health = getMtfHigherTimeframeHealth(row.mtfRow);
+
+  switch (health.code) {
+    case "higher_tf_risk":
+      return {
+        label: "HTF Risk",
+        tone: "risk",
+        title: health.label,
+      };
+    case "one_day_risk":
+      return {
+        label: "1d Risk",
+        tone: "risk",
+        title: health.label,
+      };
+    case "one_week_risk":
+      return {
+        label: "1w Risk",
+        tone: "risk",
+        title: health.label,
+      };
+    case "limited_htf_data":
+      return {
+        label: "Data gap",
+        tone: "warning",
+        title: health.label,
+      };
+    case "higher_tf_ok":
+      return {
+        label: "HTF OK",
+        tone: "eligible",
+        title: health.label,
+      };
+  }
+}
+
+function formatWatchlistAttentionNote(note: string) {
+  const compact = note
+    .replace(/:\s*Risk group\b/gi, " risk")
+    .replace(/:\s*Overheated\b/gi, " hot")
+    .replace(/:\s*/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  return compact.length > 34 ? `${compact.slice(0, 31).trim()}...` : compact;
 }
 
 function formatWatchlistGroup(snapshot: MtfScreenerSnapshot | undefined) {
@@ -1243,11 +1318,11 @@ function getWatchlistGroupTone(group: string | null | undefined): ChipTone {
   }
 
   if (group === "watch") {
-    return "watch";
+    return "warning";
   }
 
   if (group === "overheated") {
-    return "overheated";
+    return "warning";
   }
 
   if (group === "risk") {
@@ -1271,11 +1346,11 @@ function getWatchlistRowDotClass(row: WatchlistRow) {
   }
 
   if (groups.includes("overheated")) {
-    return "bg-[var(--overheated)]";
+    return "bg-[var(--warning)]";
   }
 
   if (groups.includes("watch")) {
-    return "bg-[var(--watch)]";
+    return "bg-[var(--warning)]";
   }
 
   if (groups.includes("eligible")) {
@@ -1311,7 +1386,7 @@ function getWatchlistStatusTone({
   }
 
   if (summary.shortTermWatchSymbols > 0) {
-    return "watch";
+    return "warning";
   }
 
   return "neutral";
@@ -1353,7 +1428,7 @@ function getConditionTone(
   }
 
   if (conditionLabel === "Short-term repair inside higher-timeframe risk") {
-    return "watch";
+    return "warning";
   }
 
   if (conditionLabel === "Higher-timeframe improving") {
@@ -1364,7 +1439,7 @@ function getConditionTone(
     return "missing";
   }
 
-  return "watch";
+  return "warning";
 }
 
 function getStatusValueClass(tone: StatusTone) {
@@ -1374,7 +1449,7 @@ function getStatusValueClass(tone: StatusTone) {
     case "positive":
       return "text-[var(--eligible)]";
     case "watch":
-      return "text-[var(--watch)]";
+      return "text-[var(--warning)]";
     case "risk":
     case "danger":
     case "negative":
@@ -1399,7 +1474,7 @@ function getNoticeToneClass(tone: StatusTone) {
     case "positive":
       return "border-l-[var(--eligible)]";
     case "watch":
-      return "border-l-[var(--watch)]";
+      return "border-l-[var(--warning)]";
     case "risk":
     case "danger":
     case "negative":
