@@ -281,7 +281,7 @@ describe("HistoryPageClient display formatting", () => {
 
     expect(html).toContain("3 rows");
     expectMarkupOrder(html, ["ALPHAUSDT", "MIDUSDT", "ZEDUSDT"]);
-    expect(html).toContain("ASC");
+    expect(html).toContain("\u2191");
     expect(html).toContain('aria-sort="ascending"');
   });
 
@@ -349,7 +349,7 @@ describe("HistoryPageClient display formatting", () => {
 
     expect(html).toContain("Showing 4 of 4 observation rows.");
     expectMarkupOrder(html, ["HIGHUSDT", "MIDUSDT", "LOWUSDT", "MISSINGUSDT"]);
-    expect(html).toContain("DESC");
+    expect(html).toContain("\u2193");
     expect(html).toContain('aria-sort="descending"');
   });
 

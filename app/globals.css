@@ -48,9 +48,12 @@
   --eligible: #027a48;
   --eligible-bg: #dff8eb;
   --eligible-border: rgba(2, 122, 72, 0.44);
-  --watch: #155da8;
-  --watch-bg: #e2efff;
-  --watch-border: rgba(21, 93, 168, 0.44);
+  --watch: #5b4fcf;
+  --watch-bg: #efedff;
+  --watch-border: rgba(91, 79, 207, 0.44);
+  --repair: #087f73;
+  --repair-bg: #dff6f2;
+  --repair-border: rgba(8, 127, 115, 0.44);
   --risk: #c1261b;
   --risk-bg: #fde7e5;
   --risk-border: rgba(193, 38, 27, 0.44);
@@ -101,6 +104,7 @@
   --space-panel: 12px;
   --button-height: 32px;
   --table-row-height: 28px;
+  --app-header-height: 2.75rem;
   --shadow-panel: 0 1px 2px rgba(15, 23, 42, 0.06);
   --shadow-elevated: 0 8px 18px rgba(15, 23, 42, 0.08);
 }
@@ -153,9 +157,12 @@ body:has(.screener-terminal) {
   --eligible: #5ac46f;
   --eligible-bg: rgba(90, 196, 111, 0.16);
   --eligible-border: rgba(90, 196, 111, 0.46);
-  --watch: #67a8ff;
-  --watch-bg: rgba(103, 168, 255, 0.14);
-  --watch-border: rgba(103, 168, 255, 0.46);
+  --watch: #a78bfa;
+  --watch-bg: rgba(167, 139, 250, 0.16);
+  --watch-border: rgba(167, 139, 250, 0.46);
+  --repair: #4fd5c4;
+  --repair-bg: rgba(79, 213, 196, 0.14);
+  --repair-border: rgba(79, 213, 196, 0.44);
   --risk: #ff625d;
   --risk-bg: rgba(255, 98, 93, 0.16);
   --risk-border: rgba(255, 98, 93, 0.46);
@@ -226,6 +233,29 @@ html,
 body {
   max-width: 100%;
   overflow-x: hidden;
+}
+
+html:has(.screener-terminal),
+body:has(.screener-terminal) {
+  overflow-x: clip;
+}
+
+@media (min-width: 1280px) {
+  html:has(.screener-terminal),
+  body:has(.screener-terminal) {
+    height: 100%;
+    overflow: hidden;
+  }
+
+  body:has(.screener-terminal) > main {
+    min-height: 0;
+    height: calc(100dvh - var(--app-header-height));
+    overflow: hidden;
+  }
+
+  body:has(.screener-terminal) footer {
+    display: none;
+  }
 }
 
 a {

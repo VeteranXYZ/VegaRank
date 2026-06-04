@@ -120,7 +120,7 @@ export function MtfScreenerVisualCheckPage() {
   };
 
   return (
-    <PageShell className="screener-terminal overflow-x-hidden">
+    <PageShell className="screener-terminal max-w-none [--screener-sticky-offset:0rem] xl:h-full xl:min-h-0 xl:overflow-hidden">
       <MtfScreenerCommandBar
         title={mtfScreenerVisualCheckCopy.title}
         datasetLabel="Mock joined rows"
@@ -143,7 +143,7 @@ export function MtfScreenerVisualCheckPage() {
         onClear={clearFilters}
       />
 
-      <div className="grid min-h-0 flex-1 gap-2 xl:grid-cols-[190px_minmax(0,1fr)] 2xl:grid-cols-[190px_minmax(0,1fr)_226px]">
+      <div className="grid min-h-0 flex-1 gap-2 xl:grid-cols-[200px_minmax(0,1fr)_236px] xl:overflow-hidden 2xl:grid-cols-[204px_minmax(0,1fr)_252px]">
         <MtfScreenerControls
           filters={filters}
           symbolSearch={symbolSearch}
@@ -152,11 +152,10 @@ export function MtfScreenerVisualCheckPage() {
           onMinRankChange={updateMinRank}
           onExcludeRiskChange={updateExcludeRisk}
           onClear={clearFilters}
-          marketContextIsError
           className="order-2 xl:order-1"
         />
 
-        <main className="order-1 min-w-0 space-y-2 xl:order-2">
+        <main className="order-1 min-h-0 min-w-0 xl:order-2 xl:flex xl:flex-col xl:overflow-hidden">
           <MtfScreenerTable
             rows={visibleRows}
             sortState={tableSortState}
@@ -175,7 +174,8 @@ export function MtfScreenerVisualCheckPage() {
           isFullTableActive={isFullTableActive}
           activeFilterCount={activeFilterLabels.length}
           sortState={tableSortState}
-          className="order-3"
+          marketContextIsError
+          className="order-3 xl:order-3"
         />
       </div>
     </PageShell>

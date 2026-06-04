@@ -121,26 +121,72 @@ describe("MultiTimeframeScreenerTable", () => {
     expect(html).toContain("Not returned");
     for (const label of [
       "Symbol",
-      "Aggregate",
-      "Rank",
-      "Higher TF",
+      "State",
+      "Score",
+      "HTF",
       "1h",
       "4h",
       "1d",
       "1w",
-      "Group",
-      "Signal",
+      "Primary",
       "Notes",
-      "Research",
+      "Action",
     ]) {
       expect(html).toContain(label);
     }
     expect(html).toContain("Missing");
     expect(html).toContain("Limited HTF Data");
-    expect(html).toContain("1h Research");
+    expect(html).toContain("Limited data");
+    expect(html).toContain("Open");
     expect(html).toContain(
       'href="/symbol/binance/SEIUSDT?timeframe=1h&amp;assetClass=crypto&amp;from=screener"',
     );
+  });
+
+  it("colors each timeframe score from its state instead of rank thresholds", () => {
+    const rows = buildMtfScreenerRows({
+      "1h": makeResponse("1h", [
+        makeItem({
+          symbol: "SEMANTICUSDT",
+          timeframe: "1h",
+          resultGroup: "watch",
+          rankScore: 84.2,
+        }),
+      ]),
+      "4h": makeResponse("4h", [
+        makeItem({
+          symbol: "SEMANTICUSDT",
+          timeframe: "4h",
+          resultGroup: "neutral",
+          rankScore: 78.1,
+        }),
+      ]),
+      "1d": makeResponse("1d", [
+        makeItem({
+          symbol: "SEMANTICUSDT",
+          timeframe: "1d",
+          resultGroup: "risk",
+          rankScore: 50.4,
+        }),
+      ]),
+      "1w": makeResponse("1w", [
+        makeItem({
+          symbol: "SEMANTICUSDT",
+          timeframe: "1w",
+          resultGroup: "eligible",
+          rankScore: 62.3,
+        }),
+      ]),
+    });
+    const html = renderToStaticMarkup(createElement(MtfScreenerTable, { rows }));
+
+    expect(html).toMatch(/class="[^"]*text-\[var\(--watch\)\][^"]*">84\.2<\/span>/);
+    expect(html).toMatch(/class="[^"]*text-\[var\(--muted\)\][^"]*">78\.1<\/span>/);
+    expect(html).toMatch(/class="[^"]*text-\[var\(--risk\)\][^"]*">50\.4<\/span>/);
+    expect(html).toMatch(/class="[^"]*text-\[var\(--eligible\)\][^"]*">62\.3<\/span>/);
+    expect(html).not.toMatch(/class="[^"]*text-\[var\(--eligible\)\][^"]*">84\.2<\/span>/);
+    expect(html).not.toMatch(/class="[^"]*text-\[var\(--eligible\)\][^"]*">78\.1<\/span>/);
+    expect(html).not.toMatch(/class="[^"]*text-\[var\(--foreground\)\][^"]*">50\.4<\/span>/);
   });
 
   it("preserves incoming table row order until a header sort is active", () => {
@@ -159,6 +205,7 @@ describe("MultiTimeframeScreenerTable", () => {
     expectMarkupOrder(html, ["CCCUSDT", "AAAUSDT", "BBBUSDT"]);
     expect(html).not.toContain("ASC");
     expect(html).not.toContain("DESC");
+    expect(html).not.toContain("\u2195");
   });
 
   it("renders rows in the active header sort order with an accessible sort indicator", () => {
@@ -185,7 +232,8 @@ describe("MultiTimeframeScreenerTable", () => {
     );
 
     expectMarkupOrder(html, ["HIGHUSDT", "MIDUSDT", "LOWUSDT"]);
-    expect(html).toContain("DESC");
+    expect(html).toContain("\u2193");
+    expect(html).not.toContain("\u2195");
     expect(html).toContain('aria-sort="descending"');
   });
 
@@ -223,18 +271,24 @@ describe("MultiTimeframeScreenerTable", () => {
 
     expect(commandHtml).toContain("Multi-Timeframe Screener");
     expect(commandHtml).toContain("Screener");
+    expect(commandHtml).toContain("MTF Screener");
     expect(commandHtml).toContain("Crypto");
-    expect(commandHtml).toContain("MTF Joined");
-    expect(commandHtml).toContain("Research only");
+    expect(commandHtml).toContain("research context");
+    expect(commandHtml).not.toContain("MTF Joined");
+    expect(commandHtml).not.toContain("Research only");
     expect(commandHtml).toContain("Loaded");
+    expect(commandHtml).toContain("Rows");
+    expect(commandHtml).toContain("Bucket");
+    expect(commandHtml).toContain("Filters");
     expect(commandHtml).toContain("1/2");
     expect(commandHtml).toContain("Full Table");
+    expect(commandHtml).toContain("No filters");
     expect(commandHtml).toContain("Incoming order");
     expect(commandHtml).toContain("Freshness");
     expect(commandHtml).toContain("4h");
     expect(commandHtml).toContain("8/0");
-    expect(commandHtml).toContain("Export Visible Rows");
-    expect(commandHtml).toContain("Export All Joined Rows");
+    expect(commandHtml).toContain("Export Visible");
+    expect(commandHtml).toContain("Export All");
     expect(tableHtml).toContain("Joined Symbol Table");
     expect(tableHtml).toContain("Showing 1 of 2 symbols");
     expect(tableHtml).toContain("MTF");
@@ -288,10 +342,11 @@ describe("MultiTimeframeScreenerTable", () => {
       createElement(MtfScreenerTable, { rows }),
     );
 
-    expect(html).toContain("+2");
-    expect(html).not.toContain("+2 risk notes");
-    expect(html).toContain("1w:");
-    expect(html).toContain("4h Research");
+    expect(html).toContain("+3");
+    expect(html).not.toContain("+3 risk notes");
+    expect(html).toContain("Failed Breakout Risk");
+    expect(html).not.toContain(">1w:</span>");
+    expect(html).toContain("Open");
   });
 
   it("renders the desktop detail rail from current visible rows", () => {
@@ -325,8 +380,11 @@ describe("MultiTimeframeScreenerTable", () => {
 
     expect(html).toContain("Screener detail rail");
     expect(html).toContain("Detail Rail");
+    expect(html).toContain("View State");
     expect(html).toContain("2/5");
     expect(html).toContain("Focus Rows");
+    expect(html).toContain("Market Backdrop");
+    expect(html).toContain("scanner states unchanged");
     expect(html).toContain("BTCUSDT");
     expect(html).toContain("ETHUSDT");
     expect(html).toContain("State Key");
@@ -339,9 +397,14 @@ describe("MultiTimeframeScreenerTable", () => {
     expect(html).toContain("Mock joined rows");
     expect(html).toContain("1000PEPEUSDT");
     expect(html).toContain("1000000MOGUSDT");
+    expect(html).toContain("ONDOUSDT");
     expect(html).toContain("Freshness");
     expect(html).toContain("Joined Symbol Table");
-    expect(html).toContain("Tool Panel");
+    expect(html).toContain("Showing 70 of 70 symbols");
+    expect(html).toContain("Filters");
+    expect(html).toContain("Search symbol");
+    expect(html).toContain("Market Backdrop");
+    expect(html).not.toContain("BTC, ETH, SEI");
     expect(html).toContain("Detail Rail");
     expect(html).toContain("+2");
   });

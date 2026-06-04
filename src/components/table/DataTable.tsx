@@ -1,6 +1,5 @@
 import type { ReactNode } from "react";
 import {
-  formatDataSortDirection,
   type DataSortDirection,
   type DataSortState,
 } from "./dataTableSorting";
@@ -51,9 +50,17 @@ const chipToneClass: Record<ChipTone, string> = {
     "border-[var(--missing-border)] bg-[var(--missing-bg)] text-[var(--missing)]",
 };
 
-export function DataTableScroll({ children }: { children: ReactNode }) {
+export function DataTableScroll({
+  children,
+  className = "",
+}: {
+  children: ReactNode;
+  className?: string;
+}) {
   return (
-    <div className="max-w-full overflow-x-auto overflow-y-hidden bg-[var(--panel-data)] [contain:layout_paint] [scrollbar-gutter:stable]">
+    <div
+      className={`max-w-full overflow-x-auto overflow-y-hidden bg-[var(--panel-data)] [contain:layout_paint] [scrollbar-gutter:stable] ${className}`}
+    >
       {children}
     </div>
   );
@@ -132,18 +139,14 @@ export function DataTableHeaderCell<TKey extends string>({
           <span className="min-w-0 whitespace-normal text-inherit">
             {children}
           </span>
-          <span
-            aria-hidden="true"
-            className={`min-w-4 text-right text-[9px] font-bold ${
-              isActive
-                ? "text-[var(--accent)]"
-                : "text-[var(--muted-2)] opacity-65"
-            }`}
-          >
-            {isActive && sortState
-              ? formatDataSortDirection(sortState.direction)
-              : "\u2195"}
-          </span>
+          {isActive && sortState ? (
+            <span
+              aria-hidden="true"
+              className="min-w-3 text-right text-[10px] font-bold text-[var(--accent)]"
+            >
+              {sortState.direction === "asc" ? "\u2191" : "\u2193"}
+            </span>
+          ) : null}
         </button>
       ) : (
         children

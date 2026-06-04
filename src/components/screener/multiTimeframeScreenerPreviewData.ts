@@ -39,7 +39,7 @@ const previewSymbols: PreviewSymbol[] = [
   {
     symbol: "SOLUSDT",
     groups: { "1h": "eligible", "4h": "watch", "1d": "neutral", "1w": "watch" },
-    ranks: { "1h": 81.9, "4h": 73.5, "1d": 48.2, "1w": 54.9 },
+    ranks: { "1h": 64.9, "4h": 73.5, "1d": 48.2, "1w": 54.9 },
   },
   {
     symbol: "SEIUSDT",
@@ -55,12 +55,12 @@ const previewSymbols: PreviewSymbol[] = [
   {
     symbol: "LINKUSDT",
     groups: { "1h": "neutral", "4h": "watch", "1d": "neutral", "1w": "neutral" },
-    ranks: { "1h": 42.3, "4h": 62.7, "1d": 39.9, "1w": 47.6 },
+    ranks: { "1h": 72.3, "4h": 62.7, "1d": 39.9, "1w": 47.6 },
   },
   {
     symbol: "XRPUSDT",
     groups: { "1h": "risk", "4h": "watch", "1d": "risk", "1w": "neutral" },
-    ranks: { "1h": 22.6, "4h": 57.8, "1d": 18.2, "1w": 44.9 },
+    ranks: { "1h": 22.6, "4h": 57.8, "1d": 48.2, "1w": 44.9 },
     risks: { "1h": ["distribution_risk"], "1d": ["failed_breakout_risk"] },
   },
   {
@@ -115,8 +115,69 @@ const previewSymbols: PreviewSymbol[] = [
   },
 ];
 
+const densityPreviewSymbolNames = [
+  "ATOMUSDT",
+  "NEARUSDT",
+  "INJUSDT",
+  "APTUSDT",
+  "ARBUSDT",
+  "OPUSDT",
+  "TIAUSDT",
+  "JUPUSDT",
+  "WIFUSDT",
+  "FETUSDT",
+  "RNDRUSDT",
+  "MATICUSDT",
+  "DOTUSDT",
+  "UNIUSDT",
+  "LTCUSDT",
+  "BCHUSDT",
+  "FILUSDT",
+  "ETCUSDT",
+  "ICPUSDT",
+  "HBARUSDT",
+  "VETUSDT",
+  "GRTUSDT",
+  "ALGOUSDT",
+  "FTMUSDT",
+  "RUNEUSDT",
+  "MKRUSDT",
+  "COMPUSDT",
+  "SNXUSDT",
+  "CRVUSDT",
+  "DYDXUSDT",
+  "GMXUSDT",
+  "IMXUSDT",
+  "STXUSDT",
+  "ORDIUSDT",
+  "PYTHUSDT",
+  "STRKUSDT",
+  "WLDUSDT",
+  "TAOUSDT",
+  "BONKUSDT",
+  "FLOKIUSDT",
+  "1000SHIBUSDT",
+  "1000SATSUSDT",
+  "ENSUSDT",
+  "LDOUSDT",
+  "RPLUSDT",
+  "FLOWUSDT",
+  "EGLDUSDT",
+  "SANDUSDT",
+  "MANAUSDT",
+  "AXSUSDT",
+  "GALAUSDT",
+  "CHZUSDT",
+  "KASUSDT",
+  "PENDLEUSDT",
+  "JTOUSDT",
+  "ONDOUSDT",
+];
+
+const previewDensitySymbols = buildDensityPreviewSymbols();
+
 export function buildMtfScreenerPreviewResponse(): MtfLatestScreenerResponse {
-  const rows = previewSymbols.map((symbol) => ({
+  const rows = previewDensitySymbols.map((symbol) => ({
     symbol: symbol.symbol,
     exchange: "binance",
     market: "spot",
@@ -140,6 +201,52 @@ export function buildMtfScreenerPreviewResponse(): MtfLatestScreenerResponse {
     count: rows.length,
     rows,
   };
+}
+
+function buildDensityPreviewSymbols() {
+  const generatedSymbols = densityPreviewSymbolNames.map((symbol, index) => {
+    const template = previewSymbols[index % previewSymbols.length];
+
+    return {
+      ...template,
+      symbol,
+      groups: { ...template.groups },
+      ranks: adjustPreviewRanks(template.ranks, index),
+      signals: template.signals ? { ...template.signals } : undefined,
+      risks: clonePreviewRisks(template.risks),
+    };
+  });
+
+  return [...previewSymbols, ...generatedSymbols];
+}
+
+function adjustPreviewRanks(
+  ranks: PreviewSymbol["ranks"],
+  index: number,
+): PreviewSymbol["ranks"] {
+  const adjustment = ((index % 9) - 4) * 1.7;
+
+  return Object.fromEntries(
+    Object.entries(ranks).map(([timeframe, rank]) => [
+      timeframe,
+      typeof rank === "number"
+        ? Math.max(0, Math.min(99.9, Number((rank + adjustment).toFixed(1))))
+        : rank,
+    ]),
+  ) as PreviewSymbol["ranks"];
+}
+
+function clonePreviewRisks(risks: PreviewSymbol["risks"]) {
+  if (!risks) {
+    return undefined;
+  }
+
+  return Object.fromEntries(
+    Object.entries(risks).map(([timeframe, values]) => [
+      timeframe,
+      values ? [...values] : values,
+    ]),
+  ) as PreviewSymbol["risks"];
 }
 
 function buildPreviewTimeframes(
@@ -220,10 +327,10 @@ function buildTimeframeRuns(
         id: `preview-run-${timeframe}`,
         timeframe,
         status: "completed",
-        symbolsTotal: previewSymbols.length,
-        symbolsScanned: previewSymbols.length,
+        symbolsTotal: previewDensitySymbols.length,
+        symbolsScanned: previewDensitySymbols.length,
         signalsCreated: signalCounts[timeframe],
-        symbolsSkipped: previewSymbols.length - signalCounts[timeframe],
+        symbolsSkipped: previewDensitySymbols.length - signalCounts[timeframe],
         startedAt: "2026-06-03T15:45:00.000Z",
         finishedAt: previewFinishedAt,
         isLikelyFullUniverse: true,
