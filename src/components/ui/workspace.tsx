@@ -95,7 +95,7 @@ export function PageShell({
 }) {
   return (
     <section
-      className={`mx-auto flex min-h-[calc(100vh-1px)] max-w-[1760px] flex-col bg-[var(--workspace-background)] px-2 py-2 sm:px-3 ${className}`}
+      className={`mx-auto flex min-h-[calc(100vh-1px)] max-w-[1880px] flex-col bg-[var(--workspace-background)] px-2 py-2 sm:px-3 ${className}`}
     >
       {children}
     </section>

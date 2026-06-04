@@ -6,6 +6,8 @@ import { sortDataRows } from "@/components/table/dataTableSorting";
 import {
   buildMtfLatestScanUrl,
   getMtfScreenerTableSortValue,
+  MtfScreenerCommandBar,
+  MtfScreenerDetailRail,
   MtfScreenerExportControls,
   MtfResearchBucketsPanel,
   MtfScreenerTable,
@@ -69,7 +71,7 @@ describe("MultiTimeframeScreenerTable", () => {
     );
 
     expect(html).toContain("Research Buckets");
-    expect(html).toContain("Counts before filters");
+    expect(html).toContain("Buckets");
     expect(html).toContain("Full Table");
     expect(html).toContain("Short-term Repair");
     expect(html).toContain("MTF Strength");
@@ -119,22 +121,21 @@ describe("MultiTimeframeScreenerTable", () => {
     expect(html).toContain("Not returned");
     for (const label of [
       "Symbol",
+      "Aggregate",
       "Rank",
       "Higher TF",
-      "1h Group",
-      "1h Rank",
-      "4h Group",
-      "4h Rank",
-      "1d Group",
-      "1d Rank",
-      "1w Group",
-      "1w Rank",
+      "1h",
+      "4h",
+      "1d",
+      "1w",
+      "Group",
       "Signal",
       "Notes",
       "Research",
     ]) {
       expect(html).toContain(label);
     }
+    expect(html).toContain("Missing");
     expect(html).toContain("Limited HTF Data");
     expect(html).toContain("1h Research");
     expect(html).toContain(
@@ -188,34 +189,60 @@ describe("MultiTimeframeScreenerTable", () => {
     expect(html).toContain('aria-sort="descending"');
   });
 
-  it("renders row count, freshness, and exports in the table workspace", () => {
+  it("renders row count, freshness, and exports in the command workspace", () => {
     const rows = buildMtfScreenerRows({
       "4h": makeResponse("4h", [
         makeItem({ symbol: "AAAUSDT", timeframe: "4h", rankScore: 80 }),
         makeItem({ symbol: "BBBUSDT", timeframe: "4h", rankScore: 60 }),
       ]),
     });
-    const html = renderToStaticMarkup(
+    const commandHtml = renderToStaticMarkup(
+      createElement(MtfScreenerCommandBar, {
+        title: "Multi-Timeframe Screener",
+        datasetLabel: "Latest joined rows",
+        statusLabel: "Loaded",
+        statusTone: "complete",
+        totalRows: 2,
+        visibleRows: 1,
+        presetId: "custom",
+        isFullTableActive: true,
+        activeFilterCount: 0,
+        sourceData: makeScreenerResponse(),
+        onExportVisible: noop,
+        onExportAll: noop,
+      }),
+    );
+    const tableHtml = renderToStaticMarkup(
       createElement(MtfScreenerTable, {
         rows: rows.slice(0, 1),
         sourceData: makeScreenerResponse(),
         totalRows: 2,
         filteredRows: 1,
-        onExportVisible: noop,
-        onExportAll: noop,
       }),
     );
 
-    expect(html).toContain("Joined Symbol Table");
-    expect(html).toContain("Showing 1 of 2 symbols");
-    expect(html).toContain("Showing 1 of 2 joined symbols");
-    expect(html).toContain("4h");
-    expect(html).toContain("8 signals, 0 missing");
-    expect(html).toContain("Export Visible Rows");
-    expect(html).toContain("Export All Joined Rows");
-    expect(html).not.toContain("Show More");
-    expect(html).not.toContain("top-100");
-    expect(html).not.toContain("Pagination");
+    expect(commandHtml).toContain("Multi-Timeframe Screener");
+    expect(commandHtml).toContain("Screener");
+    expect(commandHtml).toContain("Crypto");
+    expect(commandHtml).toContain("MTF Joined");
+    expect(commandHtml).toContain("Research only");
+    expect(commandHtml).toContain("Loaded");
+    expect(commandHtml).toContain("1/2");
+    expect(commandHtml).toContain("Full Table");
+    expect(commandHtml).toContain("Incoming order");
+    expect(commandHtml).toContain("Freshness");
+    expect(commandHtml).toContain("4h");
+    expect(commandHtml).toContain("8/0");
+    expect(commandHtml).toContain("Export Visible Rows");
+    expect(commandHtml).toContain("Export All Joined Rows");
+    expect(tableHtml).toContain("Joined Symbol Table");
+    expect(tableHtml).toContain("Showing 1 of 2 symbols");
+    expect(tableHtml).toContain("MTF");
+    expect(tableHtml).toContain("States");
+    expect(tableHtml).toContain("Hot");
+    expect(commandHtml).not.toContain("Show More");
+    expect(commandHtml).not.toContain("top-100");
+    expect(commandHtml).not.toContain("Pagination");
   });
 
   it("disables export controls when there are no rows", () => {
@@ -267,14 +294,55 @@ describe("MultiTimeframeScreenerTable", () => {
     expect(html).toContain("4h Research");
   });
 
+  it("renders the desktop detail rail from current visible rows", () => {
+    const rows = buildMtfScreenerRows({
+      "4h": makeResponse("4h", [
+        makeItem({
+          symbol: "BTCUSDT",
+          timeframe: "4h",
+          resultGroup: "eligible",
+          rankScore: 88,
+          signalLabel: "eligible pullback",
+        }),
+        makeItem({
+          symbol: "ETHUSDT",
+          timeframe: "4h",
+          resultGroup: "watch",
+          rankScore: 62,
+        }),
+      ]),
+    });
+    const html = renderToStaticMarkup(
+      createElement(MtfScreenerDetailRail, {
+        rows,
+        totalRows: 5,
+        filteredRows: 2,
+        presetId: "custom",
+        isFullTableActive: false,
+        activeFilterCount: 1,
+      }),
+    );
+
+    expect(html).toContain("Screener detail rail");
+    expect(html).toContain("Detail Rail");
+    expect(html).toContain("2/5");
+    expect(html).toContain("Focus Rows");
+    expect(html).toContain("BTCUSDT");
+    expect(html).toContain("ETHUSDT");
+    expect(html).toContain("State Key");
+  });
+
   it("renders the populated visual-check page with mock rows", () => {
     const html = renderToStaticMarkup(createElement(MtfScreenerVisualCheckPage));
 
     expect(html).toContain("Visual check");
-    expect(html).toContain("Frontend-only populated preview");
     expect(html).toContain("Mock joined rows");
     expect(html).toContain("1000PEPEUSDT");
+    expect(html).toContain("1000000MOGUSDT");
+    expect(html).toContain("Freshness");
     expect(html).toContain("Joined Symbol Table");
+    expect(html).toContain("Tool Panel");
+    expect(html).toContain("Detail Rail");
     expect(html).toContain("+2");
   });
 

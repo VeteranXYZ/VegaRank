@@ -93,6 +93,21 @@ const previewSymbols: PreviewSymbol[] = [
     },
   },
   {
+    symbol: "1000000MOGUSDT",
+    groups: { "1h": "risk", "4h": "risk", "1d": "overheated", "1w": "watch" },
+    ranks: { "1h": 12.1, "4h": 27.9, "1d": 49.6, "1w": 53.8 },
+    signals: {
+      "1h": "failed_breakout_risk",
+      "4h": "distribution_risk",
+      "1d": "overheated",
+    },
+    risks: {
+      "1h": ["liquidity_spike_risk", "failed_breakout_risk"],
+      "4h": ["distribution_risk"],
+      "1d": ["overheat_risk"],
+    },
+  },
+  {
     symbol: "AVAXUSDT",
     groups: { "1h": "neutral", "4h": "neutral", "1d": "watch", "1w": "risk" },
     ranks: { "1h": 45.2, "4h": 49.8, "1d": 58.9, "1w": 19.7 },

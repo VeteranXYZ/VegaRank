@@ -298,7 +298,7 @@ describe("HistoryPageClient display formatting", () => {
     expect(html).toContain("COMPLETEWATCHUSDT");
     expect(html).toContain("PARTIALRISKUSDT");
     expect(html).toContain("MISSINGRISKUSDT");
-    expect(html).toContain("rounded-full");
+    expect(html).toContain("rounded-[3px]");
   });
 
   it("sorts Observation Rows locally without changing filter counts or hiding rows", () => {

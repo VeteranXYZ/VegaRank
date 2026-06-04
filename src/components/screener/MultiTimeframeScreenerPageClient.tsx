@@ -21,9 +21,6 @@ import {
 import {
   ControlGroup,
   EmptyState,
-  MetricCard,
-  PageHeader,
-  PageSection,
   PageShell,
   StatusBadge,
   type StatusTone,
@@ -56,6 +53,7 @@ import {
   getMtfPrimarySignal,
   getMtfRiskNotesSummary,
   getMtfSymbolResearchTimeframe,
+  mtfResearchBuckets,
   mtfScreenerGroupFilterOptions,
   type MtfLatestScreenerResponse,
   type MtfScreenerFilters,
@@ -123,6 +121,10 @@ export function MultiTimeframeScreenerPageClient() {
     symbolSearch.trim() === "" &&
     areMtfScreenerFiltersDefault(filters) &&
     tableSortState === null;
+  const activeFilterLabels = useMemo(
+    () => getActiveMtfFilterLabels(filters, symbolSearch),
+    [filters, symbolSearch],
+  );
 
   const updateGroupFilter = (
     timeframe: MtfScreenerTimeframe,
@@ -194,44 +196,31 @@ export function MultiTimeframeScreenerPageClient() {
   };
 
   return (
-    <PageShell className="overflow-x-hidden">
-      <PageHeader
-        eyebrow="Research workspace"
+    <PageShell className="screener-terminal overflow-x-hidden">
+      <MtfScreenerCommandBar
         title={mtfScreenerProductionCopy.title}
-        tone="screener"
-        description={mtfScreenerProductionCopy.description}
-        actions={
-          <button
-            type="button"
-            onClick={refreshData}
-            disabled={latestQuery.isFetching || marketContextQuery.isFetching}
-            className="ui-button h-8 px-3 text-[11px] disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            {latestQuery.isFetching || marketContextQuery.isFetching
-              ? "Refreshing"
-              : "Refresh"}
-          </button>
-        }
-        metadata={[
-          { label: "Dataset", value: "Latest joined rows", tone: "accent" },
-          {
-            label: "Visible rows",
-            value: `${visibleRows.length} of ${rows.length}`,
-            tone: visibleRows.length === rows.length ? "complete" : "info",
-          },
-          {
-            label: "Sort",
-            value: tableSortState
-              ? `${tableSortState.key} ${tableSortState.direction}`
-              : "Incoming order",
-            tone: tableSortState ? "info" : "neutral",
-          },
-          {
-            label: "Filters",
-            value: isFullTableActive ? "Full table" : "Active",
-            tone: isFullTableActive ? "complete" : "warning",
-          },
-        ]}
+        datasetLabel="Latest joined rows"
+        statusLabel={getMtfQueryStatusLabel({
+          isLoading: latestQuery.isLoading,
+          isError: latestQuery.isError,
+          rowCount: rows.length,
+        })}
+        statusTone={getMtfQueryStatusTone({
+          isLoading: latestQuery.isLoading,
+          isError: latestQuery.isError,
+          rowCount: rows.length,
+        })}
+        totalRows={rows.length}
+        visibleRows={visibleRows.length}
+        presetId={presetId}
+        isFullTableActive={isFullTableActive}
+        activeFilterCount={activeFilterLabels.length}
+        sortState={tableSortState}
+        sourceData={latestQuery.data}
+        onRefresh={refreshData}
+        isRefreshing={latestQuery.isFetching || marketContextQuery.isFetching}
+        onExportVisible={() => exportRows("visible_rows")}
+        onExportAll={() => exportRows("all_joined_rows")}
       />
 
       <MtfResearchBucketsPanel
@@ -242,7 +231,7 @@ export function MultiTimeframeScreenerPageClient() {
         onClear={clearFilters}
       />
 
-      <div className="grid min-h-0 flex-1 gap-2 xl:grid-cols-[224px_minmax(0,1fr)]">
+      <div className="grid min-h-0 flex-1 gap-2 xl:grid-cols-[190px_minmax(0,1fr)] 2xl:grid-cols-[190px_minmax(0,1fr)_226px]">
         <MtfScreenerControls
           filters={filters}
           symbolSearch={symbolSearch}
@@ -272,11 +261,20 @@ export function MultiTimeframeScreenerPageClient() {
               sourceData={latestQuery.data}
               totalRows={rows.length}
               filteredRows={visibleRows.length}
-              onExportVisible={() => exportRows("visible_rows")}
-              onExportAll={() => exportRows("all_joined_rows")}
             />
           )}
         </main>
+
+        <MtfScreenerDetailRail
+          rows={visibleRows}
+          totalRows={rows.length}
+          filteredRows={visibleRows.length}
+          presetId={presetId}
+          isFullTableActive={isFullTableActive}
+          activeFilterCount={activeFilterLabels.length}
+          sortState={tableSortState}
+          className="order-3"
+        />
       </div>
     </PageShell>
   );
@@ -311,54 +309,91 @@ export function MtfScreenerTable({
   }
 
   return (
-    <PageSection
-      title="Joined Symbol Table"
-      description="Joined scanner signals with local filters and sorting."
-      tone="rows"
-      actions={
-        <div className="flex flex-wrap items-center justify-end gap-2">
-          <StatusBadge tone="accent" className="text-[11px]">
+    <section className="overflow-hidden border border-[var(--border-medium)] bg-[var(--panel-data)] shadow-[var(--shadow-panel)]">
+      <div className="flex min-h-8 flex-wrap items-center justify-between gap-2 border-b border-[var(--border-medium)] bg-[var(--table-header)] px-2 py-1">
+        <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
+          <h2 className="text-[12px] font-semibold uppercase tracking-normal text-[var(--foreground)]">
+            Joined Symbol Table
+          </h2>
+          <StatusBadge tone="accent" className="text-[10px]">
             Showing {filteredRows} of {totalRows} symbols
           </StatusBadge>
-          {onExportVisible && onExportAll ? (
-            <MtfScreenerExportControls
-              visibleRowsCount={filteredRows}
-              allRowsCount={totalRows}
-              onExportVisible={onExportVisible}
-              onExportAll={onExportAll}
-            />
+          {sourceData ? (
+            <span className="text-[10px] font-semibold uppercase text-[var(--muted)]">
+              {sourceData.assetClass} / {sourceData.timeframes.join(" ")}
+            </span>
           ) : null}
+          <MtfScreenerIndicatorToolbar />
         </div>
-      }
-      className="overflow-hidden"
-      bodyClassName="p-0"
-    >
-      {sourceData ? (
-        <MtfScreenerFreshnessStrip
-          data={sourceData}
-          totalRows={totalRows}
-          filteredRows={filteredRows}
-        />
-      ) : null}
+        {onExportVisible && onExportAll ? (
+          <MtfScreenerExportControls
+            visibleRowsCount={filteredRows}
+            allRowsCount={totalRows}
+            onExportVisible={onExportVisible}
+            onExportAll={onExportAll}
+          />
+        ) : null}
+      </div>
       <DataTableScroll>
-        <DataTable minWidth="min-w-[1340px]" className="table-fixed">
+        <DataTable minWidth="min-w-[1440px]" className="table-fixed">
           <thead className="bg-[var(--table-header)] text-[10px] uppercase tracking-normal text-[var(--muted)]">
             <tr>
               <DataTableHeaderCell
                 sortKey="symbol"
                 sortState={sortState}
                 onSortChange={onSortChange}
-                className="sticky left-0 z-20 w-[126px] bg-[var(--table-header)]"
+                rowSpan={2}
+                className="sticky left-0 top-0 z-30 w-[148px] border-r border-[var(--border-medium)] bg-[var(--table-header)]"
               >
                 Symbol
               </DataTableHeaderCell>
+              <DataTableHeaderCell
+                colSpan={2}
+                align="center"
+                className="sticky top-0 z-20 border-l border-[var(--table-group)] bg-[var(--table-header-strong)] text-[var(--foreground)]"
+              >
+                Aggregate
+              </DataTableHeaderCell>
+              {MTF_SCREENER_TIMEFRAMES.map((timeframe) => (
+                <DataTableHeaderCell
+                  key={timeframe}
+                  colSpan={2}
+                  align="center"
+                  className="sticky top-0 z-20 border-l border-[var(--table-group)] bg-[var(--table-header-strong)] text-[var(--foreground)]"
+                >
+                  {timeframe}
+                </DataTableHeaderCell>
+              ))}
+              <DataTableHeaderCell
+                rowSpan={2}
+                sortKey="signal"
+                sortState={sortState}
+                onSortChange={onSortChange}
+                className="sticky top-0 z-20 w-[164px] border-l border-[var(--table-group)] bg-[var(--table-header)]"
+              >
+                Signal
+              </DataTableHeaderCell>
+              <DataTableHeaderCell
+                rowSpan={2}
+                className="sticky top-0 z-20 w-[176px] bg-[var(--table-header)]"
+              >
+                Notes
+              </DataTableHeaderCell>
+              <DataTableHeaderCell
+                rowSpan={2}
+                className="sticky top-0 z-20 w-[104px] bg-[var(--table-header)]"
+              >
+                Research
+              </DataTableHeaderCell>
+            </tr>
+            <tr>
               <DataTableHeaderCell
                 sortKey="combined_rank"
                 sortState={sortState}
                 defaultDirection="desc"
                 onSortChange={onSortChange}
                 align="right"
-                className="w-[72px]"
+                className="sticky top-6 z-20 w-[66px] border-l border-[var(--table-group)] bg-[var(--table-header)]"
               >
                 Rank
               </DataTableHeaderCell>
@@ -367,7 +402,7 @@ export function MtfScreenerTable({
                 sortState={sortState}
                 defaultDirection="desc"
                 onSortChange={onSortChange}
-                className="w-[112px]"
+                className="sticky top-6 z-20 w-[112px] bg-[var(--table-header)]"
               >
                 Higher TF
               </DataTableHeaderCell>
@@ -379,38 +414,30 @@ export function MtfScreenerTable({
                   onSortChange={onSortChange}
                 />
               ))}
-              <DataTableHeaderCell
-                sortKey="signal"
-                sortState={sortState}
-                onSortChange={onSortChange}
-                className="w-[156px]"
-              >
-                Signal
-              </DataTableHeaderCell>
-              <DataTableHeaderCell className="w-[190px]">
-                Notes
-              </DataTableHeaderCell>
-              <DataTableHeaderCell className="w-[104px]">
-                Research
-              </DataTableHeaderCell>
             </tr>
           </thead>
           <tbody>
             {rows.map((row) => (
               <tr
                 key={row.symbol}
-                className="group border-t border-[var(--border)] align-top odd:bg-[var(--panel-data)] even:bg-[var(--panel-muted)] hover:bg-[var(--row-hover)]"
+                className="group border-t border-[var(--table-grid)] align-top odd:bg-[var(--panel-data)] even:bg-[var(--panel-muted)] hover:bg-[var(--row-hover)] hover:shadow-[inset_3px_0_0_var(--accent)] focus-within:bg-[var(--row-selected)] focus-within:shadow-[inset_3px_0_0_var(--accent)]"
               >
-                <DataTableCell className="sticky left-0 z-10 bg-inherit group-hover:bg-[var(--row-hover)]">
-                  <div className="font-mono text-xs font-semibold text-[var(--foreground)]">
-                    {row.symbol}
+                <DataTableCell className="sticky left-0 z-10 border-r border-[var(--border-medium)] bg-inherit group-hover:bg-[var(--row-hover)]">
+                  <div className="flex min-w-0 items-center gap-1.5">
+                    <span className={`h-2 w-2 shrink-0 ${getMtfRowStateDotClass(row)}`} />
+                    <span className="min-w-0 truncate font-mono text-[12px] font-semibold text-[var(--foreground)]">
+                      {row.symbol}
+                    </span>
                   </div>
-                  <div className="mt-0.5 text-[10px] uppercase text-[var(--muted)]">
+                  <div className="mt-0.5 truncate text-[9px] uppercase text-[var(--muted)]">
                     {row.exchange} / {row.market}
                   </div>
                 </DataTableCell>
-                <DataTableCell align="right">
-                  <span className="font-mono tabular-nums text-[var(--foreground)]">
+                <DataTableCell
+                  align="right"
+                  className="border-l border-[var(--table-group)]"
+                >
+                  <span className={`font-mono tabular-nums ${getMtfRankValueClass(getMtfCombinedRank(row))}`}>
                     {formatMtfCombinedRank(row)}
                   </span>
                 </DataTableCell>
@@ -425,7 +452,7 @@ export function MtfScreenerTable({
                   />
                 ))}
                 <DataTableCell
-                  className="max-w-[156px] leading-4 text-[var(--foreground)]"
+                  className="max-w-[164px] border-l border-[var(--table-group)] leading-4 text-[var(--foreground)]"
                   truncate
                   title={getMtfPrimarySignal(row)}
                 >
@@ -442,7 +469,46 @@ export function MtfScreenerTable({
           </tbody>
         </DataTable>
       </DataTableScroll>
-    </PageSection>
+    </section>
+  );
+}
+
+function MtfScreenerIndicatorToolbar() {
+  return (
+    <div
+      aria-label="MTF indicator toolbar"
+      className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto text-[10px] [scrollbar-gutter:stable]"
+    >
+      <span className="shrink-0 border-l border-[var(--border-medium)] pl-2 font-semibold uppercase text-[var(--muted)]">
+        MTF
+      </span>
+      {MTF_SCREENER_TIMEFRAMES.map((timeframe) => (
+        <span
+          key={timeframe}
+          className="shrink-0 border border-[var(--border)] bg-[var(--panel-muted)] px-1.5 py-0.5 font-mono font-semibold uppercase text-[var(--foreground)]"
+        >
+          {timeframe}
+        </span>
+      ))}
+      <span className="shrink-0 border-l border-[var(--border-medium)] pl-2 font-semibold uppercase text-[var(--muted)]">
+        States
+      </span>
+      <StatusBadge tone="eligible" className="shrink-0 text-[10px]">
+        Eligible
+      </StatusBadge>
+      <StatusBadge tone="watch" className="shrink-0 text-[10px]">
+        Watch
+      </StatusBadge>
+      <StatusBadge tone="risk" className="shrink-0 text-[10px]">
+        Risk
+      </StatusBadge>
+      <StatusBadge tone="overheated" className="shrink-0 text-[10px]">
+        Hot
+      </StatusBadge>
+      <StatusBadge tone="neutral" className="shrink-0 text-[10px]">
+        Neutral
+      </StatusBadge>
+    </div>
   );
 }
 
@@ -497,6 +563,330 @@ function downloadCsvFile({
   window.URL.revokeObjectURL(url);
 }
 
+export function MtfScreenerCommandBar({
+  title,
+  datasetLabel,
+  statusLabel,
+  statusTone = "neutral",
+  totalRows,
+  visibleRows,
+  presetId,
+  isFullTableActive,
+  activeFilterCount,
+  sortState,
+  sourceData,
+  onRefresh,
+  isRefreshing = false,
+  onExportVisible,
+  onExportAll,
+}: {
+  title: string;
+  datasetLabel: string;
+  statusLabel: string;
+  statusTone?: StatusTone;
+  totalRows: number;
+  visibleRows: number;
+  presetId: MtfScreenerPresetId | "custom";
+  isFullTableActive: boolean;
+  activeFilterCount: number;
+  sortState?: DataSortState<MtfScreenerTableSortKey> | null;
+  sourceData?: MtfLatestScreenerResponse;
+  onRefresh?: () => void;
+  isRefreshing?: boolean;
+  onExportVisible?: () => void;
+  onExportAll?: () => void;
+}) {
+  return (
+    <header className="mb-1.5 overflow-hidden border border-[var(--terminal-bar-border)] bg-[var(--terminal-bar)] text-[var(--terminal-bar-foreground)] shadow-[var(--shadow-panel)]">
+      <div className="flex min-w-0 items-center gap-1 overflow-x-auto border-b border-white/10 bg-white/[0.035] px-2 py-1 text-[10px] font-semibold uppercase text-[var(--terminal-bar-muted)] [scrollbar-gutter:stable]">
+        <span className="shrink-0 border-b border-[var(--accent)] px-1.5 py-0.5 text-[var(--terminal-bar-foreground)]">
+          Screener
+        </span>
+        <span className="shrink-0 px-1.5 py-0.5">Crypto</span>
+        <span className="shrink-0 px-1.5 py-0.5">MTF Joined</span>
+        <span className="shrink-0 px-1.5 py-0.5">Research</span>
+      </div>
+      <div className="flex flex-wrap items-center gap-2 px-2 py-1.5">
+        <div className="min-w-[230px] flex-1">
+          <div className="flex flex-wrap items-center gap-1.5">
+            <h1 className="text-[14px] font-semibold leading-5">{title}</h1>
+            <span className="border border-white/15 bg-white/[0.08] px-1.5 py-0.5 text-[10px] font-semibold uppercase text-[var(--terminal-bar-muted)]">
+              Research only
+            </span>
+          </div>
+          <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[10px] uppercase text-[var(--terminal-bar-muted)]">
+            <span>{datasetLabel}</span>
+            <span aria-hidden="true">/</span>
+            <span>Joined MTF universe</span>
+          </div>
+        </div>
+
+        <div className="grid min-w-0 flex-[3_1_560px] grid-cols-2 gap-1 md:grid-cols-4">
+          <MtfCommandStat
+            label="Dataset"
+            value={statusLabel}
+            tone={statusTone}
+          />
+          <MtfCommandStat
+            label="Visible"
+            value={`${visibleRows}/${totalRows}`}
+            tone={visibleRows === totalRows ? "complete" : "info"}
+          />
+          <MtfCommandStat
+            label="Bucket / filters"
+            value={`${getMtfActiveBucketLabel(presetId, isFullTableActive)} · ${getMtfFilterStateLabel({
+              activeFilterCount,
+              presetId,
+              isFullTableActive,
+            })}`}
+            tone={isFullTableActive ? "complete" : "warning"}
+          />
+          <MtfCommandStat
+            label="Sort"
+            value={formatMtfTableSortState(sortState)}
+            tone={sortState ? "info" : "neutral"}
+          />
+        </div>
+
+        <div className="ml-auto flex shrink-0 flex-wrap items-center justify-end gap-1">
+          {onRefresh ? (
+            <button
+              type="button"
+              onClick={onRefresh}
+              disabled={isRefreshing}
+              className="inline-flex h-7 items-center justify-center border border-white/20 bg-white/[0.08] px-2 text-[11px] font-semibold text-[var(--terminal-bar-foreground)] transition hover:border-white/35 hover:bg-white/[0.14] disabled:cursor-not-allowed disabled:opacity-55"
+            >
+              {isRefreshing ? "Refreshing" : "Refresh"}
+            </button>
+          ) : null}
+          {onExportVisible && onExportAll ? (
+            <MtfScreenerExportControls
+              visibleRowsCount={visibleRows}
+              allRowsCount={totalRows}
+              onExportVisible={onExportVisible}
+              onExportAll={onExportAll}
+              variant="terminal"
+            />
+          ) : null}
+        </div>
+      </div>
+
+      <div className="border-t border-white/10 bg-[#12303c] px-2 py-1">
+        <div className="flex min-w-0 items-center gap-1 overflow-x-auto text-[10px] [scrollbar-gutter:stable]">
+          <span className="shrink-0 font-semibold uppercase text-[var(--terminal-bar-muted)]">
+            Freshness
+          </span>
+          {MTF_SCREENER_TIMEFRAMES.map((timeframe) => (
+            <MtfFreshnessPill
+              key={timeframe}
+              timeframe={timeframe}
+              sourceData={sourceData}
+            />
+          ))}
+        </div>
+      </div>
+    </header>
+  );
+}
+
+function MtfCommandStat({
+  label,
+  value,
+  tone,
+}: {
+  label: string;
+  value: string;
+  tone: StatusTone;
+}) {
+  return (
+    <div
+      className={`min-w-0 border border-white/10 border-l-2 bg-white/[0.055] px-2 py-1 ${getMtfTerminalToneBorderClass(tone)}`}
+    >
+      <div className="truncate text-[9px] font-semibold uppercase text-[var(--terminal-bar-muted)]">
+        {label}
+      </div>
+      <div className="truncate font-mono text-[11px] font-semibold leading-4 text-[var(--terminal-bar-foreground)]">
+        {value}
+      </div>
+    </div>
+  );
+}
+
+function MtfFreshnessPill({
+  timeframe,
+  sourceData,
+}: {
+  timeframe: MtfScreenerTimeframe;
+  sourceData?: MtfLatestScreenerResponse;
+}) {
+  const run = sourceData?.runs[timeframe];
+  const signalCount = sourceData?.signalCounts[timeframe] ?? 0;
+  const missingCount = sourceData?.missingCounts[timeframe] ?? 0;
+  const tone: StatusTone = !run
+    ? "missing"
+    : missingCount > 0
+      ? "warning"
+      : "complete";
+  const timestamp = run ? formatDateTime(run.finishedAt ?? run.startedAt) : "No run";
+
+  return (
+    <StatusBadge
+      tone={tone}
+      title={
+        run
+          ? `${timeframe}: ${timestamp}; ${signalCount} signals, ${missingCount} missing`
+          : `${timeframe}: no selected latest run`
+      }
+      className="shrink-0 gap-1 text-[10px]"
+    >
+      <span className="font-mono uppercase">{timeframe}</span>
+      <span className="max-w-[138px] truncate">{timestamp}</span>
+      <span className="font-mono tabular-nums">
+        {run ? `${signalCount}/${missingCount}` : "missing"}
+      </span>
+    </StatusBadge>
+  );
+}
+
+function getMtfQueryStatusLabel({
+  isLoading,
+  isError,
+  rowCount,
+}: {
+  isLoading: boolean;
+  isError: boolean;
+  rowCount: number;
+}) {
+  if (isLoading) {
+    return "Loading";
+  }
+
+  if (isError) {
+    return "API error";
+  }
+
+  return rowCount > 0 ? "Loaded" : "Empty";
+}
+
+function getMtfQueryStatusTone({
+  isLoading,
+  isError,
+  rowCount,
+}: {
+  isLoading: boolean;
+  isError: boolean;
+  rowCount: number;
+}): StatusTone {
+  if (isError) {
+    return "risk";
+  }
+
+  if (isLoading) {
+    return "info";
+  }
+
+  return rowCount > 0 ? "complete" : "missing";
+}
+
+function getMtfTerminalToneBorderClass(tone: StatusTone) {
+  switch (tone) {
+    case "eligible":
+    case "positive":
+    case "complete":
+      return "border-l-[var(--eligible)]";
+    case "watch":
+    case "info":
+      return "border-l-[var(--watch)]";
+    case "overheated":
+    case "warning":
+    case "partial":
+      return "border-l-[var(--overheated)]";
+    case "risk":
+    case "negative":
+    case "danger":
+      return "border-l-[var(--risk)]";
+    case "accent":
+      return "border-l-[var(--accent)]";
+    default:
+      return "border-l-[var(--missing)]";
+  }
+}
+
+function getMtfActiveBucketLabel(
+  presetId: MtfScreenerPresetId | "custom",
+  isFullTableActive: boolean,
+) {
+  if (isFullTableActive) {
+    return "Full Table";
+  }
+
+  if (presetId === "custom") {
+    return "Custom";
+  }
+
+  return (
+    mtfResearchBuckets.find((bucket) => bucket.id === presetId)?.label ??
+    "Custom"
+  );
+}
+
+function getMtfFilterStateLabel({
+  activeFilterCount,
+  presetId,
+  isFullTableActive,
+}: {
+  activeFilterCount: number;
+  presetId: MtfScreenerPresetId | "custom";
+  isFullTableActive: boolean;
+}) {
+  if (isFullTableActive) {
+    return "No filters";
+  }
+
+  if (activeFilterCount > 0) {
+    return `${activeFilterCount} manual`;
+  }
+
+  return presetId === "custom" ? "Adjusted" : "Preset";
+}
+
+function formatMtfTableSortState(
+  sortState?: DataSortState<MtfScreenerTableSortKey> | null,
+) {
+  if (!sortState) {
+    return "Incoming order";
+  }
+
+  return `${formatMtfSortKeyLabel(sortState.key)} ${sortState.direction.toUpperCase()}`;
+}
+
+function formatMtfSortKeyLabel(key: MtfScreenerTableSortKey) {
+  switch (key) {
+    case "symbol":
+      return "Symbol";
+    case "combined_rank":
+      return "Rank";
+    case "higher_timeframe_safety":
+      return "Higher TF";
+    case "signal":
+      return "Signal";
+  }
+
+  const rankTimeframe = getMtfTableSortTimeframe(key, "_rank");
+
+  if (rankTimeframe) {
+    return `${rankTimeframe} rank`;
+  }
+
+  const groupTimeframe = getMtfTableSortTimeframe(key, "_group");
+
+  if (groupTimeframe) {
+    return `${groupTimeframe} group`;
+  }
+
+  return key;
+}
+
 export function MtfResearchBucketsPanel({
   rows,
   presetId,
@@ -513,29 +903,24 @@ export function MtfResearchBucketsPanel({
   const buckets = countMtfResearchBuckets(rows);
 
   return (
-    <PageSection
-      title="Research Buckets"
-      description="Counts before filters."
-      className="mb-2 min-w-0"
-      tone="screener"
-      bodyClassName="px-2.5 py-1.5"
-      actions={
+    <section
+      aria-label="Research Buckets"
+      className="mb-1.5 min-w-0 border border-[var(--border-medium)] bg-[var(--panel-data)] shadow-[var(--shadow-panel)]"
+    >
+      <div className="flex min-w-0 items-center gap-1 overflow-x-auto px-1.5 py-1 [scrollbar-gutter:stable]">
+        <div className="shrink-0 px-1.5 text-[10px] font-semibold uppercase text-[var(--muted)]">
+          Buckets
+        </div>
         <button
           type="button"
+          title="Full Table: all joined rows before preset buckets."
           onClick={onClear}
           aria-pressed={isFullTableActive}
-          className={`inline-flex min-h-7 items-center gap-2 border px-2 py-1 text-left text-[11px] transition ${
-            isFullTableActive
-              ? "border-[var(--accent)] bg-[var(--panel)] text-[var(--foreground)] shadow-[inset_0_-2px_0_var(--accent)]"
-              : "border-[var(--border)] bg-[var(--control)] text-[var(--muted)] hover:border-[var(--border-strong)] hover:text-[var(--foreground)]"
-          }`}
+          className={getMtfResearchBucketButtonClass("accent", isFullTableActive)}
         >
-          <span className="font-semibold">Full Table</span>
+          <span className="min-w-0 truncate font-semibold">Full Table</span>
           <span className="font-mono tabular-nums">{rows.length}</span>
         </button>
-      }
-    >
-      <div className="grid min-w-0 grid-cols-2 gap-1 lg:grid-cols-5">
         {buckets.map((bucket) => {
           const isActive = presetId === bucket.id;
           const tone = getMtfResearchBucketTone(bucket.id);
@@ -549,19 +934,178 @@ export function MtfResearchBucketsPanel({
               aria-pressed={isActive}
               className={getMtfResearchBucketButtonClass(tone, isActive)}
             >
-              <span className="flex items-center justify-between gap-2">
-                <span className="min-w-0 truncate text-[11px] font-semibold text-[var(--foreground)]">
-                  {bucket.label}
-                </span>
-                <span className={`font-mono text-sm tabular-nums ${getMtfResearchBucketValueClass(tone)}`}>
-                  {bucket.count}
-                </span>
+              <span className="min-w-0 truncate font-semibold">{bucket.label}</span>
+              <span className={`font-mono tabular-nums ${getMtfResearchBucketValueClass(tone)}`}>
+                {bucket.count}
               </span>
             </button>
           );
         })}
       </div>
-    </PageSection>
+    </section>
+  );
+}
+
+export function MtfScreenerDetailRail({
+  rows,
+  totalRows,
+  filteredRows,
+  presetId,
+  isFullTableActive,
+  activeFilterCount,
+  sortState,
+  className = "",
+}: {
+  rows: MtfScreenerRow[];
+  totalRows: number;
+  filteredRows: number;
+  presetId: MtfScreenerPresetId | "custom";
+  isFullTableActive: boolean;
+  activeFilterCount: number;
+  sortState?: DataSortState<MtfScreenerTableSortKey> | null;
+  className?: string;
+}) {
+  const focusRows = rows.slice(0, 4);
+
+  return (
+    <aside
+      aria-label="Screener detail rail"
+      className={`hidden min-w-0 border border-[var(--border-medium)] bg-[var(--panel-data)] shadow-[var(--shadow-panel)] 2xl:block 2xl:h-fit 2xl:max-h-[calc(100vh-6rem)] 2xl:overflow-y-auto ${className}`}
+    >
+      <div className="flex items-center justify-between gap-2 border-b border-[var(--border-medium)] bg-[var(--table-header)] px-2 py-1.5">
+        <h2 className="truncate text-[12px] font-semibold uppercase text-[var(--foreground)]">
+          Detail Rail
+        </h2>
+        <StatusBadge tone="info" className="shrink-0 text-[10px]">
+          Ready
+        </StatusBadge>
+      </div>
+
+      <div className="space-y-2 p-2">
+        <div className="grid grid-cols-2 gap-1">
+          <MtfDetailRailMetric
+            label="Rows"
+            value={`${filteredRows}/${totalRows}`}
+            tone={filteredRows === totalRows ? "complete" : "info"}
+          />
+          <MtfDetailRailMetric
+            label="Bucket"
+            value={getMtfActiveBucketLabel(presetId, isFullTableActive)}
+            tone={isFullTableActive ? "complete" : "warning"}
+          />
+          <MtfDetailRailMetric
+            label="Filters"
+            value={
+              getMtfFilterStateLabel({
+                activeFilterCount,
+                presetId,
+                isFullTableActive,
+              })
+            }
+            tone={activeFilterCount > 0 ? "watch" : "neutral"}
+          />
+          <MtfDetailRailMetric
+            label="Sort"
+            value={formatMtfTableSortState(sortState)}
+            tone={sortState ? "info" : "neutral"}
+          />
+        </div>
+
+        <div className="border-t border-[var(--border)] pt-2">
+          <div className="mb-1 text-[10px] font-semibold uppercase text-[var(--muted)]">
+            State Key
+          </div>
+          <div className="flex flex-wrap gap-1">
+            <StatusBadge tone="eligible" className="text-[10px]">
+              Eligible
+            </StatusBadge>
+            <StatusBadge tone="watch" className="text-[10px]">
+              Watch
+            </StatusBadge>
+            <StatusBadge tone="risk" className="text-[10px]">
+              Risk
+            </StatusBadge>
+            <StatusBadge tone="overheated" className="text-[10px]">
+              Hot
+            </StatusBadge>
+            <StatusBadge tone="neutral" className="text-[10px]">
+              Neutral
+            </StatusBadge>
+          </div>
+        </div>
+
+        <div className="border-t border-[var(--border)] pt-2">
+          <div className="mb-1 flex items-center justify-between gap-2 text-[10px] font-semibold uppercase text-[var(--muted)]">
+            <span>Focus Rows</span>
+            <span className="font-mono">{focusRows.length}</span>
+          </div>
+          <div className="space-y-1">
+            {focusRows.length > 0 ? (
+              focusRows.map((row) => {
+                const timeframe = getMtfSymbolResearchTimeframe(row);
+
+                return (
+                  <Link
+                    key={row.symbol}
+                    href={buildMtfSymbolResearchHref({ row, timeframe })}
+                    className="group/detail block border border-[var(--border)] bg-[var(--panel-muted)] px-2 py-1.5 text-[11px] transition hover:border-[var(--accent-border)] hover:bg-[var(--row-hover)]"
+                  >
+                    <div className="flex min-w-0 items-center justify-between gap-2">
+                      <span className="flex min-w-0 items-center gap-1.5">
+                        <span
+                          className={`h-2 w-2 shrink-0 ${getMtfRowStateDotClass(row)}`}
+                        />
+                        <span className="truncate font-mono font-semibold text-[var(--foreground)]">
+                          {row.symbol}
+                        </span>
+                      </span>
+                      <span
+                        className={`shrink-0 font-mono tabular-nums ${getMtfRankValueClass(getMtfCombinedRank(row))}`}
+                      >
+                        {formatMtfCombinedRank(row)}
+                      </span>
+                    </div>
+                    <div className="mt-1 flex items-center justify-between gap-2 text-[10px] text-[var(--muted)]">
+                      <span className="truncate">{getMtfPrimarySignal(row)}</span>
+                      <span className="shrink-0 font-mono uppercase text-[var(--info)] group-hover/detail:text-[var(--accent)]">
+                        {timeframe}
+                      </span>
+                    </div>
+                  </Link>
+                );
+              })
+            ) : (
+              <div className="border border-[var(--border)] bg-[var(--panel-muted)] px-2 py-2 text-[11px] text-[var(--muted)]">
+                No rows
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    </aside>
+  );
+}
+
+function MtfDetailRailMetric({
+  label,
+  value,
+  tone,
+}: {
+  label: string;
+  value: string;
+  tone: StatusTone;
+}) {
+  return (
+    <div
+      className={`min-w-0 border border-l-2 border-[var(--border)] bg-[var(--panel-muted)] px-2 py-1 ${getMtfResearchBucketBorderClass(tone)}`}
+    >
+      <div className="truncate text-[9px] font-semibold uppercase text-[var(--muted)]">
+        {label}
+      </div>
+      <div className="truncate font-mono text-[10px] font-semibold leading-4 text-[var(--foreground)]">
+        {value}
+      </div>
+    </div>
   );
 }
 
@@ -596,227 +1140,134 @@ export function MtfScreenerControls({
   const activeFilterLabels = getActiveMtfFilterLabels(filters, symbolSearch);
 
   return (
-    <aside className={`border border-[var(--border)] bg-[var(--panel-muted)] p-2 shadow-none xl:h-fit xl:max-h-[calc(100vh-5rem)] xl:overflow-y-auto ${className}`}>
-      <div className="mb-2 flex items-center justify-between gap-2 border-b border-[var(--border)] pb-1.5">
+    <aside className={`border border-[var(--border-medium)] bg-[var(--panel-data)] shadow-[var(--shadow-panel)] xl:h-fit xl:max-h-[calc(100vh-6rem)] xl:overflow-y-auto ${className}`}>
+      <div className="flex items-center justify-between gap-2 border-b border-[var(--border-medium)] bg-[var(--table-header)] px-2 py-1.5">
         <div className="min-w-0">
-          <h2 className="text-[13px] font-semibold">Filters</h2>
-          <p className="mt-0.5 text-[10px] text-[var(--muted)]">
+          <h2 className="text-[12px] font-semibold uppercase text-[var(--foreground)]">
+            Tool Panel
+          </h2>
+          <p className="text-[10px] text-[var(--muted)]">
             {activeFilterLabels.length === 0
-              ? "Full joined dataset"
+              ? "Full dataset"
               : `${activeFilterLabels.length} active`}
           </p>
         </div>
         <button
           type="button"
           onClick={onClear}
-          className="ui-button h-7 px-2 text-[11px]"
+          className="ui-button h-6 px-2 text-[10px]"
         >
           Clear
         </button>
       </div>
 
-      <ControlGroup>
-        <label className="block">
-          <span className="mb-1 block text-[11px] font-semibold uppercase text-[var(--muted)]">
-            Symbol Search
-          </span>
-          <input
-            type="search"
-            value={symbolSearch}
-            onChange={(event) => onSymbolSearchChange(event.target.value)}
-            className={controlClass}
-            placeholder="BTC, ETH, SEI..."
-          />
-        </label>
-      </ControlGroup>
-
-      {activeFilterLabels.length > 0 ? (
-        <div className="mt-2 flex flex-wrap gap-1">
-          {activeFilterLabels.map((label) => (
-            <StatusBadge key={label} tone="info" className="text-[10px]">
-              {label}
-            </StatusBadge>
-          ))}
-        </div>
-      ) : null}
-
-      <ControlGroup title="Group Filters" className="mt-2">
-        {MTF_SCREENER_TIMEFRAMES.map((timeframe) => (
-          <label key={timeframe} className="block">
-            <span className="mb-1 block text-[11px] text-[var(--muted)]">
-              {timeframe} group
-            </span>
-            <select
-              value={filters.groups[timeframe]}
-              onChange={(event) =>
-                onGroupChange(
-                  timeframe,
-                  event.target.value as MtfScreenerGroupFilter,
-                )
-              }
-              className={controlClass}
-            >
-              {mtfScreenerGroupFilterOptions.map((option) => (
-                <option key={option} value={option}>
-                  {option === "any" ? "Any" : formatGroupLabel(option)}
-                </option>
-              ))}
-            </select>
-          </label>
-        ))}
-      </ControlGroup>
-
-      <ControlGroup title="Minimum Rank" className="mt-2">
-        {MTF_SCREENER_TIMEFRAMES.map((timeframe) => (
-          <label key={timeframe} className="block">
-            <span className="mb-1 block text-[11px] text-[var(--muted)]">
-              {timeframe} rank
+      <div className="space-y-2 p-2">
+        <ControlGroup>
+          <label className="block">
+            <span className="mb-1 block text-[10px] font-semibold uppercase text-[var(--muted)]">
+              Symbol Search
             </span>
             <input
-              type="number"
-              min={0}
-              step={1}
-              value={filters.minRank[timeframe] || ""}
-              onChange={(event) => onMinRankChange(timeframe, event.target.value)}
+              type="search"
+              value={symbolSearch}
+              onChange={(event) => onSymbolSearchChange(event.target.value)}
               className={controlClass}
-              placeholder="0"
+              placeholder="BTC, ETH, SEI..."
             />
           </label>
-        ))}
-      </ControlGroup>
+        </ControlGroup>
 
-      <ControlGroup title="Risk Exclusions" className="mt-2">
-        <label className="flex items-center gap-2 text-xs text-[var(--muted)]">
-          <input
-            type="checkbox"
-            checked={filters.exclude1dRisk}
-            onChange={() => onExcludeRiskChange("exclude1dRisk")}
-            className="accent-[var(--accent)]"
-          />
-          Exclude 1d risk
-        </label>
-        <label className="flex items-center gap-2 text-xs text-[var(--muted)]">
-          <input
-            type="checkbox"
-            checked={filters.exclude1wRisk}
-            onChange={() => onExcludeRiskChange("exclude1wRisk")}
-            className="accent-[var(--accent)]"
-          />
-          Exclude 1w risk
-        </label>
-      </ControlGroup>
+        {activeFilterLabels.length > 0 ? (
+          <div className="mt-2 flex max-h-[66px] flex-wrap gap-1 overflow-y-auto">
+            {activeFilterLabels.map((label) => (
+              <StatusBadge key={label} tone="info" className="text-[10px]">
+                {label}
+              </StatusBadge>
+            ))}
+          </div>
+        ) : null}
 
-      <details className="mt-2 border-t border-[var(--border)] pt-2">
-        <summary className="cursor-pointer text-[10px] font-semibold uppercase text-[var(--muted)]">
-          Market backdrop
-        </summary>
-        <MarketContextPanel
-          variant="compact"
-          data={marketContextData}
-          isLoading={marketContextIsLoading}
-          isError={marketContextIsError}
-          implication="Context only; table rows and classifications stay unchanged."
-          className="mt-2 border-l-2 px-2 py-2 shadow-none"
-        />
-      </details>
-    </aside>
-  );
-}
+        <ControlGroup title="Group Filters" className="mt-2">
+          {MTF_SCREENER_TIMEFRAMES.map((timeframe) => (
+            <label key={timeframe} className="block">
+              <span className="mb-1 block text-[10px] uppercase text-[var(--muted)]">
+                {timeframe} group
+              </span>
+              <select
+                value={filters.groups[timeframe]}
+                onChange={(event) =>
+                  onGroupChange(
+                    timeframe,
+                    event.target.value as MtfScreenerGroupFilter,
+                  )
+                }
+                className={controlClass}
+              >
+                {mtfScreenerGroupFilterOptions.map((option) => (
+                  <option key={option} value={option}>
+                    {option === "any" ? "Any" : formatGroupLabel(option)}
+                  </option>
+                ))}
+              </select>
+            </label>
+          ))}
+        </ControlGroup>
 
-export function MtfScreenerSourcePanel({
-  data,
-  totalRows,
-  filteredRows,
-  onExportVisible,
-  onExportAll,
-}: {
-  data: MtfLatestScreenerResponse | undefined;
-  totalRows: number;
-  filteredRows: number;
-  onExportVisible: () => void;
-  onExportAll: () => void;
-}) {
-  return (
-    <PageSection
-      title="Data Source / Run Freshness"
-      description="Latest selected crypto scanner runs joined across 1h, 4h, 1d, and 1w."
-      tone="summary"
-      actions={
-        <div className="flex flex-wrap items-center justify-end gap-2">
-          <StatusBadge tone={filteredRows === totalRows ? "complete" : "info"}>
-            Showing {filteredRows} of {totalRows} joined symbols
-          </StatusBadge>
-          <MtfScreenerExportControls
-            visibleRowsCount={filteredRows}
-            allRowsCount={totalRows}
-            onExportVisible={onExportVisible}
-            onExportAll={onExportAll}
-          />
-        </div>
-      }
-      bodyClassName="px-3 py-2"
-    >
-      <div className="grid gap-x-4 gap-y-2 md:grid-cols-2 xl:grid-cols-4">
-        {MTF_SCREENER_TIMEFRAMES.map((timeframe) => {
-          const run = data?.runs[timeframe];
-          const signalCount = data?.signalCounts[timeframe] ?? 0;
-          const missingCount = data?.missingCounts[timeframe] ?? 0;
+        <ControlGroup title="Minimum Rank" className="mt-2">
+          {MTF_SCREENER_TIMEFRAMES.map((timeframe) => (
+            <label key={timeframe} className="block">
+              <span className="mb-1 block text-[10px] uppercase text-[var(--muted)]">
+                {timeframe} rank
+              </span>
+              <input
+                type="number"
+                min={0}
+                step={1}
+                value={filters.minRank[timeframe] || ""}
+                onChange={(event) => onMinRankChange(timeframe, event.target.value)}
+                className={controlClass}
+                placeholder="0"
+              />
+            </label>
+          ))}
+        </ControlGroup>
 
-          return (
-            <MetricCard
-              key={timeframe}
-              label={timeframe}
-              value={run ? formatDateTime(run.finishedAt ?? run.startedAt) : "No run"}
-              detail={
-                run
-                  ? `${signalCount} signals, ${missingCount} missing`
-                  : "No selected latest run"
-              }
-              tone={!run ? "missing" : missingCount > 0 ? "warning" : "complete"}
+        <ControlGroup title="Risk Exclusions" className="mt-2">
+          <label className="flex items-center gap-2 text-[11px] text-[var(--muted)]">
+            <input
+              type="checkbox"
+              checked={filters.exclude1dRisk}
+              onChange={() => onExcludeRiskChange("exclude1dRisk")}
+              className="accent-[var(--accent)]"
             />
-          );
-        })}
-      </div>
-    </PageSection>
-  );
-}
+            Exclude 1d risk
+          </label>
+          <label className="flex items-center gap-2 text-[11px] text-[var(--muted)]">
+            <input
+              type="checkbox"
+              checked={filters.exclude1wRisk}
+              onChange={() => onExcludeRiskChange("exclude1wRisk")}
+              className="accent-[var(--accent)]"
+            />
+            Exclude 1w risk
+          </label>
+        </ControlGroup>
 
-function MtfScreenerFreshnessStrip({
-  data,
-  totalRows,
-  filteredRows,
-}: {
-  data: MtfLatestScreenerResponse;
-  totalRows: number;
-  filteredRows: number;
-}) {
-  return (
-    <div className="border-b border-[var(--border)] bg-[var(--panel)] px-3 py-1.5">
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-[var(--muted)]">
-        <span className="font-semibold text-[var(--foreground)]">
-          Showing {filteredRows} of {totalRows} joined symbols
-        </span>
-        {MTF_SCREENER_TIMEFRAMES.map((timeframe) => {
-          const run = data.runs[timeframe];
-          const signalCount = data.signalCounts[timeframe] ?? 0;
-          const missingCount = data.missingCounts[timeframe] ?? 0;
-
-          return (
-            <span key={timeframe} className="inline-flex min-w-0 items-center gap-1">
-              <span className="font-semibold uppercase text-[var(--foreground)]">
-                {timeframe}
-              </span>
-              <span className="truncate">
-                {run ? formatDateTime(run.finishedAt ?? run.startedAt) : "No run"}
-              </span>
-              <span className={missingCount > 0 ? "text-[var(--warning)]" : "text-[var(--muted)]"}>
-                {run ? `${signalCount} signals, ${missingCount} missing` : "missing"}
-              </span>
-            </span>
-          );
-        })}
+        <details className="mt-2 border-t border-[var(--border)] pt-2">
+          <summary className="cursor-pointer text-[10px] font-semibold uppercase text-[var(--muted)]">
+            Market backdrop
+          </summary>
+          <MarketContextPanel
+            variant="compact"
+            data={marketContextData}
+            isLoading={marketContextIsLoading}
+            isError={marketContextIsError}
+            implication="Context only; table rows and classifications stay unchanged."
+            className="mt-2 border-l-2 px-2 py-2 shadow-none"
+          />
+        </details>
       </div>
-    </div>
+    </aside>
   );
 }
 
@@ -825,22 +1276,29 @@ export function MtfScreenerExportControls({
   allRowsCount,
   onExportVisible,
   onExportAll,
+  variant = "default",
 }: {
   visibleRowsCount: number;
   allRowsCount: number;
   onExportVisible: () => void;
   onExportAll: () => void;
+  variant?: "default" | "terminal";
 }) {
+  const buttonClass =
+    variant === "terminal"
+      ? "inline-flex h-7 items-center justify-center border border-white/20 bg-white/[0.08] px-2 text-[11px] font-semibold text-[var(--terminal-bar-foreground)] transition hover:border-white/35 hover:bg-white/[0.14] disabled:cursor-not-allowed disabled:opacity-50"
+      : "ui-button h-7 px-2 text-[11px] font-semibold disabled:cursor-not-allowed disabled:opacity-50";
+
   return (
     <div
       aria-label="Screener CSV export"
-      className="flex flex-wrap items-center gap-1.5"
+      className="flex flex-wrap items-center gap-1"
     >
       <button
         type="button"
         onClick={onExportVisible}
         disabled={visibleRowsCount === 0}
-        className="ui-button h-7 px-2 text-[11px] font-semibold disabled:cursor-not-allowed disabled:opacity-50"
+        className={buttonClass}
       >
         Export Visible Rows
       </button>
@@ -848,7 +1306,7 @@ export function MtfScreenerExportControls({
         type="button"
         onClick={onExportAll}
         disabled={allRowsCount === 0}
-        className="ui-button h-7 px-2 text-[11px] font-semibold disabled:cursor-not-allowed disabled:opacity-50"
+        className={buttonClass}
       >
         Export All Joined Rows
       </button>
@@ -945,9 +1403,9 @@ function TimeframeHeaderCells({
         sortState={sortState}
         defaultDirection="desc"
         onSortChange={onSortChange}
-        className="w-[86px] border-l border-[var(--border)]"
+        className="sticky top-6 z-20 w-[82px] border-l border-[var(--table-group)] bg-[var(--table-header)]"
       >
-        {timeframe} Group
+        Group
       </DataTableHeaderCell>
       <DataTableHeaderCell
         sortKey={`${timeframe}_rank`}
@@ -955,9 +1413,9 @@ function TimeframeHeaderCells({
         defaultDirection="desc"
         onSortChange={onSortChange}
         align="right"
-        className="w-[64px]"
+        className="sticky top-6 z-20 w-[58px] bg-[var(--table-header)]"
       >
-        {timeframe} Rank
+        Rank
       </DataTableHeaderCell>
     </>
   );
@@ -974,11 +1432,16 @@ function TimeframeCells({
 
   return (
     <>
-      <DataTableCell className="border-l border-[var(--border)]">
-        <GroupBadge group={snapshot?.resultGroup}>{formatMtfGroup(snapshot)}</GroupBadge>
+      <DataTableCell className="border-l border-[var(--table-group)]">
+        <GroupBadge
+          group={snapshot?.resultGroup}
+          title={formatMtfGroup(snapshot)}
+        >
+          {snapshot ? formatMtfGroup(snapshot) : "Missing"}
+        </GroupBadge>
       </DataTableCell>
       <DataTableCell align="right">
-        <span className="font-mono tabular-nums text-[var(--foreground)]">
+        <span className={`font-mono tabular-nums ${getMtfRankValueClass(snapshot?.rankScore ?? null)}`}>
           {formatMtfRank(snapshot)}
         </span>
       </DataTableCell>
@@ -989,14 +1452,17 @@ function TimeframeCells({
 function GroupBadge({
   group,
   children,
+  title,
 }: {
   group?: string;
   children: React.ReactNode;
+  title?: string;
 }) {
   return (
     <DataTableChip
       tone={getMtfGroupChipTone(group)}
-      className="min-w-[74px] justify-center"
+      title={title}
+      className="min-w-[70px] justify-center"
     >
       {children}
     </DataTableChip>
@@ -1013,8 +1479,53 @@ function getMtfGroupChipTone(group: string | null | undefined): ChipTone {
       return "overheated";
     case "risk":
       return "risk";
+    case null:
+    case undefined:
+      return "missing";
     default:
       return "neutral";
+  }
+}
+
+function getMtfRankValueClass(value: number | null | undefined) {
+  if (typeof value !== "number" || !Number.isFinite(value)) {
+    return "text-[var(--muted-2)]";
+  }
+
+  if (value >= 75) {
+    return "text-[var(--eligible)]";
+  }
+
+  if (value >= 55) {
+    return "text-[var(--watch)]";
+  }
+
+  if (value < 30) {
+    return "text-[var(--risk)]";
+  }
+
+  return "text-[var(--foreground)]";
+}
+
+function getMtfRowStateDotClass(row: MtfScreenerRow) {
+  const primaryGroup =
+    ["4h", "1h", "1d", "1w"]
+      .map((timeframe) => row.snapshots[timeframe as MtfScreenerTimeframe]?.resultGroup)
+      .find((group) => group && group !== "neutral") ??
+    MTF_SCREENER_TIMEFRAMES.map((timeframe) => row.snapshots[timeframe]?.resultGroup)
+      .find(Boolean);
+
+  switch (primaryGroup) {
+    case "eligible":
+      return "bg-[var(--eligible)]";
+    case "watch":
+      return "bg-[var(--watch)]";
+    case "overheated":
+      return "bg-[var(--overheated)]";
+    case "risk":
+      return "bg-[var(--risk)]";
+    default:
+      return "bg-[var(--missing)]";
   }
 }
 
@@ -1049,23 +1560,32 @@ function getMtfResearchBucketValueClass(tone: StatusTone) {
 
 function getMtfResearchBucketButtonClass(tone: StatusTone, isActive: boolean) {
   const base =
-    "min-h-10 min-w-0 border border-l-2 bg-[var(--panel)] px-2 py-1.5 text-left transition";
+    "inline-flex h-8 min-w-[132px] shrink-0 items-center justify-between gap-2 border border-l-2 bg-[var(--panel)] px-2 text-left text-[11px] text-[var(--foreground)] transition";
   const toneClass = getMtfResearchBucketBorderClass(tone);
 
   return isActive
-    ? `${base} ${toneClass} border-[var(--accent)] bg-[var(--panel)] shadow-[inset_0_-2px_0_var(--accent)]`
-    : `${base} ${toneClass} border-[var(--border)] hover:border-[var(--border-strong)] hover:bg-[var(--row-hover)]`;
+    ? `${base} ${toneClass} border-[var(--accent)] bg-[var(--accent-soft)] shadow-[inset_0_-2px_0_var(--accent)]`
+    : `${base} ${toneClass} border-[var(--border)] bg-[var(--panel-data)] hover:border-[var(--border-strong)] hover:bg-[var(--row-hover)]`;
 }
 
 function getMtfResearchBucketBorderClass(tone: StatusTone) {
   switch (tone) {
+    case "accent":
+      return "border-l-[var(--accent)]";
     case "eligible":
+    case "positive":
+    case "complete":
       return "border-l-[var(--eligible)]";
     case "watch":
+    case "info":
       return "border-l-[var(--watch)]";
     case "overheated":
+    case "warning":
+    case "partial":
       return "border-l-[var(--overheated)]";
     case "risk":
+    case "negative":
+    case "danger":
       return "border-l-[var(--risk)]";
     default:
       return "border-l-[var(--neutral)]";
@@ -1100,16 +1620,17 @@ function RiskNotesCell({ row }: { row: MtfScreenerRow }) {
   const summary = getMtfRiskNotesSummary(row, 2);
 
   if (summary.notes.length === 0) {
-    return <span>-</span>;
+    return <span className="text-[var(--muted-2)]">-</span>;
   }
 
   return (
-    <div className="flex min-w-0 items-center gap-1 overflow-hidden leading-4">
+    <div className="flex min-w-0 items-center gap-1 overflow-hidden whitespace-nowrap leading-4">
       {summary.visibleNotes.map((note) => (
         <DataTableChip
           key={note}
           title={note}
-          className="max-w-[82px] truncate"
+          tone="neutral"
+          className="max-w-[76px] truncate"
         >
           {note}
         </DataTableChip>
@@ -1133,7 +1654,7 @@ function ResearchLink({ row }: { row: MtfScreenerRow }) {
   return (
     <Link
       href={buildMtfSymbolResearchHref({ row, timeframe })}
-      className="inline-flex min-w-[82px] justify-center border border-transparent px-1.5 py-1 text-[11px] font-semibold text-[var(--info)] underline-offset-2 hover:border-[var(--border-medium)] hover:bg-[var(--panel)] hover:text-[var(--accent)] hover:underline"
+      className="inline-flex min-w-[78px] justify-center border border-[var(--info-border)] bg-[var(--info-bg)] px-1.5 py-1 text-[10px] font-semibold text-[var(--info)] underline-offset-2 hover:border-[var(--accent-border)] hover:bg-[var(--accent-soft)] hover:text-[var(--accent)] hover:underline"
     >
       {timeframe} Research
     </Link>
@@ -1158,7 +1679,7 @@ export function areMtfScreenerFiltersDefault(filters: MtfScreenerFilters) {
   );
 }
 
-function getActiveMtfFilterLabels(
+export function getActiveMtfFilterLabels(
   filters: MtfScreenerFilters,
   symbolSearch: string,
 ) {
@@ -1197,4 +1718,4 @@ function getActiveMtfFilterLabels(
 }
 
 const controlClass =
-  "h-8 w-full border border-[var(--border)] bg-[var(--control)] px-2 text-xs text-[var(--foreground)] shadow-[inset_0_1px_0_rgba(15,23,42,0.03)] focus:border-[var(--accent)]";
+  "h-7 w-full border border-[var(--border-medium)] bg-[var(--control)] px-2 text-[11px] text-[var(--foreground)] shadow-[inset_0_1px_0_rgba(15,23,42,0.03)] focus:border-[var(--accent)]";

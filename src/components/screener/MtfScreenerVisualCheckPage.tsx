@@ -7,10 +7,13 @@ import {
   type DataSortDirection,
   type DataSortState,
 } from "@/components/table/dataTableSorting";
-import { PageHeader, PageShell } from "@/components/ui/workspace";
+import { PageShell } from "@/components/ui/workspace";
 import {
   areMtfScreenerFiltersDefault,
+  getActiveMtfFilterLabels,
   getMtfScreenerTableSortValue,
+  MtfScreenerCommandBar,
+  MtfScreenerDetailRail,
   MtfResearchBucketsPanel,
   MtfScreenerControls,
   MtfScreenerTable,
@@ -67,6 +70,10 @@ export function MtfScreenerVisualCheckPage() {
     symbolSearch.trim() === "" &&
     areMtfScreenerFiltersDefault(filters) &&
     tableSortState === null;
+  const activeFilterLabels = useMemo(
+    () => getActiveMtfFilterLabels(filters, symbolSearch),
+    [filters, symbolSearch],
+  );
   const updateGroupFilter = (
     timeframe: MtfScreenerTimeframe,
     value: MtfScreenerGroupFilter,
@@ -113,32 +120,19 @@ export function MtfScreenerVisualCheckPage() {
   };
 
   return (
-    <PageShell className="overflow-x-hidden">
-      <PageHeader
-        eyebrow={mtfScreenerVisualCheckCopy.eyebrow}
+    <PageShell className="screener-terminal overflow-x-hidden">
+      <MtfScreenerCommandBar
         title={mtfScreenerVisualCheckCopy.title}
-        tone="screener"
-        description={mtfScreenerVisualCheckCopy.description}
-        metadata={[
-          { label: "Dataset", value: "Mock joined rows", tone: "accent" },
-          {
-            label: "Visible rows",
-            value: `${visibleRows.length} of ${rows.length}`,
-            tone: visibleRows.length === rows.length ? "complete" : "info",
-          },
-          {
-            label: "Sort",
-            value: tableSortState
-              ? `${tableSortState.key} ${tableSortState.direction}`
-              : "Incoming order",
-            tone: tableSortState ? "info" : "neutral",
-          },
-          {
-            label: "Filters",
-            value: isFullTableActive ? "Full table" : "Active",
-            tone: isFullTableActive ? "complete" : "warning",
-          },
-        ]}
+        datasetLabel="Mock joined rows"
+        statusLabel={mtfScreenerVisualCheckCopy.eyebrow}
+        statusTone="info"
+        totalRows={rows.length}
+        visibleRows={visibleRows.length}
+        presetId={presetId}
+        isFullTableActive={isFullTableActive}
+        activeFilterCount={activeFilterLabels.length}
+        sortState={tableSortState}
+        sourceData={previewData}
       />
 
       <MtfResearchBucketsPanel
@@ -149,7 +143,7 @@ export function MtfScreenerVisualCheckPage() {
         onClear={clearFilters}
       />
 
-      <div className="grid min-h-0 flex-1 gap-2 xl:grid-cols-[224px_minmax(0,1fr)]">
+      <div className="grid min-h-0 flex-1 gap-2 xl:grid-cols-[190px_minmax(0,1fr)] 2xl:grid-cols-[190px_minmax(0,1fr)_226px]">
         <MtfScreenerControls
           filters={filters}
           symbolSearch={symbolSearch}
@@ -172,6 +166,17 @@ export function MtfScreenerVisualCheckPage() {
             filteredRows={visibleRows.length}
           />
         </main>
+
+        <MtfScreenerDetailRail
+          rows={visibleRows}
+          totalRows={rows.length}
+          filteredRows={visibleRows.length}
+          presetId={presetId}
+          isFullTableActive={isFullTableActive}
+          activeFilterCount={activeFilterLabels.length}
+          sortState={tableSortState}
+          className="order-3"
+        />
       </div>
     </PageShell>
   );
