@@ -191,7 +191,7 @@ describe("latest scan summary helpers", () => {
         totalSignals: 364,
       }),
     ).toBe(
-      "Limited view: showing the first 100 returned results from 364 filtered signals. Some groups may not appear until you increase API Limit.",
+      "Limited view: showing the first 100 returned results from 364 filtered signals",
     );
     expect(
       buildLimitedViewWarning({

@@ -387,7 +387,6 @@ export function getLatestScanGroupSummaryChips(
   summary: LatestScanGroupSummaryInput | null | undefined,
 ) {
   return latestScanGroupOrder
-    .filter((group) => group !== "insufficient_history")
     .map((group) => ({
       group,
       label: formatGroupLabel(group),

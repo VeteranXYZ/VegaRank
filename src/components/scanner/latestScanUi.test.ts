@@ -219,6 +219,7 @@ describe("latest scan UI helpers", () => {
       { group: "overheated", label: "Overheated", count: 8 },
       { group: "risk", label: "Risk", count: 140 },
       { group: "neutral", label: "Neutral", count: 114 },
+      { group: "insufficient_history", label: "Insufficient History", count: 5 },
     ]);
 
     expect(

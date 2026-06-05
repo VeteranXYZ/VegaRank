@@ -3,7 +3,15 @@
 import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 import { Fragment, useMemo, useState, type ReactNode } from "react";
-import { PageHeader, PageShell } from "@/components/ui/workspace";
+import {
+  DataTable,
+  DataTableCell,
+  DataTableChip,
+  DataTableHeaderCell,
+  DataTableScroll,
+  type ChipTone,
+} from "@/components/table/DataTable";
+import { PageShell, StatusBadge, type StatusTone } from "@/components/ui/workspace";
 import {
   formatDateTime,
   formatGroupHint,
@@ -26,11 +34,17 @@ import {
   type LatestScanGroupKey,
 } from "./latestScanUi";
 
-type LatestScanAssetClass = "crypto" | "stable" | "fiat" | "gold" | "special" | "all";
-type LatestScanTimeframe = "4h" | "1h" | "1d" | "1w";
-type LatestScanLimit = 100 | 200 | 300 | 500;
+export type LatestScanAssetClass =
+  | "crypto"
+  | "stable"
+  | "fiat"
+  | "gold"
+  | "special"
+  | "all";
+export type LatestScanTimeframe = "4h" | "1h" | "1d" | "1w";
+export type LatestScanLimit = 100 | 200 | 300 | 500;
 
-type LatestScanRun = {
+export type LatestScanRun = {
   id: string;
   timeframe: string;
   universe: string;
@@ -44,7 +58,7 @@ type LatestScanRun = {
   finishedAt: string | null;
 };
 
-type LatestScanSummary = {
+export type LatestScanSummary = {
   totalSignals: number;
   returnedItems: number;
   lowQualityExcluded: number;
@@ -69,7 +83,7 @@ type LatestScanSummary = {
   allocationStrategy?: string;
 };
 
-type LatestScanItem = {
+export type LatestScanItem = {
   id: string;
   scanRunId: string;
   exchange?: string | null;
@@ -106,11 +120,11 @@ type LatestScanItem = {
   rawMetrics?: Record<string, unknown>;
 };
 
-type LatestScanGroups = Partial<
+export type LatestScanGroups = Partial<
   Record<LatestScanGroupKey | "insufficientHistory", LatestScanItem[]>
 >;
 
-type LatestScanResponse = {
+export type LatestScanResponse = {
   ok: boolean;
   run: LatestScanRun | null;
   summary: LatestScanSummary | null;
@@ -177,12 +191,26 @@ const assetClassOptions: LatestScanAssetClass[] = [
 const timeframeOptions: LatestScanTimeframe[] = ["4h", "1h", "1d", "1w"];
 const limitOptions: LatestScanLimit[] = [100, 200, 300, 500];
 const latestScanTableColumnCount = 9;
+type LatestScanTerminalTone =
+  | "accent"
+  | "complete"
+  | "missing"
+  | "neutral"
+  | "risk"
+  | "watch"
+  | "overheated"
+  | "eligible"
+  | "warning";
+type LatestScanGroupTone = Extract<StatusTone, ChipTone>;
 
 export function LatestScanPageClient({
   initialQueryState,
+  visualCheckData,
 }: {
   initialQueryState?: LatestScanQueryStateInput;
+  visualCheckData?: LatestScanResponse;
 } = {}) {
+  const isVisualCheck = Boolean(visualCheckData);
   const initialFilters = getLatestScanInitialFilters(initialQueryState);
   const [timeframe, setTimeframe] = useState<LatestScanTimeframe>(
     initialFilters.timeframe,
@@ -204,33 +232,40 @@ export function LatestScanPageClient({
         includeLowQuality,
         signal,
       }),
+    enabled: !isVisualCheck,
+    refetchOnWindowFocus: false,
+    retry: false,
   });
-  const data = latestScanQuery.data ?? null;
+  const data = visualCheckData ?? latestScanQuery.data ?? null;
   const groupSections = useMemo(() => buildGroupSections(data), [data]);
   const finishedAt = data?.run?.finishedAt ?? data?.run?.startedAt ?? null;
   const totalSignals = data?.summary?.totalSignals ?? 0;
   const returnedItems = data?.summary?.returnedItems ?? data?.count ?? 0;
   const lowQualityExcluded = data?.summary?.lowQualityExcluded ?? 0;
+  const hasUnavailableData = !isVisualCheck && latestScanQuery.isError;
+  const isLoading = !isVisualCheck && latestScanQuery.isLoading;
 
   return (
-    <PageShell>
-      <PageHeader
-        eyebrow="Scanner"
-        title="Latest Scan Results"
-        description="Research scanner view based on the latest successful scan run."
-        actions={
-          <button
-            type="button"
-            onClick={() => void latestScanQuery.refetch()}
-            disabled={latestScanQuery.isFetching}
-            className="ui-button h-8 px-3 text-[11px] disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            {latestScanQuery.isFetching ? "Refreshing" : "Refresh"}
-          </button>
-        }
+    <PageShell className="scanner-terminal max-w-none overflow-x-hidden xl:h-full xl:min-h-0 xl:overflow-hidden">
+      <LatestScanCommandBar
+        timeframe={timeframe}
+        assetClass={assetClass}
+        limit={limit}
+        run={data?.run ?? null}
+        finishedAt={finishedAt}
+        returnedItems={returnedItems}
+        totalSignals={totalSignals}
+        isLoading={isLoading}
+        isError={hasUnavailableData}
+        isRefreshing={!isVisualCheck && latestScanQuery.isFetching}
+        onRefresh={() => {
+          if (!isVisualCheck) {
+            void latestScanQuery.refetch();
+          }
+        }}
       />
 
-      <div className="grid min-h-0 flex-1 gap-2 xl:grid-cols-[220px_minmax(0,1fr)]">
+      <div className="grid min-h-0 flex-1 gap-2 xl:grid-cols-[208px_minmax(0,1fr)] xl:overflow-hidden 2xl:grid-cols-[216px_minmax(0,1fr)]">
         <LatestScanControls
           timeframe={timeframe}
           assetClass={assetClass}
@@ -242,7 +277,7 @@ export function LatestScanPageClient({
           onIncludeLowQualityChange={setIncludeLowQuality}
         />
 
-        <main className="min-w-0 space-y-2">
+        <main className="min-h-0 min-w-0 space-y-1.5 xl:flex xl:flex-col xl:overflow-hidden">
           <LatestScanSummaryPanel
             data={data}
             timeframe={timeframe}
@@ -257,27 +292,23 @@ export function LatestScanPageClient({
 
           {data?.summary && <LatestScanGroupSummary summary={data.summary} />}
 
-          {latestScanQuery.isError ? (
+          {hasUnavailableData ? (
             <StatePanel
-              title="Failed to load latest scan results."
-              message={
-                latestScanQuery.error instanceof Error
-                  ? latestScanQuery.error.message
-                  : "Latest scan request failed."
-              }
+              title="Scanner unavailable"
+              message="API unavailable · latest scan not loaded. Try Refresh or check API."
             />
-          ) : latestScanQuery.isLoading ? (
+          ) : isLoading ? (
             <StatePanel
-              title="Loading latest scan..."
-              message="Fetching the latest successful persisted scan run."
+              title="Loading latest scan"
+              message="Fetching latest scan results."
             />
           ) : !data?.run || returnedItems === 0 ? (
             <StatePanel
-              title="No latest scan results found."
+              title="No latest scan results"
               message="No signals matched the current latest-scan filters."
             />
           ) : (
-            <div className="space-y-2">
+            <div className="min-h-0 space-y-2 xl:flex-1 xl:overflow-y-auto xl:overscroll-contain">
               {groupSections.map((section) => (
                 <LatestScanGroupSection
                   key={section.group}
@@ -295,6 +326,120 @@ export function LatestScanPageClient({
         </main>
       </div>
     </PageShell>
+  );
+}
+
+function LatestScanCommandBar({
+  timeframe,
+  assetClass,
+  limit,
+  run,
+  finishedAt,
+  returnedItems,
+  totalSignals,
+  isLoading,
+  isError,
+  isRefreshing,
+  onRefresh,
+}: {
+  timeframe: LatestScanTimeframe;
+  assetClass: LatestScanAssetClass;
+  limit: LatestScanLimit;
+  run: LatestScanRun | null;
+  finishedAt: string | null;
+  returnedItems: number;
+  totalSignals: number;
+  isLoading: boolean;
+  isError: boolean;
+  isRefreshing: boolean;
+  onRefresh: () => void;
+}) {
+  const statusLabel = getLatestScanRunStatusLabel({ run, isLoading, isError });
+  const statusTone = getLatestScanRunStatusTone({ run, isLoading, isError });
+
+  return (
+    <header className="mb-1 overflow-hidden border border-[var(--terminal-bar-border)] bg-[var(--terminal-bar)] text-[var(--terminal-bar-foreground)] shadow-[var(--shadow-panel)]">
+      <div className="flex min-w-0 flex-wrap items-center gap-1 px-2 py-1 text-[10px] font-semibold uppercase text-[var(--terminal-bar-muted)]">
+        <div className="flex h-6 min-w-0 shrink-0 items-center gap-1.5 overflow-hidden border-r border-white/10 pr-2">
+          <h1 className="shrink-0 border-b border-[var(--accent)] px-1 text-[11px] leading-5 text-[var(--terminal-bar-foreground)]">
+            SCANNER
+          </h1>
+          <span className="shrink-0 font-mono text-[10px] text-[var(--terminal-bar-muted)]">
+            latest output
+          </span>
+        </div>
+        <div className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto [scrollbar-gutter:stable]">
+          <LatestScanCommandStat
+            label="Timeframe"
+            value={timeframe.toUpperCase()}
+            tone="accent"
+          />
+          <LatestScanCommandStat
+            label="Asset"
+            value={assetClass.toUpperCase()}
+            tone="neutral"
+          />
+          <LatestScanCommandStat
+            label="API Limit"
+            value={String(limit)}
+            tone="neutral"
+          />
+          <LatestScanCommandStat
+            label="Latest"
+            value={formatCompactDateTime(finishedAt)}
+            tone={run ? "complete" : "missing"}
+          />
+          <LatestScanCommandStat
+            label="Status"
+            value={statusLabel}
+            tone={statusTone}
+          />
+          <LatestScanCommandStat
+            label="Shown"
+            value={`${formatInteger(returnedItems)}/${formatInteger(totalSignals)}`}
+            tone={returnedItems > 0 ? "complete" : "missing"}
+          />
+        </div>
+        <div className="ml-auto flex shrink-0 items-center justify-end gap-1">
+          <button
+            type="button"
+            onClick={onRefresh}
+            disabled={isRefreshing}
+            className="inline-flex h-6 items-center justify-center border border-white/20 bg-white/[0.08] px-2 text-[10px] font-semibold text-[var(--terminal-bar-foreground)] transition hover:border-white/35 hover:bg-white/[0.14] disabled:cursor-not-allowed disabled:opacity-55"
+          >
+            {isRefreshing ? "Refreshing" : "Refresh"}
+          </button>
+        </div>
+      </div>
+    </header>
+  );
+}
+
+function LatestScanCommandStat({
+  label,
+  value,
+  tone = "neutral",
+  title,
+}: {
+  label: string;
+  value: string;
+  tone?: LatestScanTerminalTone;
+  title?: string;
+}) {
+  return (
+    <div
+      title={title ?? `${label}: ${value}`}
+      className={`inline-flex h-6 max-w-[220px] shrink-0 items-center gap-1.5 overflow-hidden border border-l-2 border-white/10 bg-white/[0.04] px-1.5 ${getLatestScanTerminalToneBorderClass(tone)}`}
+    >
+      <span className="shrink-0 text-[9px] font-semibold uppercase text-[var(--terminal-bar-muted)]">
+        {label}
+      </span>
+      <span
+        className={`min-w-0 truncate font-mono text-[10px] font-semibold leading-4 ${getLatestScanTerminalToneTextClass(tone)}`}
+      >
+        {value}
+      </span>
+    </div>
   );
 }
 
@@ -318,8 +463,10 @@ function LatestScanControls({
   onIncludeLowQualityChange: (value: boolean) => void;
 }) {
   return (
-    <aside className="border border-[var(--border)] bg-[var(--panel)] p-2 xl:h-fit xl:overflow-y-auto">
-      <h2 className="mb-2 text-sm font-semibold leading-none">Latest Scan Filters</h2>
+    <aside className="border border-[var(--border-medium)] bg-[var(--panel)] p-2 shadow-[var(--shadow-panel)] xl:h-full xl:min-h-0 xl:overflow-y-auto">
+      <h2 className="mb-2 text-[11px] font-semibold uppercase leading-none text-[var(--foreground)]">
+        Controls
+      </h2>
       <div className="grid gap-2 text-xs text-[var(--muted)] sm:grid-cols-2 xl:grid-cols-1">
         <ControlSection title="Scope">
           <label className="block">
@@ -381,29 +528,28 @@ function LatestScanControls({
         </ControlSection>
 
         <ControlSection title="Quality">
-          <label className="flex items-start gap-2">
+          <label className="flex items-center gap-2">
             <input
               type="checkbox"
               checked={includeLowQuality}
               onChange={(event) => onIncludeLowQualityChange(event.target.checked)}
-              className="mt-0.5 h-4 w-4 accent-[var(--accent)]"
+              className="h-3.5 w-3.5 accent-[var(--accent)]"
             />
             <span>
               <span className="block text-[11px] font-semibold uppercase tracking-wide text-[var(--foreground)]">
-                Include low-quality symbols
-              </span>
-              <span className="mt-1 block text-[10px] leading-4 text-[var(--muted-2)]">
-                Default excludes low-quality symbols from the shown result set.
+                Include low quality
               </span>
             </span>
           </label>
         </ControlSection>
 
-        <ControlSection title="Interpretation">
-          <GroupHintList />
-          <p className="text-[10px] leading-4 text-[var(--muted-2)]">
-            This is research output for manual review, not financial advice.
-          </p>
+        <ControlSection title="Key">
+          <details className="text-[10px] leading-4 text-[var(--muted-2)] xl:open:pb-0.5">
+            <summary className="cursor-pointer text-[10px] font-semibold uppercase text-[var(--muted)]">
+              Interpretation key
+            </summary>
+            <GroupHintList />
+          </details>
         </ControlSection>
       </div>
     </aside>
@@ -432,15 +578,6 @@ function LatestScanSummaryPanel({
   lowQualityExcluded: number;
 }) {
   const run = data?.run;
-  const summaryText = buildLatestRunSummaryText({
-    symbolsTotal: run?.symbolsTotal,
-    symbolsScanned: run?.symbolsScanned,
-    signalsCreated: run?.signalsCreated,
-    symbolsSkipped: run?.symbolsSkipped,
-    returnedItems,
-    totalSignals,
-    lowQualityExcluded,
-  });
   const showUniverseWarning = shouldShowIncompleteCryptoUniverseWarning({
     assetClass,
     symbolsTotal: run?.symbolsTotal,
@@ -452,31 +589,24 @@ function LatestScanSummaryPanel({
   });
 
   return (
-    <section className="border border-[var(--border)] bg-[var(--panel)] px-3 py-2">
-      <div className="flex flex-wrap items-start justify-between gap-2">
-        <div>
-          <h2 className="text-sm font-semibold">Latest Successful Scan Run</h2>
-          <p className="mt-1 text-[11px] leading-5 text-[var(--muted)]">
-            {summaryText}
-          </p>
-          {showUniverseWarning && (
-            <p className="mt-1 border border-[var(--warning-border)] bg-[var(--warning-bg)] px-2 py-1 text-[11px] font-semibold text-[var(--warning)]">
-              This does not look like a full crypto universe scan.
-            </p>
-          )}
-          {limitedViewWarning && (
-            <p className="mt-1 border border-[var(--border)] bg-[var(--panel-strong)] px-2 py-1 text-[11px] font-semibold text-[var(--foreground)]">
-              {limitedViewWarning}
-            </p>
-          )}
+    <section className="border border-[var(--border-medium)] bg-[var(--panel)] px-2 py-2 shadow-[var(--shadow-panel)]">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+          <h2 className="text-[13px] font-semibold leading-5">Latest Scan Summary</h2>
+          <StatusBadge tone={run ? "complete" : "missing"} className="text-[10px]">
+            {run?.status ?? "No run"}
+          </StatusBadge>
         </div>
-        <div className="text-right text-[11px] text-[var(--muted)]">
-          <div>{timeframe} · {assetClass}</div>
-          <div>{includeLowQuality ? "Low-quality included" : "Low-quality excluded"}</div>
+        <div className="flex flex-wrap items-center justify-end gap-1 text-[10px] text-[var(--muted)]">
+          <StatusBadge tone="accent">{timeframe.toUpperCase()}</StatusBadge>
+          <StatusBadge>{assetClass.toUpperCase()}</StatusBadge>
+          <StatusBadge tone={includeLowQuality ? "warning" : "neutral"}>
+            {includeLowQuality ? "Low quality included" : "Low quality excluded"}
+          </StatusBadge>
         </div>
       </div>
 
-      <div className="mt-2 grid gap-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-6">
+      <div className="mt-2 grid gap-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7">
         <SummaryMetric label="Finished" value={formatDateTime(finishedAt)} />
         <SummaryMetric label="Full Universe Size" value={formatInteger(run?.symbolsTotal)} />
         <SummaryMetric label="Scanned" value={formatInteger(run?.symbolsScanned)} />
@@ -491,6 +621,21 @@ function LatestScanSummaryPanel({
           value={formatInteger(lowQualityExcluded)}
         />
       </div>
+
+      {(showUniverseWarning || limitedViewWarning) && (
+        <div className="mt-1.5 flex flex-wrap gap-1">
+          {showUniverseWarning && (
+            <StatusBadge tone="warning" className="text-[10px]">
+              Partial universe
+            </StatusBadge>
+          )}
+          {limitedViewWarning && (
+            <span className="max-w-full border border-[var(--accent-border)] bg-[var(--accent-soft)] px-1.5 py-0.5 text-[10px] font-semibold leading-4 text-[var(--accent)]">
+              {limitedViewWarning}
+            </span>
+          )}
+        </div>
+      )}
     </section>
   );
 }
@@ -499,18 +644,19 @@ function LatestScanGroupSummary({ summary }: { summary: LatestScanSummary }) {
   const chips = getLatestScanGroupSummaryChips(summary);
 
   return (
-    <section className="border border-[var(--border)] bg-[var(--panel)] px-3 py-2">
+    <section className="border border-[var(--border-medium)] bg-[var(--panel)] px-2 py-2 shadow-[var(--shadow-panel)]">
       <h2 className="text-[10px] font-semibold uppercase tracking-wide text-[var(--muted-2)]">
-        Full Scan Group Counts
+        Group Counts
       </h2>
-      <div className="mt-2 flex flex-wrap gap-1.5 text-[11px]">
+      <div className="mt-1.5 flex flex-wrap gap-1.5 text-[11px]">
         {chips.map((chip) => (
-          <span
+          <StatusBadge
             key={chip.group}
-            className="border border-[var(--border)] bg-[var(--control)] px-2 py-1 text-[var(--foreground)]"
+            tone={getLatestScanGroupTone(chip.group)}
+            className="text-[10px]"
           >
             {chip.label} {formatInteger(chip.count)}
-          </span>
+          </StatusBadge>
         ))}
       </div>
     </section>
@@ -542,43 +688,53 @@ function LatestScanGroupSection({
   }
 
   return (
-    <section className="border border-[var(--border)] bg-[var(--panel)]">
-      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[var(--border)] px-3 py-2">
-        <div>
-          <h2 className="text-sm font-semibold">
-            {formatGroupLabel(group)}{" "}
-            <span className="text-[var(--muted)]">
+    <section className={`border border-l-2 border-[var(--border-medium)] bg-[var(--panel)] shadow-[var(--shadow-panel)] ${getLatestScanGroupBorderClass(group)}`}>
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[var(--border)] px-2 py-1.5">
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-1.5">
+            <StatusBadge tone={getLatestScanGroupTone(group)} className="text-[10px]">
+              {formatGroupLabel(group)}
+            </StatusBadge>
+            <span className="text-[11px] font-semibold text-[var(--muted)]">
               {summaryCount > items.length
-                ? `(${formatInteger(items.length)} shown of ${formatInteger(summaryCount)})`
-                : `(${formatInteger(items.length)})`}
+                ? `${formatInteger(items.length)} shown / ${formatInteger(summaryCount)}`
+                : formatInteger(items.length)}
             </span>
-          </h2>
-          <p className="mt-1 text-[11px] leading-5 text-[var(--muted)]">
+          </div>
+          <p className="mt-1 text-[10px] leading-4 text-[var(--muted)]">
             {formatGroupHint(group)}
           </p>
         </div>
       </div>
 
       {items.length === 0 ? (
-        <div className="px-3 py-4 text-sm text-[var(--muted)]">
+        <div className="px-3 py-4 text-[12px] text-[var(--muted)]">
           {hasLimitedHiddenItems
             ? "Not shown in the current limited view. Increase API Limit to include this group."
             : "No results in this group."}
         </div>
       ) : (
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[860px] table-fixed border-collapse text-left text-xs">
-            <thead className="bg-[var(--table-header)] text-[10px] uppercase text-[var(--muted)]">
+        <DataTableScroll>
+          <DataTable minWidth="min-w-[900px]" className="table-fixed">
+            <thead>
               <tr>
-                <th className="w-[94px] px-2 py-1.5">Symbol</th>
-                <th className="w-[72px] px-2 py-1.5">Rank</th>
-                <th className="w-[128px] px-2 py-1.5">Signal</th>
-                <th className="w-[112px] px-2 py-1.5">Action</th>
-                <th className="w-[136px] px-2 py-1.5">Setup Type</th>
-                <th className="w-[124px] px-2 py-1.5">Quality</th>
-                <th className="w-[104px] px-2 py-1.5">Price</th>
-                <th className="w-[152px] px-2 py-1.5">Candle Time</th>
-                <th className="w-[86px] px-2 py-1.5">Details</th>
+                <DataTableHeaderCell className="w-[96px]">Symbol</DataTableHeaderCell>
+                <DataTableHeaderCell className="w-[72px]" align="right">
+                  Rank
+                </DataTableHeaderCell>
+                <DataTableHeaderCell className="w-[126px]">Signal</DataTableHeaderCell>
+                <DataTableHeaderCell className="w-[126px]">Action</DataTableHeaderCell>
+                <DataTableHeaderCell className="w-[138px]">
+                  Setup Type
+                </DataTableHeaderCell>
+                <DataTableHeaderCell className="w-[128px]">Quality</DataTableHeaderCell>
+                <DataTableHeaderCell className="w-[104px]" align="right">
+                  Price
+                </DataTableHeaderCell>
+                <DataTableHeaderCell className="w-[154px]">
+                  Candle Time
+                </DataTableHeaderCell>
+                <DataTableHeaderCell className="w-[86px]">Details</DataTableHeaderCell>
               </tr>
             </thead>
             <tbody>
@@ -603,8 +759,8 @@ function LatestScanGroupSection({
                 );
               })}
             </tbody>
-          </table>
-        </div>
+          </DataTable>
+        </DataTableScroll>
       )}
     </section>
   );
@@ -628,16 +784,18 @@ function LatestScanRow({
   limit: LatestScanLimit;
 }) {
   const visibleReason = getVisibleReviewReason(item);
+  const group = normalizeGroupKey(item.resultGroup);
+  const groupTone = getLatestScanGroupTone(group);
 
   return (
     <tr
       className={
         isExpanded
-          ? "border-t border-[var(--border)] bg-[var(--row-selected)] align-top"
-          : "border-t border-[var(--border)] align-top hover:bg-[var(--row-hover)]"
+          ? "border-t border-[var(--table-grid)] bg-[var(--row-selected)] align-top"
+          : "border-t border-[var(--table-grid)] align-top hover:bg-[var(--row-hover)]"
       }
     >
-      <td className="px-2 py-1.5 font-semibold text-[var(--foreground)]">
+      <DataTableCell className="font-semibold text-[var(--foreground)]">
         <Link
           className="text-[var(--info)] underline-offset-2 hover:underline"
           href={buildSymbolResearchHref({
@@ -652,15 +810,19 @@ function LatestScanRow({
         >
           {item.symbol}
         </Link>
-      </td>
-      <td className="px-2 py-1.5 font-mono tabular-nums">
+      </DataTableCell>
+      <DataTableCell align="right" className="font-mono tabular-nums text-[var(--foreground)]">
         {formatScore(item.rankScore)}
-      </td>
-      <td className="px-2 py-1.5">
-        <div>{formatSignalLabel(item.signalLabel)}</div>
-      </td>
-      <td className="px-2 py-1.5">
-        <div>{getLatestScanActionDisplay(item)}</div>
+      </DataTableCell>
+      <DataTableCell>
+        <DataTableChip tone={groupTone} title={formatSignalLabel(item.signalLabel)}>
+          {formatSignalLabel(item.signalLabel)}
+        </DataTableChip>
+      </DataTableCell>
+      <DataTableCell>
+        <DataTableChip tone={groupTone} title={getLatestScanActionDisplay(item)}>
+          {getLatestScanActionDisplay(item)}
+        </DataTableChip>
         <div className="mt-1 text-[10px] font-semibold text-[var(--muted)]">
           {getReviewStatusNote(item)}
         </div>
@@ -669,32 +831,36 @@ function LatestScanRow({
             {visibleReason}
           </div>
         )}
-      </td>
-      <td className="px-2 py-1.5">{formatStructure(item.primaryStructure)}</td>
-      <td className="px-2 py-1.5">
-        <div>{formatQualityTier(item.qualityTier)}</div>
+      </DataTableCell>
+      <DataTableCell truncate title={formatStructure(item.primaryStructure)}>
+        {formatStructure(item.primaryStructure)}
+      </DataTableCell>
+      <DataTableCell>
+        <DataTableChip tone={item.isLowQuality ? "warning" : "neutral"}>
+          {formatQualityTier(item.qualityTier)}
+        </DataTableChip>
         {item.isLowQuality && (
-          <span className="mt-1 inline-block border border-[var(--border)] bg-[var(--warning-bg)] px-1 py-0.5 text-[10px] text-[var(--warning)]">
+          <span className="mt-1 inline-block border border-[var(--warning-border)] bg-[var(--warning-bg)] px-1 py-0.5 text-[10px] text-[var(--warning)]">
             Low quality
           </span>
         )}
-      </td>
-      <td className="px-2 py-1.5 font-mono tabular-nums">
+      </DataTableCell>
+      <DataTableCell align="right" className="font-mono tabular-nums text-[var(--foreground)]">
         {formatPrice(item.priceAtSignal)}
-      </td>
-      <td className="px-2 py-1.5 text-[11px] text-[var(--muted)]">
+      </DataTableCell>
+      <DataTableCell className="text-[var(--muted)]">
         {formatDateTime(item.candleOpenTime)}
-      </td>
-      <td className="px-2 py-1.5">
+      </DataTableCell>
+      <DataTableCell>
         <button
           type="button"
           aria-expanded={isExpanded}
           onClick={onToggleDetails}
-          className="border border-[var(--border)] px-2 py-1 text-[11px] font-semibold text-[var(--info)]"
+          className="inline-flex h-6 items-center justify-center border border-[var(--accent-border)] bg-[var(--accent-soft)] px-2 text-[10px] font-semibold text-[var(--accent)] transition hover:border-[var(--accent)] hover:text-[var(--accent-hover)]"
         >
           {isExpanded ? "Hide" : "Details"}
         </button>
-      </td>
+      </DataTableCell>
     </tr>
   );
 }
@@ -774,11 +940,13 @@ function ScoreBreakdown({ item }: { item: LatestScanItem }) {
 
 function GroupHintList() {
   return (
-    <dl className="space-y-1 text-[10px] leading-4">
+    <dl className="mt-1.5 space-y-1 text-[10px] leading-4">
       {latestScanGroupOrder.map((group) => (
-        <div key={group}>
-          <dt className="inline font-semibold text-[var(--foreground)]">
-            {formatGroupLabel(group)}:
+        <div key={group} className="min-w-0">
+          <dt className="inline">
+            <StatusBadge tone={getLatestScanGroupTone(group)} className="mr-1 text-[9px]">
+              {formatGroupLabel(group)}
+            </StatusBadge>
           </dt>{" "}
           <dd className="inline text-[var(--muted-2)]">{formatGroupHint(group)}</dd>
         </div>
@@ -789,7 +957,7 @@ function GroupHintList() {
 
 function SummaryMetric({ label, value }: { label: string; value: string }) {
   return (
-    <div className="border border-[var(--border)] bg-[var(--panel-2)] px-2 py-1">
+    <div className="min-w-0 border border-[var(--border)] bg-[var(--panel-2)] px-2 py-1">
       <div className="truncate text-[10px] text-[var(--muted)]">{label}</div>
       <div className="mt-0.5 truncate text-xs font-semibold tabular-nums">
         {value}
@@ -800,9 +968,9 @@ function SummaryMetric({ label, value }: { label: string; value: string }) {
 
 function StatePanel({ title, message }: { title: string; message: string }) {
   return (
-    <section className="flex min-h-80 flex-col items-center justify-center border border-[var(--border)] bg-[var(--panel)] px-6 py-10 text-center">
-      <h2 className="text-lg font-semibold">{title}</h2>
-      <p className="mt-2 max-w-md text-sm leading-6 text-[var(--muted)]">
+    <section className="flex min-h-40 flex-col items-center justify-center border border-[var(--border-medium)] bg-[var(--panel)] px-4 py-8 text-center shadow-[var(--shadow-panel)] xl:flex-1">
+      <h2 className="text-sm font-semibold">{title}</h2>
+      <p className="mt-1 max-w-md text-[12px] leading-5 text-[var(--muted)]">
         {message}
       </p>
     </section>
@@ -1055,7 +1223,7 @@ export function buildLimitedViewWarning({
     normalizedReturnedItems,
   )} returned results from ${formatInteger(
     normalizedTotalSignals,
-  )} filtered signals. Some groups may not appear until you increase API Limit.`;
+  )} filtered signals`;
 }
 
 export function shouldShowIncompleteCryptoUniverseWarning({
@@ -1232,4 +1400,120 @@ function pickRawMetrics(metrics: Record<string, unknown> | undefined) {
 }
 
 const controlClass =
-  "h-7 w-full border border-[var(--border)] bg-[var(--control)] px-2 text-xs text-[var(--foreground)]";
+  "h-7 w-full border border-[var(--border-medium)] bg-[var(--control)] px-2 text-[11px] text-[var(--foreground)]";
+
+function getLatestScanRunStatusLabel({
+  run,
+  isLoading,
+  isError,
+}: {
+  run: LatestScanRun | null;
+  isLoading: boolean;
+  isError: boolean;
+}) {
+  if (isError) {
+    return "API unavailable";
+  }
+
+  if (isLoading) {
+    return "Loading";
+  }
+
+  return run?.status ? run.status.toUpperCase() : "No run";
+}
+
+function getLatestScanRunStatusTone({
+  run,
+  isLoading,
+  isError,
+}: {
+  run: LatestScanRun | null;
+  isLoading: boolean;
+  isError: boolean;
+}): LatestScanTerminalTone {
+  if (isError) {
+    return "risk";
+  }
+
+  if (isLoading) {
+    return "warning";
+  }
+
+  if (!run) {
+    return "missing";
+  }
+
+  return run.status.toLowerCase() === "success" ? "complete" : "warning";
+}
+
+function getLatestScanGroupTone(group: LatestScanGroupKey): LatestScanGroupTone {
+  if (group === "insufficient_history") {
+    return "missing";
+  }
+
+  return group;
+}
+
+function getLatestScanGroupBorderClass(group: LatestScanGroupKey) {
+  const classes = {
+    eligible: "border-l-[var(--eligible)]",
+    watch: "border-l-[var(--watch)]",
+    overheated: "border-l-[var(--overheated)]",
+    risk: "border-l-[var(--risk)]",
+    neutral: "border-l-[var(--neutral)]",
+    insufficient_history: "border-l-[var(--missing)]",
+  } satisfies Record<LatestScanGroupKey, string>;
+
+  return classes[group];
+}
+
+function getLatestScanTerminalToneBorderClass(tone: LatestScanTerminalTone) {
+  const classes = {
+    accent: "border-l-[var(--accent)]",
+    complete: "border-l-[var(--complete)]",
+    missing: "border-l-[var(--missing)]",
+    neutral: "border-l-[var(--neutral-border)]",
+    risk: "border-l-[var(--risk)]",
+    watch: "border-l-[var(--watch)]",
+    overheated: "border-l-[var(--overheated)]",
+    eligible: "border-l-[var(--eligible)]",
+    warning: "border-l-[var(--warning)]",
+  } satisfies Record<LatestScanTerminalTone, string>;
+
+  return classes[tone];
+}
+
+function getLatestScanTerminalToneTextClass(tone: LatestScanTerminalTone) {
+  const classes = {
+    accent: "text-[var(--accent)]",
+    complete: "text-[var(--complete)]",
+    missing: "text-[var(--missing)]",
+    neutral: "text-[var(--terminal-bar-foreground)]",
+    risk: "text-[var(--risk)]",
+    watch: "text-[var(--watch)]",
+    overheated: "text-[var(--overheated)]",
+    eligible: "text-[var(--eligible)]",
+    warning: "text-[var(--warning)]",
+  } satisfies Record<LatestScanTerminalTone, string>;
+
+  return classes[tone];
+}
+
+function formatCompactDateTime(value: string | null | undefined) {
+  if (!value) {
+    return "Not loaded";
+  }
+
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return "Not loaded";
+  }
+
+  return date.toLocaleString("en-US", {
+    month: "short",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}

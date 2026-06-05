@@ -110,6 +110,7 @@
 }
 
 body:has(.screener-terminal),
+body:has(.scanner-terminal),
 body:has(.symbol-terminal),
 body:has(.watchlist-terminal),
 body:has(.history-terminal),
@@ -241,6 +242,8 @@ body {
 
 html:has(.screener-terminal),
 body:has(.screener-terminal),
+html:has(.scanner-terminal),
+body:has(.scanner-terminal),
 html:has(.symbol-terminal),
 body:has(.symbol-terminal),
 html:has(.watchlist-terminal),
@@ -253,6 +256,8 @@ body:has(.history-terminal) {
 @media (min-width: 1280px) {
   html:has(.screener-terminal),
   body:has(.screener-terminal),
+  html:has(.scanner-terminal),
+  body:has(.scanner-terminal),
   html:has(.watchlist-terminal),
   body:has(.watchlist-terminal),
   html:has(.history-terminal),
@@ -262,6 +267,7 @@ body:has(.history-terminal) {
   }
 
   body:has(.screener-terminal) > main,
+  body:has(.scanner-terminal) > main,
   body:has(.watchlist-terminal) > main,
   body:has(.history-terminal) > main {
     min-height: 0;
@@ -270,6 +276,7 @@ body:has(.history-terminal) {
   }
 
   body:has(.screener-terminal) footer,
+  body:has(.scanner-terminal) footer,
   body:has(.watchlist-terminal) footer,
   body:has(.history-terminal) footer {
     display: none;

@@ -82,6 +82,10 @@ The Screener is table-first. Keep full result visibility by default, with a comp
 
 Avoid pagination-first layouts, oversized summary cards, or empty marketing sections. Preserve dense comparison workflows.
 
+## Scanner Rules
+
+Scanner is the latest single-timeframe scan output viewer. Keep it close to raw scanner output, with a compact terminal summary, concise left controls, semantic group counts, and dense grouped result tables. It must not become Screener, Watchlist, Symbol Research, History, an AI summary, or a backtest page.
+
 ## Watchlist Rules
 
 The Watchlist is a selected-symbol monitoring terminal. The selected-symbol table is primary; summary, attention, and backdrop context must stay compact and secondary. Use fixed terminal context where feasible so the command/status band remains visible during row review.
