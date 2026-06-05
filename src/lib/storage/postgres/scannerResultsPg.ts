@@ -494,34 +494,41 @@ export class PgScannerResultsStore {
 
     const result = await this.pool.query<LatestScanSignalRow>(
       `
+        WITH filtered_signals AS (
+          SELECT
+            ss.*,
+            s.asset_class,
+            s.is_scanner_eligible,
+            s.is_backtest_eligible,
+            s.is_market_context
+          FROM scan_signals ss
+          JOIN symbols s
+            ON s.id = ss.symbol_id
+          WHERE ${filters.join("\n            AND ")}
+        ),
+        filtered_symbols AS (
+          SELECT DISTINCT symbol_id
+          FROM filtered_signals
+        ),
+        coverage AS (
+          SELECT
+            mc.symbol_id,
+            COUNT(*) AS candle_count,
+            MIN(mc.open_time) AS first_open_time
+          FROM market_candles mc
+          JOIN filtered_symbols fs
+            ON fs.symbol_id = mc.symbol_id
+          WHERE mc.timeframe = $2
+          GROUP BY mc.symbol_id
+        )
         SELECT
-          ss.*,
-          s.asset_class,
-          s.is_scanner_eligible,
-          s.is_backtest_eligible,
-          s.is_market_context,
+          filtered_signals.*,
           COALESCE(coverage.candle_count, 0) AS candle_count,
           coverage.first_open_time
-        FROM scan_signals ss
-        JOIN symbols s
-          ON s.id = ss.symbol_id
-        LEFT JOIN (
-          SELECT
-            symbol_id,
-            COUNT(*) AS candle_count,
-            MIN(open_time) AS first_open_time
-          FROM market_candles
-          WHERE timeframe = $2
-            AND symbol_id IN (
-              SELECT symbol_id
-              FROM scan_signals
-              WHERE scan_run_id = $1
-            )
-          GROUP BY symbol_id
-        ) coverage
-          ON coverage.symbol_id = ss.symbol_id
-        WHERE ${filters.join("\n          AND ")}
-        ORDER BY ss.symbol ASC
+        FROM filtered_signals
+        LEFT JOIN coverage
+          ON coverage.symbol_id = filtered_signals.symbol_id
+        ORDER BY filtered_signals.symbol ASC
       `,
       params,
     );

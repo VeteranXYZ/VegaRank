@@ -193,12 +193,21 @@ describe("HistoryPageClient display formatting", () => {
 
     expect(html).toContain("history-terminal");
     expect(html).toContain("HISTORY");
+    expect(html).toContain(">Timeframe<");
+    expect(html).toContain(">1H<");
+    expect(html).toContain(">4H<");
+    expect(html).toContain(">1D<");
+    expect(html).toContain(">1W<");
+    expect(html).toContain('aria-pressed="true"');
     expect(html).toContain("Selected Scan");
     expect(html).toContain("Validation");
     expect(html).toContain("Outcome Summary");
     expect(html).toContain("Validation Source");
     expect(html).toContain("Original Scan Rows");
     expect(html).toContain("border-[var(--terminal-bar-border)]");
+    expect(html).not.toContain(
+      "mb-1 flex flex-wrap items-center gap-2 border border-[var(--border-medium)] bg-[var(--panel-muted)] px-2 py-1",
+    );
     expect(html).not.toContain("History Reading Path");
     expect(html).not.toContain("Selected Snapshot");
     expect(html).not.toContain("Snapshot Rows");

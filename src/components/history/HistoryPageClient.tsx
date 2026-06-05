@@ -595,12 +595,9 @@ export function HistoryPageClient({
         rowCount={commandRows}
         isRefreshing={isRefreshing}
         isVisualCheck={isVisualCheck}
+        onTimeframeChange={setTimeframe}
         onRefresh={refreshData}
       />
-
-      <div className="mb-1 flex flex-wrap items-center gap-2 border border-[var(--border-medium)] bg-[var(--panel-muted)] px-2 py-1">
-        <TimeframeSelector timeframe={timeframe} onTimeframeChange={setTimeframe} />
-      </div>
 
       <div className="grid min-h-0 flex-1 gap-2 xl:grid-cols-[260px_minmax(0,1fr)] xl:overflow-hidden">
         <RecentSuccessfulRunsPanel
@@ -658,6 +655,7 @@ function HistoryCommandBar({
   rowCount,
   isRefreshing,
   isVisualCheck,
+  onTimeframeChange,
   onRefresh,
 }: {
   timeframe: HistoryTimeframe;
@@ -667,6 +665,7 @@ function HistoryCommandBar({
   rowCount: number;
   isRefreshing: boolean;
   isVisualCheck: boolean;
+  onTimeframeChange: (timeframe: HistoryTimeframe) => void;
   onRefresh: () => void;
 }) {
   return (
@@ -681,10 +680,9 @@ function HistoryCommandBar({
           </span>
         </div>
         <div className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto [scrollbar-gutter:stable]">
-          <HistoryCommandStat
-            label="Timeframe"
-            value={timeframe.toUpperCase()}
-            tone="accent"
+          <TimeframeSelector
+            timeframe={timeframe}
+            onTimeframeChange={onTimeframeChange}
           />
           <HistoryCommandStat
             label="Scan"
@@ -759,22 +757,23 @@ function TimeframeSelector({
   onTimeframeChange: (timeframe: HistoryTimeframe) => void;
 }) {
   return (
-    <div className="flex flex-wrap items-center gap-1">
-      <span className="mr-1 text-[10px] font-semibold uppercase text-[var(--muted)]">
+    <div className="inline-flex h-6 shrink-0 items-center gap-1 overflow-hidden border border-l-2 border-white/10 border-l-[var(--accent)] bg-white/[0.04] px-1">
+      <span className="shrink-0 text-[9px] font-semibold uppercase text-[var(--terminal-bar-muted)]">
         Timeframe
       </span>
-      {HISTORY_TIMEFRAMES.map((option) => (
-        <button
-          key={option}
-          type="button"
-          onClick={() => onTimeframeChange(option)}
-          aria-pressed={option === timeframe}
-          className={formatSelectedControlClassName(option === timeframe)}
-          style={historyCompactControlStyle}
-        >
-          {option.toUpperCase()}
-        </button>
-      ))}
+      <div className="flex items-center gap-0.5">
+        {HISTORY_TIMEFRAMES.map((option) => (
+          <button
+            key={option}
+            type="button"
+            onClick={() => onTimeframeChange(option)}
+            aria-pressed={option === timeframe}
+            className={formatCommandTimeframeControlClassName(option === timeframe)}
+          >
+            {option.toUpperCase()}
+          </button>
+        ))}
+      </div>
     </div>
   );
 }
@@ -1923,6 +1922,15 @@ function formatSelectedControlClassName(isSelected: boolean) {
   return isSelected
     ? `${base} border-[var(--accent-border)] bg-[var(--accent)] text-[var(--accent-foreground)]`
     : `${base} border-[var(--border)] bg-[var(--control)] text-[var(--muted)] hover:border-[var(--accent-border)] hover:bg-[var(--accent-soft)] hover:text-[var(--accent)]`;
+}
+
+function formatCommandTimeframeControlClassName(isSelected: boolean) {
+  const base =
+    "inline-flex h-[18px] min-w-7 items-center justify-center whitespace-nowrap border px-1.5 py-0 text-[9px] font-semibold uppercase leading-none tracking-normal transition focus-visible:outline-[var(--accent)]";
+
+  return isSelected
+    ? `${base} border-[var(--accent-border)] bg-[var(--accent)] text-[var(--accent-foreground)]`
+    : `${base} border-transparent bg-transparent text-[var(--terminal-bar-muted)] hover:border-white/20 hover:text-[var(--terminal-bar-foreground)]`;
 }
 
 function getHistoryValidationTone(status: string): HistoryTerminalTone {

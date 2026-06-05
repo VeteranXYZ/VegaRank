@@ -253,8 +253,51 @@ describe("PgScannerResultsStore latest scan queries", () => {
     );
     expect(queries[0]).toContain("ss.scan_run_id = $1");
     expect(queries[0]).toContain("ss.timeframe = $2");
+    expect(queries[0]).toContain("WITH filtered_signals AS");
+    expect(queries[0]).toContain("FROM filtered_signals");
+    expect(queries[0]).toContain("JOIN filtered_symbols");
+    expect(queries[0]).not.toContain("symbol_id IN");
     expect(queries[0]).not.toMatch(/scan_time\s*=\s*\(/i);
     expect(queries[0]).not.toMatch(/max\(scan_time\)/i);
+  });
+
+  it("computes latest-scan candle coverage from filtered scanner rows only", async () => {
+    const queries: string[] = [];
+    const store = new PgScannerResultsStore(
+      makePool((sql, params) => {
+        queries.push(sql);
+        expect(params).toEqual(["run-1", "4h", "crypto"]);
+
+        return {
+          rows: [
+            makeSignalRow({
+              id: "signal-1",
+              scan_run_id: "run-1",
+              symbol: "BTCUSDT",
+              scan_time: "2026-05-31T00:00:01.000Z",
+            }),
+          ],
+        };
+      }),
+    );
+
+    await store.listLatestScanSignalsForRun({
+      scanRunId: "run-1",
+      timeframe: "4h",
+      assetClass: "crypto",
+      includeNonScanner: false,
+      includeMarketContext: false,
+    });
+
+    expect(queries[0]).toContain("WITH filtered_signals AS");
+    expect(queries[0]).toContain("s.asset_class = $3");
+    expect(queries[0]).toContain("s.is_scanner_eligible = true");
+    expect(queries[0]).toContain("s.is_market_context = false");
+    expect(queries[0]).toContain("JOIN filtered_symbols fs");
+    expect(queries[0]).toContain("WHERE mc.timeframe = $2");
+    expect(queries[0]).not.toMatch(
+      /SELECT symbol_id\s+FROM scan_signals\s+WHERE scan_run_id = \$1/i,
+    );
   });
 
   it("lists recent successful historical runs by timeframe and asset class", async () => {
