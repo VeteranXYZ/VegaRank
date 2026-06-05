@@ -26,13 +26,7 @@ import {
 } from "@/components/table/dataTableSorting";
 import { buildSymbolResearchHref } from "@/components/symbol/symbolResearchLinks";
 import {
-  EmptyState,
-  MetadataStrip,
-  MetricCard,
-  PageHeader,
-  PageSection,
   PageShell,
-  ResearchNotice,
   StatusBadge,
   type StatusTone,
 } from "@/components/ui/workspace";
@@ -48,8 +42,6 @@ const OBSERVATION_WINDOWS = [1, 3, 5, 10] as const;
 const assetClass = "crypto";
 const snapshotsLimit = 25;
 const maxObservationProbeRuns = 12;
-const historyDisclaimer =
-  "Review selected scanner snapshots against mature forward observations. Research-only; not financial advice or predictions.";
 const emptyHistoricalSnapshotRuns: HistoricalSnapshotRun[] = [];
 const emptyHistoricalObservationRows: HistoricalSnapshotObservationRow[] = [];
 const historySnapshotsQueryName = "history-snapshots";
@@ -59,35 +51,13 @@ const historyObservationReadinessQueryName =
 const historySnapshotObservationsQueryName =
   "history-snapshot-observations";
 export const recentRunsPanelClassName =
-  "border border-[var(--border)] bg-[var(--panel)] p-2.5 shadow-[var(--shadow-panel)] xl:sticky xl:top-12 xl:flex xl:max-h-[calc(100vh-2rem)] xl:flex-col xl:overflow-hidden";
+  "border border-[var(--border-medium)] bg-[var(--panel)] shadow-[var(--shadow-panel)] xl:flex xl:min-h-0 xl:flex-col xl:overflow-hidden";
 export const recentRunsScrollContainerClassName =
-  "space-y-1.5 pr-1 xl:min-h-0 xl:flex-1 xl:overflow-y-auto xl:overscroll-contain";
+  "space-y-1 p-1.5 pr-1 xl:min-h-0 xl:flex-1 xl:overflow-y-auto xl:overscroll-contain";
 const unsafePrimarySignalLabelMap: Record<string, string> = {
   "do not chase": "Overheated caution",
   avoid: "Risk review",
 };
-const historyWorkflowSteps = [
-  {
-    label: "1. Runs",
-    description: "Choose a stored snapshot.",
-  },
-  {
-    label: "2. Selected snapshot",
-    description: "Metadata and Snapshot Rows use that run.",
-  },
-  {
-    label: "3. Forward observation",
-    description: "Metrics use the mature run shown.",
-  },
-  {
-    label: "4. Observation rows",
-    description: "Inspect outcomes with local filters.",
-  },
-  {
-    label: "5. Snapshot rows",
-    description: "Selected scanner output stays separate.",
-  },
-] as const;
 
 type HistoryTimeframe = (typeof HISTORY_TIMEFRAMES)[number];
 type ObservationWindow = (typeof OBSERVATION_WINDOWS)[number];
@@ -100,6 +70,14 @@ type ObservationRowsGroupFilter =
   | "overheated"
   | "risk"
   | "neutral";
+type HistoryTerminalTone =
+  | "accent"
+  | "complete"
+  | "partial"
+  | "missing"
+  | "neutral"
+  | "risk"
+  | "watch";
 export type ObservationRowsSortKey =
   | "symbol"
   | "group"
@@ -369,6 +347,20 @@ type HistoricalObservationReadinessResponse = {
   };
 };
 
+export type HistoryVisualCheckData = {
+  initialTimeframe?: HistoryTimeframe;
+  initialObservationWindow?: ObservationWindow;
+  snapshots: HistoricalSnapshotRun[];
+  snapshotsByRunId: Record<string, HistoricalSnapshotDetailResponse>;
+  readinessByRunId: Partial<Record<string, HistoricalObservationReadinessResponse>>;
+  observationsByRunIdAndWindow: Partial<
+    Record<
+      string,
+      Partial<Record<ObservationWindow, HistoricalSnapshotObservationsResponse>>
+    >
+  >;
+};
+
 type ForwardObservationMaturity = {
   state: ForwardObservationMaturityState;
   readyCount: number;
@@ -412,7 +404,7 @@ const observationRowsGroupFilters = [
   { value: "all", label: "All" },
   { value: "eligible", label: "Eligible" },
   { value: "watch", label: "Watch" },
-  { value: "overheated", label: "Overheated" },
+  { value: "overheated", label: "Hot" },
   { value: "risk", label: "Risk" },
   { value: "neutral", label: "Neutral" },
 ] satisfies Array<{
@@ -420,10 +412,17 @@ const observationRowsGroupFilters = [
   label: string;
 }>;
 
-export function HistoryPageClient() {
-  const [timeframe, setTimeframe] = useState<HistoryTimeframe>("4h");
+export function HistoryPageClient({
+  visualCheckData,
+}: {
+  visualCheckData?: HistoryVisualCheckData;
+} = {}) {
+  const isVisualCheck = Boolean(visualCheckData);
+  const [timeframe, setTimeframe] = useState<HistoryTimeframe>(
+    visualCheckData?.initialTimeframe ?? "4h",
+  );
   const [observationWindow, setObservationWindow] =
-    useState<ObservationWindow>(3);
+    useState<ObservationWindow>(visualCheckData?.initialObservationWindow ?? 3);
   const [manualSelectedRunId, setManualSelectedRunId] = useState<string | null>(
     null,
   );
@@ -433,13 +432,20 @@ export function HistoryPageClient() {
     queryKey: buildHistorySnapshotsQueryKey({ timeframe, assetClass }),
     queryFn: ({ signal }) =>
       fetchHistoricalSnapshots({ timeframe, assetClass, signal }),
+    enabled: !isVisualCheck,
     staleTime: 60_000,
   });
-  const snapshots = snapshotsQuery.data?.snapshots ?? emptyHistoricalSnapshotRuns;
+  const snapshots = visualCheckData
+    ? visualCheckData.snapshots.filter((run) => run.timeframe === timeframe)
+    : snapshotsQuery.data?.snapshots ?? emptyHistoricalSnapshotRuns;
   const selectedRunId =
     manualSelectedRunId && snapshots.some((run) => run.runId === manualSelectedRunId)
       ? manualSelectedRunId
       : snapshots[0]?.runId ?? null;
+  const visualSnapshotData =
+    selectedRunId && visualCheckData
+      ? visualCheckData.snapshotsByRunId[selectedRunId] ?? null
+      : null;
 
   const snapshotQuery = useQuery({
     queryKey: buildHistorySnapshotQueryKey({ runId: selectedRunId, assetClass }),
@@ -449,9 +455,10 @@ export function HistoryPageClient() {
         assetClass,
         signal,
       }),
-    enabled: selectedRunId !== null,
+    enabled: selectedRunId !== null && !isVisualCheck,
     staleTime: 60_000,
   });
+  const snapshotData = visualSnapshotData ?? snapshotQuery.data ?? null;
   const readinessQuery = useQuery({
     queryKey: buildHistoryObservationReadinessQueryKey({
       timeframe,
@@ -467,17 +474,27 @@ export function HistoryPageClient() {
         window: observationWindow,
         signal,
       }),
-    enabled: selectedRunId !== null,
+    enabled: selectedRunId !== null && !isVisualCheck,
     staleTime: 60_000,
   });
-  const readinessError = readinessQuery.isError
+  const readinessData =
+    selectedRunId && visualCheckData
+      ? visualCheckData.readinessByRunId[selectedRunId] ?? null
+      : readinessQuery.data ?? null;
+  const readinessError = !isVisualCheck && readinessQuery.isError
     ? formatQueryError(readinessQuery.error)
     : null;
   const observationRunId = getForwardObservationRowsRunId({
     selectedRunId,
-    readiness: readinessQuery.data ?? null,
+    readiness: readinessData,
     readinessError,
   });
+  const visualObservationData =
+    observationRunId && visualCheckData
+      ? visualCheckData.observationsByRunIdAndWindow[observationRunId]?.[
+          observationWindow
+        ] ?? null
+      : null;
   const observationQuery = useQuery({
     queryKey: buildHistorySnapshotObservationsQueryKey({
       runId: observationRunId,
@@ -491,38 +508,41 @@ export function HistoryPageClient() {
         window: observationWindow,
         signal,
       }),
-    enabled: observationRunId !== null,
+    enabled: observationRunId !== null && !isVisualCheck,
     staleTime: 60_000,
   });
-  const observationRowsError = observationQuery.isError
+  const observationData = visualObservationData ?? observationQuery.data ?? null;
+  const observationRowsError = !isVisualCheck && observationQuery.isError
     ? formatQueryError(observationQuery.error)
     : null;
   const forwardObservationUiState = deriveForwardObservationUiState({
     selectedRunId,
-    readiness: readinessQuery.data ?? null,
+    readiness: readinessData,
     readinessIsLoading:
       selectedRunId !== null &&
+      !isVisualCheck &&
       readinessQuery.isLoading &&
       !readinessQuery.data,
     readinessError,
-    response: observationQuery.data ?? null,
+    response: observationData,
     observationRunId,
     observationIsLoading:
       observationRunId !== null &&
+      !isVisualCheck &&
       observationQuery.isLoading &&
       !observationQuery.data,
-    observationIsFetching: observationQuery.isFetching,
+    observationIsFetching: !isVisualCheck && observationQuery.isFetching,
     observationRowsError,
     fallbackWindow: observationWindow,
   });
-  const rows = snapshotQuery.data?.rows ?? [];
-  const selectedRun = snapshotQuery.data?.run ?? null;
-  const summaryItems = useMemo(
-    () => buildRunSummaryItems(selectedRun),
-    [selectedRun],
-  );
+  const rows = snapshotData?.rows ?? [];
+  const selectedRun = snapshotData?.run ?? null;
 
   const refreshData = () => {
+    if (isVisualCheck) {
+      return;
+    }
+
     const activeTimeframe = timeframe;
     const refreshScope = buildHistoryRefreshScope({
       timeframe: activeTimeframe,
@@ -558,79 +578,30 @@ export function HistoryPageClient() {
     refreshingTimeframe,
     timeframe,
   });
+  const commandRows =
+    forwardObservationUiState.summary?.totalRows ??
+    snapshotData?.metadata.rowCount ??
+    selectedRun?.signalsCreated ??
+    rows.length;
 
   return (
-    <PageShell>
-      <PageHeader
-        eyebrow="Historical research"
-        title="Historical Research"
-        description={historyDisclaimer}
-        tone="observation"
-        actions={
-          <button
-            type="button"
-            onClick={refreshData}
-            disabled={isRefreshing}
-            className="ui-button h-8 px-3 text-[11px] disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            {isRefreshing ? "Refreshing" : "Refresh"}
-          </button>
-        }
-        metadata={[
-          { label: "Timeframe", value: timeframe, tone: "accent" },
-          {
-            label: "Selected run",
-            value: selectedRunId ? shortRunId(selectedRunId) : "None",
-            tone: selectedRunId ? "complete" : "missing",
-          },
-          {
-            label: "Observation run",
-            value: forwardObservationUiState.observationRun
-              ? shortRunId(forwardObservationUiState.observationRun.runId)
-              : "Pending",
-            tone: forwardObservationUiState.observationRun ? "complete" : "partial",
-          },
-          {
-            label: "Window",
-            value: `${observationWindow} ${
-              observationWindow === 1 ? "candle" : "candles"
-            }`,
-            tone: "info",
-          },
-        ]}
+    <PageShell className="history-terminal max-w-none xl:h-full xl:min-h-0 xl:overflow-hidden">
+      <HistoryCommandBar
+        timeframe={timeframe}
+        selectedRunId={selectedRunId}
+        validationStatus={formatValidationStatus(forwardObservationUiState)}
+        window={observationWindow}
+        rowCount={commandRows}
+        isRefreshing={isRefreshing}
+        isVisualCheck={isVisualCheck}
+        onRefresh={refreshData}
       />
 
-      <div className="mb-2 flex flex-wrap items-center gap-3 border border-[var(--border)] bg-[var(--panel)] px-3 py-2">
-        <div>
-          <h2 className="text-[11px] font-semibold uppercase text-[var(--muted)]">
-            Timeframe
-          </h2>
-          <p className="text-[11px] text-[var(--muted)]">
-            Single-timeframe stored scan runs only.
-          </p>
-        </div>
-        <div className="flex flex-wrap items-center gap-1 border border-[var(--border)] bg-[var(--panel)] p-1">
-          {HISTORY_TIMEFRAMES.map((option) => (
-            <button
-              key={option}
-              type="button"
-              onClick={() => setTimeframe(option)}
-              aria-pressed={option === timeframe}
-              className={`min-w-12 px-3 py-1.5 text-xs font-semibold transition ${
-                option === timeframe
-                  ? "bg-[var(--accent)] text-on-accent"
-                  : "text-[var(--muted)] hover:bg-[var(--control)] hover:text-[var(--foreground)]"
-              }`}
-            >
-              {option}
-            </button>
-          ))}
-        </div>
+      <div className="mb-2 flex flex-wrap items-center gap-2 border border-[var(--border-medium)] bg-[var(--panel-muted)] px-2 py-1">
+        <TimeframeSelector timeframe={timeframe} onTimeframeChange={setTimeframe} />
       </div>
 
-      <ResearchWorkflowSummary />
-
-      <div className="grid gap-3 xl:grid-cols-[300px_minmax(0,1fr)] xl:items-start">
+      <div className="grid min-h-0 flex-1 gap-2 xl:grid-cols-[280px_minmax(0,1fr)] xl:overflow-hidden">
         <RecentSuccessfulRunsPanel
           timeframe={timeframe}
           snapshots={snapshots}
@@ -638,97 +609,171 @@ export function HistoryPageClient() {
           latestRunId={snapshots[0]?.runId ?? null}
           observationRunId={forwardObservationUiState.observationRun?.runId ?? null}
           recommendedRunId={
-            readinessQuery.data?.recommendedRun?.run.runId ?? null
+            readinessData?.recommendedRun?.run.runId ?? null
           }
-          isError={snapshotsQuery.isError}
+          isError={!isVisualCheck && snapshotsQuery.isError}
           errorMessage={
-            snapshotsQuery.isError ? formatQueryError(snapshotsQuery.error) : null
+            !isVisualCheck && snapshotsQuery.isError
+              ? formatQueryError(snapshotsQuery.error)
+              : null
           }
-          isLoading={snapshotsQuery.isLoading}
+          isLoading={!isVisualCheck && snapshotsQuery.isLoading}
           onSelectRun={setManualSelectedRunId}
         />
 
-        <div className="space-y-3">
-          <PageSection
-            title="Selected Snapshot"
-            description="Stored scanner run selected from the rail. Snapshot Rows below use this run."
-            tone="selected"
-            actions={
-              snapshotQuery.data ? (
-                <StatusBadge tone="accent" className="text-[11px]">
-                  {snapshotQuery.data.metadata.rowCount} rows, full stored set
-                </StatusBadge>
-              ) : null
-            }
-          >
-            {snapshotQuery.isError ? (
-              <StatePanel
-                title="Snapshot unavailable"
-                message={formatQueryError(snapshotQuery.error)}
-              />
-            ) : snapshotQuery.isLoading && selectedRunId ? (
-              <StatePanel
-                title="Loading snapshot"
-                message="Loading selected historical scan rows."
-              />
-            ) : !selectedRun ? (
-              <StatePanel
-                title="No run selected"
-                message="Select a successful run to review its stored snapshot."
-              />
-            ) : (
-              <MetadataStrip
-                items={summaryItems.map((item, index) => ({
-                  ...item,
-                  tone: (index < 2 ? "accent" : "neutral") as StatusTone,
-                }))}
-              />
-            )}
-          </PageSection>
-
+        <main className="min-w-0 space-y-2 xl:flex xl:min-h-0 xl:flex-col xl:overflow-hidden">
           <ForwardObservationSection
             window={observationWindow}
             onWindowChange={setObservationWindow}
-            response={observationQuery.data ?? null}
-            readiness={readinessQuery.data ?? null}
+            response={observationData}
+            readiness={readinessData}
             uiState={forwardObservationUiState}
+            selectedRun={selectedRun}
+            snapshotError={
+              !isVisualCheck && snapshotQuery.isError
+                ? formatQueryError(snapshotQuery.error)
+                : null
+            }
+            snapshotIsLoading={
+              !isVisualCheck && snapshotQuery.isLoading && selectedRunId !== null
+            }
           />
 
-          <SnapshotTable rows={rows} isLoading={snapshotQuery.isFetching} />
-        </div>
+          <SnapshotTable
+            rows={rows}
+            isLoading={!isVisualCheck && snapshotQuery.isFetching}
+          />
+        </main>
       </div>
     </PageShell>
   );
 }
 
-function ResearchWorkflowSummary() {
+function HistoryCommandBar({
+  timeframe,
+  selectedRunId,
+  validationStatus,
+  window,
+  rowCount,
+  isRefreshing,
+  isVisualCheck,
+  onRefresh,
+}: {
+  timeframe: HistoryTimeframe;
+  selectedRunId: string | null;
+  validationStatus: string;
+  window: ObservationWindow;
+  rowCount: number;
+  isRefreshing: boolean;
+  isVisualCheck: boolean;
+  onRefresh: () => void;
+}) {
   return (
-    <section className="mb-2 border border-l-4 border-[var(--border)] border-l-[var(--section-observation)] bg-[var(--panel)] px-3 py-2">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h2 className="text-[13px] font-semibold">History Reading Path</h2>
-          <p className="mt-1 max-w-5xl text-[11px] leading-5 text-[var(--muted)]">
-            Selected Snapshot and Snapshot Rows use the chosen stored run.
-            Forward Observation may use a different mature run for outcome rows.
-          </p>
+    <header className="mb-1 overflow-hidden border border-[var(--terminal-bar-border)] bg-[var(--terminal-bar)] text-[var(--terminal-bar-foreground)] shadow-[var(--shadow-panel)]">
+      <div className="flex min-w-0 flex-wrap items-center gap-1 px-2 py-1 text-[10px] font-semibold uppercase text-[var(--terminal-bar-muted)]">
+        <div className="flex h-6 min-w-0 shrink-0 items-center gap-1.5 overflow-hidden border-r border-white/10 pr-2">
+          <h1 className="shrink-0 border-b border-[var(--accent)] px-1 text-[11px] leading-5 text-[var(--terminal-bar-foreground)]">
+            HISTORY
+          </h1>
+          <span className="shrink-0 font-mono text-[10px] text-[var(--terminal-bar-muted)]">
+            Crypto
+          </span>
+        </div>
+        <div className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto [scrollbar-gutter:stable]">
+          <HistoryCommandStat
+            label="Timeframe"
+            value={timeframe.toUpperCase()}
+            tone="accent"
+          />
+          <HistoryCommandStat
+            label="Scan"
+            value={selectedRunId ? shortRunId(selectedRunId) : "None"}
+            tone={selectedRunId ? "accent" : "missing"}
+            title={`Selected Scan: ${selectedRunId ?? "None"}`}
+          />
+          <HistoryCommandStat
+            label="Validation"
+            value={validationStatus.toUpperCase()}
+            tone={getHistoryValidationTone(validationStatus)}
+          />
+          <HistoryCommandStat
+            label="Window"
+            value={`${window} ${window === 1 ? "candle" : "candles"}`}
+            tone="neutral"
+          />
+          <HistoryCommandStat
+            label="Rows"
+            value={formatCount(rowCount)}
+            tone={rowCount > 0 ? "complete" : "missing"}
+          />
+        </div>
+        <div className="ml-auto flex shrink-0 items-center justify-end gap-1">
+          <button
+            type="button"
+            onClick={onRefresh}
+            disabled={isRefreshing || isVisualCheck}
+            className="inline-flex h-6 items-center justify-center border border-white/20 bg-white/[0.08] px-2 text-[10px] font-semibold text-[var(--terminal-bar-foreground)] transition hover:border-white/35 hover:bg-white/[0.14] disabled:cursor-not-allowed disabled:opacity-55"
+          >
+            {isRefreshing ? "Refreshing" : "Refresh"}
+          </button>
         </div>
       </div>
-      <div className="mt-2 grid gap-2 md:grid-cols-5">
-        {historyWorkflowSteps.map((step) => (
-          <div
-            key={step.label}
-            className="border-l-2 border-l-[var(--section-observation)] bg-[var(--panel)] py-1 pl-2 pr-1"
-          >
-            <p className="text-[11px] font-semibold text-[var(--foreground)]">
-              {step.label}
-            </p>
-            <p className="mt-1 text-[11px] leading-4 text-[var(--muted)]">
-              {step.description}
-            </p>
-          </div>
-        ))}
-      </div>
-    </section>
+    </header>
+  );
+}
+
+function HistoryCommandStat({
+  label,
+  value,
+  tone = "neutral",
+  title,
+}: {
+  label: string;
+  value: string;
+  tone?: HistoryTerminalTone;
+  title?: string;
+}) {
+  return (
+    <div
+      title={title ?? `${label}: ${value}`}
+      className={`inline-flex h-6 max-w-[220px] shrink-0 items-center gap-1.5 overflow-hidden border border-l-2 border-white/10 bg-white/[0.04] px-1.5 ${getHistoryTerminalToneBorderClass(tone)}`}
+    >
+      <span className="shrink-0 text-[9px] font-semibold uppercase text-[var(--terminal-bar-muted)]">
+        {label}
+      </span>
+      <span
+        className={`min-w-0 truncate font-mono text-[10px] font-semibold leading-4 ${getHistoryTerminalToneTextClass(tone)}`}
+      >
+        {value}
+      </span>
+    </div>
+  );
+}
+
+function TimeframeSelector({
+  timeframe,
+  onTimeframeChange,
+}: {
+  timeframe: HistoryTimeframe;
+  onTimeframeChange: (timeframe: HistoryTimeframe) => void;
+}) {
+  return (
+    <div className="flex flex-wrap items-center gap-1">
+      <span className="mr-1 text-[10px] font-semibold uppercase text-[var(--muted)]">
+        Timeframe
+      </span>
+      {HISTORY_TIMEFRAMES.map((option) => (
+        <button
+          key={option}
+          type="button"
+          onClick={() => onTimeframeChange(option)}
+          aria-pressed={option === timeframe}
+          className={formatSelectedControlClassName(option === timeframe)}
+        >
+          {option.toUpperCase()}
+        </button>
+      ))}
+    </div>
   );
 }
 
@@ -759,15 +804,19 @@ export function RecentSuccessfulRunsPanel({
     <section
       className={recentRunsPanelClassName}
       data-testid="recent-runs-panel"
-      aria-label="Recent successful runs"
+      aria-label="Selected Scan recent runs"
     >
-      <div className="mb-2 shrink-0 border-b border-[var(--border)] pb-2">
+      <div className="shrink-0 border-b border-[var(--border-medium)] bg-[var(--table-header)] px-2 py-1.5">
         <div className="flex items-center justify-between gap-2">
-          <h2 className="text-sm font-semibold">Recent Successful Runs</h2>
-          <StatusBadge tone="accent">{timeframe}</StatusBadge>
+          <h2 className="text-[12px] font-semibold uppercase tracking-normal text-[var(--foreground)]">
+            Recent Runs
+          </h2>
+          <StatusBadge tone="accent" className="text-[10px]">
+            {timeframe.toUpperCase()}
+          </StatusBadge>
         </div>
-        <p className="mt-1 text-[11px] leading-4 text-[var(--muted)]">
-          Select the stored {timeframe} snapshot to review.
+        <p className="mt-0.5 text-[10px] font-semibold uppercase text-[var(--muted)]">
+          Selected Scan
         </p>
       </div>
       {isError ? (
@@ -779,8 +828,8 @@ export function RecentSuccessfulRunsPanel({
         <StatePanel title="Loading runs" message="Loading stored scan runs." />
       ) : snapshots.length === 0 ? (
         <StatePanel
-          title="No stored runs"
-          message={`No successful ${timeframe} historical snapshots are available.`}
+          title="No runs"
+          message={`No successful ${timeframe} scans are available.`}
         />
       ) : (
         <div
@@ -807,35 +856,38 @@ export function RecentSuccessfulRunsPanel({
                 aria-label={`Select historical run ${run.runId}`}
                 className={formatRecentRunCardClassName(run, isSelected)}
               >
-                <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0 flex-1">
                     <p
-                      className="truncate text-xs font-semibold"
+                      className="truncate font-mono text-[11px] font-semibold text-[var(--foreground)]"
                       title={run.runId}
                     >
                       {formatCompactRunId(run.runId)}
                     </p>
-                    <p className="mt-1 text-[11px] text-[var(--muted)]">
-                      Finished {formatHistoryDateTime(run.finishedAt)}
+                    <p className="mt-0.5 truncate text-[10px] text-[var(--muted)]">
+                      {formatHistoryDateTime(run.finishedAt)}
                     </p>
                   </div>
-                  <span className="shrink-0 border border-[var(--border)] bg-[var(--panel)] px-2 py-1 text-[11px] font-semibold">
-                    {run.timeframe}
+                  <span className="shrink-0 border border-[var(--border)] bg-[var(--panel-muted)] px-1.5 py-0.5 text-[9px] font-semibold uppercase text-[var(--muted)]">
+                    {run.timeframe.toUpperCase()}
                   </span>
                 </div>
                 {badges.length > 0 ? (
-                  <div className="mt-2 flex flex-wrap gap-1.5">
+                  <div className="mt-1 flex flex-wrap gap-1">
                     {badges.map((badge) => (
-                      <StatusBadge key={badge} tone={getRecentRunBadgeTone(badge)}>
+                      <StatusBadge
+                        key={badge}
+                        tone={getRecentRunBadgeTone(badge)}
+                        className="text-[9px]"
+                      >
                         {badge}
                       </StatusBadge>
                     ))}
                   </div>
                 ) : null}
-                <div className="mt-2 grid grid-cols-2 gap-x-2 gap-y-1 text-[10px] text-[var(--muted)]">
-                  <span>Scanned {formatCount(run.symbolsScanned)}</span>
+                <div className="mt-1 grid grid-cols-2 gap-x-2 gap-y-0.5 text-[10px] text-[var(--muted)]">
+                  <span>Rows {formatCount(run.symbolsScanned)}</span>
                   <span>Signals {formatCount(run.signalsCreated)}</span>
-                  <span>Skipped {formatCount(run.skipped)}</span>
                   <span
                     className={
                       run.isLikelyFullUniverse === true
@@ -845,6 +897,7 @@ export function RecentSuccessfulRunsPanel({
                   >
                     {formatFullUniverse(run)}
                   </span>
+                  <span>{formatCompactTime(run.finishedAt)}</span>
                 </div>
               </button>
             );
@@ -870,7 +923,7 @@ function buildRecentRunBadges({
 }) {
   return [
     runId === selectedRunId ? "Selected" : null,
-    runId === observationRunId ? "Mature observation" : null,
+    runId === observationRunId ? "Validation Source" : null,
     runId === latestRunId ? "Latest" : null,
     runId === recommendedRunId && runId !== observationRunId
       ? "Recommended"
@@ -883,24 +936,24 @@ function formatRecentRunCardClassName(
   isSelected: boolean,
 ) {
   const base =
-    "w-full border border-l-4 p-2 text-left transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent)]";
+    "w-full border border-l-4 px-2 py-1.5 text-left transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent)]";
 
   if (isSelected) {
-    return `${base} border-[var(--accent)] border-l-[var(--accent)] bg-[var(--panel)] shadow-[inset_0_-2px_0_var(--accent)]`;
+    return `${base} border-[var(--accent-border)] border-l-[var(--accent)] bg-[var(--section-selected-bg)] shadow-[inset_3px_0_0_var(--accent)]`;
   }
 
   if (run.isLikelyFullUniverse === true) {
-    return `${base} border-[var(--border)] border-l-[var(--complete)] bg-[var(--panel)] hover:border-[var(--border-strong)] hover:bg-[var(--row-hover)]`;
+    return `${base} border-[var(--border)] border-l-[var(--complete)] bg-[var(--panel-data)] hover:border-[var(--border-strong)] hover:bg-[var(--row-hover)]`;
   }
 
-  return `${base} border-[var(--border)] border-l-[var(--partial)] bg-[var(--panel)] opacity-75 hover:border-[var(--border-strong)] hover:opacity-100`;
+  return `${base} border-[var(--border)] border-l-[var(--partial)] bg-[var(--panel-muted)] opacity-80 hover:border-[var(--border-strong)] hover:bg-[var(--row-hover)] hover:opacity-100`;
 }
 
 function getRecentRunBadgeTone(badge: string) {
   switch (badge) {
     case "Selected":
       return "accent";
-    case "Mature observation":
+    case "Validation Source":
       return "complete";
     case "Latest":
       return "info";
@@ -917,17 +970,24 @@ export function ForwardObservationSection({
   response,
   readiness,
   uiState,
+  selectedRun = null,
+  snapshotError = null,
+  snapshotIsLoading = false,
 }: {
   window: ObservationWindow;
   onWindowChange: (window: ObservationWindow) => void;
   response: HistoricalSnapshotObservationsResponse | null;
   readiness?: HistoricalObservationReadinessResponse | null;
   uiState: ForwardObservationUiState;
+  selectedRun?: HistoricalSnapshotRun | null;
+  snapshotError?: string | null;
+  snapshotIsLoading?: boolean;
 }) {
   const rows = response?.rows ?? emptyHistoricalObservationRows;
   const summary = uiState.summary;
   const selectedReadiness = readiness?.selectedRun ?? null;
-  const selectedReadinessRun = selectedReadiness?.run ?? uiState.selectedRun;
+  const selectedReadinessRun =
+    selectedRun ?? selectedReadiness?.run ?? uiState.selectedRun;
   const observationReadiness = getReadyObservationReadinessRun(readiness ?? null);
   const observationRun = uiState.observationRun;
   const readyContextNote = getForwardObservationReadyContextNote({
@@ -951,151 +1011,313 @@ export function ForwardObservationSection({
   );
   const showObservationSummary =
     uiState.status === "observation_ready" && rows.length > 0;
-  const stateTakeaways = showObservationSummary
-    ? []
-    : buildResearchTakeaways({
-        summary: null,
-        uiState,
-      });
-  const observationMetadata = [
-    selectedReadinessRun
-      ? {
-          label: "Selected snapshot",
-          value: `${shortRunId(
-            selectedReadinessRun.runId,
-          )} · ${formatReadinessRunStatus(
-            selectedReadiness,
-          )}`,
-          tone: "accent" as const,
-        }
-      : null,
-    selectedReadinessRun
-      ? {
-          label: "Selected finished",
-          value: `Selected finished ${formatHistoryDateTime(
-            selectedReadinessRun.finishedAt,
-          )}`,
-          tone: "neutral" as const,
-        }
-      : null,
-    observationRun
-      ? {
-          label: "Observation run",
-          value: `${shortRunId(
-            observationRun.runId,
-          )} · ${formatReadinessRunStatus(
-            observationReadiness,
-          )}`,
-          tone: "complete" as const,
-        }
-      : null,
-    observationRun
-      ? {
-          label: "Observation finished",
-          value: `Observation finished ${formatHistoryDateTime(
-            observationRun.finishedAt,
-          )}`,
-          tone: "neutral" as const,
-        }
-      : null,
-    {
-      label: "Maturity",
-      value: formatMaturityState(uiState.maturity.state),
-      tone:
-        uiState.maturity.state === "ready"
-          ? ("complete" as const)
-          : uiState.maturity.state === "not_ready"
-            ? ("partial" as const)
-            : ("missing" as const),
-    },
-  ].filter((item): item is NonNullable<typeof item> => item !== null);
 
   return (
-    <PageSection
-      title="Forward Observation"
-      description="Observation source, maturity, and historical outcome metrics."
-      tone="observation"
-      actions={
-        <div className="flex border border-[var(--border)] bg-[var(--panel)] p-1">
+    <section className="overflow-hidden border border-[var(--border-medium)] bg-[var(--panel)] shadow-[var(--shadow-panel)] xl:flex xl:min-h-0 xl:flex-1 xl:flex-col">
+      <div className="flex min-h-8 flex-wrap items-center justify-between gap-2 border-b border-[var(--border-medium)] bg-[var(--table-header)] px-2 py-1">
+        <div className="flex min-w-0 flex-wrap items-center gap-2">
+          <h2 className="text-[12px] font-semibold uppercase tracking-normal text-[var(--foreground)]">
+            Outcome Summary
+          </h2>
+          <StatusBadge
+            tone={
+              uiState.status === "observation_ready"
+                ? "complete"
+                : uiState.status === "not_ready_for_selected_run" ||
+                    uiState.status === "loading_readiness" ||
+                    uiState.status === "loading_observation_rows"
+                  ? "partial"
+                  : "neutral"
+            }
+            className="text-[10px]"
+          >
+            {formatForwardObservationUiStatusLabel(uiState)}
+          </StatusBadge>
+        </div>
+        <div className="flex flex-wrap gap-1 border border-[var(--border)] bg-[var(--panel-muted)] p-0.5">
           {OBSERVATION_WINDOWS.map((option) => (
             <button
               key={option}
               type="button"
               onClick={() => onWindowChange(option)}
               aria-pressed={option === window}
-              className={`px-3 py-1.5 text-xs font-semibold transition ${
-                option === window
-                  ? "bg-[var(--accent)] text-on-accent"
-                  : "text-[var(--muted)] hover:bg-[var(--control)] hover:text-[var(--foreground)]"
-              }`}
+              className={formatSelectedControlClassName(option === window)}
             >
               {option} {option === 1 ? "candle" : "candles"}
             </button>
           ))}
         </div>
-      }
-    >
-      <div className="mb-2 flex flex-wrap items-center gap-2">
-        <StatusBadge
-          tone={
-            uiState.status === "observation_ready"
-              ? "complete"
-              : uiState.status === "not_ready_for_selected_run"
-                ? "partial"
-                : "neutral"
-          }
-          className="text-[11px]"
-        >
-          {formatForwardObservationUiStatusLabel(uiState)}
-        </StatusBadge>
       </div>
 
-      {summary || observationRun || selectedReadinessRun || readiness ? (
-        <MetadataStrip items={observationMetadata} className="mb-2" />
-      ) : null}
+      <div className="flex min-h-0 flex-col gap-2 px-2 py-2 xl:flex-1 xl:overflow-hidden">
+        {snapshotError ? (
+          <StatePanel title="Selected Scan unavailable" message={snapshotError} />
+        ) : snapshotIsLoading ? (
+          <StatePanel title="Loading Selected Scan" message="Loading scan rows." />
+        ) : !selectedReadinessRun ? (
+          <StatePanel
+            title="No Selected Scan"
+            message="Choose a run from Recent Runs."
+          />
+        ) : summary ? (
+          <ObservationSummarySection
+            summary={observationSummary}
+            window={summary.window}
+          />
+        ) : (
+          <StatePanel
+            title="Validation Source unavailable"
+            message="No validation source is available for the selected scan."
+          />
+        )}
 
-      {readyContextNote ? (
-        <ResearchNotice tone="warning" className="mb-2">
-          {readyContextNote}
-        </ResearchNotice>
-      ) : null}
+        <SelectedScanValidationStrip
+          selectedRun={selectedReadinessRun}
+          validationRun={observationRun}
+          validationReadiness={observationReadiness}
+          summary={summary}
+          window={window}
+        />
 
-      {summary && !showObservationSummary ? (
-        <div className="mb-2 grid gap-x-4 gap-y-2 sm:grid-cols-2 lg:grid-cols-7">
-          <Metric label="Window" value={`${summary.window} candles`} />
-          <Metric label="Timeframe" value={summary.timeframe} />
-          <Metric label="Total Rows" value={formatCount(summary.totalRows)} />
-          <Metric label="Returned Rows" value={formatCount(summary.returnedRows)} />
-          <Metric label="Complete" value={formatCount(summary.completeCount)} />
-          <Metric label="Partial" value={formatCount(summary.partialCount)} />
-          <Metric label="Missing" value={formatCount(summary.missingCount)} />
-        </div>
-      ) : null}
+        <p className="border-l-2 border-l-[var(--accent)] bg-[var(--panel-muted)] px-2 py-1 text-[11px] leading-4 text-[var(--muted)]">
+          Outcome metrics use Validation Source; Original Scan Rows stay tied to
+          Selected Scan.
+        </p>
 
-      {showObservationSummary ? (
-        <ObservationSummarySection summary={observationSummary} />
-      ) : null}
+        {uiState.status !== "observation_ready" ? (
+          <ForwardObservationStatePanel
+            uiState={uiState}
+            readiness={readiness ?? null}
+          />
+        ) : rows.length === 0 ? (
+          <StatePanel
+            title="Outcome Rows unavailable"
+            message="No outcome rows are available for the Validation Source."
+          />
+        ) : (
+          <ObservationRowsTable rows={rows} isFetching={uiState.isFetching} />
+        )}
 
-      {stateTakeaways.length > 0 ? (
-        <ResearchTakeaways takeaways={stateTakeaways} />
-      ) : null}
-
-      <ObservationDataStatusLegend />
-
-      {uiState.status !== "observation_ready" ? (
-        <ForwardObservationStatePanel
-          uiState={uiState}
+        <HistoryDetails
           readiness={readiness ?? null}
+          response={response}
+          uiState={uiState}
+          summary={showObservationSummary ? observationSummary : null}
+          readyContextNote={readyContextNote}
         />
-      ) : rows.length === 0 ? (
-        <StatePanel
-          title="Observation rows unavailable"
-          message="No forward observation rows are available for the selected observation run."
-        />
-      ) : (
-        <ObservationRowsTable rows={rows} isFetching={uiState.isFetching} />
-      )}
-    </PageSection>
+      </div>
+    </section>
+  );
+}
+
+function SelectedScanValidationStrip({
+  selectedRun,
+  validationRun,
+  validationReadiness,
+  summary,
+  window,
+}: {
+  selectedRun: HistoricalSnapshotRun | null;
+  validationRun: HistoricalSnapshotRun | null;
+  validationReadiness: HistoricalObservationReadinessRun | null;
+  summary: ForwardObservationSummary | null;
+  window: ObservationWindow;
+}) {
+  return (
+    <div className="grid gap-2 lg:grid-cols-2">
+      <HistoryContextBlock
+        title="Selected Scan"
+        rows={[
+          ["Run ID", selectedRun ? shortRunId(selectedRun.runId) : "-"],
+          ["Finished", formatHistoryDateTime(selectedRun?.finishedAt)],
+          [
+            "Rows / Signals",
+            `${formatCount(selectedRun?.symbolsScanned)} / ${formatCount(
+              selectedRun?.signalsCreated,
+            )}`,
+          ],
+          ["Universe", selectedRun ? formatFullUniverse(selectedRun) : "-"],
+        ]}
+      />
+      <HistoryContextBlock
+        title="Validation Source"
+        rows={[
+          ["Run ID", validationRun ? shortRunId(validationRun.runId) : "-"],
+          ["Finished", formatHistoryDateTime(validationRun?.finishedAt)],
+          ["Maturity", formatReadinessRunStatus(validationReadiness)],
+          [
+            "Forward Window",
+            `${summary?.window ?? window} ${
+              (summary?.window ?? window) === 1 ? "candle" : "candles"
+            }`,
+          ],
+          [
+            "Complete / Partial / Missing",
+            summary
+              ? `${formatCount(summary.completeCount)} / ${formatCount(
+                  summary.partialCount,
+                )} / ${formatCount(summary.missingCount)}`
+              : "-",
+          ],
+        ]}
+      />
+    </div>
+  );
+}
+
+function HistoryContextBlock({
+  title,
+  rows,
+}: {
+  title: string;
+  rows: Array<[string, string]>;
+}) {
+  return (
+    <section className="border border-[var(--border)] bg-[var(--panel-muted)] px-2 py-1.5">
+      <h3 className="text-[10px] font-semibold uppercase tracking-normal text-[var(--foreground)]">
+        {title}
+      </h3>
+      <dl className="mt-1 grid gap-x-3 gap-y-1 sm:grid-cols-2">
+        {rows.map(([label, value]) => (
+          <div key={`${title}-${label}`} className="min-w-0">
+            <dt className="text-[9px] font-semibold uppercase tracking-normal text-[var(--muted)]">
+              {label}
+            </dt>
+            <dd className="truncate font-mono text-[10px] font-semibold text-[var(--foreground)]">
+              {value}
+            </dd>
+          </div>
+        ))}
+      </dl>
+    </section>
+  );
+}
+
+function HistoryDetails({
+  readiness,
+  response,
+  uiState,
+  summary,
+  readyContextNote,
+}: {
+  readiness: HistoricalObservationReadinessResponse | null;
+  response: HistoricalSnapshotObservationsResponse | null;
+  uiState: ForwardObservationUiState;
+  summary: ObservationSummary | null;
+  readyContextNote: string | null;
+}) {
+  const selectedReadiness = readiness?.selectedRun ?? null;
+  const coverage = readiness?.coverage ?? null;
+  const expectedWait = uiState.summary
+    ? formatApproximateObservationWait(
+        uiState.summary.timeframe,
+        uiState.summary.window,
+      )
+    : "-";
+
+  return (
+    <details className="shrink-0 border border-[var(--border-medium)] bg-[var(--panel-muted)]">
+      <summary className="cursor-pointer bg-[var(--table-header)] px-2 py-1.5 text-[12px] font-semibold uppercase tracking-normal text-[var(--foreground)]">
+        Details
+      </summary>
+      <div className="space-y-2 border-t border-[var(--border)] px-2 py-2">
+        <ObservationDataStatusLegend />
+        {readyContextNote ? (
+          <DetailLine label="Validation note" value={readyContextNote} />
+        ) : null}
+        <div className="grid gap-2 lg:grid-cols-2">
+          <HistoryContextBlock
+            title="Maturity Logic"
+            rows={[
+              ["Status", formatForwardObservationUiStatusLabel(uiState)],
+              ["Mode", formatForwardObservationSelectionMode(uiState.selectionMode)],
+              ["Maturity", formatMaturityState(uiState.maturity.state)],
+              [
+                "Diagnostic",
+                formatObservationDiagnosticBlocker(
+                  selectedReadiness?.diagnosticBlocker ??
+                    readiness?.metadata.diagnosticBlocker,
+                ),
+              ],
+              [
+                "Dominant Reason",
+                formatObservationBlocker(
+                  uiState.blocker,
+                  uiState.maturity.dominantMissingReason,
+                ),
+              ],
+              ["Expected Wait", expectedWait],
+            ]}
+          />
+          <HistoryContextBlock
+            title="Source Data"
+            rows={[
+              ["Readiness", readiness ? "Loaded" : "Unavailable"],
+              ["Outcome Rows", response ? formatCount(response.rows.length) : "-"],
+              [
+                "Returned Rows",
+                response ? formatCount(response.metadata.rowCount) : "-",
+              ],
+              [
+                "Window Unit",
+                response?.metadata.windowUnit ?? readiness?.metadata.windowUnit ?? "-",
+              ],
+              [
+                "Latest Coverage",
+                coverage ? formatLatestCoverage(coverage) : "-",
+              ],
+              [
+                "Coverage Lag",
+                selectedReadiness ? formatCoverageLag(selectedReadiness) : "-",
+              ],
+            ]}
+          />
+        </div>
+        {summary ? (
+          <>
+            <GroupDistributionTable groups={summary.groups} />
+            <NotableHistoricalExamples summary={summary} />
+          </>
+        ) : null}
+        <RawDetails readiness={readiness} response={response} />
+      </div>
+    </details>
+  );
+}
+
+function DetailLine({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="border-l-2 border-l-[var(--section-selected)] bg-[var(--panel)] px-2 py-1 text-[11px] leading-4 text-[var(--muted)]">
+      <span className="font-semibold text-[var(--foreground)]">{label}:</span>{" "}
+      {value}
+    </div>
+  );
+}
+
+function RawDetails({
+  readiness,
+  response,
+}: {
+  readiness: HistoricalObservationReadinessResponse | null;
+  response: HistoricalSnapshotObservationsResponse | null;
+}) {
+  const raw = {
+    readinessMetadata: readiness?.metadata ?? null,
+    coverage: readiness?.coverage ?? null,
+    outcomeMetadata: response?.metadata ?? null,
+    validationRun: response?.run ?? null,
+    sampleOutcomeRows: response?.rows.slice(0, 5) ?? [],
+  };
+
+  return (
+    <details className="border border-[var(--border)] bg-[var(--panel)]">
+      <summary className="cursor-pointer px-2 py-1 text-[11px] font-semibold text-[var(--foreground)]">
+        Raw run metadata and row fields
+      </summary>
+      <pre className="max-h-80 overflow-auto border-t border-[var(--border)] p-2 text-[10px] leading-4 text-[var(--muted)]">
+        {JSON.stringify(raw, null, 2)}
+      </pre>
+    </details>
   );
 }
 
@@ -1104,18 +1326,21 @@ export function ObservationRowsTable({
   isFetching,
   initialDataStatusFilter = "all",
   initialGroupFilter = "all",
+  initialSymbolSearch = "",
   initialSortState = null,
 }: {
   rows: HistoricalSnapshotObservationRow[];
   isFetching: boolean;
   initialDataStatusFilter?: ObservationRowsDataStatusFilter;
   initialGroupFilter?: ObservationRowsGroupFilter;
+  initialSymbolSearch?: string;
   initialSortState?: DataSortState<ObservationRowsSortKey> | null;
 }) {
   const [dataStatusFilter, setDataStatusFilter] =
     useState<ObservationRowsDataStatusFilter>(initialDataStatusFilter);
   const [groupFilter, setGroupFilter] =
     useState<ObservationRowsGroupFilter>(initialGroupFilter);
+  const [symbolSearch, setSymbolSearch] = useState(initialSymbolSearch);
   const [sortState, setSortState] =
     useState<DataSortState<ObservationRowsSortKey> | null>(initialSortState);
   const filteredRows = useMemo(
@@ -1124,8 +1349,9 @@ export function ObservationRowsTable({
         rows,
         dataStatusFilter,
         groupFilter,
+        symbolSearch,
       }),
-    [rows, dataStatusFilter, groupFilter],
+    [rows, dataStatusFilter, groupFilter, symbolSearch],
   );
   const visibleRows = useMemo(
     () => sortDataRows(filteredRows, sortState, getObservationRowsSortValue),
@@ -1141,44 +1367,58 @@ export function ObservationRowsTable({
   };
 
   return (
-    <div className="border-t border-[var(--border)] pt-3">
-      <div className="mb-2 flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h3 className="text-sm font-semibold">Observation Rows</h3>
-          <p className="mt-1 text-xs text-[var(--muted)]">
-            Outcome rows from the observation run above.
-          </p>
+    <section className="overflow-hidden border border-[var(--border-medium)] bg-[var(--panel-data)] shadow-[var(--shadow-panel)] xl:flex xl:min-h-0 xl:flex-1 xl:flex-col">
+      <div className="flex min-h-8 flex-wrap items-center justify-between gap-2 border-b border-[var(--border-medium)] bg-[var(--table-header)] px-2 py-1">
+        <div className="flex min-w-0 flex-wrap items-center gap-2">
+          <h3 className="text-[12px] font-semibold uppercase tracking-normal text-[var(--foreground)]">
+            Outcome Rows
+          </h3>
+          <StatusBadge
+            tone={visibleRows.length === rows.length ? "complete" : "info"}
+            className="text-[10px]"
+          >
+            {formatObservationRowsFilterCount({
+              visibleCount: visibleRows.length,
+              totalCount: rows.length,
+            })}
+          </StatusBadge>
+          {isFetching ? (
+            <StatusBadge tone="partial" className="text-[10px]">
+              Refreshing
+            </StatusBadge>
+          ) : null}
         </div>
-        <StatusBadge tone={visibleRows.length === rows.length ? "complete" : "info"}>
-          {formatObservationRowsFilterCount({
-            visibleCount: visibleRows.length,
-            totalCount: rows.length,
-          })}
-        </StatusBadge>
+        <span className="text-[10px] font-semibold uppercase text-[var(--muted)]">
+          Validation Source
+        </span>
       </div>
 
-      <div className="mb-2 border border-[var(--border)] bg-[var(--panel)] px-2 py-2">
-        <div className="grid gap-2 lg:grid-cols-2">
+      <div className="border-b border-[var(--border)] bg-[var(--panel-muted)] px-2 py-1.5">
+        <div className="grid gap-2 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_180px]">
           <ObservationRowsFilterGroup
-            label="Data status"
+            label="Status"
             options={observationRowsDataStatusFilters}
             selectedValue={dataStatusFilter}
             onSelect={(value) => setDataStatusFilter(value)}
           />
           <ObservationRowsFilterGroup
-            label="Group"
+            label="Original State"
             options={observationRowsGroupFilters}
             selectedValue={groupFilter}
             onSelect={(value) => setGroupFilter(value)}
           />
+          <label className="min-w-0">
+            <span className="text-[10px] font-semibold uppercase tracking-normal text-[var(--muted)]">
+              Symbol
+            </span>
+            <input
+              value={symbolSearch}
+              onChange={(event) => setSymbolSearch(event.target.value)}
+              placeholder="Search"
+              className="mt-1 h-6 w-full border border-[var(--border)] bg-[var(--control)] px-2 font-mono text-[10px] text-[var(--foreground)] outline-none focus:border-[var(--accent)]"
+            />
+          </label>
         </div>
-        <p className="mt-2 text-[11px] leading-5 text-[var(--muted)]">
-          {formatObservationRowsFilterCount({
-            visibleCount: visibleRows.length,
-            totalCount: rows.length,
-          })}
-          {" "}Filters affect this table only; summary metrics stay unchanged.
-        </p>
       </div>
 
       {visibleRows.length === 0 ? (
@@ -1187,9 +1427,9 @@ export function ObservationRowsTable({
           message="No observation rows match the current filters."
         />
       ) : (
-        <DataTableScroll>
-          <DataTable minWidth="min-w-[1060px]">
-            <thead className="sticky top-0 bg-[var(--table-header)] text-xs uppercase text-[var(--muted)]">
+        <DataTableScroll className="max-h-[56vh] overflow-auto xl:min-h-0 xl:flex-1 xl:overflow-auto">
+          <DataTable minWidth="min-w-[1180px]">
+            <thead className="sticky top-0 z-20 bg-[var(--table-header)] text-[10px] uppercase tracking-normal text-[var(--muted)]">
               <tr>
                 <DataTableHeaderCell
                   sortKey="symbol"
@@ -1204,14 +1444,7 @@ export function ObservationRowsTable({
                   defaultDirection="desc"
                   onSortChange={updateSort}
                 >
-                  Group
-                </DataTableHeaderCell>
-                <DataTableHeaderCell
-                  sortKey="label"
-                  sortState={sortState}
-                  onSortChange={updateSort}
-                >
-                  Label
+                  Original State
                 </DataTableHeaderCell>
                 <DataTableHeaderCell
                   sortKey="rank_score"
@@ -1220,7 +1453,7 @@ export function ObservationRowsTable({
                   onSortChange={updateSort}
                   align="right"
                 >
-                  Rank Score
+                  Rank
                 </DataTableHeaderCell>
                 <DataTableHeaderCell
                   sortKey="anchor_close"
@@ -1247,7 +1480,7 @@ export function ObservationRowsTable({
                   onSortChange={updateSort}
                   align="right"
                 >
-                  Observed Change
+                  Return
                 </DataTableHeaderCell>
                 <DataTableHeaderCell
                   sortKey="max_drawdown"
@@ -1264,26 +1497,30 @@ export function ObservationRowsTable({
                   defaultDirection="desc"
                   onSortChange={updateSort}
                 >
-                  Data Status
+                  Outcome Status
                 </DataTableHeaderCell>
+                <DataTableHeaderCell>Research</DataTableHeaderCell>
               </tr>
             </thead>
             <tbody>
               {visibleRows.map((row) => (
                 <tr
                   key={row.id}
-                  className="border-t border-[var(--border)] odd:bg-[var(--panel-data)] even:bg-[var(--panel-muted)] hover:bg-[var(--row-hover)]"
+                  className="group border-t border-[var(--table-grid)] odd:bg-[var(--panel-data)] even:bg-[var(--panel-muted)] hover:bg-[var(--row-hover)] hover:shadow-[inset_3px_0_0_var(--accent)]"
                 >
                   <DataTableCell className="font-semibold text-[var(--foreground)]">
                     {row.symbol}
                   </DataTableCell>
                   <DataTableCell>
-                    <GroupChip group={normalizeGroupKey(row.group)} />
-                  </DataTableCell>
-                  <DataTableCell>
-                    <DataTableChip title={formatSignalLabel(row.label)}>
-                      {formatSignalLabel(row.label)}
-                    </DataTableChip>
+                    <div className="flex min-w-0 flex-col gap-0.5">
+                      <GroupChip group={normalizeGroupKey(row.group)} />
+                      <span
+                        className="truncate text-[10px] text-[var(--muted)]"
+                        title={formatSignalLabel(row.label)}
+                      >
+                        {formatSignalLabel(row.label)}
+                      </span>
+                    </div>
                   </DataTableCell>
                   <DataTableCell align="right" className="font-mono tabular-nums">
                     {formatScore(row.rankScore)}
@@ -1321,17 +1558,26 @@ export function ObservationRowsTable({
                       </span>
                     ) : null}
                   </DataTableCell>
+                  <DataTableCell>
+                    <Link
+                      href={buildSymbolResearchHref({
+                        exchange: row.exchange ?? "binance",
+                        symbol: row.symbol,
+                        timeframe: row.timeframe,
+                        assetClass,
+                      })}
+                      className="inline-flex border border-[var(--accent-border)] bg-[var(--accent-soft)] px-2 py-1 text-[11px] font-semibold text-[var(--accent)] hover:border-[var(--accent-hover)] hover:text-[var(--accent-hover)]"
+                    >
+                      Research
+                    </Link>
+                  </DataTableCell>
                 </tr>
               ))}
             </tbody>
           </DataTable>
         </DataTableScroll>
       )}
-
-      {isFetching ? (
-        <p className="mt-2 text-xs text-[var(--muted)]">Refreshing</p>
-      ) : null}
-    </div>
+    </section>
   );
 }
 
@@ -1348,8 +1594,10 @@ function ObservationRowsFilterGroup<TValue extends string>({
 }) {
   return (
     <div>
-      <p className="text-xs font-semibold text-[var(--muted)]">{label}</p>
-      <div className="mt-2 flex flex-wrap gap-1.5">
+      <p className="text-[10px] font-semibold uppercase tracking-normal text-[var(--muted)]">
+        {label}
+      </p>
+      <div className="mt-1 flex flex-wrap gap-1">
         {options.map((option) => {
           const isSelected = option.value === selectedValue;
 
@@ -1420,27 +1668,30 @@ function filterObservationRows({
   rows,
   dataStatusFilter,
   groupFilter,
+  symbolSearch,
 }: {
   rows: HistoricalSnapshotObservationRow[];
   dataStatusFilter: ObservationRowsDataStatusFilter;
   groupFilter: ObservationRowsGroupFilter;
+  symbolSearch: string;
 }) {
+  const normalizedSymbolSearch = symbolSearch.trim().toUpperCase();
+
   return rows.filter((row) => {
     const matchesDataStatus =
       dataStatusFilter === "all" || row.dataStatus === dataStatusFilter;
     const matchesGroup =
       groupFilter === "all" || normalizeGroupKey(row.group) === groupFilter;
+    const matchesSymbol =
+      !normalizedSymbolSearch ||
+      row.symbol.toUpperCase().includes(normalizedSymbolSearch);
 
-    return matchesDataStatus && matchesGroup;
+    return matchesDataStatus && matchesGroup && matchesSymbol;
   });
 }
 
 function formatObservationRowsFilterButtonClassName(isSelected: boolean) {
-  const base = "border px-2.5 py-1 text-xs font-semibold transition";
-
-  return isSelected
-    ? `${base} border-[var(--foreground)] bg-[var(--accent)] text-on-accent`
-    : `${base} border-[var(--border)] bg-[var(--control)] text-[var(--muted)] hover:border-[var(--border-strong)] hover:text-[var(--foreground)]`;
+  return formatSelectedControlClassName(isSelected);
 }
 
 function getObservationDataStatusChipTone(status: ObservationDataStatus): ChipTone {
@@ -1509,7 +1760,7 @@ function formatObservationRowsFilterCount({
 }) {
   return `Showing ${formatCount(visibleCount)} of ${formatCount(
     totalCount,
-  )} observation rows.`;
+  )} outcome rows.`;
 }
 
 function getObservedChangeClass(value: number | null | undefined) {
@@ -1536,6 +1787,179 @@ function getObservedSummaryTone(value: number | null): StatusTone {
   return value > 0 ? "positive" : "negative";
 }
 
+function getPositiveRateTone(value: number | null): StatusTone {
+  if (typeof value !== "number" || !Number.isFinite(value)) {
+    return "neutral";
+  }
+
+  if (value >= 60) {
+    return "positive";
+  }
+
+  if (value <= 40) {
+    return "negative";
+  }
+
+  return "neutral";
+}
+
+function formatOutcomeInterpretation(
+  summary: ObservationSummary,
+  window: ObservationWindow,
+) {
+  const outcome =
+    summary.completeCount === 0
+      ? "mixed"
+      : (summary.medianObservedChangePct ?? 0) > 0 &&
+          (summary.positiveRatePct ?? 0) >= 50
+        ? "positive"
+        : (summary.medianObservedChangePct ?? 0) < 0 &&
+            (summary.positiveRatePct ?? 100) <= 50
+          ? "negative"
+          : "mixed";
+
+  return `Prior rows showed ${outcome} follow-through over ${window} ${
+    window === 1 ? "candle" : "candles"
+  }.`;
+}
+
+function formatSelectedControlClassName(isSelected: boolean) {
+  const base =
+    "h-6 border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-normal transition focus-visible:outline-[var(--accent)]";
+
+  return isSelected
+    ? `${base} border-[var(--accent-border)] bg-[var(--accent)] text-[var(--accent-foreground)]`
+    : `${base} border-[var(--border)] bg-[var(--control)] text-[var(--muted)] hover:border-[var(--accent-border)] hover:bg-[var(--accent-soft)] hover:text-[var(--accent)]`;
+}
+
+function getHistoryValidationTone(status: string): HistoryTerminalTone {
+  switch (status) {
+    case "ready":
+      return "complete";
+    case "pending":
+      return "partial";
+    case "unavailable":
+      return "missing";
+    default:
+      return "neutral";
+  }
+}
+
+function getHistoryTerminalToneBorderClass(tone: HistoryTerminalTone) {
+  switch (tone) {
+    case "accent":
+      return "border-l-[var(--accent)]";
+    case "complete":
+      return "border-l-[var(--complete)]";
+    case "partial":
+      return "border-l-[var(--partial)]";
+    case "missing":
+      return "border-l-[var(--missing)]";
+    case "risk":
+      return "border-l-[var(--risk)]";
+    case "watch":
+      return "border-l-[var(--watch)]";
+    case "neutral":
+    default:
+      return "border-l-[var(--neutral-border)]";
+  }
+}
+
+function getHistoryTerminalToneTextClass(tone: HistoryTerminalTone) {
+  switch (tone) {
+    case "accent":
+      return "text-[var(--accent)]";
+    case "complete":
+      return "text-[var(--complete)]";
+    case "partial":
+      return "text-[var(--partial)]";
+    case "missing":
+      return "text-[var(--missing)]";
+    case "risk":
+      return "text-[var(--risk)]";
+    case "watch":
+      return "text-[var(--watch)]";
+    case "neutral":
+    default:
+      return "text-[var(--terminal-bar-foreground)]";
+  }
+}
+
+function getHistoryStatusToneBorderClass(tone: StatusTone) {
+  switch (tone) {
+    case "accent":
+      return "border-l-[var(--accent)]";
+    case "positive":
+    case "complete":
+    case "eligible":
+      return "border-l-[var(--complete)]";
+    case "negative":
+    case "danger":
+    case "risk":
+      return "border-l-[var(--risk)]";
+    case "warning":
+    case "partial":
+    case "overheated":
+      return "border-l-[var(--partial)]";
+    case "info":
+      return "border-l-[var(--info)]";
+    case "watch":
+      return "border-l-[var(--watch)]";
+    case "missing":
+      return "border-l-[var(--missing)]";
+    case "neutral":
+    default:
+      return "border-l-[var(--neutral-border)]";
+  }
+}
+
+function getHistoryStatusToneTextClass(tone: StatusTone) {
+  switch (tone) {
+    case "accent":
+      return "text-[var(--accent)]";
+    case "positive":
+    case "complete":
+    case "eligible":
+      return "text-[var(--complete)]";
+    case "negative":
+    case "danger":
+    case "risk":
+      return "text-[var(--risk)]";
+    case "warning":
+    case "partial":
+    case "overheated":
+      return "text-[var(--partial)]";
+    case "info":
+      return "text-[var(--info)]";
+    case "watch":
+      return "text-[var(--watch)]";
+    case "missing":
+      return "text-[var(--missing)]";
+    case "neutral":
+    default:
+      return "text-[var(--foreground)]";
+  }
+}
+
+function formatValidationStatus(uiState: ForwardObservationUiState) {
+  switch (uiState.status) {
+    case "observation_ready":
+      return "ready";
+    case "loading_readiness":
+    case "loading_observation_rows":
+    case "not_ready_for_selected_run":
+    case "using_selected_run":
+    case "using_recommended_observable_run":
+      return "pending";
+    case "readiness_unavailable":
+    case "no_observable_run":
+    case "observation_rows_error":
+    case "observation_ready_summary_missing":
+    case "observation_empty":
+      return "unavailable";
+  }
+}
+
 function ForwardObservationStatePanel({
   uiState,
   readiness,
@@ -1543,22 +1967,11 @@ function ForwardObservationStatePanel({
   uiState: ForwardObservationUiState;
   readiness: HistoricalObservationReadinessResponse | null;
 }) {
-  const summary = uiState.summary;
-  const coverage = readiness?.coverage ?? null;
-  const selectedReadiness = readiness?.selectedRun ?? null;
-  const observationReadiness = getReadyObservationReadinessRun(readiness);
-  const dominantReadiness = observationReadiness ?? selectedReadiness;
   const title = getForwardObservationPanelTitle(uiState);
   const message = getForwardObservationPanelMessage({
     uiState,
     readiness,
   });
-  const showDiagnostics =
-    !hasReadyObservationContext(uiState) &&
-    (summary !== null ||
-      coverage !== null ||
-      selectedReadiness !== null ||
-      readiness?.recommendedRun !== null);
 
   return (
     <div className="border-l-2 border-l-[var(--section-summary)] bg-[var(--panel)] py-1 pl-3 pr-2">
@@ -1566,106 +1979,6 @@ function ForwardObservationStatePanel({
       <p className="mt-1 max-w-3xl text-xs leading-5 text-[var(--muted)]">
         {message}
       </p>
-      {showDiagnostics ? (
-        <div className="mt-3 grid gap-x-4 gap-y-2 sm:grid-cols-2 lg:grid-cols-4">
-          {summary ? (
-            <Metric label="Window" value={`${summary.window} candles`} />
-          ) : null}
-          {summary ? <Metric label="Timeframe" value={summary.timeframe} /> : null}
-          {selectedReadiness ? (
-            <Metric
-              label="Selected Run"
-              value={shortRunId(selectedReadiness.run.runId)}
-            />
-          ) : null}
-          {readiness?.recommendedRun ? (
-            <Metric
-              label="Recommended Run"
-              value={shortRunId(readiness.recommendedRun.run.runId)}
-            />
-          ) : null}
-          {observationReadiness ? (
-            <Metric
-              label="Observation Run"
-              value={shortRunId(observationReadiness.run.runId)}
-            />
-          ) : null}
-          {summary ? (
-            <Metric label="Total Rows" value={formatCount(summary.totalRows)} />
-          ) : null}
-          {summary ? (
-            <Metric
-              label="Returned Rows"
-              value={formatCount(summary.returnedRows)}
-            />
-          ) : null}
-          {summary ? (
-            <Metric label="Complete" value={formatCount(summary.completeCount)} />
-          ) : null}
-          {summary ? (
-            <Metric label="Partial" value={formatCount(summary.partialCount)} />
-          ) : null}
-          {summary ? (
-            <Metric label="Missing" value={formatCount(summary.missingCount)} />
-          ) : null}
-          {selectedReadiness?.diagnosticBlocker ? (
-            <Metric
-              label="Diagnostic"
-              value={formatObservationDiagnosticBlocker(
-                selectedReadiness.diagnosticBlocker,
-              )}
-            />
-          ) : readiness?.metadata.diagnosticBlocker ? (
-            <Metric
-              label="Diagnostic"
-              value={formatObservationDiagnosticBlocker(
-                readiness.metadata.diagnosticBlocker,
-              )}
-            />
-          ) : null}
-          <Metric
-            label="Dominant Reason"
-            value={formatObservationBlocker(
-              dominantReadiness?.blocker ?? readiness?.metadata.blocker,
-              uiState.maturity.dominantMissingReason,
-            )}
-          />
-          {coverage ? (
-            <Metric
-              label="Latest Candle"
-              value={formatHistoryDateTime(coverage.latestOpenTime)}
-            />
-          ) : null}
-          {coverage ? (
-            <Metric
-              label="Latest Coverage"
-              value={formatLatestCoverage(coverage)}
-            />
-          ) : null}
-          {selectedReadiness ? (
-            <Metric
-              label="Coverage Lag"
-              value={formatCoverageLag(selectedReadiness)}
-            />
-          ) : null}
-          {selectedReadiness?.expectedCompleteTime ? (
-            <Metric
-              label="Rough Maturity"
-              value={formatHistoryDateTime(selectedReadiness.expectedCompleteTime)}
-            />
-          ) : null}
-        </div>
-      ) : null}
-      {summary && uiState.status === "not_ready_for_selected_run" ? (
-        <p className="mt-3 text-xs leading-5 text-[var(--muted)]">
-          For {summary.timeframe} + {summary.window}{" "}
-          {summary.window === 1 ? "candle" : "candles"}, expect roughly{" "}
-          {formatApproximateObservationWait(summary.timeframe, summary.window)}{" "}
-          after the anchor before a complete {summary.window}-candle observation
-          can exist. Candle sync timing and missing market data can affect
-          availability.
-        </p>
-      ) : null}
     </div>
   );
 }
@@ -1673,34 +1986,24 @@ function ForwardObservationStatePanel({
 function ObservationDataStatusLegend() {
   return (
     <div className="mb-3 border border-[var(--border)] bg-[var(--panel)] px-3 py-2 text-xs leading-5 text-[var(--muted)]">
-      <span className="font-semibold text-[var(--foreground)]">Data status:</span>{" "}
-      complete has the selected future window, partial has fewer future candles,
-      missing has no usable future window yet.
+      <span className="font-semibold text-[var(--foreground)]">Outcome Status:</span>{" "}
+      Complete has the selected future window, Partial has fewer future candles,
+      Missing has no usable future window.
     </div>
   );
 }
 
 function ObservationSummarySection({
   summary,
+  window,
 }: {
   summary: ObservationSummary;
+  window: ObservationWindow;
 }) {
-  const takeaways = buildResearchTakeaways({
-    summary,
-    uiState: null,
-  });
-
   return (
-    <section className="mb-3 border border-l-4 border-[var(--border)] border-l-[var(--section-summary)] bg-[var(--panel)] p-3">
-      <div className="mb-3">
-        <h3 className="text-sm font-semibold">Observation Summary</h3>
-        <p className="mt-1 max-w-3xl text-xs leading-5 text-[var(--muted)]">
-          Metrics use the observation run shown above; interpretation follows.
-        </p>
-      </div>
-
-      <div className="grid gap-x-4 gap-y-2 sm:grid-cols-2 lg:grid-cols-4">
-        <Metric label="Rows observed" value={formatCount(summary.totalRows)} tone="info" />
+    <section className="border border-[var(--border-medium)] bg-[var(--panel-data)] p-1.5">
+      <div className="grid gap-1.5 sm:grid-cols-2 lg:grid-cols-4">
+        <Metric label="Total rows" value={formatCount(summary.totalRows)} tone="info" />
         <Metric
           label="Complete"
           value={formatCount(summary.completeCount)}
@@ -1717,131 +2020,31 @@ function ObservationSummarySection({
           tone="missing"
         />
         <Metric
-          label="Median observed change"
+          label="Median return"
           value={formatObservationSummaryPercent(summary.medianObservedChangePct)}
           tone={getObservedSummaryTone(summary.medianObservedChangePct)}
         />
         <Metric
-          label="Average observed change"
-          value={formatObservationSummaryPercent(summary.averageObservedChangePct)}
-          tone={getObservedSummaryTone(summary.averageObservedChangePct)}
+          label="Positive rate"
+          value={formatObservationSummaryPercent(summary.positiveRatePct)}
+          tone={getPositiveRateTone(summary.positiveRatePct)}
         />
         <Metric
-          label="Median max drawdown"
-          value={formatObservationSummaryPercent(summary.medianMaxDrawdownPct)}
+          label="Drawdown"
+          value={formatObservationSummaryPercent(summary.worstMaxDrawdownPct)}
           tone="warning"
         />
         <Metric
-          label="Observation coverage"
-          value={`${summary.coverageLabel} (${formatObservationPercent(
-            summary.completePct,
-          )})`}
-          tone={summary.completeCount > 0 ? "complete" : "partial"}
+          label="Forward window"
+          value={`${window} ${window === 1 ? "candle" : "candles"}`}
+          tone="accent"
         />
       </div>
-
-      <p className="mt-3 max-w-3xl text-xs leading-5 text-[var(--muted)]">
-        Coverage shows how many rows have enough future candles for the selected
-        window.
+      <p className="mt-1.5 border-l-2 border-l-[var(--complete)] bg-[var(--panel-muted)] px-2 py-1 text-[11px] leading-4 text-[var(--muted)]">
+        {formatOutcomeInterpretation(summary, window)}
       </p>
-
-      {summary.hasPartialOnlyCoverage ? (
-        <p className="mt-3 max-w-3xl text-xs leading-5 text-[var(--muted)]">
-          Partial rows do not cover the full selected window. Complete-row
-          distribution metrics stay empty until full-window observations exist.
-        </p>
-      ) : null}
-
-      <ResearchTakeaways takeaways={takeaways} />
-      <GroupDistributionTable groups={summary.groups} />
-      <NotableHistoricalExamples summary={summary} />
     </section>
   );
-}
-
-function ResearchTakeaways({ takeaways }: { takeaways: string[] }) {
-  return (
-    <div className="mt-3 border border-l-4 border-[var(--border)] border-l-[var(--section-takeaway)] bg-[var(--panel)] p-3">
-      <h4 className="text-sm font-semibold">Research Takeaways</h4>
-      <ul className="mt-2 list-disc space-y-1 pl-4 text-xs leading-5 text-[var(--muted)]">
-        {takeaways.map((takeaway) => (
-          <li key={takeaway}>{takeaway}</li>
-        ))}
-      </ul>
-    </div>
-  );
-}
-
-function buildResearchTakeaways({
-  summary,
-  uiState,
-}: {
-  summary: ObservationSummary | null;
-  uiState: ForwardObservationUiState | null;
-}) {
-  if (summary) {
-    if (summary.completeCount > 0 && summary.coverageLabel === "Strong") {
-      return [
-        "Enough complete rows for group-level historical review.",
-        "Group metrics use complete rows only.",
-        "Notable examples may include outliers.",
-      ];
-    }
-
-    if (summary.completeCount === 0) {
-      if (summary.partialCount > 0 && summary.missingCount > 0) {
-        return [
-          "Not enough complete rows for group-level conclusions.",
-          "Partial and missing rows reflect incomplete future candle coverage.",
-          "Review the selected scanner snapshot separately.",
-        ];
-      }
-
-      if (summary.partialCount > 0) {
-        return [
-          "Not enough complete rows for group-level conclusions.",
-          "Partial rows have incomplete future candle coverage.",
-          "Wait for more future candles before comparing groups.",
-        ];
-      }
-
-      if (summary.missingCount > 0) {
-        return [
-          "Not enough complete rows for group-level conclusions.",
-          "Missing rows usually reflect data coverage, listing history, or sync gaps.",
-          "Review the selected scanner snapshot separately.",
-        ];
-      }
-    }
-
-    return [
-      "Some complete rows are available, but broad group comparison is still thin.",
-      "Group metrics use complete rows only.",
-      "Notable examples may include outliers.",
-    ];
-  }
-
-  if (!uiState || !shouldShowUnavailableResearchTakeaways(uiState.status)) {
-    return [];
-  }
-
-  return [
-    "Forward observation is not available for this run yet.",
-    "The selected run can still be reviewed as a scanner snapshot.",
-  ];
-}
-
-function shouldShowUnavailableResearchTakeaways(
-  status: ForwardObservationUiStatus,
-) {
-  return [
-    "readiness_unavailable",
-    "not_ready_for_selected_run",
-    "no_observable_run",
-    "observation_rows_error",
-    "observation_ready_summary_missing",
-    "observation_empty",
-  ].includes(status);
 }
 
 function GroupDistributionTable({
@@ -1870,13 +2073,13 @@ function GroupDistributionTable({
                 <DataTableHeaderCell align="right">Partial</DataTableHeaderCell>
                 <DataTableHeaderCell align="right">Missing</DataTableHeaderCell>
                 <DataTableHeaderCell align="right">
-                  Median observed change
+                  Median return
                 </DataTableHeaderCell>
                 <DataTableHeaderCell align="right">
-                  Average observed change
+                  Average return
                 </DataTableHeaderCell>
                 <DataTableHeaderCell align="right">
-                  Median max drawdown
+                  Median drawdown
                 </DataTableHeaderCell>
               </tr>
             </thead>
@@ -1931,21 +2134,21 @@ function NotableHistoricalExamples({
 }) {
   return (
     <div className="mt-4">
-      <h4 className="text-sm font-semibold">Notable historical examples</h4>
+      <h4 className="text-sm font-semibold">Notable symbols</h4>
       <p className="mt-1 max-w-3xl text-xs leading-5 text-[var(--muted)]">
-        Largest observed moves and drawdowns from complete rows.
+        Largest returns and drawdowns from complete rows.
       </p>
       <div className="mt-3 grid gap-3 lg:grid-cols-3">
         <NotableExampleList
-          title="Largest positive observed changes"
+          title="Largest positive returns"
           examples={summary.notable.largestPositiveObservedChanges}
         />
         <NotableExampleList
-          title="Largest negative observed changes"
+          title="Largest negative returns"
           examples={summary.notable.largestNegativeObservedChanges}
         />
         <NotableExampleList
-          title="Largest observed drawdowns"
+          title="Largest drawdowns"
           examples={summary.notable.largestObservedDrawdowns}
         />
       </div>
@@ -1982,12 +2185,12 @@ function NotableExampleList({
               </div>
               <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-[var(--muted)]">
                 <span>
-                  Observed change{" "}
+                  Return{" "}
                   {formatObservationPercent(example.observedChangePct)}
                 </span>
                 {example.maxDrawdownPct !== null ? (
                   <span>
-                    Max drawdown{" "}
+                    Drawdown{" "}
                     {formatObservationPercent(example.maxDrawdownPct)}
                   </span>
                 ) : null}
@@ -2003,38 +2206,30 @@ function NotableExampleList({
 function getForwardObservationPanelTitle(uiState: ForwardObservationUiState) {
   switch (uiState.status) {
     case "loading_readiness":
-      return "Loading observation readiness";
+      return "Loading Validation Source";
     case "readiness_unavailable":
-      return "Observation readiness unavailable";
+      return "Validation Source unavailable";
     case "not_ready_for_selected_run":
-      return "Forward observation is not ready yet";
+      return "Selected Scan is not mature";
     case "no_observable_run":
       return isMarketCoverageBlocker(uiState)
-        ? "Forward observation unavailable"
-        : "No observable run available";
+        ? "Validation Source unavailable"
+        : "No Validation Source available";
     case "using_selected_run":
-      return "Using selected run";
+      return "Using Selected Scan";
     case "using_recommended_observable_run":
-      return "Using mature observation run";
+      return "Using Validation Source";
     case "loading_observation_rows":
-      return "Loading observation rows";
+      return "Loading Outcome Rows";
     case "observation_rows_error":
-      return "Observation rows unavailable";
+      return "Outcome Rows unavailable";
     case "observation_ready_summary_missing":
-      return "Observation rows not returned";
+      return "Outcome Rows not returned";
     case "observation_empty":
-      return "No observation rows returned";
+      return "No Outcome Rows returned";
     case "observation_ready":
-      return "Forward observation ready";
+      return "Validation ready";
   }
-}
-
-function hasReadyObservationContext(uiState: ForwardObservationUiState) {
-  return (
-    uiState.observationRun !== null &&
-    (uiState.selectionMode === "selected" ||
-      uiState.selectionMode === "observable")
-  );
 }
 
 function getForwardObservationPanelMessage({
@@ -2046,37 +2241,37 @@ function getForwardObservationPanelMessage({
 }) {
   switch (uiState.status) {
     case "loading_readiness":
-      return "Checking whether the selected forward window has enough completed future candles.";
+      return "Checking completed candles for the selected forward window.";
     case "readiness_unavailable":
-      return "Forward Observation readiness could not be determined. This may happen if the API endpoint is not deployed yet, unavailable, or returned an invalid response.";
+      return "Validation Source readiness could not be determined.";
     case "not_ready_for_selected_run":
       if (isWaitingForFutureCandlesDiagnostic(uiState, readiness)) {
-        return "This snapshot is not fully observable yet. It is waiting for completed future candles in the selected timeframe.";
+        return "The Selected Scan is waiting for completed future candles.";
       }
 
-      return "This snapshot is not fully observable yet. Forward Observation uses completed future candles in the selected timeframe.";
+      return "The Selected Scan is not mature for this forward window.";
     case "no_observable_run":
       if (isStaleMarketDataDiagnostic(uiState, readiness)) {
-        return "This snapshot is not fully observable yet. Market data appears stale; production data may need latest candle sync before this window can be observed.";
+        return "Market data appears stale for this forward window.";
       }
 
       if (isMarketCoverageBlocker(uiState)) {
-        return "This snapshot is not fully observable yet. The stored market candles do not yet cover enough completed future candles for this window.";
+        return "Stored candles do not cover enough completed future candles.";
       }
 
-      return "No observable run is available within the backend readiness search window. Older runs may be unavailable, candle data may be stale, or market data sync may not have caught up.";
+      return "No mature validation source is available within the readiness search window.";
     case "using_selected_run":
-      return "The selected stored run is the observation run for this forward window.";
+      return "The Selected Scan is also the Validation Source.";
     case "using_recommended_observable_run":
-      return "The selected stored run remains unchanged, and Forward Observation is using a mature observation run for this forward observation window.";
+      return "The Selected Scan remains unchanged; Outcome Rows use the Validation Source.";
     case "loading_observation_rows":
-      return "Loading forward observation rows for the selected observation run.";
+      return "Loading Outcome Rows for the Validation Source.";
     case "observation_rows_error":
-      return uiState.observationRowsError ?? "Forward observation rows could not be loaded.";
+      return uiState.observationRowsError ?? "Outcome Rows could not be loaded.";
     case "observation_ready_summary_missing":
-      return "Observation run is available, but no observation rows were returned. This may indicate the historical observation query returned no rows or the summary was not produced.";
+      return "Validation Source is available, but no Outcome Rows were returned.";
     case "observation_empty":
-      return "Observation run is available, but it has no historical observation rows for this forward observation window.";
+      return "Validation Source is available, but it has no Outcome Rows for this forward window.";
     case "observation_ready":
       return formatObservationReadinessMessage(readiness);
   }
@@ -2219,30 +2414,33 @@ export function SnapshotTable({
   };
 
   return (
-    <PageSection
-      title="Snapshot Rows"
-      description="Scanner output from the selected stored run. Observation filters do not affect this table."
-      tone="snapshot"
-      actions={
-        <StatusBadge tone={isLoading ? "partial" : "accent"}>
+    <details className="shrink-0 overflow-hidden border border-[var(--border-medium)] bg-[var(--panel-data)] shadow-[var(--shadow-panel)]">
+      <summary className="flex min-h-8 cursor-pointer list-none flex-wrap items-center justify-between gap-2 border-b border-[var(--border-medium)] bg-[var(--table-header)] px-2 py-1 marker:hidden">
+        <div className="min-w-0">
+          <h2 className="text-[12px] font-semibold uppercase tracking-normal text-[var(--foreground)]">
+            Original Scan Rows
+          </h2>
+          <p className="text-[10px] leading-4 text-[var(--muted)]">
+            Original scanner output from Selected Scan.
+          </p>
+        </div>
+        <StatusBadge tone={isLoading ? "partial" : "accent"} className="text-[10px]">
           {isLoading ? "Refreshing" : `${rows.length} rows`}
         </StatusBadge>
-      }
-      className="overflow-hidden"
-      bodyClassName="px-3 py-2"
-    >
-      <p className="mb-3 text-[11px] leading-5 text-[var(--muted)]">
-        Current research links open the live Symbol Research view.
-      </p>
+      </summary>
+      <div className="border-t border-[var(--border)] px-2 py-2">
+        <p className="mb-2 text-[11px] leading-4 text-[var(--muted)]">
+          Research opens current symbol view, not historical replay.
+        </p>
       {rows.length === 0 ? (
         <StatePanel
           title="No rows"
-          message="No scan signals are available for the selected stored run."
+          message="No scan rows are available for the Selected Scan."
         />
       ) : (
-        <DataTableScroll>
+        <DataTableScroll className="max-h-72 overflow-auto">
           <DataTable minWidth="min-w-[1180px]">
-            <thead className="bg-[var(--table-header)] text-xs uppercase text-[var(--muted)]">
+            <thead className="sticky top-0 z-20 bg-[var(--table-header)] text-[10px] uppercase tracking-normal text-[var(--muted)]">
               <tr>
                 <DataTableHeaderCell
                   sortKey="index"
@@ -2301,7 +2499,7 @@ export function SnapshotTable({
               {visibleRows.map(({ row, sourceIndex }) => (
                 <tr
                   key={row.id}
-                  className="border-t border-[var(--border)] odd:bg-[var(--panel-data)] even:bg-[var(--panel-muted)] hover:bg-[var(--row-hover)]"
+                  className="border-t border-[var(--table-grid)] odd:bg-[var(--panel-data)] even:bg-[var(--panel-muted)] hover:bg-[var(--row-hover)]"
                 >
                   <DataTableCell align="right" className="font-mono tabular-nums">
                     {sourceIndex + 1}
@@ -2361,7 +2559,7 @@ export function SnapshotTable({
                       })}
                       className="inline-flex border border-[var(--accent)] bg-[var(--accent-soft)] px-2 py-1 text-[11px] font-semibold text-[var(--accent)] hover:border-[var(--accent-hover)] hover:text-[var(--accent-hover)]"
                     >
-                      Current research
+                      Research
                     </Link>
                   </DataTableCell>
                 </tr>
@@ -2370,7 +2568,8 @@ export function SnapshotTable({
           </DataTable>
         </DataTableScroll>
       )}
-    </PageSection>
+      </div>
+    </details>
   );
 }
 
@@ -2403,11 +2602,35 @@ function Metric({
   value: string;
   tone?: StatusTone;
 }) {
-  return <MetricCard label={label} value={value} tone={tone} />;
+  return (
+    <div
+      className={`min-w-0 border border-l-2 bg-[var(--panel-muted)] px-2 py-1 ${getHistoryStatusToneBorderClass(
+        tone,
+      )}`}
+    >
+      <div className="truncate text-[9px] font-semibold uppercase tracking-normal text-[var(--muted)]">
+        {label}
+      </div>
+      <div
+        className={`mt-0.5 truncate font-mono text-[12px] font-semibold tabular-nums ${getHistoryStatusToneTextClass(
+          tone,
+        )}`}
+      >
+        {value}
+      </div>
+    </div>
+  );
 }
 
 function StatePanel({ title, message }: { title: string; message: string }) {
-  return <EmptyState title={title} message={message} className="py-6" />;
+  return (
+    <div className="border border-l-2 border-[var(--border)] border-l-[var(--missing)] bg-[var(--panel-muted)] px-2 py-2">
+      <h3 className="text-[12px] font-semibold text-[var(--foreground)]">
+        {title}
+      </h3>
+      <p className="mt-1 text-[11px] leading-4 text-[var(--muted)]">{message}</p>
+    </div>
+  );
 }
 
 export function buildHistorySnapshotsQueryKey({
@@ -3062,29 +3285,6 @@ function buildForwardObservationSummary({
   });
 }
 
-function buildRunSummaryItems(run: HistoricalSnapshotRun | null) {
-  if (!run) {
-    return [];
-  }
-
-  return [
-    ["Run ID", run.runId],
-    ["Timeframe", run.timeframe],
-    ["Started", formatHistoryDateTime(run.startedAt)],
-    ["Finished", formatHistoryDateTime(run.finishedAt)],
-    ["Universe", run.universe ?? "-"],
-    ["Asset Class", assetClass],
-    ["Symbols Total", formatCount(run.symbolsTotal)],
-    ["Symbols Scanned", formatCount(run.symbolsScanned)],
-    ["Signals Created", formatCount(run.signalsCreated)],
-    ["Skipped", formatCount(run.skipped)],
-    ["Failed", formatCount(run.failedSymbols)],
-    ["Full Universe", formatFullUniverse(run)],
-    ["Scanner Version", run.scannerVersion ?? "-"],
-    ["Scoring Version", run.scoringVersion ?? "-"],
-  ].map(([label, value]) => ({ label, value }));
-}
-
 async function fetchHistoricalSnapshots({
   timeframe,
   assetClass,
@@ -3382,6 +3582,20 @@ export function formatHistoryDateTime(value: string | null | undefined) {
   ].join("-") + ` ${padDatePart(date.getUTCHours())}:${padDatePart(date.getUTCMinutes())}`;
 }
 
+function formatCompactTime(value: string | null | undefined) {
+  if (!value) {
+    return "-";
+  }
+
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return "-";
+  }
+
+  return `${padDatePart(date.getUTCHours())}:${padDatePart(date.getUTCMinutes())}`;
+}
+
 export function formatHistoryPrimarySignal(value: string | null | undefined) {
   const label = value?.trim();
 
@@ -3442,14 +3656,14 @@ function getForwardObservationReadyContextNote({
     : "mature full-universe run";
 
   if (diagnosticBlocker === "waiting_for_future_candles") {
-    return `Selected stored run is still waiting for future candles. Showing the most recent ${runDescription} instead.`;
+    return `Selected Scan is still waiting for future candles. Validation Source uses the most recent ${runDescription}.`;
   }
 
   if (diagnosticBlocker === "stale_market_data") {
-    return `Selected stored run has stale market data coverage. Showing the most recent ${runDescription} instead.`;
+    return `Selected Scan has stale market data coverage. Validation Source uses the most recent ${runDescription}.`;
   }
 
-  return `Showing the most recent ${runDescription} for this historical observation.`;
+  return `Validation Source uses the most recent ${runDescription}.`;
 }
 
 function formatObservationNumber(value: number | null | undefined) {
@@ -3479,13 +3693,13 @@ function formatForwardObservationSelectionMode(
 ) {
   switch (value) {
     case "selected":
-      return "Using selected run";
+      return "Selected Scan";
     case "observable":
-      return "Using mature observation run";
+      return "Validation Source";
     case "not_ready":
-      return "Not ready for selected run";
+      return "Selected Scan not mature";
     case "unavailable":
-      return "Observation readiness unavailable";
+      return "Unavailable";
   }
 }
 
@@ -3494,24 +3708,27 @@ function formatForwardObservationUiStatusLabel(
 ) {
   switch (uiState.status) {
     case "loading_readiness":
-      return "Loading observation readiness";
+      return "Validation loading";
     case "readiness_unavailable":
-      return "Observation readiness unavailable";
+      return "Validation unavailable";
     case "not_ready_for_selected_run":
-      return "Not ready for selected run";
+      return "Validation pending";
     case "no_observable_run":
       return isMarketCoverageBlocker(uiState)
-        ? "Forward observation unavailable"
-        : "No observable run available";
+        ? "Validation unavailable"
+        : "No Validation Source";
     case "using_selected_run":
+      return "Validation pending";
     case "loading_observation_rows":
+      return "Validation loading";
     case "observation_ready":
+      return "Validation ready";
     case "observation_ready_summary_missing":
     case "observation_empty":
     case "observation_rows_error":
-      return `Mode: ${formatForwardObservationSelectionMode(uiState.selectionMode)}`;
+      return "Validation unavailable";
     case "using_recommended_observable_run":
-      return "Mode: Using mature observation run";
+      return "Validation Source";
   }
 }
 
@@ -3548,28 +3765,28 @@ function formatObservationReadinessMessage(
   const diagnosticBlocker = readiness?.metadata.diagnosticBlocker;
 
   if (diagnosticBlocker === "stale_market_data") {
-    return "This snapshot is not fully observable yet. Market data appears stale; production data may need latest candle sync before this window can be observed.";
+    return "Market data appears stale for this forward window.";
   }
 
   if (diagnosticBlocker === "waiting_for_future_candles") {
-    return "This snapshot is not fully observable yet. It is waiting for completed future candles in the selected timeframe.";
+    return "Selected Scan is waiting for completed future candles.";
   }
 
   switch (blocker) {
     case "market_data_coverage":
-      return "Market candle coverage is not far enough for this forward window. Forward Observation uses completed future candles in the selected timeframe.";
+      return "Market candle coverage is not far enough for this forward window.";
     case "time_maturity":
-      return "This snapshot is too recent for the selected forward window. Forward Observation uses completed future candles in the selected timeframe.";
+      return "Selected Scan is too recent for this forward window.";
     case "mixed":
-      return "Forward observation is blocked by a mix of time maturity and market candle coverage. Refresh after candle coverage advances.";
+      return "Validation is blocked by mixed time maturity and market candle coverage.";
     case "no_runs":
-      return "No successful stored runs are available for this timeframe.";
+      return "No successful runs are available for this timeframe.";
     case "unavailable":
-      return "Forward observation data is unavailable for the selected window.";
+      return "Validation data is unavailable for the selected window.";
     case "observable":
-      return "Forward observation rows are available for this window.";
+      return "Outcome Rows are available for this window.";
     default:
-      return "Forward observation is not ready for the selected window.";
+      return "Validation is not ready for the selected window.";
   }
 }
 

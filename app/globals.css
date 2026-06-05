@@ -111,7 +111,9 @@
 
 body:has(.screener-terminal),
 body:has(.symbol-terminal),
-body:has(.watchlist-terminal) {
+body:has(.watchlist-terminal),
+body:has(.history-terminal),
+.history-terminal {
   color-scheme: dark;
   --app-background: #080d12;
   --page-background: #080d12;
@@ -242,7 +244,9 @@ body:has(.screener-terminal),
 html:has(.symbol-terminal),
 body:has(.symbol-terminal),
 html:has(.watchlist-terminal),
-body:has(.watchlist-terminal) {
+body:has(.watchlist-terminal),
+html:has(.history-terminal),
+body:has(.history-terminal) {
   overflow-x: clip;
 }
 
@@ -250,20 +254,24 @@ body:has(.watchlist-terminal) {
   html:has(.screener-terminal),
   body:has(.screener-terminal),
   html:has(.watchlist-terminal),
-  body:has(.watchlist-terminal) {
+  body:has(.watchlist-terminal),
+  html:has(.history-terminal),
+  body:has(.history-terminal) {
     height: 100%;
     overflow: hidden;
   }
 
   body:has(.screener-terminal) > main,
-  body:has(.watchlist-terminal) > main {
+  body:has(.watchlist-terminal) > main,
+  body:has(.history-terminal) > main {
     min-height: 0;
     height: calc(100dvh - var(--app-header-height));
     overflow: hidden;
   }
 
   body:has(.screener-terminal) footer,
-  body:has(.watchlist-terminal) footer {
+  body:has(.watchlist-terminal) footer,
+  body:has(.history-terminal) footer {
     display: none;
   }
 }

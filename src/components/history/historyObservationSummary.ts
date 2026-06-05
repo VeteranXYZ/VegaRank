@@ -21,6 +21,8 @@ export type ObservationSummaryStats = {
   medianObservedChangePct: number | null;
   averageObservedChangePct: number | null;
   medianMaxDrawdownPct: number | null;
+  positiveRatePct: number | null;
+  worstMaxDrawdownPct: number | null;
 };
 
 export type ObservationGroupSummary = ObservationSummaryStats & {
@@ -226,6 +228,14 @@ function buildSummaryStats(
     medianObservedChangePct: median(observedChanges),
     averageObservedChangePct: average(observedChanges),
     medianMaxDrawdownPct: median(maxDrawdowns),
+    positiveRatePct:
+      observedChanges.length > 0
+        ? (observedChanges.filter((value) => value > 0).length /
+            observedChanges.length) *
+          100
+        : null,
+    worstMaxDrawdownPct:
+      maxDrawdowns.length > 0 ? Math.min(...maxDrawdowns) : null,
   };
 }
 

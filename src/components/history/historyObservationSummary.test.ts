@@ -54,6 +54,8 @@ describe("historyObservationSummary", () => {
     expect(summary.medianObservedChangePct).toBe(2);
     expect(summary.averageObservedChangePct).toBeCloseTo(1.3333, 4);
     expect(summary.medianMaxDrawdownPct).toBe(-4);
+    expect(summary.positiveRatePct).toBeCloseTo(66.6667, 4);
+    expect(summary.worstMaxDrawdownPct).toBe(-8);
   });
 
   it("classifies observation coverage without confidence language", () => {
@@ -223,6 +225,8 @@ describe("historyObservationSummary", () => {
     expect(summary.medianObservedChangePct).toBeNull();
     expect(summary.averageObservedChangePct).toBeNull();
     expect(summary.medianMaxDrawdownPct).toBeNull();
+    expect(summary.positiveRatePct).toBeNull();
+    expect(summary.worstMaxDrawdownPct).toBeNull();
     expect(summary.hasPartialOnlyCoverage).toBe(true);
     expect(summary.notable.largestPositiveObservedChanges).toEqual([]);
     expect(summary.notable.largestNegativeObservedChanges).toEqual([]);

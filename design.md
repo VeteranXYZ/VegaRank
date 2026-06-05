@@ -94,6 +94,10 @@ Research and Remove are system actions, not market states. Research uses blue sy
 
 Follow strict Watchlist color semantics: green means healthy, eligible, or completed; red means risk, breakdown, or invalid; yellow means warning, hot, data gap, or needs attention; gray means neutral, missing, unavailable, or not returned; blue means system action, link, selected state, or active sort. The left rail is supporting control space; the selected-symbol table remains the main object. Watchlist is desktop-first, while mobile only needs basic no-broken-layout behavior.
 
+## History Rules
+
+History is a historical validation terminal, not a light report page. Use the dark terminal system, compact command/status context, and a controlled Recent Runs rail. Outcome Rows are the primary workspace; Outcome Summary, Selected Scan, and Validation Source context should stay compact. Original Scan Rows are secondary and should be collapsed or visually reduced by default. Details, raw metadata, maturity logic, and diagnostics stay collapsed. Avoid light report cards, workflow prose, and repeated caveats.
+
 ## Copy Rules
 
 Use concise English UI copy. Prefer words like research, context, evidence, observation, state, quality, and check next.
