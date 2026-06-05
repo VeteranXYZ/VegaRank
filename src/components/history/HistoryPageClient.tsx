@@ -50,6 +50,7 @@ const historyObservationReadinessQueryName =
   "history-observation-readiness";
 const historySnapshotObservationsQueryName =
   "history-snapshot-observations";
+const historyCompactControlStyle = { fontSize: "10px", lineHeight: 1 };
 export const recentRunsPanelClassName =
   "border border-[var(--border-medium)] bg-[var(--panel)] shadow-[var(--shadow-panel)] xl:flex xl:min-h-0 xl:flex-col xl:overflow-hidden";
 export const recentRunsScrollContainerClassName =
@@ -769,6 +770,7 @@ function TimeframeSelector({
           onClick={() => onTimeframeChange(option)}
           aria-pressed={option === timeframe}
           className={formatSelectedControlClassName(option === timeframe)}
+          style={historyCompactControlStyle}
         >
           {option.toUpperCase()}
         </button>
@@ -811,7 +813,10 @@ export function RecentSuccessfulRunsPanel({
           <h2 className="text-[12px] font-semibold uppercase tracking-normal text-[var(--foreground)]">
             Recent Runs
           </h2>
-          <StatusBadge tone="accent" className="text-[10px]">
+          <StatusBadge
+            tone="accent"
+            className="h-5 justify-center !py-0 text-[10px] [line-height:1]"
+          >
             {timeframe.toUpperCase()}
           </StatusBadge>
         </div>
@@ -871,7 +876,7 @@ export function RecentSuccessfulRunsPanel({
                       <StatusBadge
                         key={badge}
                         tone={getRecentRunBadgeTone(badge)}
-                        className="px-1 text-[9px]"
+                        className="h-4 justify-center !px-1 !py-0 text-[9px] [line-height:1]"
                         title={badge}
                       >
                         {formatRecentRunBadgeLabel(badge)}
@@ -882,7 +887,6 @@ export function RecentSuccessfulRunsPanel({
                 <div className="mt-0.5 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5 text-[10px] leading-4 text-[var(--muted)]">
                   <span className="font-mono">{formatHistoryDateTime(run.finishedAt)}</span>
                   <span>{formatCount(run.symbolsScanned)} rows</span>
-                  <span>{formatCount(run.signalsCreated)} sig</span>
                   <span
                     className={
                       run.isLikelyFullUniverse === true
@@ -992,6 +996,10 @@ export function ForwardObservationSection({
 }) {
   const rows = response?.rows ?? emptyHistoricalObservationRows;
   const summary = uiState.summary;
+  const outcomeSummaryStatus = getOutcomeSummaryStatus({
+    summary,
+    uiState,
+  });
   const selectedReadiness = readiness?.selectedRun ?? null;
   const selectedReadinessRun =
     selectedRun ?? selectedReadiness?.run ?? uiState.selectedRun;
@@ -1027,18 +1035,10 @@ export function ForwardObservationSection({
             Outcome Summary
           </h2>
           <StatusBadge
-            tone={
-              uiState.status === "observation_ready"
-                ? "complete"
-                : uiState.status === "not_ready_for_selected_run" ||
-                    uiState.status === "loading_readiness" ||
-                    uiState.status === "loading_observation_rows"
-                  ? "partial"
-                  : "neutral"
-            }
-            className="text-[10px]"
+            tone={outcomeSummaryStatus.tone}
+            className="h-5 justify-center !py-0 text-[10px] [line-height:1]"
           >
-            {formatForwardObservationUiStatusLabel(uiState)}
+            {outcomeSummaryStatus.label}
           </StatusBadge>
         </div>
         <div className="flex flex-wrap gap-1 border border-[var(--border)] bg-[var(--panel-muted)] p-0.5">
@@ -1049,6 +1049,7 @@ export function ForwardObservationSection({
               onClick={() => onWindowChange(option)}
               aria-pressed={option === window}
               className={formatSelectedControlClassName(option === window)}
+              style={historyCompactControlStyle}
             >
               {option} {option === 1 ? "candle" : "candles"}
             </button>
@@ -1126,6 +1127,10 @@ function SelectedScanValidationStrip({
   window: ObservationWindow;
 }) {
   const validationWindow = summary?.window ?? window;
+  const validationWindowLabel = formatValidationWindowLabel({
+    summary,
+    window: validationWindow,
+  });
 
   return (
     <div className="grid gap-1 border border-[var(--border)] bg-[var(--panel-muted)] px-2 py-1 text-[10px] lg:grid-cols-2">
@@ -1158,7 +1163,10 @@ function SelectedScanValidationStrip({
         runId={validationRun?.runId ?? null}
         items={[
           {
-            value: formatReadinessRunStatus(validationReadiness),
+            value:
+              validationReadiness?.state === "ready"
+                ? "Source ready"
+                : formatReadinessRunStatus(validationReadiness),
             tone: validationReadiness?.state === "ready" ? "complete" : "partial",
             title: "Readiness",
           },
@@ -1171,16 +1179,37 @@ function SelectedScanValidationStrip({
             title: "Complete / partial / missing",
           },
           {
-            value: `Window ${validationWindow} ${
+            value: validationWindowLabel.label,
+            tone: validationWindowLabel.tone,
+            title: `Window ${validationWindow} ${
               validationWindow === 1 ? "candle" : "candles"
             }`,
-            tone: "accent",
-            title: "Forward window",
           },
         ]}
       />
     </div>
   );
+}
+
+function formatValidationWindowLabel({
+  summary,
+  window,
+}: {
+  summary: ForwardObservationSummary | null;
+  window: ObservationWindow;
+}): { label: string; tone: StatusTone } {
+  if (
+    summary &&
+    summary.completeCount === 0 &&
+    (summary.partialCount > 0 || summary.missingCount > 0)
+  ) {
+    return { label: "Window pending", tone: "partial" };
+  }
+
+  return {
+    label: `Window ${window} ${window === 1 ? "candle" : "candles"}`,
+    tone: "accent",
+  };
 }
 
 function HistoryContextStripLine({
@@ -1229,7 +1258,7 @@ function HistoryInlineValue({
   return (
     <span
       title={title}
-      className={`inline-flex h-5 max-w-full items-center truncate border border-l-2 bg-[var(--panel)] px-1.5 font-mono text-[10px] font-semibold leading-4 ${getHistoryStatusToneBorderClass(
+      className={`inline-flex h-5 max-w-full items-center justify-center truncate whitespace-nowrap border border-l-2 bg-[var(--panel)] px-1.5 font-mono text-[10px] font-semibold [line-height:1] ${getHistoryStatusToneBorderClass(
         tone,
       )} ${getHistoryStatusToneTextClass(tone)}`}
     >
@@ -1289,11 +1318,11 @@ function HistoryDetails({
     : "-";
 
   return (
-    <details className="shrink-0 border border-[var(--border-medium)] bg-[var(--panel-muted)]">
-      <summary className="cursor-pointer bg-[var(--table-header)] px-2 py-1.5 text-[12px] font-semibold uppercase tracking-normal text-[var(--foreground)]">
+    <details className="shrink-0 border border-[var(--border)] bg-[var(--panel-muted)]">
+      <summary className="cursor-pointer bg-[var(--table-header)] px-2 py-1 text-[11px] font-semibold uppercase tracking-normal text-[var(--foreground)]">
         Details
       </summary>
-      <div className="space-y-2 border-t border-[var(--border)] px-2 py-2">
+      <div className="space-y-1.5 border-t border-[var(--border)] px-2 py-1.5">
         <ObservationDataStatusLegend />
         <DetailLine
           label="Data path"
@@ -1497,7 +1526,7 @@ export function ObservationRowsTable({
           message="No observation rows match the current filters."
         />
       ) : (
-        <DataTableScroll className="max-h-[70vh] overflow-auto xl:min-h-0 xl:flex-1 xl:overflow-auto">
+        <DataTableScroll className="max-h-[70vh] !overflow-x-auto !overflow-y-auto xl:min-h-0 xl:flex-1">
           <DataTable minWidth="min-w-[1180px]">
             <thead className="sticky top-0 z-20 bg-[var(--table-header)] text-[10px] uppercase tracking-normal text-[var(--muted)]">
               <tr>
@@ -1618,15 +1647,10 @@ export function ObservationRowsTable({
                     {formatObservationPercent(row.maxDrawdownPct)}
                   </DataTableCell>
                   <DataTableCell>
-                    <ObservationDataStatusBadge status={row.dataStatus} />
-                    {row.missingReason ? (
-                      <span
-                        className="mt-1 block max-w-[170px] truncate text-[10px] text-[var(--muted)]"
-                        title={formatMissingReason(row.missingReason)}
-                      >
-                        {formatMissingReason(row.missingReason)}
-                      </span>
-                    ) : null}
+                    <ObservationDataStatusBadge
+                      status={row.dataStatus}
+                      missingReason={row.missingReason}
+                    />
                   </DataTableCell>
                   <DataTableCell>
                     <Link
@@ -1636,7 +1660,7 @@ export function ObservationRowsTable({
                         timeframe: row.timeframe,
                         assetClass,
                       })}
-                      className="inline-flex border border-[var(--accent-border)] bg-[var(--accent-soft)] px-2 py-1 text-[11px] font-semibold text-[var(--accent)] hover:border-[var(--accent-hover)] hover:text-[var(--accent-hover)]"
+                      className="inline-flex h-6 items-center justify-center whitespace-nowrap border border-[var(--accent-border)] bg-[var(--accent-soft)] px-2 text-[11px] font-semibold leading-none text-[var(--accent)] hover:border-[var(--accent-hover)] hover:text-[var(--accent-hover)]"
                     >
                       Research
                     </Link>
@@ -1678,6 +1702,7 @@ function ObservationRowsFilterGroup<TValue extends string>({
               onClick={() => onSelect(option.value)}
               aria-pressed={isSelected}
               className={formatObservationRowsFilterButtonClassName(isSelected)}
+              style={historyCompactControlStyle}
             >
               {option.label}
             </button>
@@ -1690,12 +1715,22 @@ function ObservationRowsFilterGroup<TValue extends string>({
 
 function ObservationDataStatusBadge({
   status,
+  missingReason,
 }: {
   status: ObservationDataStatus;
+  missingReason?: string | null;
 }) {
   return (
-    <DataTableChip tone={getObservationDataStatusChipTone(status)}>
-      {formatDataStatus(status)}
+    <DataTableChip
+      tone={getObservationDataStatusChipTone(status)}
+      className="max-w-[180px] justify-center"
+      title={
+        missingReason
+          ? `${formatDataStatus(status)}: ${formatMissingReason(missingReason)}`
+          : formatDataStatus(status)
+      }
+    >
+      {formatCompactDataStatus(status, missingReason)}
     </DataTableChip>
   );
 }
@@ -1883,7 +1918,7 @@ function getDrawdownSummaryTone(value: number | null): StatusTone {
 
 function formatSelectedControlClassName(isSelected: boolean) {
   const base =
-    "h-6 border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-normal transition focus-visible:outline-[var(--accent)]";
+    "inline-flex h-6 items-center justify-center whitespace-nowrap border px-2 py-0 text-[10px] font-semibold uppercase [line-height:1] tracking-normal transition focus-visible:outline-[var(--accent)]";
 
   return isSelected
     ? `${base} border-[var(--accent-border)] bg-[var(--accent)] text-[var(--accent-foreground)]`
@@ -2018,6 +2053,42 @@ function formatValidationStatus(uiState: ForwardObservationUiState) {
   }
 }
 
+function getOutcomeSummaryStatus({
+  summary,
+  uiState,
+}: {
+  summary: ForwardObservationSummary | null;
+  uiState: ForwardObservationUiState;
+}): { label: string; tone: StatusTone } {
+  if (uiState.status === "observation_ready") {
+    if (summary?.completeCount === 0 && summary.partialCount > 0) {
+      return { label: "Outcomes partial", tone: "partial" };
+    }
+
+    if (summary?.completeCount === 0 && summary.missingCount > 0) {
+      return { label: "Window pending", tone: "partial" };
+    }
+
+    return { label: "Source ready", tone: "complete" };
+  }
+
+  if (
+    uiState.status === "not_ready_for_selected_run" ||
+    uiState.status === "loading_readiness" ||
+    uiState.status === "loading_observation_rows"
+  ) {
+    return {
+      label: formatForwardObservationUiStatusLabel(uiState),
+      tone: "partial",
+    };
+  }
+
+  return {
+    label: formatForwardObservationUiStatusLabel(uiState),
+    tone: "neutral",
+  };
+}
+
 function ForwardObservationStatePanel({
   uiState,
   readiness,
@@ -2051,20 +2122,12 @@ function ObservationDataStatusLegend() {
   );
 }
 
-function ObservationSummarySection({
-  summary,
-  window,
-}: {
+function ObservationSummarySection({ summary }: {
   summary: ObservationSummary;
   window: ObservationWindow;
 }) {
   return (
     <section className="flex min-w-0 flex-wrap items-center gap-1 border border-[var(--border-medium)] bg-[var(--panel-data)] px-2 py-1">
-      <SummaryStripStat
-        label="Rows"
-        value={formatCount(summary.totalRows)}
-        tone="info"
-      />
       <SummaryStripStat
         label="Complete"
         value={formatCount(summary.completeCount)}
@@ -2099,11 +2162,6 @@ function ObservationSummarySection({
         )}
         tone={getDrawdownSummaryTone(summary.worstMaxDrawdownPct)}
       />
-      <SummaryStripStat
-        label="Window"
-        value={`${window} ${window === 1 ? "candle" : "candles"}`}
-        tone="accent"
-      />
     </section>
   );
 }
@@ -2119,7 +2177,7 @@ function SummaryStripStat({
 }) {
   return (
     <span
-      className={`inline-flex h-5 max-w-full items-center gap-1 border border-l-2 bg-[var(--panel-muted)] px-1.5 text-[10px] leading-4 ${getHistoryStatusToneBorderClass(
+      className={`inline-flex h-5 max-w-full items-center justify-center gap-1 whitespace-nowrap border border-l-2 bg-[var(--panel-muted)] px-1.5 text-[10px] [line-height:1] ${getHistoryStatusToneBorderClass(
         tone,
       )}`}
     >
@@ -2511,7 +2569,10 @@ export function SnapshotTable({
             Original Scan Rows
           </h2>
         </div>
-        <StatusBadge tone={isLoading ? "partial" : "accent"} className="text-[10px]">
+        <StatusBadge
+          tone={isLoading ? "partial" : "accent"}
+          className="h-5 justify-center !py-0 text-[10px] [line-height:1]"
+        >
           {isLoading ? "Refreshing" : `${rows.length} rows`}
         </StatusBadge>
       </summary>
@@ -2526,7 +2587,7 @@ export function SnapshotTable({
           message="No scan rows are available for the Selected Scan."
         />
       ) : (
-        <DataTableScroll className="max-h-72 overflow-auto">
+        <DataTableScroll className="max-h-72 !overflow-x-auto !overflow-y-auto">
           <DataTable minWidth="min-w-[1180px]">
             <thead className="sticky top-0 z-20 bg-[var(--table-header)] text-[10px] uppercase tracking-normal text-[var(--muted)]">
               <tr>
@@ -3739,6 +3800,34 @@ function formatCompactObservationSummaryPercent(
 
 function formatDataStatus(value: ObservationDataStatus) {
   return value.charAt(0).toUpperCase() + value.slice(1);
+}
+
+function formatCompactDataStatus(
+  status: ObservationDataStatus,
+  missingReason: string | null | undefined,
+) {
+  if (!missingReason) {
+    return formatDataStatus(status);
+  }
+
+  return `${formatDataStatus(status)} · ${formatCompactMissingReason(
+    missingReason,
+  )}`;
+}
+
+function formatCompactMissingReason(value: string) {
+  switch (value) {
+    case "insufficient_future_candles":
+      return "insufficient candles";
+    case "no_future_candles":
+      return "no future candles";
+    case "run_after_latest_candle":
+      return "after latest candle";
+    case "missing_anchor":
+      return "missing anchor";
+    default:
+      return "missing data";
+  }
 }
 
 function formatForwardObservationSelectionMode(

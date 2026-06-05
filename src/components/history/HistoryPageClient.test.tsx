@@ -299,6 +299,8 @@ describe("HistoryPageClient display formatting", () => {
     expect(html).toContain("COMPLETEWATCHUSDT");
     expect(html).toContain("PARTIALRISKUSDT");
     expect(html).toContain("MISSINGRISKUSDT");
+    expect(html).toContain("Partial · insufficient candles");
+    expect(html).not.toContain("mt-1 block max-w-[170px]");
     expect(html).toContain("rounded-[3px]");
   });
 
@@ -512,6 +514,7 @@ describe("HistoryPageClient display formatting", () => {
     );
 
     expect(html).toContain("Outcome Summary");
+    expect(html).toContain("Source ready");
     expect(html).toContain("Validation ready");
     expect(html).toContain("1 candle");
     expect(html).toContain("3 candles");
@@ -863,6 +866,8 @@ describe("HistoryPageClient display formatting", () => {
 
     expect(html).toContain("Outcome Summary");
     expect(html).toContain("Not enough complete rows");
+    expect(html).toContain("Outcomes partial");
+    expect(html).toContain("Window pending");
     expect(html).toContain("N/A");
     expect(html).toContain("PARTIALUPUSDT");
     expect(html).toContain("PARTIALDOWNUSDT");
