@@ -153,7 +153,7 @@ export function SymbolResearchChart({
 
   return (
     <section
-      className={`min-w-0 border border-[var(--border)] bg-[var(--panel)] shadow-[var(--shadow-panel)] ${isCompact ? "flex flex-col px-2 py-2" : "px-3 py-3"} ${className}`}
+      className={`min-w-0 border border-[var(--border)] bg-[var(--panel)] shadow-[var(--shadow-panel)] ${isCompact ? "flex min-h-0 flex-col px-2 py-2" : "px-3 py-3"} ${className}`}
     >
       <div className={`${isCompact ? "mb-2" : "mb-3"} flex flex-wrap items-start justify-between gap-2`}>
         <div>
@@ -193,10 +193,10 @@ export function SymbolResearchChart({
       {hasCandles ? (
         <div
           ref={containerRef}
-          className={`min-w-0 overflow-hidden border border-[var(--border-medium)] bg-[var(--panel-data)] ${isCompact ? "h-[390px] lg:h-[clamp(450px,60vh,640px)]" : "h-[300px] sm:h-[360px]"}`}
+          className={`min-w-0 overflow-hidden border border-[var(--border-medium)] bg-[var(--panel-data)] ${isCompact ? "h-[340px] min-h-[320px] lg:h-auto lg:min-h-[360px] lg:flex-1" : "h-[300px] sm:h-[360px]"}`}
         />
       ) : (
-        <div className={`flex items-center justify-center border border-[var(--border-medium)] bg-[var(--panel-data)] px-4 text-center text-sm text-[var(--muted)] ${isCompact ? "h-[390px] lg:h-[clamp(450px,60vh,640px)]" : "h-[260px]"}`}>
+        <div className={`flex items-center justify-center border border-[var(--border-medium)] bg-[var(--panel-data)] px-4 text-center text-sm text-[var(--muted)] ${isCompact ? "h-[340px] min-h-[320px] lg:h-auto lg:min-h-[360px] lg:flex-1" : "h-[260px]"}`}>
           {emptyMessage}
         </div>
       )}

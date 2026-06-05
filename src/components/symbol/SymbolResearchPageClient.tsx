@@ -289,7 +289,7 @@ const defaultTimeframe = DEFAULT_SYMBOL_RESEARCH_TIMEFRAME;
 const symbolResearchTimeframes = ["4h", "1d", "1w", "1h"] as const;
 const symbolResearchMarketContextAssetClass = "crypto";
 const symbolResearchMainClass =
-  "symbol-terminal w-full max-w-none bg-[var(--workspace-background)] px-1.5 py-1.5 text-[var(--foreground)] sm:px-2";
+  "symbol-terminal flex h-full min-h-0 w-full max-w-none flex-col overflow-hidden bg-[var(--workspace-background)] px-1.5 py-1.5 text-[var(--foreground)] sm:px-2";
 
 type SymbolTerminalTone =
   | "accent"
@@ -836,7 +836,7 @@ export function SymbolResearchPageClient({
 
   return (
     <main className={symbolResearchMainClass}>
-      <div className="lg:sticky lg:top-[var(--app-header-height)] lg:z-30 lg:-mx-1.5 lg:bg-[var(--workspace-background)] lg:px-1.5 lg:pb-1">
+      <div className="shrink-0 lg:-mx-1.5 lg:bg-[var(--workspace-background)] lg:px-1.5 lg:pb-1">
         <SymbolResearchNavigation
           key={data.symbol.symbol}
           exchange={exchange}
@@ -877,18 +877,19 @@ export function SymbolResearchPageClient({
         />
       </div>
 
-      <section className="grid min-w-0 items-start gap-2 lg:grid-cols-[minmax(0,1.44fr)_minmax(300px,0.7fr)_minmax(292px,0.58fr)]">
-        <div className="flex min-w-0 flex-col gap-2">
+      <section className="grid min-h-0 min-w-0 flex-1 gap-2 overflow-hidden lg:grid-cols-[minmax(0,1.32fr)_minmax(300px,0.68fr)_minmax(292px,0.58fr)]">
+        <div className="flex min-h-0 min-w-0 flex-col gap-2 overflow-hidden">
           <MtfContextStrip
             snapshots={timeframeSnapshots}
             selectedTimeframe={selectedTimeframe}
+            className="shrink-0"
           />
           <SymbolResearchChart
             symbol={data.symbol.symbol}
             timeframe={selectedTimeframe}
             candles={candles.rows}
             candleCount={candles.count}
-            className="min-h-0"
+            className="min-h-0 flex-1"
             density="compact"
             latestSignal={{
               candleOpenTime: latestSignal.candleOpenTime,
@@ -898,22 +899,24 @@ export function SymbolResearchPageClient({
           />
         </div>
 
-        <div className="grid min-w-0 content-start gap-2">
-          <WhyThisStatePanel
-            positiveEvidence={evidence.positive}
-            risksAndLimits={evidence.risks}
-            scoreBreakdown={scoreBreakdown}
-          />
-          <NextChecksPanel items={nextCheckItems} />
-          <HistoricalEvidenceSummaryPanel
-            behavior={data.behavior}
-            evaluation={historicalFollowThroughEvaluation}
-            sampleQuality={behaviorSampleQuality}
-            signalEvaluationReadout={signalEvaluationReadout}
-          />
+        <div className="min-h-0 min-w-0 overflow-y-auto overscroll-contain pr-1">
+          <div className="grid min-w-0 content-start gap-2">
+            <WhyThisStatePanel
+              positiveEvidence={evidence.positive}
+              risksAndLimits={evidence.risks}
+              scoreBreakdown={scoreBreakdown}
+            />
+            <NextChecksPanel items={nextCheckItems} />
+            <HistoricalEvidenceSummaryPanel
+              behavior={data.behavior}
+              evaluation={historicalFollowThroughEvaluation}
+              sampleQuality={behaviorSampleQuality}
+              signalEvaluationReadout={signalEvaluationReadout}
+            />
+          </div>
         </div>
 
-        <aside className="grid min-w-0 content-start gap-2">
+        <aside className="grid min-h-0 min-w-0 content-start gap-2 overflow-y-auto overscroll-contain pr-1">
           <MarketContextPanel
             variant="compact"
             data={marketContextData}
@@ -1983,6 +1986,7 @@ function NextChecksPanel({ items }: { items: string[] }) {
 function MtfContextStrip({
   snapshots,
   selectedTimeframe,
+  className = "",
 }: {
   snapshots: Array<{
     timeframe?: string | null;
@@ -1990,11 +1994,12 @@ function MtfContextStrip({
     rankScore?: number | null;
   }>;
   selectedTimeframe: string;
+  className?: string;
 }) {
   const orderedSnapshots = orderTimeframeSnapshots(snapshots);
 
   return (
-    <WorkspacePanel title="MTF" className="px-2 py-2">
+    <WorkspacePanel title="MTF" className={`px-2 py-2 ${className}`}>
       {orderedSnapshots.length > 0 ? (
         <div className="flex min-w-0 flex-wrap gap-1">
           {orderedSnapshots.map((snapshot) => {

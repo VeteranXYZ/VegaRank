@@ -209,16 +209,26 @@ describe("latest scan summary helpers", () => {
 });
 
 describe("LatestScanPageClient layout", () => {
-  it("renders compact terminal strips and visible interpretation key", () => {
+  it("renders compact terminal strips, utility actions, and one sortable result table", () => {
     const html = renderLatestScanVisualPage();
 
     expect(html).toContain("terminal-command-band");
     expect(html).toContain("Run Summary");
     expect(html).toContain("Group Counts");
-    expect(html).toContain("Interpretation Key");
+    expect(html).toContain("Latest Scan Rows");
+    expect(html).toContain("Copy symbols");
+    expect(html).toContain("Export CSV");
+    expect(html).toContain('data-sort-key="symbol"');
+    expect(html).toContain('data-sort-key="rank"');
+    expect(html).toContain('data-sort-key="signal"');
+    expect(html).toContain('data-sort-key="action"');
+    expect(html).toContain('data-sort-key="setup"');
+    expect(html).toContain('data-sort-key="quality"');
+    expect(html).toContain('data-sort-key="price"');
     expect(html).toContain("Universe");
     expect(html).toContain("Low-quality");
     expect(html).toContain("Finished");
+    expect(html).not.toContain("Interpretation Key");
     expect(html).not.toContain("Latest Scan Summary");
     expect(html).not.toContain("Full Universe Size");
     expect(html).not.toContain("<details");

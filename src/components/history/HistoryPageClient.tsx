@@ -430,6 +430,9 @@ export function HistoryPageClient({
   );
   const [refreshingTimeframe, setRefreshingTimeframe] =
     useState<HistoryTimeframe | null>(null);
+  const [requestedSnapshotRunId, setRequestedSnapshotRunId] = useState<
+    string | null
+  >(null);
   const snapshotsQuery = useQuery({
     queryKey: buildHistorySnapshotsQueryKey({ timeframe, assetClass }),
     queryFn: ({ signal }) =>
@@ -444,6 +447,9 @@ export function HistoryPageClient({
     manualSelectedRunId && snapshots.some((run) => run.runId === manualSelectedRunId)
       ? manualSelectedRunId
       : snapshots[0]?.runId ?? null;
+  const shouldLoadSnapshotRows =
+    isVisualCheck ||
+    (selectedRunId !== null && requestedSnapshotRunId === selectedRunId);
   const visualSnapshotData =
     selectedRunId && visualCheckData
       ? visualCheckData.snapshotsByRunId[selectedRunId] ?? null
@@ -457,7 +463,7 @@ export function HistoryPageClient({
         assetClass,
         signal,
       }),
-    enabled: selectedRunId !== null && !isVisualCheck,
+    enabled: selectedRunId !== null && shouldLoadSnapshotRows && !isVisualCheck,
     staleTime: 60_000,
   });
   const snapshotData = visualSnapshotData ?? snapshotQuery.data ?? null;
@@ -538,7 +544,6 @@ export function HistoryPageClient({
     fallbackWindow: observationWindow,
   });
   const rows = snapshotData?.rows ?? [];
-  const selectedRun = snapshotData?.run ?? null;
 
   const refreshData = () => {
     if (isVisualCheck) {
@@ -560,7 +565,11 @@ export function HistoryPageClient({
     setRefreshingTimeframe(activeTimeframe);
 
     if (selectedRunId !== null) {
-      blockingRefreshes.push(snapshotQuery.refetch(), readinessQuery.refetch());
+      if (shouldLoadSnapshotRows) {
+        blockingRefreshes.push(snapshotQuery.refetch());
+      }
+
+      blockingRefreshes.push(readinessQuery.refetch());
     }
 
     if (refreshScope.backgroundQueryKeys.length > 0) {
@@ -580,11 +589,14 @@ export function HistoryPageClient({
     refreshingTimeframe,
     timeframe,
   });
+  const selectedRunFromList =
+    snapshots.find((run) => run.runId === selectedRunId) ?? null;
   const commandRows =
     forwardObservationUiState.summary?.totalRows ??
     snapshotData?.metadata.rowCount ??
-    selectedRun?.signalsCreated ??
+    selectedRunFromList?.signalsCreated ??
     rows.length;
+  const selectedRun = snapshotData?.run ?? selectedRunFromList;
 
   return (
     <PageShell className="history-terminal max-w-none xl:h-full xl:min-h-0 xl:overflow-hidden">
@@ -629,18 +641,35 @@ export function HistoryPageClient({
             uiState={forwardObservationUiState}
             selectedRun={selectedRun}
             snapshotError={
-              !isVisualCheck && snapshotQuery.isError
+              shouldLoadSnapshotRows && !isVisualCheck && snapshotQuery.isError
                 ? formatQueryError(snapshotQuery.error)
                 : null
             }
             snapshotIsLoading={
-              !isVisualCheck && snapshotQuery.isLoading && selectedRunId !== null
+              shouldLoadSnapshotRows &&
+              !isVisualCheck &&
+              snapshotQuery.isLoading &&
+              selectedRunId !== null
             }
           />
 
           <SnapshotTable
             rows={rows}
+            selectedRunId={selectedRunId}
+            rowCountEstimate={selectedRun?.signalsCreated ?? null}
+            isRequested={shouldLoadSnapshotRows}
             isLoading={!isVisualCheck && snapshotQuery.isFetching}
+            isError={!isVisualCheck && snapshotQuery.isError}
+            errorMessage={
+              !isVisualCheck && snapshotQuery.isError
+                ? formatQueryError(snapshotQuery.error)
+                : null
+            }
+            onRequestLoad={() => {
+              if (selectedRunId) {
+                setRequestedSnapshotRunId(selectedRunId);
+              }
+            }}
           />
         </main>
       </div>
@@ -2544,13 +2573,26 @@ function formatCoverageLag(readinessRun: HistoricalObservationReadinessRun) {
 
 export function SnapshotTable({
   rows,
+  selectedRunId,
+  rowCountEstimate,
+  isRequested,
   isLoading,
+  isError = false,
+  errorMessage = null,
+  onRequestLoad,
   initialSortState = null,
 }: {
   rows: HistoricalSnapshotRow[];
+  selectedRunId?: string | null;
+  rowCountEstimate?: number | null;
+  isRequested?: boolean;
   isLoading: boolean;
+  isError?: boolean;
+  errorMessage?: string | null;
+  onRequestLoad?: () => void;
   initialSortState?: DataSortState<SnapshotRowsSortKey> | null;
 }) {
+  const requested = isRequested ?? true;
   const [sortState, setSortState] =
     useState<DataSortState<SnapshotRowsSortKey> | null>(initialSortState);
   const indexedRows = useMemo(
@@ -2569,9 +2611,23 @@ export function SnapshotTable({
       getNextDataSortState({ current, key, defaultDirection }),
     );
   };
+  const rowStatusLabel = getSnapshotRowsStatusLabel({
+    requested,
+    isLoading,
+    isError,
+    rowCount: rows.length,
+    rowCountEstimate,
+  });
 
   return (
-    <details className="shrink-0 overflow-hidden border border-[var(--border-medium)] bg-[var(--panel-data)] shadow-[var(--shadow-panel)]">
+    <details
+      className="shrink-0 overflow-hidden border border-[var(--border-medium)] bg-[var(--panel-data)] shadow-[var(--shadow-panel)]"
+      onToggle={(event) => {
+        if (event.currentTarget.open && !requested) {
+          onRequestLoad?.();
+        }
+      }}
+    >
       <summary className="flex min-h-7 cursor-pointer list-none flex-wrap items-center justify-between gap-2 bg-[var(--table-header)] px-2 py-1 marker:hidden">
         <div className="flex min-w-0 items-center gap-2">
           <h2 className="text-[12px] font-semibold uppercase tracking-normal text-[var(--foreground)]">
@@ -2579,10 +2635,18 @@ export function SnapshotTable({
           </h2>
         </div>
         <StatusBadge
-          tone={isLoading ? "partial" : "accent"}
+          tone={
+            isError
+              ? "risk"
+              : isLoading
+                ? "partial"
+                : requested
+                  ? "accent"
+                  : "missing"
+          }
           className="h-5 justify-center !py-0 text-[10px] [line-height:1]"
         >
-          {isLoading ? "Refreshing" : `${rows.length} rows`}
+          {rowStatusLabel}
         </StatusBadge>
       </summary>
       <div className="border-t border-[var(--border)] px-2 py-2">
@@ -2590,7 +2654,28 @@ export function SnapshotTable({
           Original scanner output from Selected Scan. Research opens current
           symbol view, not historical replay.
         </p>
-      {rows.length === 0 ? (
+      {!requested ? (
+        <div className="border border-[var(--border)] bg-[var(--panel-muted)] px-3 py-3">
+          <p className="text-[12px] leading-5 text-[var(--muted)]">
+            Rows are loaded on demand to keep the initial History page light.
+            {selectedRunId ? ` Selected run ${shortRunId(selectedRunId)}.` : ""}
+          </p>
+          <button
+            type="button"
+            onClick={onRequestLoad}
+            className="mt-2 inline-flex h-7 items-center justify-center border border-[var(--accent-border)] bg-[var(--accent-soft)] px-2 text-[11px] font-semibold text-[var(--accent)] hover:border-[var(--accent-hover)] hover:text-[var(--accent-hover)]"
+          >
+            Load Original Rows
+          </button>
+        </div>
+      ) : isError ? (
+        <StatePanel
+          title="Original rows unavailable"
+          message={errorMessage ?? "Original scan rows could not be loaded."}
+        />
+      ) : isLoading && rows.length === 0 ? (
+        <StatePanel title="Loading rows" message="Loading original scan rows." />
+      ) : rows.length === 0 ? (
         <StatePanel
           title="No rows"
           message="No scan rows are available for the Selected Scan."
@@ -2729,6 +2814,36 @@ export function SnapshotTable({
       </div>
     </details>
   );
+}
+
+function getSnapshotRowsStatusLabel({
+  requested,
+  isLoading,
+  isError,
+  rowCount,
+  rowCountEstimate,
+}: {
+  requested: boolean;
+  isLoading: boolean;
+  isError: boolean;
+  rowCount: number;
+  rowCountEstimate?: number | null;
+}) {
+  if (isError) {
+    return "Error";
+  }
+
+  if (isLoading) {
+    return "Loading";
+  }
+
+  if (!requested) {
+    return rowCountEstimate
+      ? `${formatCount(rowCountEstimate)} rows available`
+      : "Load on open";
+  }
+
+  return `${formatCount(rowCount)} rows`;
 }
 
 function getSnapshotRowsSortValue(

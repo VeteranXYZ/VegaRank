@@ -11,18 +11,23 @@ import {
   DataTableScroll,
   type ChipTone,
 } from "@/components/table/DataTable";
+import {
+  getNextDataSortState,
+  sortDataRows,
+  type DataSortDirection,
+  type DataSortState,
+  type DataSortValue,
+} from "@/components/table/dataTableSorting";
 import { PageShell, StatusBadge, type StatusTone } from "@/components/ui/workspace";
 import { formatDisplayDateTime } from "@/lib/utils/format";
 import {
   formatDateTime,
-  formatGroupHint,
   formatGroupLabel,
   formatPrice,
   formatQualityTier,
   formatScore,
   formatSignalLabel,
   getDetectedRiskTypeLabels,
-  getLatestScanGroupCount,
   getLatestScanGroupSummaryChips,
   getLatestScanScoreRows,
   getLatestScanActionDisplay,
@@ -192,6 +197,18 @@ const assetClassOptions: LatestScanAssetClass[] = [
 const timeframeOptions: LatestScanTimeframe[] = ["4h", "1h", "1d", "1w"];
 const limitOptions: LatestScanLimit[] = [100, 200, 300, 500];
 const latestScanTableColumnCount = 9;
+type LatestScanSortKey =
+  | "symbol"
+  | "rank"
+  | "signal"
+  | "action"
+  | "setup"
+  | "quality"
+  | "price";
+type LatestScanTableRow = {
+  item: LatestScanItem;
+  sourceIndex: number;
+};
 type LatestScanTerminalTone =
   | "accent"
   | "complete"
@@ -223,6 +240,12 @@ export function LatestScanPageClient({
   const [includeLowQuality, setIncludeLowQuality] = useState(
     initialFilters.includeLowQuality,
   );
+  const [tableSort, setTableSort] =
+    useState<DataSortState<LatestScanSortKey> | null>({
+      key: "rank",
+      direction: "desc",
+    });
+  const [utilityMessage, setUtilityMessage] = useState<string | null>(null);
   const latestScanQuery = useQuery({
     queryKey: ["latest-scan", timeframe, assetClass, limit, includeLowQuality],
     queryFn: ({ signal }) =>
@@ -238,13 +261,62 @@ export function LatestScanPageClient({
     retry: false,
   });
   const data = visualCheckData ?? latestScanQuery.data ?? null;
-  const groupSections = useMemo(() => buildGroupSections(data), [data]);
+  const tableRows = useMemo(() => buildLatestScanTableRows(data), [data]);
+  const visibleRows = useMemo(
+    () => sortDataRows(tableRows, tableSort, getLatestScanSortValue),
+    [tableRows, tableSort],
+  );
+  const visibleItems = useMemo(
+    () => visibleRows.map((row) => row.item),
+    [visibleRows],
+  );
   const finishedAt = data?.run?.finishedAt ?? data?.run?.startedAt ?? null;
   const totalSignals = data?.summary?.totalSignals ?? 0;
   const returnedItems = data?.summary?.returnedItems ?? data?.count ?? 0;
   const lowQualityExcluded = data?.summary?.lowQualityExcluded ?? 0;
   const hasUnavailableData = !isVisualCheck && latestScanQuery.isError;
   const isLoading = !isVisualCheck && latestScanQuery.isLoading;
+  const updateTableSort = (
+    key: LatestScanSortKey,
+    defaultDirection: DataSortDirection,
+  ) => {
+    setTableSort((current) =>
+      getNextDataSortState({ current, key, defaultDirection }),
+    );
+  };
+  const copyVisibleSymbols = async () => {
+    const symbols = visibleItems.map((item) => item.symbol).join("\n");
+
+    if (!symbols) {
+      setUtilityMessage("No symbols to copy.");
+      return;
+    }
+
+    try {
+      await navigator.clipboard.writeText(symbols);
+      setUtilityMessage(`${visibleItems.length} symbols copied.`);
+    } catch {
+      setUtilityMessage("Copy unavailable in this browser.");
+    }
+  };
+  const downloadVisibleCsv = () => {
+    if (visibleItems.length === 0) {
+      setUtilityMessage("No rows to export.");
+      return;
+    }
+
+    const blob = new Blob([formatLatestScanCsv(visibleItems)], {
+      type: "text/csv;charset=utf-8",
+    });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+
+    link.href = url;
+    link.download = `scanner-${timeframe}-${assetClass}.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
+    setUtilityMessage(`${visibleItems.length} rows exported.`);
+  };
 
   return (
     <PageShell className="scanner-terminal max-w-none overflow-x-hidden xl:h-full xl:min-h-0 xl:overflow-hidden">
@@ -275,6 +347,10 @@ export function LatestScanPageClient({
           onAssetClassChange={setAssetClass}
           onLimitChange={setLimit}
           onIncludeLowQualityChange={setIncludeLowQuality}
+          visibleItemCount={visibleItems.length}
+          utilityMessage={utilityMessage}
+          onCopySymbols={() => void copyVisibleSymbols()}
+          onDownloadCsv={downloadVisibleCsv}
         />
 
         <main className="min-h-0 min-w-0 space-y-1.5 xl:flex xl:flex-col xl:overflow-hidden">
@@ -308,20 +384,15 @@ export function LatestScanPageClient({
               message="No signals matched the current latest-scan filters."
             />
           ) : (
-            <div className="min-h-0 space-y-2 xl:flex-1 xl:overflow-y-auto xl:overscroll-contain">
-              {groupSections.map((section) => (
-                <LatestScanGroupSection
-                  key={section.group}
-                  group={section.group}
-                  items={section.items}
-                  summaryCount={section.summaryCount}
-                  timeframe={timeframe}
-                  assetClass={assetClass}
-                  includeLowQuality={includeLowQuality}
-                  limit={limit}
-                />
-              ))}
-            </div>
+            <LatestScanResultsTable
+              rows={visibleRows}
+              sortState={tableSort}
+              onSortChange={updateTableSort}
+              timeframe={timeframe}
+              assetClass={assetClass}
+              includeLowQuality={includeLowQuality}
+              limit={limit}
+            />
           )}
         </main>
       </div>
@@ -445,6 +516,10 @@ function LatestScanControls({
   onAssetClassChange,
   onLimitChange,
   onIncludeLowQualityChange,
+  visibleItemCount,
+  utilityMessage,
+  onCopySymbols,
+  onDownloadCsv,
 }: {
   timeframe: LatestScanTimeframe;
   assetClass: LatestScanAssetClass;
@@ -454,6 +529,10 @@ function LatestScanControls({
   onAssetClassChange: (value: LatestScanAssetClass) => void;
   onLimitChange: (value: LatestScanLimit) => void;
   onIncludeLowQualityChange: (value: boolean) => void;
+  visibleItemCount: number;
+  utilityMessage: string | null;
+  onCopySymbols: () => void;
+  onDownloadCsv: () => void;
 }) {
   return (
     <aside className="border border-[var(--border-medium)] bg-[var(--panel)] p-2 shadow-[var(--shadow-panel)] xl:h-full xl:min-h-0 xl:overflow-y-auto">
@@ -536,8 +615,35 @@ function LatestScanControls({
           </label>
         </ControlSection>
 
-        <ControlSection title="Key">
-          <GroupHintList />
+        <ControlSection title="Actions">
+          <div className="grid gap-1.5">
+            <button
+              type="button"
+              onClick={onCopySymbols}
+              className={controlButtonClass}
+            >
+              Copy symbols
+            </button>
+            <button
+              type="button"
+              onClick={onDownloadCsv}
+              className={controlButtonClass}
+            >
+              Export CSV
+            </button>
+            <Link href="/screener" className={controlLinkClass}>
+              Open Screener
+            </Link>
+            <Link href="/watchlist" className={controlLinkClass}>
+              Open Watchlist
+            </Link>
+            <Link href="/history" className={controlLinkClass}>
+              Open History
+            </Link>
+          </div>
+          <p className="mt-1 text-[10px] leading-4 text-[var(--muted-2)]">
+            {utilityMessage ?? `${formatInteger(visibleItemCount)} sorted rows ready.`}
+          </p>
         </ControlSection>
       </div>
     </aside>
@@ -643,72 +749,105 @@ function LatestScanGroupSummary({ summary }: { summary: LatestScanSummary }) {
   );
 }
 
-function LatestScanGroupSection({
-  group,
-  items,
-  summaryCount,
+function LatestScanResultsTable({
+  rows,
+  sortState,
+  onSortChange,
   timeframe,
   assetClass,
   includeLowQuality,
   limit,
 }: {
-  group: LatestScanGroupKey;
-  items: LatestScanItem[];
-  summaryCount: number;
+  rows: LatestScanTableRow[];
+  sortState: DataSortState<LatestScanSortKey> | null;
+  onSortChange: (
+    key: LatestScanSortKey,
+    defaultDirection: DataSortDirection,
+  ) => void;
   timeframe: LatestScanTimeframe;
   assetClass: LatestScanAssetClass;
   includeLowQuality: boolean;
   limit: LatestScanLimit;
 }) {
   const [expandedItemId, setExpandedItemId] = useState<string | null>(null);
-  const hasLimitedHiddenItems = items.length === 0 && summaryCount > 0;
-
-  if (items.length === 0 && group === "insufficient_history" && summaryCount === 0) {
-    return null;
-  }
 
   return (
-    <section className={`border border-l-2 border-[var(--border-medium)] bg-[var(--panel)] shadow-[var(--shadow-panel)] ${getLatestScanGroupBorderClass(group)}`}>
-      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[var(--border)] px-2 py-1.5">
+    <section className="min-h-0 overflow-hidden border border-[var(--border-medium)] bg-[var(--panel)] shadow-[var(--shadow-panel)] xl:flex xl:flex-1 xl:flex-col">
+      <div className="flex min-h-7 flex-wrap items-center justify-between gap-2 border-b border-[var(--border)] bg-[var(--table-header)] px-2 py-1">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-1.5">
-            <StatusBadge tone={getLatestScanGroupTone(group)} className="text-[10px]">
-              {formatGroupLabel(group)}
+            <h2 className="text-[12px] font-semibold uppercase tracking-normal text-[var(--foreground)]">
+              Latest Scan Rows
+            </h2>
+            <StatusBadge tone="accent" className="text-[10px]">
+              {formatInteger(rows.length)} rows
             </StatusBadge>
-            <span className="text-[11px] font-semibold text-[var(--muted)]">
-              {summaryCount > items.length
-                ? `${formatInteger(items.length)} shown / ${formatInteger(summaryCount)}`
-                : formatInteger(items.length)}
-            </span>
           </div>
-          <p className="mt-1 text-[10px] leading-4 text-[var(--muted)]">
-            {formatGroupHint(group)}
-          </p>
         </div>
       </div>
 
-      {items.length === 0 ? (
-        <div className="px-3 py-4 text-[12px] text-[var(--muted)]">
-          {hasLimitedHiddenItems
-            ? "Not shown in the current limited view. Increase API Limit to include this group."
-            : "No results in this group."}
-        </div>
-      ) : (
-        <DataTableScroll>
-          <DataTable minWidth="min-w-[900px]" className="table-fixed">
+      <DataTableScroll className="!overflow-x-auto !overflow-y-auto xl:min-h-0 xl:flex-1">
+        <DataTable minWidth="min-w-[900px]" className="table-fixed">
             <thead>
               <tr>
-                <DataTableHeaderCell className="w-[96px]">Symbol</DataTableHeaderCell>
-                <DataTableHeaderCell className="w-[72px]" align="right">
+                <DataTableHeaderCell
+                  sortKey="symbol"
+                  sortState={sortState}
+                  onSortChange={onSortChange}
+                  className="w-[96px]"
+                >
+                  Symbol
+                </DataTableHeaderCell>
+                <DataTableHeaderCell
+                  sortKey="rank"
+                  sortState={sortState}
+                  defaultDirection="desc"
+                  onSortChange={onSortChange}
+                  className="w-[72px]"
+                  align="right"
+                >
                   Rank
                 </DataTableHeaderCell>
-                <DataTableHeaderCell className="w-[126px]">Signal</DataTableHeaderCell>
-                <DataTableHeaderCell className="w-[126px]">Action</DataTableHeaderCell>
-                <DataTableHeaderCell className="w-[138px]">
+                <DataTableHeaderCell
+                  sortKey="signal"
+                  sortState={sortState}
+                  onSortChange={onSortChange}
+                  className="w-[126px]"
+                >
+                  Signal
+                </DataTableHeaderCell>
+                <DataTableHeaderCell
+                  sortKey="action"
+                  sortState={sortState}
+                  onSortChange={onSortChange}
+                  className="w-[126px]"
+                >
+                  Action
+                </DataTableHeaderCell>
+                <DataTableHeaderCell
+                  sortKey="setup"
+                  sortState={sortState}
+                  onSortChange={onSortChange}
+                  className="w-[138px]"
+                >
                   Setup Type
                 </DataTableHeaderCell>
-                <DataTableHeaderCell className="w-[128px]">Quality</DataTableHeaderCell>
-                <DataTableHeaderCell className="w-[104px]" align="right">
+                <DataTableHeaderCell
+                  sortKey="quality"
+                  sortState={sortState}
+                  onSortChange={onSortChange}
+                  className="w-[128px]"
+                >
+                  Quality
+                </DataTableHeaderCell>
+                <DataTableHeaderCell
+                  sortKey="price"
+                  sortState={sortState}
+                  defaultDirection="desc"
+                  onSortChange={onSortChange}
+                  className="w-[104px]"
+                  align="right"
+                >
                   Price
                 </DataTableHeaderCell>
                 <DataTableHeaderCell className="w-[154px]">
@@ -718,7 +857,7 @@ function LatestScanGroupSection({
               </tr>
             </thead>
             <tbody>
-              {items.map((item) => {
+              {rows.map(({ item }) => {
                 const isExpanded = expandedItemId === item.id;
 
                 return (
@@ -739,9 +878,8 @@ function LatestScanGroupSection({
                 );
               })}
             </tbody>
-          </DataTable>
-        </DataTableScroll>
-      )}
+        </DataTable>
+      </DataTableScroll>
     </section>
   );
 }
@@ -795,9 +933,17 @@ function LatestScanRow({
         {formatScore(item.rankScore)}
       </DataTableCell>
       <DataTableCell>
-        <DataTableChip tone={groupTone} title={formatSignalLabel(item.signalLabel)}>
-          {formatSignalLabel(item.signalLabel)}
-        </DataTableChip>
+        <div className="flex min-w-0 flex-col gap-1">
+          <DataTableChip tone={groupTone} title={formatGroupLabel(group)}>
+            {formatGroupLabel(group)}
+          </DataTableChip>
+          <span
+            className="truncate text-[10px] font-semibold text-[var(--muted)]"
+            title={formatSignalLabel(item.signalLabel)}
+          >
+            {formatSignalLabel(item.signalLabel)}
+          </span>
+        </div>
       </DataTableCell>
       <DataTableCell>
         <DataTableChip tone={groupTone} title={getLatestScanActionDisplay(item)}>
@@ -918,28 +1064,6 @@ function ScoreBreakdown({ item }: { item: LatestScanItem }) {
   );
 }
 
-function GroupHintList() {
-  return (
-    <dl className="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-[10px] leading-none">
-      <div className="font-semibold uppercase text-[var(--muted)]">
-        <dt className="inline">Interpretation Key</dt>
-      </div>
-      {latestScanGroupOrder.map((group) => (
-        <div key={group} className="inline-flex min-w-0 items-center gap-1">
-          <dt className="inline">
-            <StatusBadge tone={getLatestScanGroupTone(group)} className="mr-1 text-[9px]">
-              {formatGroupLabel(group)}
-            </StatusBadge>
-          </dt>
-          <dd className="inline text-[var(--muted-2)]">
-            {formatGroupKeySummary(group)}
-          </dd>
-        </div>
-      ))}
-    </dl>
-  );
-}
-
 function CompactMetric({ label, value }: { label: string; value: string }) {
   return (
     <span className="terminal-command-chip">
@@ -1030,26 +1154,35 @@ function TextList({ values }: { values: string[] }) {
   );
 }
 
-function buildGroupSections(data: LatestScanResponse | null) {
+function buildLatestScanTableRows(data: LatestScanResponse | null) {
   const groups = data?.groups ?? {};
-  const summary = data?.summary ?? null;
+  const rows: LatestScanTableRow[] = [];
+  const seen = new Set<string>();
 
-  return latestScanGroupOrder
-    .map((group) => {
-      const summaryCount = getLatestScanGroupCount(summary, group);
+  latestScanGroupOrder.forEach((group) => {
+    getGroupItems(groups, group).forEach((item) => {
+      const key = item.id || `${item.symbol}-${item.timeframe}-${item.scanRunId}`;
 
-      return {
-        group,
-        summaryCount,
-        items: getGroupItems(groups, group),
-      };
-    })
-    .filter(
-      (section) =>
-        section.items.length > 0 ||
-        section.summaryCount > 0 ||
-        section.group !== "insufficient_history",
-    );
+      if (seen.has(key)) {
+        return;
+      }
+
+      seen.add(key);
+      rows.push({ item, sourceIndex: rows.length });
+    });
+  });
+
+  if (rows.length > 0) {
+    return rows;
+  }
+
+  return (data?.items ?? []).map((item, sourceIndex) => ({
+    item: {
+      ...item,
+      resultGroup: normalizeGroupKey(item.resultGroup),
+    },
+    sourceIndex,
+  }));
 }
 
 function getGroupItems(groups: LatestScanGroups, group: LatestScanGroupKey) {
@@ -1062,6 +1195,89 @@ function getGroupItems(groups: LatestScanGroups, group: LatestScanGroupKey) {
     ...item,
     resultGroup: normalizeGroupKey(item.resultGroup ?? group),
   }));
+}
+
+function getLatestScanSortValue(
+  row: LatestScanTableRow,
+  key: LatestScanSortKey,
+): DataSortValue {
+  const { item } = row;
+
+  switch (key) {
+    case "symbol":
+      return item.symbol;
+    case "rank":
+      return item.rankScore;
+    case "signal":
+      return `${getLatestScanGroupSortRank(
+        normalizeGroupKey(item.resultGroup),
+      )}-${formatSignalLabel(item.signalLabel)}`;
+    case "action":
+      return getLatestScanActionDisplay(item);
+    case "setup":
+      return formatStructure(item.primaryStructure);
+    case "quality":
+      return `${getLatestScanQualitySortRank(item)}-${formatQualityTier(
+        item.qualityTier,
+      )}`;
+    case "price":
+      return item.priceAtSignal;
+  }
+}
+
+function getLatestScanGroupSortRank(group: LatestScanGroupKey) {
+  const index = latestScanGroupOrder.indexOf(group);
+
+  return index === -1 ? latestScanGroupOrder.length : index;
+}
+
+function getLatestScanQualitySortRank(item: LatestScanItem) {
+  if (item.isLowQuality) {
+    return 2;
+  }
+
+  const tier = item.qualityTier?.trim().toLowerCase() ?? "";
+
+  if (tier.includes("high")) {
+    return 0;
+  }
+
+  if (tier.includes("medium") || tier.includes("standard")) {
+    return 1;
+  }
+
+  return 1;
+}
+
+function formatLatestScanCsv(items: LatestScanItem[]) {
+  const headers = [
+    "Symbol",
+    "Rank",
+    "Signal",
+    "Action",
+    "Setup Type",
+    "Quality",
+    "Price",
+    "Candle Time",
+  ];
+  const rows = items.map((item) => [
+    item.symbol,
+    formatScore(item.rankScore),
+    formatSignalLabel(item.signalLabel),
+    getLatestScanActionDisplay(item),
+    formatStructure(item.primaryStructure),
+    formatQualityTier(item.qualityTier),
+    formatPrice(item.priceAtSignal),
+    formatDateTime(item.candleOpenTime),
+  ]);
+
+  return [headers, ...rows]
+    .map((row) => row.map(formatCsvCell).join(","))
+    .join("\n");
+}
+
+function formatCsvCell(value: string) {
+  return `"${value.replaceAll("\"", "\"\"")}"`;
 }
 
 async function fetchLatestScan({
@@ -1387,6 +1603,10 @@ function pickRawMetrics(metrics: Record<string, unknown> | undefined) {
 
 const controlClass =
   "h-7 w-full border border-[var(--border-medium)] bg-[var(--control)] px-2 text-[11px] text-[var(--foreground)]";
+const controlButtonClass =
+  "h-7 w-full border border-[var(--accent-border)] bg-[var(--accent-soft)] px-2 text-left text-[11px] font-semibold text-[var(--accent)] transition hover:border-[var(--accent-hover)] hover:text-[var(--accent-hover)]";
+const controlLinkClass =
+  "inline-flex h-7 w-full items-center border border-[var(--border)] bg-[var(--control)] px-2 text-[11px] font-semibold text-[var(--foreground)] transition hover:border-[var(--border-strong)] hover:bg-[var(--control-hover)]";
 
 function getLatestScanRunStatusLabel({
   run,
@@ -1440,19 +1660,6 @@ function getLatestScanGroupTone(group: LatestScanGroupKey): LatestScanGroupTone 
   return group;
 }
 
-function getLatestScanGroupBorderClass(group: LatestScanGroupKey) {
-  const classes = {
-    eligible: "border-l-[var(--eligible)]",
-    watch: "border-l-[var(--watch)]",
-    overheated: "border-l-[var(--overheated)]",
-    risk: "border-l-[var(--risk)]",
-    neutral: "border-l-[var(--neutral)]",
-    insufficient_history: "border-l-[var(--missing)]",
-  } satisfies Record<LatestScanGroupKey, string>;
-
-  return classes[group];
-}
-
 function getLatestScanTerminalToneBorderClass(tone: LatestScanTerminalTone) {
   const classes = {
     accent: "border-l-[var(--accent)]",
@@ -1487,17 +1694,4 @@ function getLatestScanTerminalToneTextClass(tone: LatestScanTerminalTone) {
 
 function formatCompactDateTime(value: string | null | undefined) {
   return formatDisplayDateTime(value, { fallback: "Not loaded" });
-}
-
-function formatGroupKeySummary(group: LatestScanGroupKey) {
-  const summaries = {
-    eligible: "constructive",
-    watch: "monitor",
-    overheated: "overheated",
-    risk: "defensive",
-    neutral: "inactive",
-    insufficient_history: "low history",
-  } satisfies Record<LatestScanGroupKey, string>;
-
-  return summaries[group];
 }

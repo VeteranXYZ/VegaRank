@@ -10,7 +10,9 @@ The app should prioritize evidence, context, scanner state, and follow-up checks
 
 The app shell uses a compact global header above page-specific workspaces. Terminal pages should preserve key context near the top while allowing the main workspace to scroll normally.
 
-Use sticky command/context bars for pages where users compare data while scrolling. Sticky regions must stay compact and should include only the information needed to preserve orientation: current symbol or result set, exchange, timeframe, asset class, quality, latest timestamp, current state, and the primary reason or rank summary.
+The five terminal pages, Scanner, Screener, Watchlist, History, and Symbol Research, use a fixed-height workspace on desktop. The browser page itself should not scroll on these pages; only bounded workspace elements scroll. The global header remains above the workspace, and page-specific command/context bars stay inside the fixed workspace.
+
+Use compact command/context bars for pages where users compare data while scrolling inside bounded panes. These bars must include only the information needed to preserve orientation: current symbol or result set, exchange, timeframe, asset class, quality, latest timestamp, current state, and the primary reason or rank summary.
 
 Terminal timestamps use neutral numeric display: full datetime is `YYYY-MM-DD HH:mm`, date-only is `YYYY-MM-DD`, compact same-context datetime may use `MM-DD HH:mm`, and time-only is `HH:mm`. Do not use locale month names, AM/PM, or language-specific date words in terminal UI.
 
@@ -38,7 +40,7 @@ Diagnostics, raw JSON, source metadata, and broad detail tables are lowest prior
 
 Use compact cards, short labels, tight row spacing, and concise English copy. Avoid repeated explanatory copy, decorative UI, nested cards, oversized headers inside tool surfaces, and unnecessary internal scrollbars.
 
-Default page content should scroll at the page level. Internal scrollbars are reserved for raw diagnostics, expanded source data, very wide tables, or intentionally bounded raw panels.
+Terminal page content should not create a page-level scrollbar on desktop. Internal scrollbars are used for primary tables, recent-run rails, symbol analysis columns, context rails, raw diagnostics, expanded source data, very wide tables, and intentionally bounded raw panels.
 
 ## Desktop Height Balancing
 
@@ -70,9 +72,9 @@ The Screener should not default to a pagination or top-100 pattern. Full result 
 
 ## Symbol Research Rules
 
-Symbol Research keeps the command bar and decision strip sticky on desktop. The sticky context should preserve symbol, exchange, timeframe, asset class, quality, latest timestamp, current decision/state, and the primary reason or rank summary.
+Symbol Research keeps the command bar and decision strip fixed inside the terminal workspace on desktop. The context should preserve symbol, exchange, timeframe, asset class, quality, latest timestamp, current decision/state, and the primary reason or rank summary.
 
-The chart remains the primary visual element. Multi-timeframe context sits with the chart. Why and Check Next explain decision quality and next research steps. The right rail contains context modules: Backdrop, History, Timeline, and Details.
+The chart remains the primary visual element and should fill the left workspace column without forcing page-level overflow. Multi-timeframe context sits with the chart. Why and Check Next explain decision quality and next research steps. The right rail contains context modules: Backdrop, History, Timeline, and Details. Analysis and context columns may scroll independently when content exceeds the viewport.
 
 Timeline defaults to the most relevant recent rows and should not show an internal scrollbar in its compact state. Newer secondary-row notices should read as small status notes, not warning banners. Avoid generic "show more" controls in the rail; the compact rail should prioritize recent activity over exhaustive history.
 
@@ -86,9 +88,9 @@ Avoid pagination-first layouts, oversized summary cards, or empty marketing sect
 
 ## Scanner Rules
 
-Scanner is the latest single-timeframe scan output viewer. Keep it close to raw scanner output, with a compact terminal summary, concise left controls, semantic group counts, and dense grouped result tables. It must not become Screener, Watchlist, Symbol Research, History, an AI summary, or a backtest page.
+Scanner is the latest single-timeframe scan output viewer. Keep it close to raw scanner output, with a compact terminal summary, concise left controls, semantic group counts, and one dense result table. It must not become Screener, Watchlist, Symbol Research, History, an AI summary, or a backtest page.
 
-Scanner summary and group counts should be compact terminal strips, not metric-card grids. Keep the interpretation key visible by default in a one-line or two-line compact form so grouped tables stay high in the first viewport.
+Scanner summary and group counts should be compact terminal strips, not metric-card grids. Eligible, watch, overheated, risk, neutral, and insufficient-history rows should share the same table; the state remains visible through chips in the Signal column. Manual sorting belongs in table headers for Symbol, Rank, Signal, Action, Setup Type, Quality, and Price. Left-rail controls should change data scope or provide workflow utilities such as copy, export, and navigation, not duplicate row grouping as separate lists.
 
 ## Watchlist Rules
 
@@ -106,7 +108,7 @@ Follow strict Watchlist color semantics: green means healthy, eligible, or compl
 
 ## History Rules
 
-History is a historical validation terminal, not a light report page. Use the dark terminal system, compact command/status context, and a controlled Recent Runs rail. Outcome Rows are the primary workspace; Outcome Summary, Selected Scan, and Validation Source context should stay compact. Original Scan Rows are secondary and should be collapsed or visually reduced by default. Details, raw metadata, maturity logic, and diagnostics stay collapsed. Avoid light report cards, workflow prose, and repeated caveats.
+History is a historical validation terminal, not a light report page. Use the dark terminal system, compact command/status context, and a controlled Recent Runs rail. Outcome Rows are the primary workspace; Outcome Summary, Selected Scan, and Validation Source context should stay compact. Original Scan Rows are secondary and should be collapsed, visually reduced, and loaded on demand rather than fetched on the initial page load. Details, raw metadata, maturity logic, and diagnostics stay collapsed. Avoid light report cards, workflow prose, and repeated caveats.
 
 ## Copy Rules
 
