@@ -1,3 +1,4 @@
+import { formatDisplayDateTime } from "@/lib/utils/format";
 import { formatSymbolResearchRunContext } from "./symbolResearchUi";
 
 export type RawSymbolTimelineSignal = {
@@ -181,23 +182,7 @@ export function getCompactSignalHistory(
 }
 
 export function formatTimelineDate(value: string | number | null | undefined) {
-  if (value === null || value === undefined || value === "") {
-    return "Not available";
-  }
-
-  const date = new Date(value);
-
-  if (Number.isNaN(date.getTime())) {
-    return "Not available";
-  }
-
-  return date.toLocaleString("en-US", {
-    year: "numeric",
-    month: "short",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
+  return formatDisplayDateTime(value);
 }
 
 export function formatTimelineScore(value: number | null | undefined) {

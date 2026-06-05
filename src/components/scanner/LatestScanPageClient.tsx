@@ -12,6 +12,7 @@ import {
   type ChipTone,
 } from "@/components/table/DataTable";
 import { PageShell, StatusBadge, type StatusTone } from "@/components/ui/workspace";
+import { formatDisplayDateTime } from "@/lib/utils/format";
 import {
   formatDateTime,
   formatGroupHint,
@@ -250,7 +251,6 @@ export function LatestScanPageClient({
       <LatestScanCommandBar
         timeframe={timeframe}
         assetClass={assetClass}
-        limit={limit}
         run={data?.run ?? null}
         finishedAt={finishedAt}
         returnedItems={returnedItems}
@@ -332,7 +332,6 @@ export function LatestScanPageClient({
 function LatestScanCommandBar({
   timeframe,
   assetClass,
-  limit,
   run,
   finishedAt,
   returnedItems,
@@ -344,7 +343,6 @@ function LatestScanCommandBar({
 }: {
   timeframe: LatestScanTimeframe;
   assetClass: LatestScanAssetClass;
-  limit: LatestScanLimit;
   run: LatestScanRun | null;
   finishedAt: string | null;
   returnedItems: number;
@@ -380,19 +378,14 @@ function LatestScanCommandBar({
             tone="neutral"
           />
           <LatestScanCommandStat
-            label="API Limit"
-            value={String(limit)}
-            tone="neutral"
-          />
-          <LatestScanCommandStat
-            label="Latest"
-            value={formatCompactDateTime(finishedAt)}
-            tone={run ? "complete" : "missing"}
-          />
-          <LatestScanCommandStat
             label="Status"
             value={statusLabel}
             tone={statusTone}
+          />
+          <LatestScanCommandStat
+            label="Finished"
+            value={formatCompactDateTime(finishedAt)}
+            tone={run ? "complete" : "missing"}
           />
           <LatestScanCommandStat
             label="Shown"
@@ -405,7 +398,7 @@ function LatestScanCommandBar({
             type="button"
             onClick={onRefresh}
             disabled={isRefreshing}
-            className="inline-flex h-6 items-center justify-center border border-white/20 bg-white/[0.08] px-2 text-[10px] font-semibold text-[var(--terminal-bar-foreground)] transition hover:border-white/35 hover:bg-white/[0.14] disabled:cursor-not-allowed disabled:opacity-55"
+            className="terminal-command-action disabled:cursor-not-allowed disabled:opacity-55"
           >
             {isRefreshing ? "Refreshing" : "Refresh"}
           </button>
@@ -544,12 +537,7 @@ function LatestScanControls({
         </ControlSection>
 
         <ControlSection title="Key">
-          <details className="text-[10px] leading-4 text-[var(--muted-2)] xl:open:pb-0.5">
-            <summary className="cursor-pointer text-[10px] font-semibold uppercase text-[var(--muted)]">
-              Interpretation key
-            </summary>
-            <GroupHintList />
-          </details>
+          <GroupHintList />
         </ControlSection>
       </div>
     </aside>
@@ -589,48 +577,42 @@ function LatestScanSummaryPanel({
   });
 
   return (
-    <section className="border border-[var(--border-medium)] bg-[var(--panel)] px-2 py-2 shadow-[var(--shadow-panel)]">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="flex min-w-0 flex-wrap items-center gap-1.5">
-          <h2 className="text-[13px] font-semibold leading-5">Latest Scan Summary</h2>
-          <StatusBadge tone={run ? "complete" : "missing"} className="text-[10px]">
-            {run?.status ?? "No run"}
-          </StatusBadge>
-        </div>
-        <div className="flex flex-wrap items-center justify-end gap-1 text-[10px] text-[var(--muted)]">
-          <StatusBadge tone="accent">{timeframe.toUpperCase()}</StatusBadge>
-          <StatusBadge>{assetClass.toUpperCase()}</StatusBadge>
-          <StatusBadge tone={includeLowQuality ? "warning" : "neutral"}>
-            {includeLowQuality ? "Low quality included" : "Low quality excluded"}
-          </StatusBadge>
-        </div>
+    <section className="terminal-command-band">
+      <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+        <span className="terminal-command-label">Run Summary</span>
+        <CompactMetric label="Universe" value={formatInteger(run?.symbolsTotal)} />
+        <CompactMetric label="Scanned" value={formatInteger(run?.symbolsScanned)} />
+        <CompactMetric label="Signals" value={formatInteger(run?.signalsCreated)} />
+        <CompactMetric label="Skipped" value={formatInteger(run?.symbolsSkipped)} />
+        <CompactMetric label="Low-quality" value={formatInteger(lowQualityExcluded)} />
+        <CompactMetric
+          label="Limited"
+          value={`${formatInteger(returnedItems)}/${formatInteger(totalSignals)}`}
+        />
       </div>
-
-      <div className="mt-2 grid gap-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7">
-        <SummaryMetric label="Finished" value={formatDateTime(finishedAt)} />
-        <SummaryMetric label="Full Universe Size" value={formatInteger(run?.symbolsTotal)} />
-        <SummaryMetric label="Scanned" value={formatInteger(run?.symbolsScanned)} />
-        <SummaryMetric label="Signals Created" value={formatInteger(run?.signalsCreated)} />
-        <SummaryMetric label="Skipped" value={formatInteger(run?.symbolsSkipped)} />
-        <SummaryMetric
-          label="Filtered Signals Shown"
-          value={`${formatInteger(returnedItems)} of ${formatInteger(totalSignals)}`}
-        />
-        <SummaryMetric
-          label="Low-Quality Excluded"
-          value={formatInteger(lowQualityExcluded)}
-        />
+      <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+        <StatusBadge tone={run ? "complete" : "missing"}>
+          {run?.status ?? "No run"}
+        </StatusBadge>
+        <StatusBadge tone="accent">{timeframe.toUpperCase()}</StatusBadge>
+        <StatusBadge>{assetClass.toUpperCase()}</StatusBadge>
+        <StatusBadge tone={includeLowQuality ? "warning" : "neutral"}>
+          {includeLowQuality ? "Low quality included" : "Low quality excluded"}
+        </StatusBadge>
+        <span className="terminal-command-chip">
+          Finished {formatDateTime(finishedAt)}
+        </span>
       </div>
 
       {(showUniverseWarning || limitedViewWarning) && (
-        <div className="mt-1.5 flex flex-wrap gap-1">
+        <div className="flex max-w-full flex-wrap gap-1">
           {showUniverseWarning && (
             <StatusBadge tone="warning" className="text-[10px]">
               Partial universe
             </StatusBadge>
           )}
           {limitedViewWarning && (
-            <span className="max-w-full border border-[var(--accent-border)] bg-[var(--accent-soft)] px-1.5 py-0.5 text-[10px] font-semibold leading-4 text-[var(--accent)]">
+            <span className="max-w-full border border-[var(--accent-border)] bg-[var(--accent-soft)] px-1.5 py-0.5 text-[10px] font-semibold leading-none text-[var(--accent)]">
               {limitedViewWarning}
             </span>
           )}
@@ -644,11 +626,9 @@ function LatestScanGroupSummary({ summary }: { summary: LatestScanSummary }) {
   const chips = getLatestScanGroupSummaryChips(summary);
 
   return (
-    <section className="border border-[var(--border-medium)] bg-[var(--panel)] px-2 py-2 shadow-[var(--shadow-panel)]">
-      <h2 className="text-[10px] font-semibold uppercase tracking-wide text-[var(--muted-2)]">
-        Group Counts
-      </h2>
-      <div className="mt-1.5 flex flex-wrap gap-1.5 text-[11px]">
+    <section className="terminal-command-band">
+      <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+        <span className="terminal-command-label">Group Counts</span>
         {chips.map((chip) => (
           <StatusBadge
             key={chip.group}
@@ -940,29 +920,35 @@ function ScoreBreakdown({ item }: { item: LatestScanItem }) {
 
 function GroupHintList() {
   return (
-    <dl className="mt-1.5 space-y-1 text-[10px] leading-4">
+    <dl className="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-[10px] leading-none">
+      <div className="font-semibold uppercase text-[var(--muted)]">
+        <dt className="inline">Interpretation Key</dt>
+      </div>
       {latestScanGroupOrder.map((group) => (
-        <div key={group} className="min-w-0">
+        <div key={group} className="inline-flex min-w-0 items-center gap-1">
           <dt className="inline">
             <StatusBadge tone={getLatestScanGroupTone(group)} className="mr-1 text-[9px]">
               {formatGroupLabel(group)}
             </StatusBadge>
-          </dt>{" "}
-          <dd className="inline text-[var(--muted-2)]">{formatGroupHint(group)}</dd>
+          </dt>
+          <dd className="inline text-[var(--muted-2)]">
+            {formatGroupKeySummary(group)}
+          </dd>
         </div>
       ))}
     </dl>
   );
 }
 
-function SummaryMetric({ label, value }: { label: string; value: string }) {
+function CompactMetric({ label, value }: { label: string; value: string }) {
   return (
-    <div className="min-w-0 border border-[var(--border)] bg-[var(--panel-2)] px-2 py-1">
-      <div className="truncate text-[10px] text-[var(--muted)]">{label}</div>
-      <div className="mt-0.5 truncate text-xs font-semibold tabular-nums">
+    <span className="terminal-command-chip">
+      <span className="text-[var(--terminal-bar-muted)]">{label}</span>
+      {" "}
+      <span className="font-mono font-semibold tabular-nums text-[var(--terminal-bar-foreground)]">
         {value}
-      </div>
-    </div>
+      </span>
+    </span>
   );
 }
 
@@ -1500,20 +1486,18 @@ function getLatestScanTerminalToneTextClass(tone: LatestScanTerminalTone) {
 }
 
 function formatCompactDateTime(value: string | null | undefined) {
-  if (!value) {
-    return "Not loaded";
-  }
+  return formatDisplayDateTime(value, { fallback: "Not loaded" });
+}
 
-  const date = new Date(value);
+function formatGroupKeySummary(group: LatestScanGroupKey) {
+  const summaries = {
+    eligible: "constructive",
+    watch: "monitor",
+    overheated: "overheated",
+    risk: "defensive",
+    neutral: "inactive",
+    insufficient_history: "low history",
+  } satisfies Record<LatestScanGroupKey, string>;
 
-  if (Number.isNaN(date.getTime())) {
-    return "Not loaded";
-  }
-
-  return date.toLocaleString("en-US", {
-    month: "short",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
+  return summaries[group];
 }

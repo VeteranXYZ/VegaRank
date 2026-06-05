@@ -1,12 +1,17 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { createElement, type ComponentType } from "react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { renderToStaticMarkup } from "react-dom/server";
 import {
   buildLimitedViewWarning,
   buildLatestRunSummaryText,
   buildLatestScanUrl,
   buildSymbolResearchHref,
   buildSymbolResearchPath,
+  LatestScanPageClient,
   shouldShowIncompleteCryptoUniverseWarning,
 } from "./LatestScanPageClient";
+import { buildLatestScanPreviewResponse } from "./latestScanPreviewData";
 
 const originalTradeApiBaseUrl = process.env.NEXT_PUBLIC_TRADE_API_BASE_URL;
 
@@ -202,3 +207,44 @@ describe("latest scan summary helpers", () => {
     ).toBeNull();
   });
 });
+
+describe("LatestScanPageClient layout", () => {
+  it("renders compact terminal strips and visible interpretation key", () => {
+    const html = renderLatestScanVisualPage();
+
+    expect(html).toContain("terminal-command-band");
+    expect(html).toContain("Run Summary");
+    expect(html).toContain("Group Counts");
+    expect(html).toContain("Interpretation Key");
+    expect(html).toContain("Universe");
+    expect(html).toContain("Low-quality");
+    expect(html).toContain("Finished");
+    expect(html).not.toContain("Latest Scan Summary");
+    expect(html).not.toContain("Full Universe Size");
+    expect(html).not.toContain("<details");
+    expect(html).not.toMatch(/AM|PM|Jun 05/);
+  });
+});
+
+function renderLatestScanVisualPage() {
+  const VisualLatestScanPage = LatestScanPageClient as ComponentType<{
+    visualCheckData: ReturnType<typeof buildLatestScanPreviewResponse>;
+  }>;
+  const queryClient = new QueryClient({
+    defaultOptions: {
+      queries: {
+        retry: false,
+      },
+    },
+  });
+
+  return renderToStaticMarkup(
+    createElement(
+      QueryClientProvider,
+      { client: queryClient },
+      createElement(VisualLatestScanPage, {
+        visualCheckData: buildLatestScanPreviewResponse(),
+      }),
+    ),
+  );
+}

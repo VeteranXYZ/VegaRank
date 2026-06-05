@@ -407,8 +407,8 @@ function WatchlistCommandBar({
   const statusTone = getWatchlistStatusTone({ isLoading, isError, summary });
   const statusLabel = getWatchlistStatusLabel({ isLoading, isError, summary });
   const contextLabel = sourceData
-    ? `${isVisualCheck ? "visual check / " : ""}${sourceData.assetClass} / ${sourceData.timeframes.join(" ")}`
-    : `${assetClass} / ${MTF_SCREENER_TIMEFRAMES.join(" ")}`;
+    ? `${isVisualCheck ? "visual check " : ""}${sourceData.assetClass} ${sourceData.timeframes.join(" ")}`
+    : `${assetClass} ${MTF_SCREENER_TIMEFRAMES.join(" ")}`;
   const commandStats = [
     ["Selected", summary.totalSelectedSymbols, "accent"],
     ["Found", summary.foundSymbols, "neutral"],
@@ -418,63 +418,51 @@ function WatchlistCommandBar({
   ] as const satisfies ReadonlyArray<readonly [string, number, StatusTone]>;
 
   return (
-    <section className="mb-2 border border-[var(--border-medium)] bg-[var(--terminal-bar)] px-2 py-1.5 text-[var(--terminal-bar-foreground)] shadow-[var(--shadow-panel)]">
-      <div className="flex min-w-0 flex-wrap items-center justify-between gap-2">
-        <div className="flex min-w-0 flex-wrap items-center gap-2">
-          <h1 className="text-[13px] font-semibold uppercase tracking-normal">
-            Watchlist Multi-Timeframe
-          </h1>
-          <StatusBadge tone={statusTone}>{statusLabel}</StatusBadge>
-          <span className="text-[10px] font-semibold uppercase text-[var(--terminal-bar-muted)]">
-            {contextLabel}
-          </span>
-          <span className="text-[10px] font-semibold uppercase text-[var(--terminal-bar-muted)]">
-            Visible {visibleRows}/{totalRows}
-          </span>
-        </div>
-        <div className="flex flex-wrap items-center gap-1.5">
-          <button
-            type="button"
-            onClick={onRefresh}
-            disabled={isRefreshing || isVisualCheck}
-            className={commandButtonClass}
-          >
-            {isVisualCheck
-              ? "Mock Data"
-              : isRefreshing
-                ? "Refreshing"
-                : "Refresh Data"}
-          </button>
-          <button type="button" onClick={onSave} className={commandButtonClass}>
-            Save
-          </button>
-          <button
-            type="button"
-            onClick={onResetDefault}
-            className={commandButtonClass}
-          >
-            Reset
-          </button>
-          <button type="button" onClick={onClear} className={commandButtonClass}>
-            Clear
-          </button>
-        </div>
-      </div>
-      <dl className="mt-1.5 flex min-w-0 flex-wrap gap-1.5">
+    <section className="terminal-command-band mb-2">
+      <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+        <h1 className="terminal-command-title">Watchlist</h1>
+        <StatusBadge tone={statusTone}>{statusLabel}</StatusBadge>
+        <span className="terminal-command-chip">{contextLabel.toUpperCase()}</span>
+        <span className="terminal-command-chip">
+          Visible {visibleRows}/{totalRows}
+        </span>
         {commandStats.map(([label, value, tone]) => (
-          <div
-            key={label}
-            className="inline-flex items-center gap-1 border border-[var(--terminal-bar-border)] bg-[rgba(255,255,255,0.03)] px-1.5 py-0.5 text-[10px]"
-          >
-            <dt className="font-semibold uppercase text-[var(--terminal-bar-muted)]">
-              {label}
-            </dt>
-            <dd className={`font-mono font-semibold tabular-nums ${getStatusValueClass(tone)}`}>
+          <span key={label} className="terminal-command-chip">
+            <span className="text-[var(--terminal-bar-muted)]">{label}</span>
+            {" "}
+            <span className={`font-mono font-semibold tabular-nums ${getStatusValueClass(tone)}`}>
               {value}
-            </dd>
-          </div>
+            </span>
+          </span>
         ))}
-      </dl>
+      </div>
+      <div className="flex shrink-0 flex-wrap items-center gap-1">
+        <button
+          type="button"
+          onClick={onRefresh}
+          disabled={isRefreshing || isVisualCheck}
+          className={commandButtonClass}
+        >
+          {isVisualCheck
+            ? "Mock Data"
+            : isRefreshing
+              ? "Refreshing"
+              : "Refresh Data"}
+        </button>
+        <button type="button" onClick={onSave} className={commandButtonClass}>
+          Save
+        </button>
+        <button
+          type="button"
+          onClick={onResetDefault}
+          className={commandButtonClass}
+        >
+          Reset
+        </button>
+        <button type="button" onClick={onClear} className={commandButtonClass}>
+          Clear
+        </button>
+      </div>
     </section>
   );
 }
@@ -1509,7 +1497,7 @@ function formatSummaryRank(value: number) {
 const controlClass =
   "h-6 w-full border border-[var(--border)] bg-[var(--control)] px-1.5 text-[10px] text-[var(--foreground)]";
 const commandButtonClass =
-  "h-7 border border-[var(--terminal-bar-border)] px-2 text-[11px] font-semibold text-[var(--terminal-bar-foreground)] hover:border-[var(--accent-border)] hover:text-[var(--accent-hover)] disabled:cursor-not-allowed disabled:opacity-60";
+  "terminal-command-action disabled:cursor-not-allowed disabled:opacity-60";
 const railSectionLabelClass =
   "text-[10px] font-semibold uppercase leading-4 text-[var(--muted)]";
 const railFieldLabelClass =

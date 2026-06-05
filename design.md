@@ -12,6 +12,8 @@ The app shell uses a compact global header above page-specific workspaces. Termi
 
 Use sticky command/context bars for pages where users compare data while scrolling. Sticky regions must stay compact and should include only the information needed to preserve orientation: current symbol or result set, exchange, timeframe, asset class, quality, latest timestamp, current state, and the primary reason or rank summary.
 
+Terminal timestamps use neutral numeric display: full datetime is `YYYY-MM-DD HH:mm`, date-only is `YYYY-MM-DD`, compact same-context datetime may use `MM-DD HH:mm`, and time-only is `HH:mm`. Do not use locale month names, AM/PM, or language-specific date words in terminal UI.
+
 Desktop research layouts use a fixed grid structure:
 
 - Primary workspace: chart, table, or main data surface.
@@ -86,9 +88,13 @@ Avoid pagination-first layouts, oversized summary cards, or empty marketing sect
 
 Scanner is the latest single-timeframe scan output viewer. Keep it close to raw scanner output, with a compact terminal summary, concise left controls, semantic group counts, and dense grouped result tables. It must not become Screener, Watchlist, Symbol Research, History, an AI summary, or a backtest page.
 
+Scanner summary and group counts should be compact terminal strips, not metric-card grids. Keep the interpretation key visible by default in a one-line or two-line compact form so grouped tables stay high in the first viewport.
+
 ## Watchlist Rules
 
 The Watchlist is a selected-symbol monitoring terminal. The selected-symbol table is primary; summary, attention, and backdrop context must stay compact and secondary. Use fixed terminal context where feasible so the command/status band remains visible during row review.
+
+Watchlist command/status context should fit in one compact band on desktop when possible, combining source, visible/selected/found/missing/risk counts, and system actions with consistent terminal chip and button sizing.
 
 The left rail should prioritize Symbols, Presets, and Filters. Import/export is a secondary collapsed affordance and must not dominate permanent rail space. Avoid generic "show more" overflow controls.
 

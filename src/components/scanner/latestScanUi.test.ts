@@ -242,6 +242,14 @@ describe("latest scan UI helpers", () => {
     );
   });
 
+  it("formats dates with neutral numeric 24-hour output", () => {
+    expect(formatDateTime("2026-06-05T08:05:00")).toBe("2026-06-05 08:05");
+    expect(formatDateTime("2026-06-05T18:05:00")).toBe("2026-06-05 18:05");
+    expect(formatDateTime("2026-06-05T08:05:00")).not.toMatch(
+      /AM|PM|Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec|年|月|日/,
+    );
+  });
+
   it("falls back for invalid dates", () => {
     expect(formatDateTime(null)).toBe("Not available");
     expect(formatDateTime("not-a-date")).toBe("Not available");

@@ -13,6 +13,7 @@ import {
 } from "./sourceUi";
 import { scannerSignalOrder } from "@/lib/shared/scannerConfig";
 import type { MtfPreset } from "@/lib/shared/scannerConfig";
+import { formatDisplayDateTime } from "@/lib/utils/format";
 import type {
   MarketPhase,
   MultiTimeframeAlignment,
@@ -1063,18 +1064,11 @@ function formatStorageMode(mode: ResearchEvaluationResponse["storageMode"]) {
 }
 
 function formatShortDateTime(value: string | null | undefined) {
-  return value ? new Date(value).toLocaleString() : "n/a";
+  return formatDisplayDateTime(value, { fallback: "n/a" });
 }
 
 function formatTime(value: string | undefined) {
-  if (!value) {
-    return "--";
-  }
-
-  return new Date(value).toLocaleTimeString([], {
-    hour: "2-digit",
-    minute: "2-digit",
-  });
+  return formatDisplayDateTime(value, { fallback: "--", mode: "time" });
 }
 
 function getLatestIsoTime(values: Array<string | null | undefined>) {

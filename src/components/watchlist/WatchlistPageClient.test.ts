@@ -335,6 +335,23 @@ describe("WatchlistPageClient", () => {
     expect(html).toContain("border-[var(--missing-border)]");
   });
 
+  it("renders a compact terminal command band for visual-check watchlist", () => {
+    const html = renderWatchlistVisualPage();
+
+    expect(html).toContain("terminal-command-band");
+    expect(html).toContain("terminal-command-title");
+    expect(html).toContain("Watchlist");
+    expect(html).toContain("Visible");
+    expect(html).toContain("Selected");
+    expect(html).toContain("Found");
+    expect(html).toContain("Missing");
+    expect(html).toContain("HTF Risk");
+    expect(html).toContain("Broad Risk");
+    expect(html).toContain("Mock Data");
+    expect(html).not.toContain("Watchlist Multi-Timeframe");
+    expect(html).not.toContain("<dl");
+  });
+
   it("renders populated visual-check watchlist coverage", () => {
     const visualCheckData = buildWatchlistVisualCheckData();
     const rows = buildWatchlistRows(

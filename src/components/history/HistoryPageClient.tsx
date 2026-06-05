@@ -30,6 +30,7 @@ import {
   StatusBadge,
   type StatusTone,
 } from "@/components/ui/workspace";
+import { formatDisplayDateTime } from "@/lib/utils/format";
 import {
   buildObservationSummary,
   type ObservationGroupSummary,
@@ -3693,21 +3694,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 export function formatHistoryDateTime(value: string | null | undefined) {
-  if (!value) {
-    return "Not available";
-  }
-
-  const date = new Date(value);
-
-  if (Number.isNaN(date.getTime())) {
-    return "Not available";
-  }
-
-  return [
-    date.getUTCFullYear(),
-    padDatePart(date.getUTCMonth() + 1),
-    padDatePart(date.getUTCDate()),
-  ].join("-") + ` ${padDatePart(date.getUTCHours())}:${padDatePart(date.getUTCMinutes())}`;
+  return formatDisplayDateTime(value, { timeZone: "utc" });
 }
 
 export function formatHistoryPrimarySignal(value: string | null | undefined) {
@@ -4033,10 +4020,6 @@ function formatVersions(row: HistoricalSnapshotRow) {
   ]
     .filter(Boolean)
     .join(" / ") || "-";
-}
-
-function padDatePart(value: number) {
-  return String(value).padStart(2, "0");
 }
 
 function getObservationProbeLimit(window: ObservationWindow) {

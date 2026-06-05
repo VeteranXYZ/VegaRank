@@ -19,6 +19,7 @@ import {
 } from "@/lib/scanner/scoring";
 import type { TableSortKey, TableSortState } from "./ScannerPageClient";
 import type { ScannerSignalState, ScanResult } from "@/lib/shared/scannerTypes";
+import { formatDisplayDateTime } from "@/lib/utils/format";
 
 type ScannerTableProps = {
   rows: ScanResult[];
@@ -198,9 +199,7 @@ export function ScannerTable({
             {updatedAt
               ? `${sourceItemCount} ${t.scanner.scanned} · ${
                   cached ? t.common.cached : t.common.fresh
-                } · ${new Date(
-                  updatedAt,
-                ).toLocaleTimeString()}`
+                } · ${formatDisplayDateTime(updatedAt, { mode: "time" })}`
               : t.scanner.waiting}
           </p>
         </div>

@@ -1,3 +1,5 @@
+import { formatDisplayDateTime } from "@/lib/utils/format";
+
 export type SymbolResearchGroup =
   | "eligible"
   | "watch"
@@ -322,23 +324,7 @@ export function formatSymbolResearchPrice(value: number | null | undefined) {
 }
 
 export function formatSymbolResearchDateTime(value: string | number | null | undefined) {
-  if (value === null || value === undefined || value === "") {
-    return "Not available";
-  }
-
-  const date = new Date(value);
-
-  if (Number.isNaN(date.getTime())) {
-    return "Not available";
-  }
-
-  return date.toLocaleString("en-US", {
-    year: "numeric",
-    month: "short",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
+  return formatDisplayDateTime(value);
 }
 
 export function formatSymbolResearchGroup(value: string | null | undefined) {

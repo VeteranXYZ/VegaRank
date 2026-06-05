@@ -22,6 +22,7 @@ import {
   StatusBadge,
   type StatusTone,
 } from "@/components/ui/workspace";
+import { formatDisplayDateTime } from "@/lib/utils/format";
 import {
   formatDateTime,
   formatGroupLabel,
@@ -814,20 +815,7 @@ function getMtfFreshnessTitle(sourceData?: MtfLatestScreenerResponse) {
 }
 
 function formatMtfFreshnessCompactTime(value: string | null | undefined) {
-  if (!value) {
-    return "n/a";
-  }
-
-  const date = new Date(value);
-
-  if (Number.isNaN(date.getTime())) {
-    return "n/a";
-  }
-
-  return date.toLocaleTimeString("en-US", {
-    hour: "2-digit",
-    minute: "2-digit",
-  });
+  return formatDisplayDateTime(value, { fallback: "n/a", mode: "time" });
 }
 
 function getMtfQueryStatusLabel({

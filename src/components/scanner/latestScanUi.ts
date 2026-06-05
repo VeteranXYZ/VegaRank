@@ -1,3 +1,5 @@
+import { formatDisplayDateTime } from "@/lib/utils/format";
+
 export const latestScanGroupOrder = [
   "eligible",
   "watch",
@@ -130,23 +132,7 @@ export function formatPrice(value: number | null | undefined) {
 }
 
 export function formatDateTime(value: string | null | undefined) {
-  if (!value) {
-    return "Not available";
-  }
-
-  const date = new Date(value);
-
-  if (Number.isNaN(date.getTime())) {
-    return "Not available";
-  }
-
-  return date.toLocaleString("en-US", {
-    year: "numeric",
-    month: "short",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
+  return formatDisplayDateTime(value);
 }
 
 export function formatGroupLabel(group: LatestScanGroupKey) {
