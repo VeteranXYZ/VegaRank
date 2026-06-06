@@ -371,7 +371,7 @@ export function WatchlistPageClient({
             isError={marketContextIsError}
           />
 
-          <footer className="border border-[var(--border)] bg-[var(--panel)] px-3 py-1.5 text-[11px] text-[var(--muted)]">
+          <footer className="terminal-panel px-3 py-1.5 text-[11px] text-[var(--muted)]">
             {shortResearchDisclaimer}
           </footer>
         </main>
@@ -423,44 +423,49 @@ function WatchlistCommandBar({
   ] as const satisfies ReadonlyArray<readonly [string, number, StatusTone]>;
 
   return (
-    <section className="terminal-command-band mb-2">
-      <div className="flex min-w-0 flex-wrap items-center gap-1.5">
-        <h1 className="terminal-command-title">Watchlist</h1>
-        <StatusBadge tone={statusTone}>{statusLabel}</StatusBadge>
-        <span className="terminal-command-chip">{contextLabel.toUpperCase()}</span>
-        <span className="terminal-command-chip">
-          Visible {visibleRows}/{totalRows}
-        </span>
-        {commandStats.map(([label, value, tone]) => (
-          <span key={label} className="terminal-command-chip">
-            <span className="text-[var(--terminal-bar-muted)]">{label}</span>
-            {" "}
-            <span className={`font-mono font-semibold tabular-nums ${getStatusValueClass(tone)}`}>
-              {value}
-            </span>
+    <section className="terminal-command-bar mb-2">
+      <div className="terminal-command-row text-[var(--terminal-bar-muted)]">
+        <div className="terminal-command-brand">
+          <h1 className="terminal-command-title">WATCHLIST</h1>
+        </div>
+        <div className="terminal-command-main">
+          <StatusBadge tone={statusTone}>{statusLabel}</StatusBadge>
+          <span className="terminal-command-chip">{contextLabel.toUpperCase()}</span>
+          <span className="terminal-command-chip">
+            Visible {visibleRows}/{totalRows}
           </span>
-        ))}
-      </div>
-      <div className="flex shrink-0 flex-wrap items-center gap-1">
-        <RefreshIconButton
-          onClick={onRefresh}
-          disabled={isRefreshing || isVisualCheck}
-          isRefreshing={isRefreshing}
-          label={isVisualCheck ? "Mock data" : "Refresh"}
-        />
-        <button type="button" onClick={onSave} className={commandButtonClass}>
-          Save
-        </button>
-        <button
-          type="button"
-          onClick={onResetDefault}
-          className={commandButtonClass}
-        >
-          Reset
-        </button>
-        <button type="button" onClick={onClear} className={commandButtonClass}>
-          Clear
-        </button>
+          {commandStats.map(([label, value, tone]) => (
+            <span key={label} className="terminal-command-chip">
+              <span className="text-[var(--terminal-bar-muted)]">{label}</span>{" "}
+              <span
+                className={`font-mono font-semibold tabular-nums ${getStatusValueClass(tone)}`}
+              >
+                {value}
+              </span>
+            </span>
+          ))}
+        </div>
+        <div className="terminal-command-actions">
+          <button type="button" onClick={onSave} className={commandButtonClass}>
+            Save
+          </button>
+          <button
+            type="button"
+            onClick={onResetDefault}
+            className={commandButtonClass}
+          >
+            Reset
+          </button>
+          <button type="button" onClick={onClear} className={commandButtonClass}>
+            Clear
+          </button>
+          <RefreshIconButton
+            onClick={onRefresh}
+            disabled={isRefreshing || isVisualCheck}
+            isRefreshing={isRefreshing}
+            label={isVisualCheck ? "Mock data" : "Refresh"}
+          />
+        </div>
       </div>
     </section>
   );
@@ -493,10 +498,10 @@ export function WatchlistTable({
   }
 
   return (
-    <section className="overflow-hidden border border-[var(--border-medium)] bg-[var(--panel-data)] shadow-[var(--shadow-panel)] xl:flex xl:min-h-0 xl:flex-1 xl:flex-col">
-      <div className="flex min-h-8 flex-wrap items-center justify-between gap-2 border-b border-[var(--border-medium)] bg-[var(--table-header)] px-2 py-1">
+    <section className="terminal-panel-data overflow-hidden xl:flex xl:min-h-0 xl:flex-1 xl:flex-col">
+      <div className="terminal-panel-header">
         <div className="flex min-w-0 flex-wrap items-center gap-2">
-          <h2 className="text-[12px] font-semibold uppercase text-[var(--foreground)]">
+          <h2 className="terminal-panel-title">
             Selected Symbols
           </h2>
           <StatusBadge tone="accent" className="text-[10px]">
@@ -616,7 +621,7 @@ export function WatchlistTable({
                     <button
                       type="button"
                       onClick={() => onRemoveSymbol(row.symbol)}
-                      className="inline-flex h-5 min-w-[50px] items-center justify-center border border-[var(--border)] px-1.5 text-[10px] font-semibold text-[var(--muted)] hover:border-[var(--accent-border)] hover:text-[var(--accent-hover)]"
+                      className="terminal-mini-action h-5 min-w-[50px] px-1.5"
                     >
                       Remove
                     </button>
@@ -654,14 +659,14 @@ export function WatchlistSummaryCards({
   ] as const satisfies ReadonlyArray<readonly [string, number, StatusTone]>;
 
   return (
-    <section className="flex min-w-0 items-center gap-1.5 overflow-x-auto border border-[var(--border)] bg-[var(--panel)] px-2 py-1 [scrollbar-gutter:stable] xl:shrink-0">
+    <section className="terminal-panel flex min-w-0 items-center gap-1.5 overflow-x-auto px-2 py-1 [scrollbar-gutter:stable] xl:shrink-0">
       <span className="shrink-0 border-r border-[var(--border)] pr-2 text-[10px] font-semibold uppercase text-[var(--muted)]">
         Summary
       </span>
       {cards.map(([label, value, tone]) => (
         <div
           key={label}
-          className="inline-flex h-6 shrink-0 items-center gap-1.5 border border-[var(--border)] bg-[var(--panel-2)] px-1.5 text-[10px]"
+          className="terminal-panel-muted inline-flex h-6 shrink-0 items-center gap-1.5 px-1.5 text-[10px]"
         >
           <span className="font-semibold uppercase text-[var(--muted)]">
             {label}
@@ -686,9 +691,9 @@ export function WatchlistResearchSummaryPanel({
 
   return (
     <section className="space-y-1.5 xl:shrink-0">
-      <div className="flex flex-wrap items-center justify-between gap-2 border border-[var(--border)] bg-[var(--panel)] px-2 py-1.5">
+      <div className="terminal-panel flex flex-wrap items-center justify-between gap-2 px-2 py-1.5">
         <div className="flex min-w-0 flex-wrap items-center gap-2">
-          <h2 className="text-[12px] font-semibold uppercase text-[var(--foreground)]">
+          <h2 className="terminal-panel-title">
             Attention
           </h2>
           <StatusBadge tone={getConditionTone(summary.conditionLabel)}>
@@ -783,7 +788,7 @@ export function WatchlistControls({
   ) => void;
 }) {
   return (
-    <aside className="border border-[var(--border)] bg-[var(--panel)] p-1.5 xl:min-h-0 xl:overflow-hidden">
+    <aside className="terminal-rail p-1.5 xl:min-h-0 xl:overflow-hidden">
       <section className="space-y-1">
         <h2 className={railSectionLabelClass}>
           Symbols
@@ -808,7 +813,7 @@ export function WatchlistControls({
               key={preset.id}
               type="button"
               onClick={() => onPreset(preset.id)}
-              className="min-h-6 border border-[var(--border)] px-1.5 py-0.5 text-left text-[10px] font-semibold leading-4 text-[var(--foreground)] hover:border-[var(--accent-border)] hover:text-[var(--accent-hover)]"
+              className="terminal-mini-action is-left min-h-6 justify-start px-1.5 py-0.5 text-[10px] leading-4 text-[var(--foreground)]"
               title={preset.symbols.join(", ")}
             >
               {preset.label}
@@ -945,7 +950,7 @@ function WatchlistSourcePanel({
   filteredRows: number;
 }) {
   return (
-    <section className="border border-[var(--border)] bg-[var(--panel-muted)] px-2 py-1.5">
+    <section className="terminal-panel-muted px-2 py-1.5">
       <div className="flex min-w-0 items-center gap-1.5 overflow-x-auto [scrollbar-gutter:stable]">
         <span className="shrink-0 border-r border-[var(--border)] pr-2 text-[10px] font-semibold uppercase text-[var(--muted)]">
           Runs
@@ -961,7 +966,7 @@ function WatchlistSourcePanel({
           return (
             <div
               key={timeframe}
-              className="inline-flex shrink-0 items-center gap-1.5 border border-[var(--border)] bg-[var(--panel)] px-1.5 py-0.5 text-[10px]"
+              className="terminal-panel inline-flex shrink-0 items-center gap-1.5 px-1.5 py-0.5 text-[10px]"
             >
               <span className="font-mono font-semibold uppercase text-[var(--foreground)]">
                 {timeframe}
@@ -985,7 +990,7 @@ function WatchlistBackdropDisclosure({
   isError,
 }: MarketContextPanelState) {
   return (
-    <details className="border border-[var(--border)] bg-[var(--panel)] xl:shrink-0">
+    <details className="terminal-panel xl:shrink-0">
       <summary className="flex min-h-7 cursor-pointer list-none items-center justify-between gap-2 px-2 py-1 text-[11px] font-semibold uppercase text-[var(--muted)] marker:hidden">
         <span>Backdrop</span>
         <span className="text-[9px] text-[var(--muted-2)]">
@@ -1015,7 +1020,7 @@ function ResearchSummaryList({
   const visibleItems = items.slice(0, 2);
 
   return (
-    <section className="min-w-0 border border-[var(--border)] bg-[var(--panel-muted)] px-2 py-1.5">
+    <section className="terminal-panel-muted min-w-0 px-2 py-1.5">
       <h3 className="text-[11px] font-semibold uppercase text-[var(--muted)]">
         {title}
       </h3>
@@ -1117,7 +1122,7 @@ function CompactNotice({
 }) {
   return (
     <section
-      className={`border border-l-2 border-[var(--border)] bg-[var(--panel-2)] px-3 py-2 text-[11px] leading-4 text-[var(--muted)] ${getNoticeToneClass(tone)}`}
+      className={`terminal-state-panel px-3 py-2 text-[11px] leading-4 text-[var(--muted)] ${getNoticeToneClass(tone)}`}
     >
       {message}
     </section>
@@ -1126,7 +1131,7 @@ function CompactNotice({
 
 function WatchlistStatePanel({ message }: { message: string }) {
   return (
-    <section className="border border-[var(--border)] bg-[var(--panel)] px-3 py-3 text-center text-xs text-[var(--muted)]">
+    <section className="terminal-state-panel px-3 py-3 text-center text-xs text-[var(--muted)]">
       {message}
     </section>
   );
@@ -1214,7 +1219,7 @@ function ResearchLink({ row }: { row: WatchlistRow }) {
     return (
       <span
         aria-disabled="true"
-        className="inline-flex h-5 items-center justify-center whitespace-nowrap border border-[var(--border)] px-1.5 text-[10px] font-semibold text-[var(--muted)] opacity-70"
+        className="terminal-mini-action h-5 px-1.5 opacity-70"
       >
         {row.mtfRow ? "No TF" : "Missing"}
       </span>
@@ -1224,7 +1229,7 @@ function ResearchLink({ row }: { row: WatchlistRow }) {
   return (
     <Link
       href={href}
-      className="inline-flex h-5 items-center justify-center whitespace-nowrap border border-[var(--accent-border)] bg-transparent px-1.5 text-[10px] font-semibold text-[var(--accent)] hover:bg-[var(--accent-soft)] hover:text-[var(--accent-hover)]"
+      className="terminal-mini-action is-accent h-5 px-1.5"
     >
       {timeframe} Research
     </Link>
@@ -1448,6 +1453,8 @@ function getStatusValueClass(tone: StatusTone) {
     case "accent":
     case "info":
       return "text-[var(--accent)]";
+    case "observation":
+      return "text-[var(--observation)]";
     case "missing":
     case "neutral":
       return "text-[var(--neutral)]";
@@ -1473,6 +1480,8 @@ function getNoticeToneClass(tone: StatusTone) {
     case "accent":
     case "info":
       return "border-l-[var(--accent)]";
+    case "observation":
+      return "border-l-[var(--observation)]";
     case "missing":
     case "neutral":
       return "border-l-[var(--missing)]";
@@ -1494,7 +1503,7 @@ function formatSummaryRank(value: number) {
 }
 
 const controlClass =
-  "h-6 w-full border border-[var(--border)] bg-[var(--control)] px-1.5 text-[10px] text-[var(--foreground)]";
+  "terminal-control h-6 text-[10px]";
 const commandButtonClass =
   "terminal-command-action disabled:cursor-not-allowed disabled:opacity-60";
 const railSectionLabelClass =
@@ -1505,7 +1514,7 @@ const railCheckboxLabelClass =
   "flex min-h-5 items-center gap-1.5 text-[10px] leading-4 text-[var(--muted)]";
 const railCheckboxClass = "h-3 w-3 shrink-0 accent-[var(--accent)]";
 const railMiniButtonClass =
-  "h-5 border border-[var(--border)] px-1.5 text-[9px] font-semibold uppercase text-[var(--foreground)] hover:border-[var(--accent-border)] hover:text-[var(--accent-hover)]";
+  "terminal-mini-action h-5 px-1.5 text-[9px] text-[var(--foreground)]";
 const railDetailsClass =
   "mt-2 border border-[var(--border)] bg-[var(--panel-2)]";
 const railSummaryClass =

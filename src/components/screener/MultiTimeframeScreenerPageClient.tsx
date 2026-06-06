@@ -17,7 +17,6 @@ import {
   type DataSortValue,
 } from "@/components/table/dataTableSorting";
 import {
-  EmptyState,
   PageShell,
   RefreshIconButton,
   StatusBadge,
@@ -313,10 +312,10 @@ export function MtfScreenerTable({
   }
 
   return (
-    <section className="overflow-hidden border border-[var(--border-medium)] bg-[var(--panel-data)] shadow-[var(--shadow-panel)] xl:flex xl:min-h-0 xl:flex-1 xl:flex-col">
-      <div className="flex min-h-8 flex-wrap items-center justify-between gap-2 border-b border-[var(--border-medium)] bg-[var(--table-header)] px-2 py-1">
+    <section className="terminal-panel-data overflow-hidden xl:flex xl:min-h-0 xl:flex-1 xl:flex-col">
+      <div className="terminal-panel-header">
         <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
-          <h2 className="text-[12px] font-semibold uppercase tracking-normal text-[var(--foreground)]">
+          <h2 className="terminal-panel-title">
             Joined Symbol Table
           </h2>
           <StatusBadge tone="accent" className="text-[10px]">
@@ -611,15 +610,13 @@ export function MtfScreenerCommandBar({
   const sortLabel = formatMtfTableSortState(sortState);
 
   return (
-    <header className="mb-1 overflow-hidden border border-[var(--terminal-bar-border)] bg-[var(--terminal-bar)] text-[var(--terminal-bar-foreground)] shadow-[var(--shadow-panel)]">
-      <div className="flex min-w-0 flex-wrap items-center gap-1 px-2 py-1 text-[10px] font-semibold uppercase text-[var(--terminal-bar-muted)]">
+    <header className="terminal-command-bar mb-1">
+      <div className="terminal-command-row text-[var(--terminal-bar-muted)]">
         <div
-          className="flex h-6 min-w-0 shrink-0 items-center gap-1.5 overflow-hidden border-r border-white/10 pr-2"
+          className="terminal-command-brand"
           title={`${title} · ${datasetLabel}`}
         >
-          <h1 className="terminal-command-title">
-            MTF Screener
-          </h1>
+          <h1 className="terminal-command-title">MTF SCREENER</h1>
           <span className="shrink-0 font-mono text-[10px] text-[var(--terminal-bar-muted)]">
             Crypto
           </span>
@@ -628,7 +625,7 @@ export function MtfScreenerCommandBar({
           </span>
         </div>
 
-        <div className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto [scrollbar-gutter:stable]">
+        <div className="terminal-command-main">
           <MtfCommandStat
             label="Data"
             value={statusLabel}
@@ -657,15 +654,7 @@ export function MtfScreenerCommandBar({
           <MtfFreshnessStrip sourceData={sourceData} />
         </div>
 
-        <div className="ml-auto flex shrink-0 flex-wrap items-center justify-end gap-1">
-          {onRefresh ? (
-            <RefreshIconButton
-              onClick={onRefresh}
-              disabled={isRefreshing}
-              isRefreshing={isRefreshing}
-              label="Refresh"
-            />
-          ) : null}
+        <div className="terminal-command-actions">
           {onExportVisible && onExportAll ? (
             <MtfScreenerExportControls
               visibleRowsCount={visibleRows}
@@ -673,6 +662,14 @@ export function MtfScreenerCommandBar({
               onExportVisible={onExportVisible}
               onExportAll={onExportAll}
               variant="terminal"
+            />
+          ) : null}
+          {onRefresh ? (
+            <RefreshIconButton
+              onClick={onRefresh}
+              disabled={isRefreshing}
+              isRefreshing={isRefreshing}
+              label="Refresh"
             />
           ) : null}
         </div>
@@ -866,6 +863,8 @@ function getMtfTerminalToneBorderClass(tone: MtfSemanticTone) {
     case "info":
     case "accent":
       return "border-l-[var(--accent)]";
+    case "observation":
+      return "border-l-[var(--observation)]";
     case "repair":
       return "border-l-[var(--repair)]";
     case "watch":
@@ -892,6 +891,8 @@ function getMtfTerminalToneTextClass(tone: MtfSemanticTone) {
     case "info":
     case "accent":
       return "text-[var(--accent)]";
+    case "observation":
+      return "text-[var(--observation)]";
     case "repair":
       return "text-[var(--repair)]";
     case "watch":
@@ -1017,7 +1018,7 @@ export function MtfResearchBucketsPanel({
   return (
     <section
       aria-label="Research Buckets"
-      className="mb-1 min-w-0 border border-[var(--border-medium)] bg-[var(--panel-muted)] shadow-[var(--shadow-panel)]"
+      className="terminal-panel-muted mb-1 min-w-0 shadow-[var(--shadow-panel)]"
     >
       <div className="flex min-w-0 items-center gap-0 overflow-x-auto px-1.5 py-1 [scrollbar-gutter:stable]">
         <div className="mr-1 shrink-0 border-r border-[var(--border)] px-1.5 pr-2 text-[10px] font-semibold uppercase text-[var(--muted)]">
@@ -1097,10 +1098,10 @@ export function MtfScreenerDetailRail({
   return (
     <aside
       aria-label="Screener detail rail"
-      className={`hidden min-w-0 border border-[var(--border-medium)] bg-[var(--panel-data)] shadow-[var(--shadow-panel)] xl:flex xl:h-full xl:min-h-0 xl:flex-col xl:overflow-hidden ${className}`}
+      className={`terminal-panel-data hidden min-w-0 xl:flex xl:h-full xl:min-h-0 xl:flex-col xl:overflow-hidden ${className}`}
     >
-      <div className="flex items-center justify-between gap-2 border-b border-[var(--border-medium)] bg-[var(--table-header)] px-2 py-1.5">
-        <h2 className="truncate text-[12px] font-semibold uppercase text-[var(--foreground)]">
+      <div className="terminal-panel-header">
+        <h2 className="terminal-panel-title truncate">
           Detail Rail
         </h2>
         <StatusBadge tone="info" className="shrink-0 text-[10px]">
@@ -1647,11 +1648,11 @@ export function MtfScreenerControls({
   return (
     <aside
       aria-label="Screener filters"
-      className={`border border-[var(--border-medium)] bg-[var(--panel-data)] shadow-[var(--shadow-panel)] xl:flex xl:h-full xl:min-h-0 xl:flex-col xl:overflow-hidden ${className}`}
+      className={`terminal-rail xl:flex xl:h-full xl:min-h-0 xl:flex-col xl:overflow-hidden ${className}`}
     >
-      <div className="flex items-center justify-between gap-2 border-b border-[var(--border-medium)] bg-[var(--table-header)] px-2 py-1">
+      <div className="terminal-panel-header">
         <div className="min-w-0">
-          <h2 className="text-[11px] font-semibold uppercase text-[var(--foreground)]">
+          <h2 className="terminal-panel-title text-[11px]">
             Filters
           </h2>
           <p className="text-[10px] text-[var(--muted)]">
@@ -1663,7 +1664,7 @@ export function MtfScreenerControls({
         <button
           type="button"
           onClick={onClear}
-          className="inline-flex h-6 items-center justify-center border border-[var(--border)] bg-transparent px-2 text-[10px] font-semibold text-[var(--muted)] transition hover:border-[var(--border-strong)] hover:bg-[var(--panel-muted)] hover:text-[var(--foreground)]"
+          className="terminal-mini-action h-6 px-2"
         >
           Clear
         </button>
@@ -1793,7 +1794,7 @@ export function MtfScreenerExportControls({
 }) {
   const buttonClass =
     variant === "terminal"
-      ? "inline-flex h-6 items-center justify-center border border-white/20 bg-white/[0.08] px-2 text-[10px] font-semibold text-[var(--terminal-bar-foreground)] transition hover:border-white/35 hover:bg-white/[0.14] disabled:cursor-not-allowed disabled:opacity-50"
+      ? "terminal-command-action disabled:cursor-not-allowed disabled:opacity-50"
       : "ui-button h-7 px-2 text-[11px] font-semibold disabled:cursor-not-allowed disabled:opacity-50";
 
   return (
@@ -1823,7 +1824,14 @@ export function MtfScreenerExportControls({
 
 function MtfStatePanel({ message }: { message: string }) {
   return (
-    <EmptyState title="Screener state" message={message} />
+    <section className="terminal-state-panel is-center xl:flex-1">
+      <h2 className="text-sm font-semibold text-[var(--foreground)]">
+        Screener state
+      </h2>
+      <p className="mt-1 max-w-md text-[12px] leading-5 text-[var(--muted)]">
+        {message}
+      </p>
+    </section>
   );
 }
 
@@ -2094,6 +2102,8 @@ function getMtfResearchBucketValueClass(tone: MtfBucketTone | StatusTone) {
       return "text-[var(--overheated)]";
     case "risk":
       return "text-[var(--risk)]";
+    case "observation":
+      return "text-[var(--observation)]";
     default:
       return "text-[var(--muted)]";
   }
@@ -2113,6 +2123,8 @@ function getMtfResearchBucketMarkerClass(tone: MtfBucketTone | StatusTone) {
     case "accent":
     case "info":
       return "bg-[var(--accent)]";
+    case "observation":
+      return "bg-[var(--observation)]";
     case "repair":
       return "bg-[var(--repair)]";
     case "eligible":
@@ -2158,6 +2170,8 @@ function getMtfResearchBucketBorderClass(tone: MtfBucketTone | StatusTone) {
       return "border-l-[var(--eligible)]";
     case "info":
       return "border-l-[var(--accent)]";
+    case "observation":
+      return "border-l-[var(--observation)]";
     case "watch":
       return "border-l-[var(--watch)]";
     case "overheated":
@@ -2365,7 +2379,7 @@ function ResearchLink({ row }: { row: MtfScreenerRow }) {
     <Link
       href={buildMtfSymbolResearchHref({ row, timeframe })}
       title={`Open ${timeframe} research for ${row.symbol}`}
-      className="inline-flex min-w-[64px] items-center justify-center gap-1 border border-[var(--border)] bg-transparent px-1.5 py-0.5 text-[10px] font-semibold text-[var(--muted)] underline-offset-2 hover:border-[var(--accent-border)] hover:bg-[var(--accent-soft)] hover:text-[var(--accent)] hover:underline"
+      className="terminal-mini-action is-accent min-w-[64px] gap-1 px-1.5 py-0.5 underline-offset-2 hover:underline"
     >
       <span>Open</span>
       <span className="font-mono uppercase">{timeframe}</span>
@@ -2430,4 +2444,4 @@ export function getActiveMtfFilterLabels(
 }
 
 const controlClass =
-  "h-6 w-full border border-[var(--border-medium)] bg-[var(--control)] px-1.5 text-[11px] text-[var(--foreground)] shadow-[inset_0_1px_0_rgba(15,23,42,0.03)] focus:border-[var(--accent)]";
+  "terminal-control h-6";

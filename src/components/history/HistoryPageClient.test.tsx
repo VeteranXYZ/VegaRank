@@ -205,7 +205,7 @@ describe("HistoryPageClient display formatting", () => {
     expect(html).toContain("Outcome Rows not loaded");
     expect(html).toContain("Load Outcome Rows");
     expect(html).toContain("Original Scan Rows");
-    expect(html).toContain("border-[var(--terminal-bar-border)]");
+    expect(html).toContain("terminal-command-bar");
     expect(html).not.toContain(
       "mb-1 flex flex-wrap items-center gap-2 border border-[var(--border-medium)] bg-[var(--panel-muted)] px-2 py-1",
     );

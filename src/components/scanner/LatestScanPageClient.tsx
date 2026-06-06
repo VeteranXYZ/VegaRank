@@ -414,17 +414,15 @@ function LatestScanCommandBar({
   const statusTone = getLatestScanRunStatusTone({ run, isLoading, isError });
 
   return (
-    <header className="mb-1 overflow-hidden border border-[var(--terminal-bar-border)] bg-[var(--terminal-bar)] text-[var(--terminal-bar-foreground)] shadow-[var(--shadow-panel)]">
-      <div className="flex min-w-0 flex-wrap items-center gap-1 px-2 py-1 text-[10px] font-semibold uppercase text-[var(--terminal-bar-muted)]">
-        <div className="flex h-6 min-w-0 shrink-0 items-center gap-1.5 overflow-hidden border-r border-white/10 pr-2">
-          <h1 className="terminal-command-title">
-            SCANNER
-          </h1>
+    <header className="terminal-command-bar mb-1">
+      <div className="terminal-command-row text-[var(--terminal-bar-muted)]">
+        <div className="terminal-command-brand">
+          <h1 className="terminal-command-title">SCANNER</h1>
           <span className="shrink-0 font-mono text-[10px] text-[var(--terminal-bar-muted)]">
             latest output
           </span>
         </div>
-        <div className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto [scrollbar-gutter:stable]">
+        <div className="terminal-command-main">
           <LatestScanCommandStat
             label="Timeframe"
             value={timeframe.toUpperCase()}
@@ -451,7 +449,7 @@ function LatestScanCommandBar({
             tone={returnedItems > 0 ? "complete" : "missing"}
           />
         </div>
-        <div className="ml-auto flex shrink-0 items-center justify-end gap-1">
+        <div className="terminal-command-actions">
           <button
             type="button"
             onClick={onExportCsv}
@@ -520,8 +518,8 @@ function LatestScanControls({
   onIncludeLowQualityChange: (value: boolean) => void;
 }) {
   return (
-    <aside className="border border-[var(--border-medium)] bg-[var(--panel)] p-2 shadow-[var(--shadow-panel)] xl:h-full xl:min-h-0 xl:overflow-y-auto">
-      <h2 className="mb-2 text-[11px] font-semibold uppercase leading-none text-[var(--foreground)]">
+    <aside className="terminal-rail p-2 xl:h-full xl:min-h-0 xl:overflow-y-auto">
+      <h2 className="terminal-panel-title mb-2">
         Controls
       </h2>
       <div className="grid gap-2 text-xs text-[var(--muted)] sm:grid-cols-2 xl:grid-cols-1">
@@ -637,7 +635,7 @@ function LatestScanSummaryPanel({
   });
 
   return (
-    <section className="border border-[var(--border-medium)] bg-[var(--panel)] px-2 py-1 shadow-[var(--shadow-panel)]">
+    <section className="terminal-panel px-2 py-1">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex min-w-0 flex-wrap items-center gap-1.5">
           <span className="terminal-command-label">Run Summary</span>
@@ -707,7 +705,7 @@ function LatestScanGroupSummary({ summary }: { summary: LatestScanSummary }) {
   }
 
   return (
-    <section className="flex min-h-7 flex-wrap items-center gap-1.5 border border-[var(--border-medium)] bg-[var(--panel)] px-2 py-1 shadow-[var(--shadow-panel)]">
+    <section className="terminal-panel flex min-h-7 flex-wrap items-center gap-1.5 px-2 py-1">
       <span className="text-[10px] font-semibold uppercase text-[var(--muted)]">
         Group Counts
       </span>
@@ -746,11 +744,11 @@ function LatestScanResultsTable({
   const tableColumnCount = showCandleTimeColumn ? 9 : 8;
 
   return (
-    <section className="min-h-0 overflow-hidden border border-[var(--border-medium)] bg-[var(--panel)] shadow-[var(--shadow-panel)] xl:flex xl:flex-1 xl:flex-col">
-      <div className="flex min-h-7 flex-wrap items-center justify-between gap-2 border-b border-[var(--border)] bg-[var(--table-header)] px-2 py-1">
+    <section className="terminal-panel-data min-h-0 overflow-hidden xl:flex xl:flex-1 xl:flex-col">
+      <div className="terminal-panel-header">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-1.5">
-            <h2 className="text-[12px] font-semibold uppercase tracking-normal text-[var(--foreground)]">
+            <h2 className="terminal-panel-title">
               Latest Scan Rows
             </h2>
             <StatusBadge tone="accent" className="text-[10px]">
@@ -973,7 +971,7 @@ function LatestScanRow({
           type="button"
           aria-expanded={isExpanded}
           onClick={onToggleDetails}
-          className="inline-flex h-6 items-center justify-center border border-[var(--accent-border)] bg-[var(--accent-soft)] px-2 text-[10px] font-semibold text-[var(--accent)] transition hover:border-[var(--accent)] hover:text-[var(--accent-hover)]"
+          className="terminal-mini-action is-accent h-6 px-2"
         >
           {isExpanded ? "Hide" : "Details"}
         </button>
@@ -1075,7 +1073,7 @@ function CompactMetric({ label, value }: { label: string; value: string }) {
 
 function StatePanel({ title, message }: { title: string; message: string }) {
   return (
-    <section className="flex min-h-40 flex-col items-center justify-center border border-[var(--border-medium)] bg-[var(--panel)] px-4 py-8 text-center shadow-[var(--shadow-panel)] xl:flex-1">
+    <section className="terminal-state-panel is-center xl:flex-1">
       <h2 className="text-sm font-semibold">{title}</h2>
       <p className="mt-1 max-w-md text-[12px] leading-5 text-[var(--muted)]">
         {message}
@@ -1598,7 +1596,7 @@ function pickRawMetrics(metrics: Record<string, unknown> | undefined) {
 }
 
 const controlClass =
-  "h-7 w-full border border-[var(--border-medium)] bg-[var(--control)] px-2 text-[11px] text-[var(--foreground)]";
+  "terminal-control h-7";
 
 function getLatestScanRunStatusLabel({
   run,

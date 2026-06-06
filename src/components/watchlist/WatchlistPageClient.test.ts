@@ -335,12 +335,12 @@ describe("WatchlistPageClient", () => {
     expect(html).toContain("border-[var(--missing-border)]");
   });
 
-  it("renders a compact terminal command band for visual-check watchlist", () => {
+  it("renders a compact terminal command bar for visual-check watchlist", () => {
     const html = renderWatchlistVisualPage();
 
-    expect(html).toContain("terminal-command-band");
+    expect(html).toContain("terminal-command-bar");
     expect(html).toContain("terminal-command-title");
-    expect(html).toContain("Watchlist");
+    expect(html).toContain("WATCHLIST");
     expect(html).toContain("Visible");
     expect(html).toContain("Selected");
     expect(html).toContain("Found");

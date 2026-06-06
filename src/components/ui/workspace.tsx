@@ -8,6 +8,7 @@ export type StatusTone =
   | "warning"
   | "danger"
   | "info"
+  | "observation"
   | "eligible"
   | "watch"
   | "risk"
@@ -44,6 +45,8 @@ const toneClass: Record<StatusTone, string> = {
     "border-[var(--warning-border)] bg-[var(--warning-bg)] text-[var(--warning)]",
   danger: "border-[var(--danger-border)] bg-[var(--danger-bg)] text-[var(--danger)]",
   info: "border-[var(--info-border)] bg-[var(--info-bg)] text-[var(--info)]",
+  observation:
+    "border-[var(--observation-border)] bg-[var(--observation-bg)] text-[var(--observation)]",
   eligible:
     "border-[var(--eligible-border)] bg-[var(--eligible-bg)] text-[var(--eligible)]",
   watch: "border-[var(--watch-border)] bg-[var(--watch-bg)] text-[var(--watch)]",
@@ -66,6 +69,7 @@ const toneAccentClass: Record<StatusTone, string> = {
   warning: "border-l-[var(--warning)] text-[var(--warning)]",
   danger: "border-l-[var(--danger)] text-[var(--danger)]",
   info: "border-l-[var(--info)] text-[var(--info)]",
+  observation: "border-l-[var(--observation)] text-[var(--observation)]",
   eligible: "border-l-[var(--eligible)] text-[var(--eligible)]",
   watch: "border-l-[var(--watch)] text-[var(--watch)]",
   risk: "border-l-[var(--risk)] text-[var(--risk)]",

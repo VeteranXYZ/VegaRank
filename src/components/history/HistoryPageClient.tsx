@@ -54,7 +54,7 @@ const historySnapshotObservationsQueryName =
   "history-snapshot-observations";
 const historyCompactControlStyle = { fontSize: "10px", lineHeight: 1 };
 export const recentRunsPanelClassName =
-  "border border-[var(--border-medium)] bg-[var(--panel)] shadow-[var(--shadow-panel)] xl:flex xl:min-h-0 xl:flex-col xl:overflow-hidden";
+  "terminal-panel xl:flex xl:min-h-0 xl:flex-col xl:overflow-hidden";
 export const recentRunsScrollContainerClassName =
   "space-y-0.5 p-1 pr-1 xl:min-h-0 xl:flex-1 xl:overflow-y-auto xl:overscroll-contain";
 const unsafePrimarySignalLabelMap: Record<string, string> = {
@@ -737,17 +737,15 @@ function HistoryCommandBar({
   onRefresh: () => void;
 }) {
   return (
-    <header className="mb-1 overflow-hidden border border-[var(--terminal-bar-border)] bg-[var(--terminal-bar)] text-[var(--terminal-bar-foreground)] shadow-[var(--shadow-panel)]">
-      <div className="flex min-w-0 flex-wrap items-center gap-1 px-2 py-1 text-[10px] font-semibold uppercase text-[var(--terminal-bar-muted)]">
-        <div className="flex h-6 min-w-0 shrink-0 items-center gap-1.5 overflow-hidden border-r border-white/10 pr-2">
-          <h1 className="terminal-command-title">
-            HISTORY
-          </h1>
+    <header className="terminal-command-bar mb-1">
+      <div className="terminal-command-row text-[var(--terminal-bar-muted)]">
+        <div className="terminal-command-brand">
+          <h1 className="terminal-command-title">HISTORY</h1>
           <span className="shrink-0 font-mono text-[10px] text-[var(--terminal-bar-muted)]">
             Crypto
           </span>
         </div>
-        <div className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto [scrollbar-gutter:stable]">
+        <div className="terminal-command-main">
           <TimeframeSelector
             timeframe={timeframe}
             onTimeframeChange={onTimeframeChange}
@@ -774,7 +772,7 @@ function HistoryCommandBar({
             tone={rowCount > 0 ? "complete" : "missing"}
           />
         </div>
-        <div className="ml-auto flex shrink-0 items-center justify-end gap-1">
+        <div className="terminal-command-actions">
           <RefreshIconButton
             onClick={onRefresh}
             disabled={isRefreshing || isVisualCheck}
@@ -873,9 +871,9 @@ export function RecentSuccessfulRunsPanel({
       data-testid="recent-runs-panel"
       aria-label="Selected Scan recent runs"
     >
-      <div className="shrink-0 border-b border-[var(--border-medium)] bg-[var(--table-header)] px-2 py-1">
+      <div className="terminal-panel-header-stack shrink-0">
         <div className="flex items-center justify-between gap-2">
-          <h2 className="text-[12px] font-semibold uppercase tracking-normal text-[var(--foreground)]">
+          <h2 className="terminal-panel-title">
             Recent Runs
           </h2>
           <StatusBadge
@@ -885,7 +883,7 @@ export function RecentSuccessfulRunsPanel({
             {timeframe.toUpperCase()}
           </StatusBadge>
         </div>
-        <p className="text-[9px] font-semibold uppercase text-[var(--muted)]">
+        <p className="terminal-panel-subtitle text-[9px]">
           Selected Scan
         </p>
       </div>
@@ -1017,7 +1015,7 @@ function getRecentRunBadgeTone(badge: string) {
     case "Selected":
       return "accent";
     case "Validation Source":
-      return "complete";
+      return "observation";
     case "Latest":
       return "info";
     case "Recommended":
@@ -1099,10 +1097,10 @@ export function ForwardObservationSection({
     uiState.status === "observation_ready" && rows.length > 0;
 
   return (
-    <section className="overflow-hidden border border-[var(--border-medium)] bg-[var(--panel)] shadow-[var(--shadow-panel)] xl:flex xl:min-h-0 xl:flex-1 xl:flex-col">
-      <div className="flex min-h-7 flex-wrap items-center justify-between gap-2 border-b border-[var(--border-medium)] bg-[var(--table-header)] px-2 py-1">
+    <section className="terminal-panel overflow-hidden xl:flex xl:min-h-0 xl:flex-1 xl:flex-col">
+      <div className="terminal-panel-header">
         <div className="flex min-w-0 flex-wrap items-center gap-2">
-          <h2 className="text-[12px] font-semibold uppercase tracking-normal text-[var(--foreground)]">
+          <h2 className="terminal-panel-title">
             Outcome Summary
           </h2>
           <StatusBadge
@@ -1199,10 +1197,10 @@ function OutcomeRowsLoadPanel({
   onRequestLoad?: () => void;
 }) {
   return (
-    <div className="border border-[var(--border)] bg-[var(--panel-muted)] px-3 py-3">
+    <div className="terminal-state-panel">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="min-w-0">
-          <h3 className="text-[12px] font-semibold uppercase tracking-normal text-[var(--foreground)]">
+          <h3 className="terminal-panel-title">
             Outcome Rows not loaded
           </h3>
           <p className="mt-1 text-[11px] leading-4 text-[var(--muted)]">
@@ -1215,7 +1213,7 @@ function OutcomeRowsLoadPanel({
           type="button"
           onClick={onRequestLoad}
           disabled={!selectedRun || !onRequestLoad}
-          className="inline-flex h-7 items-center justify-center border border-[var(--accent-border)] bg-[var(--accent-soft)] px-2 text-[11px] font-semibold text-[var(--accent)] hover:border-[var(--accent-hover)] hover:text-[var(--accent-hover)] disabled:cursor-not-allowed disabled:opacity-55"
+          className="terminal-mini-action is-accent h-7 px-2"
         >
           Load Outcome Rows
         </button>
@@ -1278,7 +1276,10 @@ function SelectedScanValidationStrip({
               validationReadiness?.state === "ready"
                 ? "Source ready"
                 : formatReadinessRunStatus(validationReadiness),
-            tone: validationReadiness?.state === "ready" ? "complete" : "partial",
+            tone:
+              validationReadiness?.state === "ready"
+                ? "observation"
+                : "partial",
             title: "Readiness",
           },
           {
@@ -1584,9 +1585,9 @@ export function ObservationRowsTable({
   };
 
   return (
-    <section className="overflow-hidden border border-[var(--border-medium)] bg-[var(--panel-data)] shadow-[var(--shadow-panel)] xl:flex xl:min-h-0 xl:flex-1 xl:flex-col">
-      <div className="flex min-h-8 flex-wrap items-center gap-1.5 border-b border-[var(--border-medium)] bg-[var(--table-header)] px-2 py-1">
-        <h3 className="shrink-0 text-[12px] font-semibold uppercase tracking-normal text-[var(--foreground)]">
+    <section className="terminal-panel-data overflow-hidden xl:flex xl:min-h-0 xl:flex-1 xl:flex-col">
+      <div className="terminal-panel-header is-start">
+        <h3 className="terminal-panel-title shrink-0">
           Outcome Rows
         </h3>
         <StatusBadge
@@ -1626,7 +1627,7 @@ export function ObservationRowsTable({
             value={symbolSearch}
             onChange={(event) => setSymbolSearch(event.target.value)}
             placeholder="Symbol"
-            className="h-6 min-w-0 flex-1 border border-[var(--border)] bg-[var(--control)] px-2 font-mono text-[10px] text-[var(--foreground)] outline-none focus:border-[var(--accent)] sm:w-32 sm:flex-none"
+            className="terminal-control h-6 min-w-0 flex-1 font-mono text-[10px] sm:w-32 sm:flex-none"
           />
         </label>
       </div>
@@ -1776,7 +1777,7 @@ export function ObservationRowsTable({
                         timeframe: row.timeframe,
                         assetClass,
                       })}
-                      className="inline-flex h-6 items-center justify-center whitespace-nowrap border border-[var(--accent-border)] bg-[var(--accent-soft)] px-2 text-[11px] font-semibold leading-none text-[var(--accent)] hover:border-[var(--accent-hover)] hover:text-[var(--accent-hover)]"
+                      className="terminal-mini-action is-accent h-6 px-2"
                     >
                       Research
                     </Link>
@@ -2123,6 +2124,8 @@ function getHistoryStatusToneBorderClass(tone: StatusTone) {
       return "border-l-[var(--partial)]";
     case "info":
       return "border-l-[var(--info)]";
+    case "observation":
+      return "border-l-[var(--observation)]";
     case "watch":
       return "border-l-[var(--watch)]";
     case "missing":
@@ -2151,6 +2154,8 @@ function getHistoryStatusToneTextClass(tone: StatusTone) {
       return "text-[var(--partial)]";
     case "info":
       return "text-[var(--info)]";
+    case "observation":
+      return "text-[var(--observation)]";
     case "watch":
       return "text-[var(--watch)]";
     case "missing":
@@ -2196,7 +2201,7 @@ function getOutcomeSummaryStatus({
       return { label: "Window pending", tone: "partial" };
     }
 
-    return { label: "Source ready", tone: "complete" };
+    return { label: "Source ready", tone: "observation" };
   }
 
   if (
@@ -2230,7 +2235,7 @@ function ForwardObservationStatePanel({
   });
 
   return (
-    <div className="border-l-2 border-l-[var(--section-summary)] bg-[var(--panel)] py-1 pl-3 pr-2">
+    <div className="border-l-2 border-l-[var(--observation)] bg-[var(--observation-bg)] py-1 pl-3 pr-2">
       <h3 className="text-sm font-semibold">{title}</h3>
       <p className="mt-1 max-w-3xl text-xs leading-5 text-[var(--muted)]">
         {message}
@@ -2241,7 +2246,7 @@ function ForwardObservationStatePanel({
 
 function ObservationDataStatusLegend() {
   return (
-    <div className="mb-3 border border-[var(--border)] bg-[var(--panel)] px-3 py-2 text-xs leading-5 text-[var(--muted)]">
+    <div className="terminal-panel mb-3 px-3 py-2 text-xs leading-5 text-[var(--muted)]">
       <span className="font-semibold text-[var(--foreground)]">Outcome Status:</span>{" "}
       Complete has the selected future window, Partial has fewer future candles,
       Missing has no usable future window.
@@ -2254,7 +2259,7 @@ function ObservationSummarySection({ summary }: {
   window: ObservationWindow;
 }) {
   return (
-    <section className="flex min-w-0 flex-wrap items-center gap-1 border border-[var(--border-medium)] bg-[var(--panel-data)] px-2 py-1">
+    <section className="terminal-panel-data flex min-w-0 flex-wrap items-center gap-1 px-2 py-1 shadow-none">
       <SummaryStripStat
         label="Complete"
         value={formatCount(summary.completeCount)}
@@ -2710,16 +2715,16 @@ export function SnapshotTable({
 
   return (
     <details
-      className="shrink-0 overflow-hidden border border-[var(--border-medium)] bg-[var(--panel-data)] shadow-[var(--shadow-panel)]"
+      className="terminal-panel-data shrink-0 overflow-hidden"
       onToggle={(event) => {
         if (event.currentTarget.open && !requested) {
           onRequestLoad?.();
         }
       }}
     >
-      <summary className="flex min-h-7 cursor-pointer list-none flex-wrap items-center justify-between gap-2 bg-[var(--table-header)] px-2 py-1 marker:hidden">
+      <summary className="terminal-panel-header cursor-pointer list-none marker:hidden">
         <div className="flex min-w-0 items-center gap-2">
-          <h2 className="text-[12px] font-semibold uppercase tracking-normal text-[var(--foreground)]">
+          <h2 className="terminal-panel-title">
             Original Scan Rows
           </h2>
         </div>
@@ -2744,7 +2749,7 @@ export function SnapshotTable({
           symbol view, not historical replay.
         </p>
       {!requested ? (
-        <div className="border border-[var(--border)] bg-[var(--panel-muted)] px-3 py-3">
+        <div className="terminal-state-panel">
           <p className="text-[12px] leading-5 text-[var(--muted)]">
             Rows are loaded on demand to keep the initial History page light.
             {selectedRunId ? ` Selected run ${shortRunId(selectedRunId)}.` : ""}
@@ -2752,7 +2757,7 @@ export function SnapshotTable({
           <button
             type="button"
             onClick={onRequestLoad}
-            className="mt-2 inline-flex h-7 items-center justify-center border border-[var(--accent-border)] bg-[var(--accent-soft)] px-2 text-[11px] font-semibold text-[var(--accent)] hover:border-[var(--accent-hover)] hover:text-[var(--accent-hover)]"
+            className="terminal-mini-action is-accent mt-2 h-7 px-2"
           >
             Load Original Rows
           </button>
@@ -2889,7 +2894,7 @@ export function SnapshotTable({
                         timeframe: row.timeframe,
                         assetClass,
                       })}
-                      className="inline-flex border border-[var(--accent)] bg-[var(--accent-soft)] px-2 py-1 text-[11px] font-semibold text-[var(--accent)] hover:border-[var(--accent-hover)] hover:text-[var(--accent-hover)]"
+                      className="terminal-mini-action is-accent px-2 py-1"
                     >
                       Research
                     </Link>
@@ -2957,7 +2962,7 @@ function getSnapshotRowsSortValue(
 
 function StatePanel({ title, message }: { title: string; message: string }) {
   return (
-    <div className="border border-l-2 border-[var(--border)] border-l-[var(--missing)] bg-[var(--panel-muted)] px-2 py-2">
+    <div className="terminal-state-panel">
       <h3 className="text-[12px] font-semibold text-[var(--foreground)]">
         {title}
       </h3>

@@ -710,7 +710,7 @@ export function SymbolResearchPageClient({
   const detailsDiagnosticsPanel = (
     <details
       id="symbol-details"
-      className="border border-[var(--border)] bg-[var(--panel)] px-2.5 py-2 text-[11px] text-[var(--muted)] shadow-[var(--shadow-panel)]"
+      className="terminal-panel px-2.5 py-2 text-[11px] text-[var(--muted)]"
     >
       <summary className="cursor-pointer list-none font-semibold uppercase text-[var(--muted)] transition hover:text-[var(--foreground)]">
         Details / Raw Diagnostics
@@ -803,10 +803,10 @@ export function SymbolResearchPageClient({
             <Fact label="API Origin" value={apiOrigin} />
           </div>
           <p
-            className={`mt-3 border border-l-4 px-3 py-2 text-xs ${
+            className={`terminal-state-panel mt-3 border-l-4 px-3 py-2 text-xs ${
               diagnostics.hasWarning
-                ? "border-[var(--warning-border)] border-l-[var(--warning)] bg-[var(--panel)] text-[var(--warning)]"
-                : "border-[var(--border)] border-l-[var(--neutral)] bg-[var(--panel)] text-[var(--muted)]"
+                ? "border-l-[var(--warning)] text-[var(--warning)]"
+                : "border-l-[var(--neutral)] text-[var(--muted)]"
             }`}
           >
             {diagnostics.notice}
@@ -1377,15 +1377,13 @@ function SymbolResearchNavigation({
   };
 
   return (
-    <section className="mb-1 overflow-hidden border border-[var(--terminal-bar-border)] bg-[var(--terminal-bar)] text-[var(--terminal-bar-foreground)] shadow-[var(--shadow-panel)]">
-      <div className="flex min-w-0 flex-wrap items-center gap-1 px-2 py-1 text-[10px] font-semibold uppercase text-[var(--terminal-bar-muted)]">
+    <section className="terminal-command-bar mb-1">
+      <div className="terminal-command-row text-[var(--terminal-bar-muted)]">
         <div
-          className="flex h-6 min-w-0 shrink-0 items-center gap-1.5 overflow-hidden border-r border-white/10 pr-2"
+          className="terminal-command-brand"
           title={`Symbol Research / ${symbol} / Selected timeframe: ${timeframe}`}
         >
-          <h1 className="terminal-command-title">
-            Symbol Research
-          </h1>
+          <h1 className="terminal-command-title">SYMBOL</h1>
           <span className="shrink-0 font-mono text-[10px] text-[var(--terminal-bar-muted)]">
             {exchange}
           </span>
@@ -1407,7 +1405,7 @@ function SymbolResearchNavigation({
           </label>
           <button
             type="submit"
-            className="inline-flex h-6 items-center justify-center border border-[var(--accent-border)] bg-[var(--accent)] px-2 text-[10px] font-semibold text-[var(--accent-foreground)] transition hover:border-[var(--accent-hover)] hover:bg-[var(--accent-hover)]"
+            className="terminal-command-action is-primary"
           >
             Open
           </button>
@@ -1452,7 +1450,7 @@ function SymbolResearchNavigation({
           })}
         </nav>
 
-        <div className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto [scrollbar-gutter:stable]">
+        <div className="terminal-command-main">
           {commandStats.map((stat) => (
             <SymbolTerminalCommandStat
               key={`${stat.label}-${stat.value}`}
@@ -1461,19 +1459,13 @@ function SymbolResearchNavigation({
           ))}
         </div>
 
-        <div className="ml-auto flex shrink-0 flex-wrap items-center justify-end gap-1">
+        <div className="terminal-command-actions">
           <Link
             href={scannerReturnHref}
-            className="inline-flex h-6 items-center justify-center border border-white/20 bg-white/[0.08] px-2 text-[10px] font-semibold text-[var(--terminal-bar-foreground)] transition hover:border-white/35 hover:bg-white/[0.14]"
+            className="terminal-command-action"
           >
             Back to Scanner
           </Link>
-          <RefreshIconButton
-            onClick={onRefresh}
-            disabled={isFetching}
-            isRefreshing={isFetching}
-            label="Refresh"
-          />
           {watchlistSymbol ? (
             <SymbolWatchlistControl
               symbol={watchlistSymbol}
@@ -1481,6 +1473,12 @@ function SymbolResearchNavigation({
               variant="terminal"
             />
           ) : null}
+          <RefreshIconButton
+            onClick={onRefresh}
+            disabled={isFetching}
+            isRefreshing={isFetching}
+            label="Refresh"
+          />
         </div>
       </div>
 
@@ -1536,10 +1534,10 @@ export function SymbolWatchlistControl({
   const inWatchlist = isSymbolInWatchlist(watchlistSymbols, normalizedSymbol);
   const isTerminal = variant === "terminal";
   const actionClassName = isTerminal
-    ? "inline-flex h-6 items-center justify-center border border-white/20 bg-white/[0.08] px-2 text-[10px] font-semibold text-[var(--terminal-bar-foreground)] transition hover:border-white/35 hover:bg-white/[0.14]"
+    ? "terminal-command-action"
     : "ui-button h-7 px-2 text-[11px]";
   const savedClassName = isTerminal
-    ? "inline-flex h-6 items-center border border-[var(--positive-border)] bg-[var(--positive-bg)] px-2 text-[10px] font-semibold text-[var(--positive)]"
+    ? "terminal-command-chip border-[var(--positive-border)] bg-[var(--positive-bg)] text-[var(--positive)]"
     : "border border-[var(--positive-border)] bg-[var(--positive-bg)] px-2 py-1 text-[11px] font-semibold text-[var(--positive)]";
   const statusClassName = isTerminal
     ? "basis-full text-[11px] text-[var(--terminal-bar-muted)] md:text-right"
@@ -1739,14 +1737,14 @@ function ResearchState({
   loading?: boolean;
 }) {
   return (
-    <section className="border border-l-4 border-[var(--border)] border-l-[var(--accent)] bg-[var(--panel)] px-4 py-6 shadow-[var(--shadow-panel)]">
+    <section className="terminal-panel border-l-4 border-l-[var(--accent)] px-4 py-6">
       <h1 className="text-xl font-semibold">{title}</h1>
       <p className="mt-2 text-sm text-[var(--muted)]">{message}</p>
       {loading ? (
         <div className="mt-5 grid gap-2 sm:grid-cols-3">
-          <div className="h-12 border border-[var(--border)] bg-[var(--panel-2)]" />
-          <div className="h-12 border border-[var(--border)] bg-[var(--panel-2)]" />
-          <div className="h-12 border border-[var(--border)] bg-[var(--panel-2)]" />
+          <div className="terminal-panel-muted h-12" />
+          <div className="terminal-panel-muted h-12" />
+          <div className="terminal-panel-muted h-12" />
         </div>
       ) : null}
       {apiOrigin ? (
@@ -1772,7 +1770,7 @@ function SymbolResearchUnavailableState({
   apiOrigin?: string;
 }) {
   return (
-    <section className="border border-l-4 border-[var(--border)] border-l-[var(--warning)] bg-[var(--panel)] px-4 py-5 shadow-[var(--shadow-panel)]">
+    <section className="terminal-panel border-l-4 border-l-[var(--warning)] px-4 py-5">
       <p className="text-xs uppercase tracking-wide text-[var(--muted)]">
         Symbol Research
       </p>
@@ -1786,7 +1784,7 @@ function SymbolResearchUnavailableState({
         {apiOrigin ? <Fact label="API Origin" value={apiOrigin} /> : null}
       </div>
 
-      <div className="mt-5 border border-[var(--border)] bg-[var(--panel)] px-3 py-3">
+      <div className="terminal-panel mt-5 px-3 py-3">
         <h2 className="text-sm font-semibold">Suggested next checks</h2>
         <ul className="mt-2 space-y-1.5 text-sm text-[var(--muted)]">
           {content.suggestions.map((suggestion) => (
@@ -1821,7 +1819,7 @@ function DecisionHeader({
 
   return (
     <section
-      className={`mb-1 border border-l-4 bg-[var(--panel)] px-2.5 py-2 shadow-[var(--shadow-panel)] ${groupToneClass}`}
+      className={`terminal-panel mb-1 border-l-4 px-2.5 py-2 ${groupToneClass}`}
     >
       <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1">
         <div className="flex min-w-0 shrink-0 items-center gap-1.5">
@@ -1972,7 +1970,7 @@ function NextChecksPanel({ items }: { items: string[] }) {
         {primaryItems.map((item) => (
           <li
             key={item}
-            className="border border-[var(--border)] bg-[var(--panel-2)] px-2 py-1.5 leading-4"
+            className="terminal-panel-muted px-2 py-1.5 leading-4"
           >
             {item}
           </li>
@@ -2068,7 +2066,7 @@ function HistoricalEvidenceSummaryPanel({
         {summaryParts.slice(0, 4).map((part) => (
           <div
             key={part}
-            className="min-w-0 border border-[var(--border)] bg-[var(--panel-2)] px-2 py-1 font-semibold text-[var(--foreground)]"
+            className="terminal-panel-muted min-w-0 px-2 py-1 font-semibold text-[var(--foreground)]"
             title={part}
           >
             {part}
@@ -2101,7 +2099,7 @@ function WorkspacePanel({
 }) {
   return (
     <section
-      className={`min-w-0 border border-[var(--border)] bg-[var(--panel)] px-2.5 py-2 shadow-[var(--shadow-panel)] ${className}`}
+      className={`terminal-panel min-w-0 px-2.5 py-2 ${className}`}
     >
       <h2 className="mb-2 border-b border-[var(--border)] pb-1 text-[11px] font-semibold uppercase text-[var(--foreground)]">
         {title}
@@ -2113,7 +2111,7 @@ function WorkspacePanel({
 
 function MiniMetric({ label, value }: { label: string; value: string }) {
   return (
-    <div className="min-w-0 border border-[var(--border)] bg-[var(--panel-2)] px-2 py-1">
+    <div className="terminal-panel-muted min-w-0 px-2 py-1">
       <div className="text-[9px] font-semibold uppercase text-[var(--muted)]">
         {label}
       </div>
@@ -2199,7 +2197,7 @@ function Panel({
 }) {
   return (
     <section
-      className={`min-w-0 border border-[var(--border)] bg-[var(--panel)] px-3 py-3 shadow-[var(--shadow-panel)] ${className}`}
+      className={`terminal-panel min-w-0 px-3 py-3 ${className}`}
     >
       <h2 className="mb-2 border-b border-[var(--border)] pb-1.5 text-sm font-semibold">{title}</h2>
       {children}
@@ -2209,7 +2207,7 @@ function Panel({
 
 function Fact({ label, value }: { label: string; value: string }) {
   return (
-    <div className="min-w-0 border border-[var(--border)] bg-[var(--panel-2)] px-2 py-2">
+    <div className="terminal-panel-muted min-w-0 px-2 py-2">
       <div className="text-[11px] uppercase text-[var(--muted)]">{label}</div>
       <div className="mt-1 break-words text-sm text-[var(--foreground)]">{value}</div>
     </div>

@@ -271,7 +271,7 @@ describe("MultiTimeframeScreenerTable", () => {
 
     expect(commandHtml).toContain("Multi-Timeframe Screener");
     expect(commandHtml).toContain("Screener");
-    expect(commandHtml).toContain("MTF Screener");
+    expect(commandHtml).toContain("MTF SCREENER");
     expect(commandHtml).toContain("Crypto");
     expect(commandHtml).toContain("research context");
     expect(commandHtml).not.toContain("MTF Joined");
