@@ -1,4 +1,4 @@
-import { useLanguage } from "@/components/providers/LanguageProvider";
+import { useAppLanguage } from "@/lib/i18n/AppLanguageProvider";
 import type { ScannerSignal } from "@/lib/shared/scannerTypes";
 
 type SignalBadgeProps = {
@@ -19,7 +19,7 @@ export const signalToneClass: Record<ScannerSignal["state"], string> = {
 };
 
 export function SignalBadge({ signal }: SignalBadgeProps) {
-  const { dictionary: t } = useLanguage();
+  const { dictionary: t } = useAppLanguage();
 
   return (
     <span

@@ -1,7 +1,19 @@
 import { formatDisplayDateTime } from "@/lib/utils/format";
 import { dictionaries } from "@/lib/i18n/dictionaries";
-import { formatScannerReviewValue } from "@/lib/i18n/formatScannerObservation";
+import {
+  formatScannerReviewText,
+  formatScannerReviewValue,
+} from "@/lib/i18n/formatScannerObservation";
+import {
+  formatGroupLabel,
+  formatPrimaryStructure,
+  formatUnknownScannerResultValue,
+  normalizeGroupKey,
+} from "@/components/scanner/latestScanUi";
 import type { ScannerReviewText } from "@/lib/shared/scannerTypes";
+
+export type SymbolResearchDisplayDictionary =
+  (typeof dictionaries)[keyof typeof dictionaries];
 
 export type SymbolResearchGroup =
   | "eligible"
@@ -11,24 +23,16 @@ export type SymbolResearchGroup =
   | "neutral"
   | "insufficient_history";
 
-const groupLabels = {
-  eligible: "Eligible",
-  watch: "Watch",
-  overheated: "Overheated",
-  risk: "Risk",
-  neutral: "Neutral",
-  insufficient_history: "Insufficient History",
-} satisfies Record<SymbolResearchGroup, string>;
-
-const actionLabels: Record<string, string> = {
-  eligible: "Manual review",
-  watch: "Review only",
-  watch_caution: "Caution review",
-  watch_low: "Low priority review",
-  overheated: "Overheated review",
-  risk: "Risk review",
-  neutral: "Mixed research context",
-  insufficient_history: "Not enough candles",
+const actionReviewKeyByValue: Record<string, ScannerReviewText["key"]> = {
+  eligible: "review.status.manualReview",
+  review_only: "review.status.needsConfirmation",
+  watch: "review.status.needsConfirmation",
+  watch_caution: "review.status.caution",
+  watch_low: "review.status.lowPriority",
+  overheated: "review.status.doNotChase",
+  risk: "review.status.avoid",
+  neutral: "review.status.noClearEdge",
+  insufficient_history: "review.status.notEnoughCandles",
 };
 
 type CandleSummaryInput = {
@@ -332,40 +336,73 @@ export function formatSymbolResearchDateTime(value: string | number | null | und
   return formatDisplayDateTime(value);
 }
 
-export function formatSymbolResearchGroup(value: string | null | undefined) {
-  return isSymbolResearchGroup(value) ? groupLabels[value] : "Unknown";
+export function formatSymbolResearchGroup(
+  value: string | null | undefined,
+  dictionary: SymbolResearchDisplayDictionary = dictionaries.en,
+) {
+  return isSymbolResearchGroup(value)
+    ? formatGroupLabel(normalizeGroupKey(value), dictionary)
+    : dictionary.scannerResultFallback.unknown;
 }
 
-export function formatSymbolResearchAction(value: string | null | undefined) {
+export function formatSymbolResearchAction(
+  value: string | null | undefined,
+  dictionary: SymbolResearchDisplayDictionary = dictionaries.en,
+) {
   if (!value) {
-    return "Review only";
+    return dictionary.scannerReview["review.status.needsConfirmation"];
   }
 
-  const formattedReview = formatScannerReviewValue(value, dictionaries.en);
+  if (value in dictionary.actionBias) {
+    return dictionary.actionBias[value as keyof typeof dictionary.actionBias];
+  }
+
+  const actionReviewKey = actionReviewKeyByValue[value];
+
+  if (actionReviewKey) {
+    return formatScannerReviewText({ key: actionReviewKey }, dictionary);
+  }
+
+  const formattedReview = formatScannerReviewValue(value, dictionary);
 
   if (formattedReview !== value) {
     return formattedReview;
   }
 
-  if (Object.values(actionLabels).includes(value)) {
-    return value;
-  }
-
-  return actionLabels[value] ?? toTitleCase(value);
+  return formatUnknownScannerResultValue(value, dictionary);
 }
 
-export function formatSymbolResearchSetup(value: string | null | undefined) {
-  return value ? toTitleCase(value) : "Unknown";
+export function formatSymbolResearchSetup(
+  value: string | null | undefined,
+  dictionary: SymbolResearchDisplayDictionary = dictionaries.en,
+) {
+  return formatPrimaryStructure(value, dictionary);
 }
 
-export function formatSymbolResearchList(value: unknown) {
+export function formatSymbolResearchList(
+  value: unknown,
+  dictionary: SymbolResearchDisplayDictionary = dictionaries.en,
+) {
   if (!Array.isArray(value)) {
     return [];
   }
 
   return value
-    .map((item) => (typeof item === "string" ? toTitleCase(item) : ""))
+    .map((item) =>
+      typeof item === "string"
+        ? formatSymbolResearchRiskType(item, dictionary)
+        : "",
+    )
     .filter(Boolean);
+}
+
+function formatSymbolResearchRiskType(
+  value: string,
+  dictionary: SymbolResearchDisplayDictionary,
+) {
+  return value in dictionary.detectedRiskType
+    ? dictionary.detectedRiskType[value as keyof typeof dictionary.detectedRiskType]
+    : formatUnknownScannerResultValue(value, dictionary);
 }
 
 export function getSymbolResearchScoreRows(scores: {
@@ -635,16 +672,19 @@ export function buildSignalEvaluationReadout(
 
 export function buildSymbolResearchSummary(
   signal: ResearchSummarySignalInput,
+  dictionary: SymbolResearchDisplayDictionary = dictionaries.en,
 ): SymbolResearchSummary {
   return {
-    stance: getResearchSummaryStance(signal),
+    stance: getResearchSummaryStance(signal, dictionary),
     why: withResearchFallback(
       uniqueResearchBullets([
-        ...(signal.statusReasons ?? []),
-        ...getSetupBullets(signal),
+        ...(signal.statusReasons ?? []).map((reason) =>
+          formatScannerReviewValue(reason, dictionary),
+        ),
+        ...getSetupBullets(signal, dictionary),
         ...getScoreContextBullets(signal),
         ...getFactorBullets(signal.factors, ["risk", "bearish", "bullish", "neutral"]),
-        ...getRiskTypeBullets(signal.detectedRiskTypes),
+        ...getRiskTypeBullets(signal.detectedRiskTypes, dictionary),
       ]).slice(0, 4),
       "Current grouping reflects the selected scanner classification.",
     ),
@@ -655,7 +695,7 @@ export function buildSymbolResearchSummary(
     invalidation: withResearchFallback(
       uniqueResearchBullets([
         ...collectResearchText(signal.invalidation),
-        ...getRiskTypeBullets(signal.detectedRiskTypes),
+        ...getRiskTypeBullets(signal.detectedRiskTypes, dictionary),
       ]).slice(0, 3),
       "Reassess if risk flags increase or structure weakens.",
     ),
@@ -780,12 +820,14 @@ export function buildSymbolResearchTimeframeAvailability({
   signals = [],
   unavailable,
   plannedTimeframes = [],
+  dictionary = dictionaries.en,
 }: {
   timeframes: readonly string[];
   selectedTimeframe: string;
   signals?: TimeframeAvailabilitySignalInput[];
   unavailable?: SymbolResearchUnavailableInput | null;
   plannedTimeframes?: readonly string[];
+  dictionary?: SymbolResearchDisplayDictionary;
 }): SymbolResearchTimeframeAvailabilityRow[] {
   const selected = selectedTimeframe.trim().toLowerCase();
   const planned = new Set(plannedTimeframes.map((timeframe) => timeframe.toLowerCase()));
@@ -821,6 +863,7 @@ export function buildSymbolResearchTimeframeAvailability({
         status: "planned",
         isSelected,
         reason: "No production scanner run is available for this timeframe yet.",
+        dictionary,
       });
     }
 
@@ -830,6 +873,7 @@ export function buildSymbolResearchTimeframeAvailability({
         status: isSelected ? "selected_available" : "available",
         isSelected,
         signal,
+        dictionary,
       });
     }
 
@@ -840,6 +884,7 @@ export function buildSymbolResearchTimeframeAvailability({
         isSelected,
         unavailable,
         reason: unavailableReason.label,
+        dictionary,
       });
     }
 
@@ -848,6 +893,7 @@ export function buildSymbolResearchTimeframeAvailability({
       status: "not_returned",
       isSelected,
       reason: "No latest signal was returned for this timeframe.",
+      dictionary,
     });
   });
 }
@@ -982,6 +1028,7 @@ function buildTimeframeAvailabilityRow({
   signal,
   unavailable,
   reason,
+  dictionary,
 }: {
   timeframe: string;
   status: SymbolResearchTimeframeAvailabilityStatus;
@@ -989,6 +1036,7 @@ function buildTimeframeAvailabilityRow({
   signal?: TimeframeAvailabilitySignalInput;
   unavailable?: SymbolResearchUnavailableInput | null;
   reason?: string;
+  dictionary: SymbolResearchDisplayDictionary;
 }): SymbolResearchTimeframeAvailabilityRow {
   const isAvailable = status === "available" || status === "selected_available";
   const isPlanned = status === "planned";
@@ -1020,10 +1068,11 @@ function buildTimeframeAvailabilityRow({
           : isNotReturned
             ? "Open timeframe to check"
             : "Not available",
-    group: signal ? formatSymbolResearchGroup(signal.resultGroup) : "-",
+    group: signal ? formatSymbolResearchGroup(signal.resultGroup, dictionary) : "-",
     action: signal
       ? formatSymbolResearchAction(
           signal.actionBias ?? signal.statusNoteKey ?? signal.statusNote,
+          dictionary,
         )
       : "-",
     rank: signal ? formatSymbolResearchScore(signal.rankScore) : "-",
@@ -1647,21 +1696,39 @@ function getResearchDecisionKeyCaution({
   return "Treat this as research context, not a conclusion.";
 }
 
-function getResearchSummaryStance(signal: ResearchSummarySignalInput) {
+function getResearchSummaryStance(
+  signal: ResearchSummarySignalInput,
+  dictionary: SymbolResearchDisplayDictionary,
+) {
   switch (signal.resultGroup) {
     case "eligible":
-      return "Manual review context";
+      return formatScannerReviewText(
+        { key: "review.status.manualReview" },
+        dictionary,
+      );
     case "watch":
-      return "Confirmation review";
+      return formatScannerReviewText(
+        { key: "review.status.needsConfirmation" },
+        dictionary,
+      );
     case "overheated":
-      return "Overheated review";
+      return formatScannerReviewText(
+        { key: "review.status.doNotChase" },
+        dictionary,
+      );
     case "risk":
-      return "Risk review";
+      return formatScannerReviewText({ key: "review.status.avoid" }, dictionary);
     case "insufficient_history":
-      return "Not enough history";
+      return formatScannerReviewText(
+        { key: "review.status.notEnoughCandles" },
+        dictionary,
+      );
     case "neutral":
     default:
-      return "Mixed research context";
+      return formatScannerReviewText(
+        { key: "review.status.noClearEdge" },
+        dictionary,
+      );
   }
 }
 
@@ -1676,15 +1743,29 @@ function getFactorBullets(
   return keys.flatMap((key) => collectResearchText(factors[key]));
 }
 
-function getRiskTypeBullets(value: unknown) {
-  return collectResearchText(value).map((item) =>
-    item.toLowerCase().includes("risk") ? item : `${item} risk noted`,
-  );
+function getRiskTypeBullets(
+  value: unknown,
+  dictionary: SymbolResearchDisplayDictionary,
+) {
+  const riskLabels = formatSymbolResearchList(value, dictionary);
+
+  if (riskLabels.length > 0) {
+    return riskLabels;
+  }
+
+  return dictionary === dictionaries.en
+    ? collectResearchText(value).map((item) =>
+        item.toLowerCase().includes("risk") ? item : `${item} risk noted`,
+      )
+    : [];
 }
 
-function getSetupBullets(signal: ResearchSummarySignalInput) {
+function getSetupBullets(
+  signal: ResearchSummarySignalInput,
+  dictionary: SymbolResearchDisplayDictionary,
+) {
   return signal.primaryStructure
-    ? [`Setup type: ${toTitleCase(signal.primaryStructure)}`]
+    ? [`Setup type: ${formatSymbolResearchSetup(signal.primaryStructure, dictionary)}`]
     : [];
 }
 

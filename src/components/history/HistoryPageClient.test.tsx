@@ -2,6 +2,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
+import { dictionaries } from "@/lib/i18n/dictionaries";
 import {
   buildHistoryRefreshScope,
   buildHistoricalObservationReadinessUrl,
@@ -227,9 +228,15 @@ describe("HistoryPageClient display formatting", () => {
       "Overheated caution",
     );
     expect(formatHistoryPrimarySignal("Avoid")).toBe("Risk review");
-    expect(formatHistoryPrimarySignal("Manual review")).toBe("Manual review");
+    expect(formatHistoryPrimarySignal("Manual review")).toBe("Manual Review");
     expect(formatHistoryPrimarySignal("review.status.manualReview")).toBe(
       "Manual Review",
+    );
+    expect(formatHistoryPrimarySignal("Manual review", dictionaries.zh)).toBe(
+      "人工复核",
+    );
+    expect(formatHistoryPrimarySignal("unmapped_future_label", dictionaries.zh)).toBe(
+      "未知",
     );
   });
 

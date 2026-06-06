@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { dictionaries } from "@/lib/i18n/dictionaries";
 import {
   buildMtfScreenerRows,
   buildMtfScreenerRowsFromResponse,
@@ -408,9 +409,14 @@ describe("multi-timeframe screener helpers", () => {
     expect(summary.visibleNotes[1]).toContain("1h:");
     expect(summary.hiddenCount).toBe(2);
     expect(summary.hiddenNotes).toEqual([
-      "1d: Risk group",
+      "1d: Risk",
       "4h: Overheated",
     ]);
+
+    const chineseSummary = getMtfRiskNotesSummary(row, 4, dictionaries.zh);
+
+    expect(chineseSummary.notes).toContain("1d: 风险");
+    expect(chineseSummary.notes).toContain("4h: 过热");
   });
 
   it("returns active preset explanation text", () => {

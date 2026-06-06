@@ -21,6 +21,31 @@ export const languageLabels: Record<Language, string> = {
   zh: "中文",
 };
 
+type ScannerResultGroupKey =
+  | "eligible"
+  | "watch"
+  | "overheated"
+  | "risk"
+  | "neutral"
+  | "insufficient_history";
+
+type PrimaryStructureDisplayKey =
+  | PrimaryStructure
+  | "breakout_confirmed"
+  | "trend_continuation"
+  | "squeeze_breakout"
+  | "extended_breakout"
+  | "base_building"
+  | "breakdown"
+  | "distribution"
+  | "pullback_retest"
+  | "range_reclaim"
+  | "failed_breakout"
+  | "short_term_retest"
+  | "daily_trend"
+  | "long_term_repair"
+  | "unknown";
+
 export const dictionaries = {
   en: {
     nav: {
@@ -433,6 +458,23 @@ export const dictionaries = {
       weak: "Weak",
       neutral: "Neutral",
     } satisfies Record<ScannerSignalLabel, string>,
+    scannerResultGroup: {
+      eligible: "Eligible",
+      watch: "Watch",
+      overheated: "Overheated",
+      risk: "Risk",
+      neutral: "Neutral",
+      insufficient_history: "Insufficient History",
+    } satisfies Record<ScannerResultGroupKey, string>,
+    scannerResultFallback: {
+      unknown: "Unknown",
+      notAvailable: "n/a",
+      notReturned: "Not returned",
+      noLatestSignal: "No latest signal",
+      noSpecificRiskTypes: "No specific risk types noted.",
+      noStatusNote: "No status note available.",
+      needsReview: "Needs review",
+    },
     actionBias: {
       eligible: "Eligible",
       watch_only: "Watch",
@@ -450,7 +492,21 @@ export const dictionaries = {
       weak_bounce: "Weak Bounce",
       trend_breakdown: "Trend Breakdown",
       neutral: "Neutral",
-    } satisfies Record<PrimaryStructure, string>,
+      breakout_confirmed: "Breakout Confirmed",
+      trend_continuation: "Trend Continuation",
+      squeeze_breakout: "Squeeze Breakout",
+      extended_breakout: "Extended Breakout",
+      base_building: "Base Building",
+      breakdown: "Breakdown",
+      distribution: "Distribution",
+      pullback_retest: "Pullback Retest",
+      range_reclaim: "Range Reclaim",
+      failed_breakout: "Failed Breakout",
+      short_term_retest: "Short-Term Retest",
+      daily_trend: "Daily Trend",
+      long_term_repair: "Long-Term Repair",
+      unknown: "Unknown",
+    } satisfies Record<PrimaryStructureDisplayKey, string>,
     detectedRiskType: {
       overheat_risk: "Overheat Risk",
       distribution_risk: "Distribution Risk",
@@ -1096,6 +1152,23 @@ export const dictionaries = {
       weak: "偏弱",
       neutral: "中性",
     } satisfies Record<ScannerSignalLabel, string>,
+    scannerResultGroup: {
+      eligible: "符合条件",
+      watch: "观察",
+      overheated: "过热",
+      risk: "风险",
+      neutral: "中性",
+      insufficient_history: "历史数据不足",
+    } satisfies Record<ScannerResultGroupKey, string>,
+    scannerResultFallback: {
+      unknown: "未知",
+      notAvailable: "无",
+      notReturned: "未返回",
+      noLatestSignal: "无最新信号",
+      noSpecificRiskTypes: "未标注具体风险类型。",
+      noStatusNote: "无状态说明。",
+      needsReview: "需要复核",
+    },
     actionBias: {
       eligible: "符合条件",
       watch_only: "观察",
@@ -1113,7 +1186,21 @@ export const dictionaries = {
       weak_bounce: "弱反弹",
       trend_breakdown: "趋势破位",
       neutral: "中性",
-    } satisfies Record<PrimaryStructure, string>,
+      breakout_confirmed: "突破确认",
+      trend_continuation: "趋势延续",
+      squeeze_breakout: "压缩突破",
+      extended_breakout: "延伸突破",
+      base_building: "筑底",
+      breakdown: "破位",
+      distribution: "派发",
+      pullback_retest: "回踩复测",
+      range_reclaim: "区间收复",
+      failed_breakout: "突破失败",
+      short_term_retest: "短期复测",
+      daily_trend: "日线趋势",
+      long_term_repair: "长期修复",
+      unknown: "未知",
+    } satisfies Record<PrimaryStructureDisplayKey, string>,
     detectedRiskType: {
       overheat_risk: "过热风险",
       distribution_risk: "派发风险",

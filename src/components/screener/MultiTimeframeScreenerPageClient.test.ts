@@ -134,7 +134,7 @@ describe("MultiTimeframeScreenerTable", () => {
     ]) {
       expect(html).toContain(label);
     }
-    expect(html).toContain("Missing");
+    expect(html).toContain("Not returned");
     expect(html).toContain("Limited HTF Data");
     expect(html).toContain("Limited data");
     expect(html).toContain("Open");

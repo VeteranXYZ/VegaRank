@@ -3,11 +3,13 @@
 import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 import { useMemo, useState } from "react";
+import { useAppLanguage } from "@/lib/i18n/AppLanguageProvider";
 import {
   formatGroupLabel,
   formatScore,
   formatSignalLabel,
   normalizeGroupKey,
+  type ScannerDisplayDictionary,
 } from "@/components/scanner/latestScanUi";
 import { dictionaries } from "@/lib/i18n/dictionaries";
 import { formatScannerReviewValue } from "@/lib/i18n/formatScannerObservation";
@@ -1498,6 +1500,7 @@ export function ObservationRowsTable({
   initialSymbolSearch?: string;
   initialSortState?: DataSortState<ObservationRowsSortKey> | null;
 }) {
+  const { dictionary } = useAppLanguage();
   const [dataStatusFilter, setDataStatusFilter] =
     useState<ObservationRowsDataStatusFilter>(initialDataStatusFilter);
   const [groupFilter, setGroupFilter] =
@@ -1671,14 +1674,17 @@ export function ObservationRowsTable({
                       className="flex min-w-0 items-center gap-1.5"
                       title={`${formatGroupLabel(
                         normalizeGroupKey(row.group),
-                      )} · ${formatSignalLabel(row.label)}`}
+                      )} · ${formatSignalLabel(row.label, dictionary)}`}
                     >
-                      <GroupChip group={normalizeGroupKey(row.group)} />
+                      <GroupChip
+                        group={normalizeGroupKey(row.group)}
+                        dictionary={dictionary}
+                      />
                       <span
                         className="min-w-0 truncate text-[10px] text-[var(--muted)]"
-                        title={formatSignalLabel(row.label)}
+                        title={formatSignalLabel(row.label, dictionary)}
                       >
-                        {formatSignalLabel(row.label)}
+                        {formatSignalLabel(row.label, dictionary)}
                       </span>
                     </div>
                   </DataTableCell>
@@ -1796,10 +1802,16 @@ function ObservationDataStatusBadge({
   );
 }
 
-function GroupChip({ group }: { group: ReturnType<typeof normalizeGroupKey> }) {
+function GroupChip({
+  group,
+  dictionary,
+}: {
+  group: ReturnType<typeof normalizeGroupKey>;
+  dictionary: ScannerDisplayDictionary;
+}) {
   return (
     <DataTableChip tone={getHistoryGroupChipTone(group)}>
-      {formatGroupLabel(group)}
+      {formatGroupLabel(group, dictionary)}
     </DataTableChip>
   );
 }
@@ -2628,6 +2640,7 @@ export function SnapshotTable({
   errorMessage?: string | null;
   initialSortState?: DataSortState<SnapshotRowsSortKey> | null;
 }) {
+  const { dictionary } = useAppLanguage();
   const requested = isRequested ?? true;
   const [sortState, setSortState] =
     useState<DataSortState<SnapshotRowsSortKey> | null>(initialSortState);
@@ -2779,19 +2792,22 @@ export function SnapshotTable({
                     {formatMarket(row)}
                   </DataTableCell>
                   <DataTableCell>
-                    <GroupChip group={normalizeGroupKey(row.group)} />
+                    <GroupChip
+                      group={normalizeGroupKey(row.group)}
+                      dictionary={dictionary}
+                    />
                   </DataTableCell>
                   <DataTableCell>
-                    <DataTableChip title={formatSignalLabel(row.label)}>
-                      {formatSignalLabel(row.label)}
+                    <DataTableChip title={formatSignalLabel(row.label, dictionary)}>
+                      {formatSignalLabel(row.label, dictionary)}
                     </DataTableChip>
                   </DataTableCell>
                   <DataTableCell
                     className="max-w-[160px] text-[var(--foreground)]"
                     truncate
-                    title={formatHistoryPrimarySignal(row.primarySignal)}
+                    title={formatHistoryPrimarySignal(row.primarySignal, dictionary)}
                   >
-                    {formatHistoryPrimarySignal(row.primarySignal)}
+                    {formatHistoryPrimarySignal(row.primarySignal, dictionary)}
                   </DataTableCell>
                   <DataTableCell
                     className="max-w-[240px]"
@@ -3837,20 +3853,27 @@ export function formatHistoryDateTime(value: string | null | undefined) {
   return formatDisplayDateTime(value, { timeZone: "utc" });
 }
 
-export function formatHistoryPrimarySignal(value: string | null | undefined) {
+export function formatHistoryPrimarySignal(
+  value: string | null | undefined,
+  dictionary: ScannerDisplayDictionary = dictionaries.en,
+) {
   const label = value?.trim();
 
   if (!label) {
     return "-";
   }
 
-  const formattedReview = formatScannerReviewValue(label, dictionaries.en);
+  const formattedReview = formatScannerReviewValue(label, dictionary);
 
   if (formattedReview !== label) {
     return formattedReview;
   }
 
-  return unsafePrimarySignalLabelMap[label.toLowerCase()] ?? label;
+  if (dictionary === dictionaries.en) {
+    return unsafePrimarySignalLabelMap[label.toLowerCase()] ?? label;
+  }
+
+  return dictionary.scannerResultFallback.unknown;
 }
 
 function formatCount(value: number | null | undefined) {

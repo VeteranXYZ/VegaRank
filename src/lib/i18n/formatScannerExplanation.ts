@@ -1,7 +1,7 @@
-import type { useLanguage } from "@/components/providers/LanguageProvider";
+import type { dictionaries } from "@/lib/i18n/dictionaries";
 import type { ScannerExplanation } from "@/lib/shared/scannerTypes";
 
-type Dictionary = ReturnType<typeof useLanguage>["dictionary"];
+type Dictionary = (typeof dictionaries)[keyof typeof dictionaries];
 
 export function formatScannerExplanation(
   explanation: ScannerExplanation,

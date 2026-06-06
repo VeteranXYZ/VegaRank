@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { dictionaries } from "@/lib/i18n/dictionaries";
 import {
   buildSignalEvaluationReadout,
   buildResearchDecisionSummary,
@@ -47,12 +48,28 @@ describe("symbol research UI helpers", () => {
       formatSymbolResearchSetup("healthy_pullback"),
     ];
 
-    expect(labels).toContain("Manual review");
-    expect(labels).toContain("Caution review");
-    expect(labels).toContain("Low priority review");
-    expect(labels).toContain("Overheated review");
-    expect(labels).toContain("Risk review");
+    expect(labels).toContain("Eligible");
+    expect(labels).toContain("Manual Review");
+    expect(labels).toContain("Low Priority Review");
+    expect(labels).toContain("Overheated Review");
+    expect(labels).toContain("Risk Review");
     expect(labels.join(" ")).not.toMatch(/\b(buy|sell|entry|long|short)\b/i);
+  });
+
+  it("formats Chinese scanner result labels for research surfaces", () => {
+    const dictionary = dictionaries.zh;
+
+    expect(formatSymbolResearchAction("Manual review", dictionary)).toBe("人工复核");
+    expect(formatSymbolResearchAction("watch_low", dictionary)).toBe(
+      "低优先级复核",
+    );
+    expect(formatSymbolResearchGroup("insufficient_history", dictionary)).toBe(
+      "历史数据不足",
+    );
+    expect(formatSymbolResearchSetup("base_building", dictionary)).toBe("筑底");
+    expect(formatSymbolResearchSetup("unknown_future_setup", dictionary)).toBe(
+      "未知",
+    );
   });
 
   it("formats score rows with readable labels", () => {
@@ -110,11 +127,11 @@ describe("symbol research UI helpers", () => {
   });
 
   it.each([
-    ["risk", "Risk review"],
-    ["eligible", "Manual review context"],
-    ["watch", "Confirmation review"],
-    ["overheated", "Overheated review"],
-    ["neutral", "Mixed research context"],
+    ["risk", "Risk Review"],
+    ["eligible", "Manual Review"],
+    ["watch", "Needs Confirmation"],
+    ["overheated", "Overheated Review"],
+    ["neutral", "Neutral"],
   ])("builds a conservative research summary for %s", (resultGroup, stance) => {
     const summary = buildSymbolResearchSummary({
       resultGroup,

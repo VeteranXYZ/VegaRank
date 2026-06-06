@@ -1,8 +1,18 @@
 import { formatDisplayDateTime } from "@/lib/utils/format";
 import { dictionaries } from "@/lib/i18n/dictionaries";
 import { formatScannerReviewValue } from "@/lib/i18n/formatScannerObservation";
+import {
+  formatActionBias,
+  formatGroupLabel,
+  formatPrimaryStructure,
+  formatUnknownScannerResultValue,
+  getDetectedRiskTypeLabels,
+  normalizeGroupKey,
+} from "@/components/scanner/latestScanUi";
 import type { ScannerReviewText } from "@/lib/shared/scannerTypes";
 import { formatSymbolResearchRunContext } from "./symbolResearchUi";
+
+export type TimelineDisplayDictionary = (typeof dictionaries)[keyof typeof dictionaries];
 
 export type RawSymbolTimelineSignal = {
   id?: string | null;
@@ -62,15 +72,6 @@ export type CompactSignalHistoryResult = {
   totalCount: number;
 };
 
-const groupLabels: Record<string, string> = {
-  eligible: "Eligible",
-  watch: "Watch",
-  overheated: "Overheated",
-  risk: "Risk",
-  neutral: "Neutral",
-  insufficient_history: "Insufficient History",
-};
-
 const groupDescriptions: Record<string, string> = {
   eligible: "Meets current scanner review criteria.",
   watch: "Worth monitoring, but confirmation is still limited.",
@@ -80,16 +81,9 @@ const groupDescriptions: Record<string, string> = {
   insufficient_history: "The scanner needs more candles for a fuller read.",
 };
 
-const actionLabels: Record<string, string> = {
-  eligible: "Manual review",
-  watch_only: "Review only",
-  do_not_chase: "Overheated review",
-  avoid: "Repair review",
-  ignore: "Low priority review",
-};
-
 export function normalizeSignalHistory(
   history: RawSymbolTimelineSignal[] | null | undefined,
+  dictionary: TimelineDisplayDictionary = dictionaries.en,
 ): NormalizedSymbolTimelineSignal[] {
   if (!Array.isArray(history) || history.length === 0) {
     return [];
@@ -108,17 +102,17 @@ export function normalizeSignalHistory(
         scanTimeMs,
         candleOpenTimeMs,
         group,
-        groupLabel: getTimelineGroupLabel(group),
-        groupDescription: getTimelineGroupDescription(group),
-        signalLabel: item.signalLabel ? toTitleCase(item.signalLabel) : "Unknown",
-        actionText: getTimelineActionText(item),
-        setupText: item.primaryStructure ? toTitleCase(item.primaryStructure) : "Unknown",
+        groupLabel: getTimelineGroupLabel(group, dictionary),
+        groupDescription: getTimelineGroupDescription(group, dictionary),
+        signalLabel: getTimelineSignalLabel(item.signalLabel, dictionary),
+        actionText: getTimelineActionText(item, dictionary),
+        setupText: getTimelineSetupText(item.primaryStructure, dictionary),
         rankScore: formatTimelineScore(item.rankScore),
         opportunityScore: formatTimelineScore(item.opportunityScore),
         confirmationScore: formatTimelineScore(item.confirmationScore),
         riskScore: formatTimelineScore(item.riskScore),
-        riskText: getTimelineRiskText(item.detectedRiskTypes),
-        statusText: getTimelineStatusText(item),
+        riskText: getTimelineRiskText(item.detectedRiskTypes, dictionary),
+        statusText: getTimelineStatusText(item, dictionary),
         runContextText: formatSymbolResearchRunContext(item),
         isSelectedCurrentRun: item.isSelectedCurrentRun === true,
         isNewerThanSelectedCurrentRun: item.isNewerThanSelectedCurrentRun === true,
@@ -198,29 +192,42 @@ export function formatTimelineScore(value: number | null | undefined) {
   return value.toFixed(1);
 }
 
-export function getTimelineGroupLabel(value: string | null | undefined) {
-  return groupLabels[normalizeGroup(value)];
+export function getTimelineGroupLabel(
+  value: string | null | undefined,
+  dictionary: TimelineDisplayDictionary = dictionaries.en,
+) {
+  return formatGroupLabel(normalizeGroup(value), dictionary);
 }
 
-export function getTimelineGroupDescription(value: string | null | undefined) {
-  return groupDescriptions[normalizeGroup(value)];
+export function getTimelineGroupDescription(
+  value: string | null | undefined,
+  dictionary: TimelineDisplayDictionary = dictionaries.en,
+) {
+  const group = normalizeGroup(value);
+
+  return dictionary === dictionaries.en
+    ? groupDescriptions[group]
+    : formatGroupLabel(group, dictionary);
 }
 
-export function getTimelineStatusText(item: RawSymbolTimelineSignal) {
+export function getTimelineStatusText(
+  item: RawSymbolTimelineSignal,
+  dictionary: TimelineDisplayDictionary = dictionaries.en,
+) {
   if (item.statusNoteKey) {
-    return formatScannerReviewValue(item.statusNoteKey, dictionaries.en);
+    return formatScannerReviewValue(item.statusNoteKey, dictionary);
   }
 
   if (item.statusNote) {
-    return formatScannerReviewValue(item.statusNote, dictionaries.en);
+    return formatScannerReviewValue(item.statusNote, dictionary);
   }
 
   if (item.reviewTier) {
-    return `Review tier: ${toTitleCase(item.reviewTier)}`;
+    return formatScannerReviewValue(item.reviewTier, dictionary);
   }
 
   if (item.cautionLevel) {
-    return `Caution level: ${toTitleCase(item.cautionLevel)}`;
+    return formatScannerReviewValue(item.cautionLevel, dictionary);
   }
 
   const firstReason =
@@ -228,38 +235,58 @@ export function getTimelineStatusText(item: RawSymbolTimelineSignal) {
     item.statusReasons?.find((reason) => reason.trim().length > 0);
 
   if (firstReason) {
-    return formatScannerReviewValue(firstReason, dictionaries.en);
+    return formatScannerReviewValue(firstReason, dictionary);
   }
 
-  return "No status note available.";
+  return dictionary.scannerResultFallback.noStatusNote;
 }
 
-export function getTimelineRiskText(value: unknown) {
+export function getTimelineRiskText(
+  value: unknown,
+  dictionary: TimelineDisplayDictionary = dictionaries.en,
+) {
   if (!Array.isArray(value) || value.length === 0) {
-    return "No specific risk types noted.";
+    return dictionary.scannerResultFallback.noSpecificRiskTypes;
   }
 
-  const risks = value
-    .map((item) => (typeof item === "string" ? toTitleCase(item) : ""))
-    .filter(Boolean);
+  const risks = getDetectedRiskTypeLabels(value, dictionary);
 
-  return risks.length > 0 ? risks.join(", ") : "No specific risk types noted.";
+  return risks.length > 0
+    ? risks.join(", ")
+    : dictionary.scannerResultFallback.noSpecificRiskTypes;
 }
 
-function getTimelineActionText(item: RawSymbolTimelineSignal) {
-  if (item.actionBias && actionLabels[item.actionBias]) {
-    return actionLabels[item.actionBias];
-  }
-
+function getTimelineActionText(
+  item: RawSymbolTimelineSignal,
+  dictionary: TimelineDisplayDictionary,
+) {
   if (item.actionBias) {
-    return toTitleCase(item.actionBias);
+    return formatActionBias(item.actionBias, dictionary);
   }
 
   if (item.statusNote) {
-    return formatScannerReviewValue(item.statusNote, dictionaries.en);
+    return formatScannerReviewValue(item.statusNote, dictionary);
   }
 
-  return "Review only";
+  return dictionary.scannerReview["review.status.needsConfirmation"];
+}
+
+function getTimelineSignalLabel(
+  value: string | null | undefined,
+  dictionary: TimelineDisplayDictionary,
+) {
+  return value && value in dictionary.signalLabel
+    ? dictionary.signalLabel[value as keyof typeof dictionary.signalLabel]
+    : value
+      ? formatUnknownScannerResultValue(value, dictionary)
+      : dictionary.scannerResultFallback.unknown;
+}
+
+function getTimelineSetupText(
+  value: string | null | undefined,
+  dictionary: TimelineDisplayDictionary,
+) {
+  return formatPrimaryStructure(value, dictionary);
 }
 
 function dedupeSignalHistory(history: RawSymbolTimelineSignal[]) {
@@ -311,11 +338,7 @@ function getTimelineTone(
 }
 
 function normalizeGroup(value: string | null | undefined) {
-  if (value && groupLabels[value]) {
-    return value;
-  }
-
-  return "neutral";
+  return normalizeGroupKey(value);
 }
 
 function parseDateMs(value: string | null | undefined) {
@@ -325,12 +348,4 @@ function parseDateMs(value: string | null | undefined) {
 
   const parsed = Date.parse(value);
   return Number.isNaN(parsed) ? null : parsed;
-}
-
-function toTitleCase(value: string) {
-  return value
-    .split(/[_\s-]+/)
-    .filter(Boolean)
-    .map((part) => part.charAt(0).toUpperCase() + part.slice(1).toLowerCase())
-    .join(" ");
 }

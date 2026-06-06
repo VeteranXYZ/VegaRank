@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useAppLanguage } from "@/lib/i18n/AppLanguageProvider";
 import {
   buildBehaviorSampleQuality,
   buildBehaviorReadout,
@@ -23,6 +24,7 @@ import {
   selectCompactRecentOutcomes,
   type BehaviorSampleQualityReadout,
   type BehaviorReadout,
+  type BehaviorDisplayDictionary,
   type HistoricalFollowThroughEvaluation,
   type SymbolBehavior,
   type SymbolBehaviorCoverage,
@@ -50,6 +52,7 @@ export function SymbolBehaviorPanel({
   signalHistory,
   className = "",
 }: SymbolBehaviorPanelProps) {
+  const { dictionary } = useAppLanguage();
   const [expanded, setExpanded] = useState(false);
   const isAvailable = diagnostics?.available === true && Boolean(behavior);
   const sampleQuality =
@@ -99,13 +102,14 @@ export function SymbolBehaviorPanel({
           <BehaviorWarnings
             warnings={getDisplayBehaviorWarnings(behavior.warnings)}
           />
-          <CurrentBehaviorContext behavior={behavior} />
+          <CurrentBehaviorContext behavior={behavior} dictionary={dictionary} />
           <BehaviorHorizons horizons={getBehaviorHorizonRows(behavior)} />
           <RecentBehaviorOutcomes
             outcomes={behavior.recentOutcomes ?? []}
             hasClusteredRuns={sampleQuality?.hasClusteredRuns === true}
             expanded={expanded}
             onToggle={() => setExpanded((value) => !value)}
+            dictionary={dictionary}
           />
         </>
       )}
@@ -342,7 +346,13 @@ function BehaviorWarnings({ warnings }: { warnings: string[] }) {
   );
 }
 
-function CurrentBehaviorContext({ behavior }: { behavior: SymbolBehavior }) {
+function CurrentBehaviorContext({
+  behavior,
+  dictionary,
+}: {
+  behavior: SymbolBehavior;
+  dictionary: BehaviorDisplayDictionary;
+}) {
   const context = behavior.currentContext;
 
   if (!context) {
@@ -355,15 +365,15 @@ function CurrentBehaviorContext({ behavior }: { behavior: SymbolBehavior }) {
       <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
         <BehaviorFact
           label="Current Group"
-          value={getBehaviorGroupLabel(context.resultGroup)}
+          value={getBehaviorGroupLabel(context.resultGroup, dictionary)}
         />
         <BehaviorFact
           label="Current Signal"
-          value={getBehaviorSignalLabel(context.signalLabel)}
+          value={getBehaviorSignalLabel(context.signalLabel, dictionary)}
         />
         <BehaviorFact
           label="Primary Structure"
-          value={getBehaviorSetupLabel(context.primaryStructure)}
+          value={getBehaviorSetupLabel(context.primaryStructure, dictionary)}
         />
         <BehaviorFact label="Timeframe" value={context.timeframe || "Unknown"} />
       </div>
@@ -427,11 +437,13 @@ function RecentBehaviorOutcomes({
   hasClusteredRuns,
   expanded,
   onToggle,
+  dictionary,
 }: {
   outcomes: SymbolBehaviorRecentOutcome[];
   hasClusteredRuns?: boolean;
   expanded: boolean;
   onToggle: () => void;
+  dictionary: BehaviorDisplayDictionary;
 }) {
   const visibleOutcomes = selectCompactRecentOutcomes(
     outcomes,
@@ -495,10 +507,10 @@ function RecentBehaviorOutcomes({
                     {formatRecentOutcomeDate(outcome.scanTime)}
                   </td>
                   <td className="px-2 py-2">
-                    {getBehaviorGroupLabel(outcome.resultGroup)}
+                    {getBehaviorGroupLabel(outcome.resultGroup, dictionary)}
                   </td>
                   <td className="px-2 py-2">
-                    {getBehaviorSignalLabel(outcome.signalLabel)}
+                    {getBehaviorSignalLabel(outcome.signalLabel, dictionary)}
                   </td>
                   <td className="px-2 py-2 text-right font-mono">
                     {formatSymbolResearchScore(toScoreValue(outcome.rankScore))}

@@ -1,10 +1,13 @@
 import { describe, expect, it } from "vitest";
+import { dictionaries } from "@/lib/i18n/dictionaries";
+import { buildLatestScanPreviewResponse } from "./latestScanPreviewData";
 import {
   formatActionBias,
   formatActionDisplay,
   formatDateTime,
   formatGroupHint,
   formatGroupLabel,
+  formatPrimaryStructure,
   formatPrice,
   formatQualityTier,
   formatReviewTierLabel,
@@ -49,9 +52,9 @@ describe("latest scan UI helpers", () => {
     expect(formatGroupHint("risk")).toBe("Risk context requires repair review.");
     expect(formatGroupHint("neutral")).toBe("Mixed research context.");
     expect(formatGroupHint("insufficient_history")).toBe("Not enough candles.");
-    expect(formatReviewTierLabel("watch_high")).toBe("Needs confirmation");
-    expect(formatReviewTierLabel("watch_caution")).toBe("Caution");
-    expect(formatReviewTierLabel("watch_low")).toBe("Low priority");
+    expect(formatReviewTierLabel("watch_high")).toBe("Needs Confirmation");
+    expect(formatReviewTierLabel("watch_caution")).toBe("Manual Review");
+    expect(formatReviewTierLabel("watch_low")).toBe("Low Priority Review");
 
     const combinedLabels = [
       formatGroupHint("eligible"),
@@ -104,13 +107,13 @@ describe("latest scan UI helpers", () => {
 
   it("moves risk conflicts into readable action wording", () => {
     expect(formatActionDisplay("eligible", ["overheat_risk"])).toBe(
-      "Eligible / Caution",
+      "Eligible / Manual Review",
     );
     expect(formatActionDisplay("watch_only", ["overheat_risk"])).toBe(
-      "Watch / Caution",
+      "Watch / Manual Review",
     );
     expect(formatActionDisplay("avoid", ["overheat_risk"])).toBe("Risk");
-    expect(formatActionDisplay("do_not_chase", [])).toBe("Overheated review");
+    expect(formatActionDisplay("do_not_chase", [])).toBe("Overheated Review");
     expect(formatActionDisplay("ignore", [])).toBe("Low Priority");
     expect(formatActionDisplay("watch_only", [])).toBe("Watch");
   });
@@ -150,16 +153,16 @@ describe("latest scan UI helpers", () => {
     };
 
     expect(getLatestScanActionDisplay(neutralEligibleWatch)).toBe(
-      "Low priority review",
+      "Low Priority Review",
     );
-    expect(getLatestScanActionDisplay(cautionWatch)).toBe("Caution review");
+    expect(getLatestScanActionDisplay(cautionWatch)).toBe("Manual Review");
     expect(
       getLatestScanActionDisplay({
         resultGroup: "watch",
         actionBias: "watch_only",
         reviewTier: "watch_high",
       }),
-    ).toBe("Review only");
+    ).toBe("Manual Review");
     expect(getLatestScanActionDisplay(neutralEligibleWatch)).not.toBe("Eligible");
     expect(getVisibleReviewReason(neutralEligibleWatch)).toBe("Neutral setup");
     expect(getVisibleReviewReason(cautionWatch)).toBe("Detected risk");
@@ -193,8 +196,10 @@ describe("latest scan UI helpers", () => {
         reviewTier: "watch_caution",
         resultGroup: "watch",
       }),
-    ).toBe("Caution");
-    expect(getReviewStatusNote({ reviewTier: "watch_low" })).toBe("Low priority");
+    ).toBe("Manual Review");
+    expect(getReviewStatusNote({ reviewTier: "watch_low" })).toBe(
+      "Low Priority Review",
+    );
     expect(
       getReviewStatusReasons({
         statusReasons: [
@@ -212,13 +217,71 @@ describe("latest scan UI helpers", () => {
         rankScore: -1,
       }),
     ).toEqual([
-      "Caution: detected Overheat Risk, so this is not treated as a clean eligible candidate.",
-      "Neutral setup type prevents clean eligible classification.",
-      "Low priority watch because rank score is below zero.",
+      "Detected risks: Overheat Risk. Treat as manual review, not a clean candidate.",
+      "Neutral structure prevents eligible classification.",
+      "Rank score is below zero, so review priority is lower.",
     ]);
     expect(getReviewStatusReasons({ resultGroup: "risk" })).toEqual([
-      "Risk group has priority over setup score.",
+      "Risk conditions take priority over setup score.",
     ]);
+  });
+
+  it("formats Chinese scanner row meaning text without legacy English fallbacks", () => {
+    const dictionary = dictionaries.zh;
+
+    expect(formatGroupLabel("eligible", dictionary)).toBe("符合条件");
+    expect(formatSignalLabel("breakdown_risk", dictionary)).toBe("破位风险");
+    expect(formatActionBias("eligible", dictionary)).toBe("符合条件");
+    expect(formatPrimaryStructure("extended_breakout", dictionary)).toBe(
+      "延伸突破",
+    );
+    expect(formatPrimaryStructure(null, dictionary)).toBe("未知");
+    expect(
+      getReviewStatusNote(
+        {
+          statusNote: "Risk review",
+          reviewTier: "risk",
+          resultGroup: "risk",
+        },
+        dictionary,
+      ),
+    ).toBe("风险复核");
+    expect(
+      getReviewStatusNote(
+        {
+          statusNote: "Not enough candles",
+          reviewTier: "insufficient_history",
+          resultGroup: "insufficient_history",
+        },
+        dictionary,
+      ),
+    ).toBe("历史数据不足");
+  });
+
+  it("formats visual-check preview rows in Chinese without mixed English result labels", () => {
+    const dictionary = dictionaries.zh;
+    const preview = buildLatestScanPreviewResponse();
+    const items = Object.values(preview.groups ?? {}).flat();
+    const forbiddenEnglishResultText =
+      /\b(Manual review|Needs confirmation|Overheated review|Risk review|Low priority|Mixed research context|Not enough candles|Extended Breakout|Base Building|Distribution|Breakdown|Unknown)\b/i;
+    const renderedText = items
+      .map((item) =>
+        [
+          formatGroupLabel(normalizeGroupKey(item.resultGroup), dictionary),
+          formatSignalLabel(item.signalLabel, dictionary),
+          getLatestScanActionDisplay(item, dictionary),
+          getReviewStatusNote(item, dictionary),
+          formatPrimaryStructure(item.primaryStructure, dictionary),
+        ].join(" "),
+      )
+      .join(" ");
+
+    expect(renderedText).toContain("人工复核");
+    expect(renderedText).toContain("需要确认");
+    expect(renderedText).toContain("延伸突破");
+    expect(renderedText).toContain("筑底");
+    expect(renderedText).toContain("历史数据不足");
+    expect(renderedText).not.toMatch(forbiddenEnglishResultText);
   });
 
   it("returns full-scan group counts for summary chips", () => {

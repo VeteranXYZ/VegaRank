@@ -1,4 +1,13 @@
-import { formatSymbolResearchDateTime, toTitleCase } from "./symbolResearchUi";
+import { formatSymbolResearchDateTime } from "./symbolResearchUi";
+import { dictionaries } from "@/lib/i18n/dictionaries";
+import {
+  formatGroupLabel,
+  formatPrimaryStructure,
+  formatSignalLabel,
+  normalizeGroupKey,
+} from "@/components/scanner/latestScanUi";
+
+export type BehaviorDisplayDictionary = (typeof dictionaries)[keyof typeof dictionaries];
 
 export type SymbolBehaviorHorizonKey = "1" | "3" | "5";
 export type BehaviorNumericValue = number | string | null | undefined;
@@ -224,16 +233,27 @@ export function getBehaviorWarningLabel(warning: string) {
   }
 }
 
-export function getBehaviorGroupLabel(group: string | null | undefined) {
-  return group ? toTitleCase(group) : "Unknown";
+export function getBehaviorGroupLabel(
+  group: string | null | undefined,
+  dictionary: BehaviorDisplayDictionary = dictionaries.en,
+) {
+  return group
+    ? formatGroupLabel(normalizeGroupKey(group), dictionary)
+    : dictionary.scannerResultFallback.unknown;
 }
 
-export function getBehaviorSignalLabel(signalLabel: string | null | undefined) {
-  return signalLabel ? toTitleCase(signalLabel) : "Unknown";
+export function getBehaviorSignalLabel(
+  signalLabel: string | null | undefined,
+  dictionary: BehaviorDisplayDictionary = dictionaries.en,
+) {
+  return formatSignalLabel(signalLabel, dictionary);
 }
 
-export function getBehaviorSetupLabel(primaryStructure: string | null | undefined) {
-  return primaryStructure ? toTitleCase(primaryStructure) : "Unknown";
+export function getBehaviorSetupLabel(
+  primaryStructure: string | null | undefined,
+  dictionary: BehaviorDisplayDictionary = dictionaries.en,
+) {
+  return formatPrimaryStructure(primaryStructure, dictionary);
 }
 
 export function getBehaviorHorizonRows(

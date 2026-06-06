@@ -25,6 +25,7 @@ import {
   type StatusTone,
 } from "@/components/ui/workspace";
 import { formatDisplayDateTime } from "@/lib/utils/format";
+import { useAppLanguage } from "@/lib/i18n/AppLanguageProvider";
 import { dictionaries } from "@/lib/i18n/dictionaries";
 import { formatScannerObservation } from "@/lib/i18n/formatScannerObservation";
 import type {
@@ -35,6 +36,7 @@ import {
   formatDateTime,
   formatGroupLabel,
   formatPrice,
+  formatPrimaryStructure,
   formatQualityTier,
   formatScore,
   formatSignalLabel,
@@ -48,6 +50,7 @@ import {
   normalizeGroupKey,
   toTitleCase,
   type LatestScanGroupKey,
+  type ScannerDisplayDictionary,
 } from "./latestScanUi";
 
 export type LatestScanAssetClass =
@@ -239,6 +242,7 @@ export function LatestScanPageClient({
   initialQueryState?: LatestScanQueryStateInput;
   visualCheckData?: LatestScanResponse;
 } = {}) {
+  const { dictionary } = useAppLanguage();
   const isVisualCheck = Boolean(visualCheckData);
   const initialFilters = getLatestScanInitialFilters(initialQueryState);
   const [timeframe, setTimeframe] = useState<LatestScanTimeframe>(
@@ -299,7 +303,7 @@ export function LatestScanPageClient({
       return;
     }
 
-    const blob = new Blob([formatLatestScanCsv(visibleItems)], {
+    const blob = new Blob([formatLatestScanCsv(visibleItems, dictionary)], {
       type: "text/csv;charset=utf-8",
     });
     const url = URL.createObjectURL(blob);
@@ -381,6 +385,7 @@ export function LatestScanPageClient({
               assetClass={assetClass}
               includeLowQuality={includeLowQuality}
               limit={limit}
+              dictionary={dictionary}
             />
           )}
         </main>
@@ -690,8 +695,14 @@ function ControlSection({
   );
 }
 
-function LatestScanGroupSummaryChips({ summary }: { summary: LatestScanSummary }) {
-  const chips = getLatestScanGroupSummaryChips(summary);
+function LatestScanGroupSummaryChips({
+  summary,
+  dictionary,
+}: {
+  summary: LatestScanSummary;
+  dictionary: ScannerDisplayDictionary;
+}) {
+  const chips = getLatestScanGroupSummaryChips(summary, dictionary);
 
   if (chips.length === 0) {
     return null;
@@ -720,6 +731,7 @@ function LatestScanResultsTable({
   assetClass,
   includeLowQuality,
   limit,
+  dictionary,
 }: {
   rows: LatestScanTableRow[];
   summary: LatestScanSummary | null;
@@ -732,6 +744,7 @@ function LatestScanResultsTable({
   assetClass: LatestScanAssetClass;
   includeLowQuality: boolean;
   limit: LatestScanLimit;
+  dictionary: ScannerDisplayDictionary;
 }) {
   const [expandedItemId, setExpandedItemId] = useState<string | null>(null);
   const sharedCandleTime = getSharedLatestScanCandleTime(rows);
@@ -742,7 +755,12 @@ function LatestScanResultsTable({
     <section className="terminal-panel-data min-h-0 overflow-hidden xl:flex xl:flex-1 xl:flex-col">
       <div className="terminal-panel-header gap-2">
         <div className="min-w-0 flex-1">
-          {summary ? <LatestScanGroupSummaryChips summary={summary} /> : null}
+          {summary ? (
+            <LatestScanGroupSummaryChips
+              summary={summary}
+              dictionary={dictionary}
+            />
+          ) : null}
         </div>
         <div className="min-w-0 shrink-0">
           <div className="flex flex-wrap items-center gap-1.5">
@@ -853,9 +871,14 @@ function LatestScanResultsTable({
                     includeLowQuality={includeLowQuality}
                     limit={limit}
                     showCandleTimeColumn={showCandleTimeColumn}
+                    dictionary={dictionary}
                   />
                   {isExpanded ? (
-                    <LatestScanDetailsRow item={item} colSpan={tableColumnCount} />
+                    <LatestScanDetailsRow
+                      item={item}
+                      colSpan={tableColumnCount}
+                      dictionary={dictionary}
+                    />
                   ) : null}
                 </Fragment>
               );
@@ -876,6 +899,7 @@ function LatestScanRow({
   includeLowQuality,
   limit,
   showCandleTimeColumn,
+  dictionary,
 }: {
   item: LatestScanItem;
   isExpanded: boolean;
@@ -885,12 +909,14 @@ function LatestScanRow({
   includeLowQuality: boolean;
   limit: LatestScanLimit;
   showCandleTimeColumn: boolean;
+  dictionary: ScannerDisplayDictionary;
 }) {
   const group = normalizeGroupKey(item.resultGroup);
   const groupTone = getLatestScanGroupTone(group);
-  const signalLabel = formatSignalLabel(item.signalLabel);
-  const actionLabel = getLatestScanActionDisplay(item);
-  const statusNote = getReviewStatusNote(item);
+  const signalLabel = formatSignalLabel(item.signalLabel, dictionary);
+  const actionLabel = getLatestScanActionDisplay(item, dictionary);
+  const statusNote = getReviewStatusNote(item, dictionary);
+  const structureLabel = formatStructure(item.primaryStructure, dictionary);
 
   return (
     <tr
@@ -922,10 +948,10 @@ function LatestScanRow({
       <DataTableCell>
         <div
           className="flex min-w-0 items-center gap-1.5"
-          title={`${formatGroupLabel(group)} · ${signalLabel}`}
+          title={`${formatGroupLabel(group, dictionary)} · ${signalLabel}`}
         >
           <DataTableChip tone={groupTone} className="shrink-0">
-            {formatGroupLabel(group)}
+            {formatGroupLabel(group, dictionary)}
           </DataTableChip>
           <span className="min-w-0 truncate text-[10px] font-semibold text-[var(--muted)]">
             {signalLabel}
@@ -945,8 +971,8 @@ function LatestScanRow({
           </span>
         </div>
       </DataTableCell>
-      <DataTableCell truncate title={formatStructure(item.primaryStructure)}>
-        {formatStructure(item.primaryStructure)}
+      <DataTableCell truncate title={structureLabel}>
+        {structureLabel}
       </DataTableCell>
       <DataTableCell>
         <DataTableChip
@@ -981,24 +1007,35 @@ function LatestScanRow({
 function LatestScanDetailsRow({
   item,
   colSpan,
+  dictionary,
 }: {
   item: LatestScanItem;
   colSpan: number;
+  dictionary: ScannerDisplayDictionary;
 }) {
   return (
     <tr className="border-t border-[var(--border)] bg-[var(--panel-2)]">
       <td colSpan={colSpan} className="px-3 py-3">
-        <LatestScanDetails item={item} />
+        <LatestScanDetails item={item} dictionary={dictionary} />
       </td>
     </tr>
   );
 }
 
-function LatestScanDetails({ item }: { item: LatestScanItem }) {
-  const factors = normalizeFactors(item.factors);
+function LatestScanDetails({
+  item,
+  dictionary,
+}: {
+  item: LatestScanItem;
+  dictionary: ScannerDisplayDictionary;
+}) {
+  const factors = normalizeFactors(item.factors, dictionary);
   const rawMetrics = pickRawMetrics(item.rawMetrics);
-  const riskTypeLabels = getDetectedRiskTypeLabels(item.detectedRiskTypes);
-  const statusReasons = getReviewStatusReasons(item);
+  const riskTypeLabels = getDetectedRiskTypeLabels(
+    item.detectedRiskTypes,
+    dictionary,
+  );
+  const statusReasons = getReviewStatusReasons(item, dictionary);
   const metricsAndFactors = [...factors, ...rawMetrics];
 
   return (
@@ -1021,16 +1058,19 @@ function LatestScanDetails({ item }: { item: LatestScanItem }) {
         <TokenList values={item.qualityFlags.map(formatQualityTier)} empty="None" />
       </DetailBlock>
       <DetailBlock title="Secondary Structures">
-        <TokenList values={formatUnknownList(item.secondaryStructures)} empty="None" />
+        <TokenList
+          values={formatUnknownList(item.secondaryStructures, dictionary)}
+          empty="None"
+        />
       </DetailBlock>
       <DetailBlock title="Detected Risks">
         <TokenList values={riskTypeLabels} empty="None" />
       </DetailBlock>
       <DetailBlock title="Next Confirmation">
-        <TextList values={formatUnknownList(item.nextConfirmation)} />
+        <TextList values={formatUnknownList(item.nextConfirmation, dictionary)} />
       </DetailBlock>
       <DetailBlock title="Invalidation">
-        <TextList values={formatUnknownList(item.invalidation)} />
+        <TextList values={formatUnknownList(item.invalidation, dictionary)} />
       </DetailBlock>
       <DetailBlock title="Selected Metrics / Factors">
         <TextList values={metricsAndFactors} />
@@ -1241,7 +1281,10 @@ function getLatestScanQualitySortRank(item: LatestScanItem) {
   return 1;
 }
 
-function formatLatestScanCsv(items: LatestScanItem[]) {
+function formatLatestScanCsv(
+  items: LatestScanItem[],
+  dictionary: ScannerDisplayDictionary = dictionaries.en,
+) {
   const headers = [
     "Symbol",
     "Rank",
@@ -1255,9 +1298,9 @@ function formatLatestScanCsv(items: LatestScanItem[]) {
   const rows = items.map((item) => [
     item.symbol,
     formatScore(item.rankScore),
-    formatSignalLabel(item.signalLabel),
-    getLatestScanActionDisplay(item),
-    formatStructure(item.primaryStructure),
+    formatSignalLabel(item.signalLabel, dictionary),
+    getLatestScanActionDisplay(item, dictionary),
+    formatStructure(item.primaryStructure, dictionary),
     formatQualityTier(item.qualityTier),
     formatPrice(item.priceAtSignal),
     formatDateTime(item.candleOpenTime),
@@ -1525,8 +1568,11 @@ async function getLatestScanErrorMessage(response: Response, fallback: string) {
   return errorBody?.error?.message ?? errorBody?.message ?? fallback;
 }
 
-function formatStructure(value: string | null | undefined) {
-  return value ? toTitleCase(value) : "Unknown";
+function formatStructure(
+  value: string | null | undefined,
+  dictionary: ScannerDisplayDictionary = dictionaries.en,
+) {
+  return formatPrimaryStructure(value, dictionary);
 }
 
 function formatInteger(value: number | null | undefined) {
@@ -1535,9 +1581,12 @@ function formatInteger(value: number | null | undefined) {
     : new Intl.NumberFormat().format(value);
 }
 
-function formatUnknownList(value: unknown) {
+function formatUnknownList(
+  value: unknown,
+  dictionary: ScannerDisplayDictionary = dictionaries.en,
+) {
   if (Array.isArray(value)) {
-    return value.map(formatUnknownValue).filter(Boolean);
+    return value.map((item) => formatUnknownValue(item, dictionary)).filter(Boolean);
   }
 
   if (typeof value === "string") {
@@ -1547,9 +1596,12 @@ function formatUnknownList(value: unknown) {
   return [];
 }
 
-function formatUnknownValue(value: unknown) {
+function formatUnknownValue(
+  value: unknown,
+  dictionary: ScannerDisplayDictionary,
+) {
   if (typeof value === "string") {
-    return toTitleCase(value);
+    return formatPrimaryStructure(value, dictionary);
   }
 
   if (typeof value === "number" || typeof value === "boolean") {
@@ -1559,11 +1611,14 @@ function formatUnknownValue(value: unknown) {
   return "";
 }
 
-function normalizeFactors(factors: Record<string, unknown> | undefined) {
+function normalizeFactors(
+  factors: Record<string, unknown> | undefined,
+  dictionary: ScannerDisplayDictionary,
+) {
   const rows: string[] = [];
 
   for (const key of ["bullish", "bearish", "risk", "neutral"]) {
-    const values = formatObservationList(factors?.[key]);
+    const values = formatObservationList(factors?.[key], dictionary);
 
     if (values.length > 0) {
       rows.push(`${toTitleCase(key)}: ${values.slice(0, 3).join(", ")}`);
@@ -1573,7 +1628,10 @@ function normalizeFactors(factors: Record<string, unknown> | undefined) {
   return rows;
 }
 
-function formatObservationList(value: unknown) {
+function formatObservationList(
+  value: unknown,
+  dictionary: ScannerDisplayDictionary,
+) {
   if (!Array.isArray(value)) {
     return [];
   }
@@ -1583,7 +1641,7 @@ function formatObservationList(value: unknown) {
       const observation = toScannerObservation(item);
 
       return observation
-        ? formatScannerObservation(observation, dictionaries.en)
+        ? formatScannerObservation(observation, dictionary)
         : "";
     })
     .filter(Boolean);

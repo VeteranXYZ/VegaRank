@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { useLanguage } from "@/components/providers/LanguageProvider";
+import { useAppLanguage } from "@/lib/i18n/AppLanguageProvider";
 import { PhaseBadge } from "./PhaseBadge";
 import { ReasonList } from "./ReasonList";
 import { RiskBadge } from "./RiskBadge";
@@ -11,8 +12,9 @@ import { formatScannerExplanation } from "@/lib/i18n/formatScannerExplanation";
 import { formatScannerObservation } from "@/lib/i18n/formatScannerObservation";
 import {
   formatActionBias,
+  formatPrimaryStructure,
   formatSignalLabel,
-  toTitleCase,
+  getDetectedRiskTypeLabels,
 } from "@/components/scanner/latestScanUi";
 import type { ReactNode } from "react";
 
@@ -22,6 +24,7 @@ type SelectedSymbolPanelProps = {
 
 export function SelectedSymbolPanel({ result }: SelectedSymbolPanelProps) {
   const { dictionary: t } = useLanguage();
+  const { dictionary: scannerDictionary } = useAppLanguage();
 
   if (!result) {
     return (
@@ -66,8 +69,8 @@ export function SelectedSymbolPanel({ result }: SelectedSymbolPanelProps) {
         </div>
 
         <p className="mb-2 border-l-2 border-[var(--border)] bg-[var(--panel-2)] px-2 py-1 text-[11px] leading-5 text-[var(--muted)]">
-          {formatSignalLabel(result.signalLabel)} /{" "}
-          {formatActionBias(result.actionBias)}
+          {formatSignalLabel(result.signalLabel, scannerDictionary)} /{" "}
+          {formatActionBias(result.actionBias, scannerDictionary)}
         </p>
 
         <InspectorSection title="Score Breakdown">
@@ -105,15 +108,18 @@ export function SelectedSymbolPanel({ result }: SelectedSymbolPanelProps) {
           <div className="space-y-1">
             <KeyValue
               label="Primary"
-              value={toTitleCase(result.primaryStructure)}
+              value={formatPrimaryStructure(
+                result.primaryStructure,
+                scannerDictionary,
+              )}
             />
             <KeyValue
               label="Signal"
-              value={formatSignalLabel(result.signalLabel)}
+              value={formatSignalLabel(result.signalLabel, scannerDictionary)}
             />
             <KeyValue
               label="Review State"
-              value={formatActionBias(result.actionBias)}
+              value={formatActionBias(result.actionBias, scannerDictionary)}
             />
             <TagList
               label="Secondary"
@@ -121,7 +127,10 @@ export function SelectedSymbolPanel({ result }: SelectedSymbolPanelProps) {
             />
             <TagList
               label="Risk Types"
-              items={result.detectedRiskTypes.map(toTitleCase)}
+              items={getDetectedRiskTypeLabels(
+                result.detectedRiskTypes,
+                scannerDictionary,
+              )}
             />
           </div>
         </InspectorSection>

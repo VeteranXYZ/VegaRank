@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo } from "react";
+import { useAppLanguage } from "@/lib/i18n/AppLanguageProvider";
 import {
   formatTimelineDate,
   getCompactSignalHistory,
@@ -24,7 +25,11 @@ export function SymbolSignalTimeline({
   variant = "default",
   maxItems = variant === "rail" ? 3 : 8,
 }: SymbolSignalTimelineProps) {
-  const items = useMemo(() => normalizeSignalHistory(history), [history]);
+  const { dictionary } = useAppLanguage();
+  const items = useMemo(
+    () => normalizeSignalHistory(history, dictionary),
+    [history, dictionary],
+  );
   const compactHistory = useMemo(
     () => getCompactSignalHistory(items, maxItems),
     [items, maxItems],

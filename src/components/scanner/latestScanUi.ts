@@ -1,6 +1,9 @@
 import { formatDisplayDateTime } from "@/lib/utils/format";
 import { dictionaries } from "@/lib/i18n/dictionaries";
-import { formatScannerReviewText } from "@/lib/i18n/formatScannerObservation";
+import {
+  formatScannerReviewText,
+  formatScannerReviewValue,
+} from "@/lib/i18n/formatScannerObservation";
 import type {
   ActionBias,
   DetectedRiskType,
@@ -30,15 +33,6 @@ export type LatestScanReviewTier =
   | "neutral"
   | "insufficient_history";
 
-const groupLabels = {
-  eligible: "Eligible",
-  watch: "Watch",
-  overheated: "Overheated",
-  risk: "Risk",
-  neutral: "Neutral",
-  insufficient_history: "Insufficient History",
-} satisfies Record<LatestScanGroupKey, string>;
-
 const groupHints = {
   eligible:
     "Candidates worth manual review: positive rank, confirmed/trend, clear setup, and no detected risks.",
@@ -49,17 +43,6 @@ const groupHints = {
   neutral: "Mixed research context.",
   insufficient_history: "Not enough candles.",
 } satisfies Record<LatestScanGroupKey, string>;
-
-const reviewTierLabels = {
-  eligible: "Manual review",
-  watch_high: "Needs confirmation",
-  watch_caution: "Caution",
-  watch_low: "Low priority",
-  overheated: "Overheated review",
-  risk: "Risk review",
-  neutral: "Mixed research context",
-  insufficient_history: "Not enough candles",
-} satisfies Record<LatestScanReviewTier, string>;
 
 type LatestScanScoreInput = {
   opportunityScore: number | null;
@@ -78,6 +61,7 @@ type LatestScanGroupSummaryInput = Partial<
 };
 
 const defaultDictionary = dictionaries.en;
+export type ScannerDisplayDictionary = (typeof dictionaries)[keyof typeof dictionaries];
 
 const qualityLabels: Record<string, string> = {
   core: "Core",
@@ -126,120 +110,182 @@ export function formatDateTime(value: string | null | undefined) {
   return formatDisplayDateTime(value);
 }
 
-export function formatGroupLabel(group: LatestScanGroupKey) {
-  return groupLabels[group];
+export function formatGroupLabel(
+  group: LatestScanGroupKey,
+  dictionary: ScannerDisplayDictionary = defaultDictionary,
+) {
+  return dictionary.scannerResultGroup[group];
 }
 
 export function formatGroupHint(group: LatestScanGroupKey) {
   return groupHints[group];
 }
 
-export function formatSignalLabel(value: string | null | undefined) {
+export function formatSignalLabel(
+  value: string | null | undefined,
+  dictionary: ScannerDisplayDictionary = defaultDictionary,
+) {
   if (!value) {
-    return "Unknown";
+    return dictionary.scannerResultFallback.unknown;
   }
 
   return isScannerSignalLabel(value)
-    ? defaultDictionary.signalLabel[value]
-    : toTitleCase(value);
+    ? dictionary.signalLabel[value]
+    : formatUnknownScannerResultValue(value, dictionary);
 }
 
-export function formatActionBias(value: string | null | undefined) {
+export function formatActionBias(
+  value: string | null | undefined,
+  dictionary: ScannerDisplayDictionary = defaultDictionary,
+) {
   if (!value) {
-    return "Unknown";
+    return dictionary.scannerResultFallback.unknown;
   }
 
-  return isActionBias(value) ? defaultDictionary.actionBias[value] : toTitleCase(value);
+  return isActionBias(value)
+    ? dictionary.actionBias[value]
+    : formatUnknownScannerResultValue(value, dictionary);
+}
+
+export function formatPrimaryStructure(
+  value: string | null | undefined,
+  dictionary: ScannerDisplayDictionary = defaultDictionary,
+) {
+  const normalized = value?.trim().toLowerCase();
+
+  if (!normalized || normalized === "n/a" || normalized === "na") {
+    return dictionary.scannerResultFallback.unknown;
+  }
+
+  return normalized in dictionary.primaryStructure
+    ? dictionary.primaryStructure[
+        normalized as keyof typeof dictionary.primaryStructure
+      ]
+    : formatUnknownScannerResultValue(normalized, dictionary);
 }
 
 export function formatActionDisplay(
   actionBias: string | null | undefined,
   detectedRiskTypes: unknown,
+  dictionary: ScannerDisplayDictionary = defaultDictionary,
 ) {
-  const hasRisks = hasDetectedRiskTypes(detectedRiskTypes);
+  const hasRisks = hasDetectedRiskTypes(detectedRiskTypes, dictionary);
 
   if (actionBias === "eligible" && hasRisks) {
-    return "Eligible / Caution";
+    return `${formatActionBias(actionBias, dictionary)} / ${dictionary.scannerReview["review.status.caution"]}`;
   }
 
   if (actionBias === "watch_only" && hasRisks) {
-    return "Watch / Caution";
+    return `${formatActionBias(actionBias, dictionary)} / ${dictionary.scannerReview["review.status.caution"]}`;
   }
 
   if (actionBias === "do_not_chase") {
-    return "Overheated review";
+    return dictionary.scannerReview["review.status.doNotChase"];
   }
 
-  return formatActionBias(actionBias);
+  return formatActionBias(actionBias, dictionary);
 }
 
-export function getLatestScanActionDisplay(item: {
-  actionBias?: string | null;
-  detectedRiskTypes?: unknown;
-  resultGroup?: string | null;
-  reviewTier?: string | null;
-}) {
+export function getLatestScanActionDisplay(
+  item: {
+    actionBias?: string | null;
+    detectedRiskTypes?: unknown;
+    resultGroup?: string | null;
+    reviewTier?: string | null;
+  },
+  dictionary: ScannerDisplayDictionary = defaultDictionary,
+) {
   const resultGroup = normalizeGroupKey(item.resultGroup);
 
   if (resultGroup === "watch") {
     if (item.reviewTier === "watch_caution") {
-      return "Caution review";
+      return dictionary.scannerReview["review.status.caution"];
     }
 
     if (item.reviewTier === "watch_low") {
-      return "Low priority review";
+      return dictionary.scannerReview["review.status.lowPriority"];
     }
 
-    return "Review only";
+    return dictionary.scannerReview["review.status.manualReview"];
   }
 
-  return formatActionDisplay(item.actionBias, item.detectedRiskTypes);
+  return formatActionDisplay(item.actionBias, item.detectedRiskTypes, dictionary);
 }
 
-export function formatReviewTierLabel(value: string | null | undefined) {
-  return isLatestScanReviewTier(value)
-    ? reviewTierLabels[value]
-    : "Needs review";
+export function formatReviewTierLabel(
+  value: string | null | undefined,
+  dictionary: ScannerDisplayDictionary = defaultDictionary,
+) {
+  if (!isLatestScanReviewTier(value)) {
+    return dictionary.scannerResultFallback.needsReview;
+  }
+
+  switch (value) {
+    case "eligible":
+      return dictionary.scannerReview["review.status.manualReview"];
+    case "watch_high":
+      return dictionary.scannerReview["review.status.needsConfirmation"];
+    case "watch_caution":
+      return dictionary.scannerReview["review.status.caution"];
+    case "watch_low":
+      return dictionary.scannerReview["review.status.lowPriority"];
+    case "overheated":
+      return dictionary.scannerReview["review.status.doNotChase"];
+    case "risk":
+      return dictionary.scannerReview["review.status.avoid"];
+    case "neutral":
+      return dictionary.scannerReview["review.status.noClearEdge"];
+    case "insufficient_history":
+      return dictionary.scannerReview["review.status.notEnoughCandles"];
+  }
 }
 
-export function getReviewStatusNote(item: {
-  statusNote?: string | null;
-  statusNoteKey?: string | null;
-  reviewTier?: string | null;
-  resultGroup?: string | null;
-}) {
+export function getReviewStatusNote(
+  item: {
+    statusNote?: string | null;
+    statusNoteKey?: string | null;
+    reviewTier?: string | null;
+    resultGroup?: string | null;
+  },
+  dictionary: ScannerDisplayDictionary = defaultDictionary,
+) {
   const statusNoteKey = toScannerReviewText(item.statusNoteKey);
 
   if (statusNoteKey) {
-    return formatScannerReviewText(statusNoteKey, defaultDictionary);
+    return formatScannerReviewText(statusNoteKey, dictionary);
   }
 
   if (item.statusNote?.trim()) {
-    return item.statusNote.trim();
+    return formatScannerReviewValue(item.statusNote, dictionary);
   }
 
   if (isLatestScanReviewTier(item.reviewTier)) {
-    return formatReviewTierLabel(item.reviewTier);
+    return formatReviewTierLabel(item.reviewTier, dictionary);
   }
 
   const group = normalizeGroupKey(item.resultGroup);
 
-  return group === "watch" ? "Needs confirmation" : formatReviewTierLabel(group);
+  return group === "watch"
+    ? dictionary.scannerReview["review.status.needsConfirmation"]
+    : formatReviewTierLabel(group, dictionary);
 }
 
-export function getReviewStatusReasons(item: {
-  statusReasons?: unknown;
-  statusReasonKeys?: unknown;
-  detectedRiskTypes?: unknown;
-  primaryStructure?: string | null;
-  rankScore?: number | null;
-  resultGroup?: string | null;
-}) {
+export function getReviewStatusReasons(
+  item: {
+    statusReasons?: unknown;
+    statusReasonKeys?: unknown;
+    detectedRiskTypes?: unknown;
+    primaryStructure?: string | null;
+    rankScore?: number | null;
+    resultGroup?: string | null;
+  },
+  dictionary: ScannerDisplayDictionary = defaultDictionary,
+) {
   const statusReasonKeys = toScannerReviewTextArray(item.statusReasonKeys);
 
   if (statusReasonKeys.length > 0) {
     return statusReasonKeys.map((reason) =>
-      formatScannerReviewText(reason, defaultDictionary),
+      formatScannerReviewText(reason, dictionary),
     );
   }
 
@@ -255,29 +301,49 @@ export function getReviewStatusReasons(item: {
 
   const reasons: string[] = [];
   const resultGroup = normalizeGroupKey(item.resultGroup);
-  const riskLabels = getDetectedRiskTypeLabels(item.detectedRiskTypes);
+  const riskLabels = getDetectedRiskTypeLabels(item.detectedRiskTypes, dictionary);
 
   if (riskLabels.length > 0) {
     reasons.push(
-      `Caution: detected ${riskLabels.join(", ")}, so this is not treated as a clean eligible candidate.`,
+      formatScannerReviewText(
+        {
+          key: "review.reason.detectedRisks",
+          params: { risks: riskLabels.join(", ") },
+        },
+        dictionary,
+      ),
     );
   }
 
   if (item.primaryStructure === "neutral") {
-    reasons.push("Neutral setup type prevents clean eligible classification.");
+    reasons.push(
+      formatScannerReviewText({ key: "review.reason.neutralSetup" }, dictionary),
+    );
   }
 
   if (typeof item.rankScore === "number" && item.rankScore < 0) {
-    reasons.push("Low priority watch because rank score is below zero.");
+    reasons.push(
+      formatScannerReviewText({ key: "review.reason.rankBelowZero" }, dictionary),
+    );
   }
 
   if (resultGroup === "risk") {
-    reasons.push("Risk group has priority over setup score.");
+    reasons.push(
+      formatScannerReviewText({ key: "review.reason.riskGroupPriority" }, dictionary),
+    );
   } else if (resultGroup === "overheated") {
-    reasons.push("Overheated state has priority over setup score.");
+    reasons.push(
+      formatScannerReviewText(
+        { key: "review.reason.overheatedPriority" },
+        dictionary,
+      ),
+    );
   } else if (reasons.length === 0 && resultGroup === "watch") {
     reasons.push(
-      "Needs confirmation: positive rank with a meaningful setup, but eligible rules are not fully met.",
+      formatScannerReviewText(
+        { key: "review.reason.needsConfirmation" },
+        dictionary,
+      ),
     );
   }
 
@@ -296,10 +362,13 @@ function isDetectedRiskType(value: string): value is DetectedRiskType {
   return value in defaultDictionary.detectedRiskType;
 }
 
-function formatDetectedRiskType(value: string) {
+function formatDetectedRiskType(
+  value: string,
+  dictionary: ScannerDisplayDictionary = defaultDictionary,
+) {
   return isDetectedRiskType(value)
-    ? defaultDictionary.detectedRiskType[value]
-    : toTitleCase(value);
+    ? dictionary.detectedRiskType[value]
+    : formatUnknownScannerResultValue(value, dictionary);
 }
 
 function isScannerReviewKey(value: string): value is ScannerReviewKey {
@@ -388,20 +457,35 @@ export function getLatestScanScoreRows(item: LatestScanScoreInput) {
   ];
 }
 
-export function getDetectedRiskTypeLabels(value: unknown) {
+export function getDetectedRiskTypeLabels(
+  value: unknown,
+  dictionary: ScannerDisplayDictionary = defaultDictionary,
+) {
   if (!Array.isArray(value)) {
     return [];
   }
 
   return value
     .map((riskType) =>
-      typeof riskType === "string" ? formatDetectedRiskType(riskType) : "",
+      typeof riskType === "string" ? formatDetectedRiskType(riskType, dictionary) : "",
     )
     .filter(Boolean);
 }
 
-export function hasDetectedRiskTypes(value: unknown) {
-  return getDetectedRiskTypeLabels(value).length > 0;
+export function hasDetectedRiskTypes(
+  value: unknown,
+  dictionary: ScannerDisplayDictionary = defaultDictionary,
+) {
+  return getDetectedRiskTypeLabels(value, dictionary).length > 0;
+}
+
+export function formatUnknownScannerResultValue(
+  value: string,
+  dictionary: ScannerDisplayDictionary = defaultDictionary,
+) {
+  return dictionary === defaultDictionary
+    ? toTitleCase(value)
+    : dictionary.scannerResultFallback.unknown;
 }
 
 export function getLatestScanGroupCount(
@@ -428,11 +512,12 @@ export function getLatestScanGroupCount(
 
 export function getLatestScanGroupSummaryChips(
   summary: LatestScanGroupSummaryInput | null | undefined,
+  dictionary: ScannerDisplayDictionary = defaultDictionary,
 ) {
   return latestScanGroupOrder
     .map((group) => ({
       group,
-      label: formatGroupLabel(group),
+      label: formatGroupLabel(group, dictionary),
       count: getLatestScanGroupCount(summary, group),
     }));
 }

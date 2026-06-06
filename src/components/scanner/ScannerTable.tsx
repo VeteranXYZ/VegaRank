@@ -8,6 +8,7 @@ import {
 } from "@tanstack/react-table";
 import { useMemo, type ReactNode } from "react";
 import { useLanguage } from "@/components/providers/LanguageProvider";
+import { useAppLanguage } from "@/lib/i18n/AppLanguageProvider";
 import { RefreshIconButton } from "@/components/ui/workspace";
 import {
   SignalSummaryBar,
@@ -15,8 +16,9 @@ import {
 } from "./SignalSummaryBar";
 import {
   formatActionBias,
+  formatPrimaryStructure,
   formatSignalLabel,
-  toTitleCase,
+  type ScannerDisplayDictionary,
 } from "@/components/scanner/latestScanUi";
 import type { TableSortKey, TableSortState } from "./ScannerPageClient";
 import type { ScannerSignalState, ScanResult } from "@/lib/shared/scannerTypes";
@@ -62,6 +64,7 @@ export function ScannerTable({
   onSortChange,
 }: ScannerTableProps) {
   const { dictionary: t } = useLanguage();
+  const { dictionary: scannerDictionary } = useAppLanguage();
   const columns = useMemo<ColumnDef<ScanResult>[]>(
     () => [
       {
@@ -85,21 +88,26 @@ export function ScannerTable({
         header: t.scanner.columns.setup,
         cell: ({ row }) => (
           <span className="truncate text-[11px] font-semibold text-[var(--foreground)]">
-            {toTitleCase(row.original.primaryStructure)}
+            {formatPrimaryStructure(
+              row.original.primaryStructure,
+              scannerDictionary,
+            )}
           </span>
         ),
       },
       {
         accessorKey: "signalLabel",
         header: t.scanner.columns.signalCompact,
-        cell: ({ row }) => <SignalCell result={row.original} />,
+        cell: ({ row }) => (
+          <SignalCell result={row.original} dictionary={scannerDictionary} />
+        ),
       },
       {
         accessorKey: "actionBias",
         header: "Action",
         cell: ({ row }) => (
           <span className={getActionTextClass(row.original.actionBias)}>
-            {formatActionBias(row.original.actionBias)}
+            {formatActionBias(row.original.actionBias, scannerDictionary)}
           </span>
         ),
       },
@@ -181,7 +189,7 @@ export function ScannerTable({
           ),
       },
     ],
-    [t],
+    [scannerDictionary, t],
   );
   // TanStack Table intentionally returns callable table helpers from this hook.
   // eslint-disable-next-line react-hooks/incompatible-library
@@ -359,14 +367,20 @@ function CompactScores({ result }: { result: ScanResult }) {
   );
 }
 
-function SignalCell({ result }: { result: ScanResult }) {
+function SignalCell({
+  result,
+  dictionary,
+}: {
+  result: ScanResult;
+  dictionary: ScannerDisplayDictionary;
+}) {
   return (
     <span
       className={`inline-flex h-5 items-center border px-1.5 text-[11px] font-semibold leading-none ${getSignalTextClass(
         result.signalLabel,
       )}`}
     >
-      {formatSignalLabel(result.signalLabel)}
+      {formatSignalLabel(result.signalLabel, dictionary)}
     </span>
   );
 }

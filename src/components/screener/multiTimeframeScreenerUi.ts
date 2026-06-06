@@ -5,9 +5,11 @@ import {
   getDetectedRiskTypeLabels,
   normalizeGroupKey,
   type LatestScanGroupKey,
+  type ScannerDisplayDictionary,
 } from "@/components/scanner/latestScanUi";
 import { shortResearchDisclaimer } from "@/components/researchCopy";
 import { buildSymbolResearchHref } from "@/components/symbol/symbolResearchLinks";
+import { dictionaries } from "@/lib/i18n/dictionaries";
 import type { ScannerReviewText } from "@/lib/shared/scannerTypes";
 
 export const MTF_SCREENER_TIMEFRAMES = ["1h", "4h", "1d", "1w"] as const;
@@ -481,8 +483,13 @@ export function buildMtfSymbolResearchHref({
   });
 }
 
-export function formatMtfGroup(snapshot: MtfScreenerSnapshot | undefined) {
-  return snapshot ? formatGroupLabel(snapshot.resultGroup) : "Not returned";
+export function formatMtfGroup(
+  snapshot: MtfScreenerSnapshot | undefined,
+  dictionary: ScannerDisplayDictionary = dictionaries.en,
+) {
+  return snapshot
+    ? formatGroupLabel(normalizeGroupKey(snapshot.resultGroup), dictionary)
+    : dictionary.scannerResultFallback.notReturned;
 }
 
 export function formatMtfRank(snapshot: MtfScreenerSnapshot | undefined) {
@@ -559,7 +566,10 @@ export function getMtfHigherTimeframeHealth(
   };
 }
 
-export function getMtfPrimarySignal(row: MtfScreenerRow) {
+export function getMtfPrimarySignal(
+  row: MtfScreenerRow,
+  dictionary: ScannerDisplayDictionary = dictionaries.en,
+) {
   const preferredTimeframes: MtfScreenerTimeframe[] = ["4h", "1h", "1d", "1w"];
   const snapshot =
     preferredTimeframes
@@ -570,13 +580,19 @@ export function getMtfPrimarySignal(row: MtfScreenerRow) {
       .find(Boolean);
 
   if (!snapshot) {
-    return "No latest signal";
+    return dictionary.scannerResultFallback.noLatestSignal;
   }
 
-  return `${snapshot.timeframe} ${formatSignalLabel(snapshot.signalLabel)} / ${formatGroupLabel(snapshot.resultGroup)}`;
+  return `${snapshot.timeframe} ${formatSignalLabel(
+    snapshot.signalLabel,
+    dictionary,
+  )} / ${formatGroupLabel(normalizeGroupKey(snapshot.resultGroup), dictionary)}`;
 }
 
-export function getMtfRiskNoteItems(row: MtfScreenerRow) {
+export function getMtfRiskNoteItems(
+  row: MtfScreenerRow,
+  dictionary: ScannerDisplayDictionary = dictionaries.en,
+) {
   const noteItems: Array<{
     note: string;
     severityRank: number;
@@ -591,7 +607,10 @@ export function getMtfRiskNoteItems(row: MtfScreenerRow) {
       return;
     }
 
-    const riskLabels = getDetectedRiskTypeLabels(snapshot.detectedRiskTypes);
+    const riskLabels = getDetectedRiskTypeLabels(
+      snapshot.detectedRiskTypes,
+      dictionary,
+    );
     const timeframeRank = getMtfRiskNoteTimeframeRank(timeframe);
 
     if (riskLabels.length > 0) {
@@ -606,14 +625,14 @@ export function getMtfRiskNoteItems(row: MtfScreenerRow) {
 
     if (snapshot.resultGroup === "risk") {
       noteItems.push({
-        note: `${timeframe}: Risk group`,
+        note: `${timeframe}: ${formatGroupLabel("risk", dictionary)}`,
         severityRank: 1,
         timeframeRank,
         order,
       });
     } else if (snapshot.resultGroup === "overheated") {
       noteItems.push({
-        note: `${timeframe}: Overheated`,
+        note: `${timeframe}: ${formatGroupLabel("overheated", dictionary)}`,
         severityRank: 2,
         timeframeRank,
         order,
@@ -636,8 +655,9 @@ export function getMtfRiskNoteItems(row: MtfScreenerRow) {
 export function getMtfRiskNotesSummary(
   row: MtfScreenerRow,
   visibleCount = 3,
+  dictionary: ScannerDisplayDictionary = dictionaries.en,
 ) {
-  const notes = getMtfRiskNoteItems(row);
+  const notes = getMtfRiskNoteItems(row, dictionary);
   const safeVisibleCount = Math.max(1, Math.floor(visibleCount));
   const visibleNotes = notes.slice(0, safeVisibleCount);
   const hiddenNotes = notes.slice(safeVisibleCount);
@@ -650,8 +670,11 @@ export function getMtfRiskNotesSummary(
   };
 }
 
-export function getMtfRiskNotes(row: MtfScreenerRow) {
-  const { notes } = getMtfRiskNotesSummary(row, 4);
+export function getMtfRiskNotes(
+  row: MtfScreenerRow,
+  dictionary: ScannerDisplayDictionary = dictionaries.en,
+) {
+  const { notes } = getMtfRiskNotesSummary(row, 4, dictionary);
 
   return notes.length > 0 ? notes.slice(0, 4).join("; ") : "-";
 }

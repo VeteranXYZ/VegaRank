@@ -1,4 +1,5 @@
 import { useLanguage } from "@/components/providers/LanguageProvider";
+import { useAppLanguage } from "@/lib/i18n/AppLanguageProvider";
 import { formatScannerExplanation } from "@/lib/i18n/formatScannerExplanation";
 import type { ScannerExplanation } from "@/lib/shared/scannerTypes";
 
@@ -9,6 +10,7 @@ type ReasonListProps = {
 
 export function ReasonList({ title, items }: ReasonListProps) {
   const { dictionary: t } = useLanguage();
+  const { dictionary: scannerDictionary } = useAppLanguage();
   const visibleItems = items.slice(0, 5);
   const hiddenItems = items.slice(5);
 
@@ -23,7 +25,7 @@ export function ReasonList({ title, items }: ReasonListProps) {
             key={`${item.key}-${JSON.stringify(item.params ?? {})}`}
             className="border-l border-[var(--border)] bg-[var(--panel-2)] px-2 py-0.5"
           >
-            {formatScannerExplanation(item, t)}
+            {formatScannerExplanation(item, scannerDictionary)}
           </li>
         ))}
       </ul>
@@ -38,7 +40,7 @@ export function ReasonList({ title, items }: ReasonListProps) {
                 key={`${item.key}-${JSON.stringify(item.params ?? {})}`}
                 className="border-l border-[var(--border)] bg-[var(--panel-2)] px-2 py-0.5"
               >
-                {formatScannerExplanation(item, t)}
+                {formatScannerExplanation(item, scannerDictionary)}
               </li>
             ))}
           </ul>

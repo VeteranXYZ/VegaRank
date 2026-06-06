@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from "react";
 import { RefreshIconButton } from "@/components/ui/workspace";
+import { useAppLanguage } from "@/lib/i18n/AppLanguageProvider";
 import { SymbolBehaviorPanel } from "./SymbolBehaviorPanel";
 import { SymbolResearchChart } from "./SymbolResearchChart";
 import { SymbolSignalTimeline } from "./SymbolSignalTimeline";
@@ -17,6 +18,7 @@ import {
   type WatchlistStorage,
 } from "@/components/watchlist/watchlistUi";
 import { MarketContextPanel } from "@/components/market-context/MarketContextPanel";
+import { formatSignalLabel } from "@/components/scanner/latestScanUi";
 import {
   fetchMarketContext,
   isMarketContextResponse,
@@ -58,6 +60,7 @@ import {
   formatSymbolResearchPrice,
   formatSymbolResearchRunContext,
   formatSymbolResearchScore,
+  formatSymbolResearchSetup,
   getSymbolResearchTimeframeSnapshots,
   getTimeframeSnapshotNote,
   getTimeframeSnapshotTitle,
@@ -70,6 +73,7 @@ import {
   type SymbolResearchTimeframeNavigationOption,
   type SymbolResearchUnavailableReason,
   type ResearchDecisionSummary,
+  type SymbolResearchDisplayDictionary,
 } from "./symbolResearchUi";
 import { dictionaries } from "@/lib/i18n/dictionaries";
 import { formatScannerReviewValue } from "@/lib/i18n/formatScannerObservation";
@@ -321,6 +325,7 @@ export function SymbolResearchPageClient({
   symbol,
   visualCheckData,
 }: SymbolResearchPageClientProps) {
+  const { dictionary } = useAppLanguage();
   const router = useRouter();
   const searchParams = useSearchParams();
   const isVisualCheck = Boolean(visualCheckData);
@@ -639,7 +644,11 @@ export function SymbolResearchPageClient({
 
   const history = data.history ?? [];
   const timeframes = data.timeframes ?? [];
-  const interpretation = getSymbolResearchInterpretation(data, latestSignal);
+  const interpretation = getSymbolResearchInterpretation(
+    data,
+    latestSignal,
+    dictionary,
+  );
   const scoreBreakdown = getSymbolResearchScoreBreakdown(data, latestSignal);
   const candles = normalizeSymbolResearchCandles(data.candles);
   const candleSummary = getSymbolResearchCandleSummary(candles);
@@ -652,6 +661,7 @@ export function SymbolResearchPageClient({
     timeframes: symbolResearchTimeframes,
     selectedTimeframe,
     signals: timeframeSnapshots,
+    dictionary,
   });
   const timeframeSnapshotTitle = getTimeframeSnapshotTitle(timeframeSnapshots.length);
   const timeframeSnapshotNote = getTimeframeSnapshotNote(timeframeSnapshots);
@@ -659,7 +669,7 @@ export function SymbolResearchPageClient({
     ...history,
     ...timeframes,
   ]);
-  const researchSummary = buildSymbolResearchSummary(latestSignal);
+  const researchSummary = buildSymbolResearchSummary(latestSignal, dictionary);
   const diagnostics = buildSymbolResearchDiagnostics({
     selectedTimeframe,
     currentSelection: data.currentSelection,
@@ -726,12 +736,14 @@ export function SymbolResearchPageClient({
     marketContextImplication,
     behaviorSampleQuality,
     showHistorySelectionNotice,
+    dictionary,
   });
   const nextCheckItems = buildSymbolResearchNextChecks({
     selectedTimeframe,
     interpretation,
     researchSummary,
     timeframeSnapshots,
+    dictionary,
   });
   const detailsDiagnosticsPanel = (
     <details
@@ -780,9 +792,10 @@ export function SymbolResearchPageClient({
             ]}
             rows={timeframeSnapshots.map((item) => [
               formatSelectedTimeframeLabel(item.timeframe, selectedTimeframe),
-              formatSymbolResearchGroup(item.resultGroup),
+              formatSymbolResearchGroup(item.resultGroup, dictionary),
               formatSymbolResearchAction(
                 item.actionBias ?? item.statusNoteKey ?? item.statusNote,
+                dictionary,
               ),
               formatSymbolResearchScore(item.rankScore),
               formatSymbolResearchDateTime(item.scanTime),
@@ -886,6 +899,7 @@ export function SymbolResearchPageClient({
           latestScanTime={data.latest?.scanRun?.finishedAt}
           stance={getSymbolResearchStance(interpretation.group)}
           primaryReason={primaryReason}
+          dictionary={dictionary}
         />
       </div>
 
@@ -895,6 +909,7 @@ export function SymbolResearchPageClient({
             snapshots={timeframeSnapshots}
             selectedTimeframe={selectedTimeframe}
             className="shrink-0"
+            dictionary={dictionary}
           />
           <SymbolResearchChart
             exchange={exchange}
@@ -1836,6 +1851,7 @@ function DecisionHeader({
   latestScanTime,
   stance,
   primaryReason,
+  dictionary,
 }: {
   symbol: string;
   selectedTimeframe: string;
@@ -1845,6 +1861,7 @@ function DecisionHeader({
   latestScanTime?: string | null;
   stance: string;
   primaryReason: string;
+  dictionary: SymbolResearchDisplayDictionary;
 }) {
   const groupToneClass = getSymbolPostureToneClass(interpretation.group);
 
@@ -1869,7 +1886,7 @@ function DecisionHeader({
               interpretation.group,
             )}`}
           >
-            {formatSymbolResearchGroupForDisplay(interpretation.group)}
+            {formatSymbolResearchGroupForDisplay(interpretation.group, dictionary)}
           </span>
         </div>
 
@@ -2009,6 +2026,7 @@ function MtfContextStrip({
   snapshots,
   selectedTimeframe,
   className = "",
+  dictionary,
 }: {
   snapshots: Array<{
     timeframe?: string | null;
@@ -2017,6 +2035,7 @@ function MtfContextStrip({
   }>;
   selectedTimeframe: string;
   className?: string;
+  dictionary: SymbolResearchDisplayDictionary;
 }) {
   const orderedSnapshots = orderTimeframeSnapshots(snapshots);
 
@@ -2051,7 +2070,10 @@ function MtfContextStrip({
                   {timeframe}
                 </span>
                 <span className="text-[11px] font-semibold">
-                  {formatSymbolResearchGroupForDisplay(snapshot.resultGroup)}
+                  {formatSymbolResearchGroupForDisplay(
+                    snapshot.resultGroup,
+                    dictionary,
+                  )}
                 </span>
                 <span className="font-mono text-[11px] font-semibold">
                   {formatSymbolResearchScore(snapshot.rankScore)}
@@ -2336,6 +2358,7 @@ function buildSymbolResearchEvidence({
   marketContextImplication,
   behaviorSampleQuality,
   showHistorySelectionNotice,
+  dictionary,
 }: {
   selectedTimeframe: string;
   interpretation: ReturnType<typeof getSymbolResearchInterpretation>;
@@ -2345,27 +2368,29 @@ function buildSymbolResearchEvidence({
   marketContextImplication: string;
   behaviorSampleQuality?: BehaviorSampleQualityReadout | null;
   showHistorySelectionNotice: boolean;
+  dictionary: SymbolResearchDisplayDictionary;
 }) {
   const positive = uniqueDisplayItems([
     `${selectedTimeframe.toUpperCase()} state is ${formatSymbolResearchGroupForDisplay(
       interpretation.group,
+      dictionary,
     )}`,
     `Rank ${formatSymbolResearchScore(scoreBreakdown.rankScore)}`,
     `Confirmation ${formatSymbolResearchScore(scoreBreakdown.confirmationScore)}`,
     latestSignal.primaryStructure
-      ? `${toTitleCase(latestSignal.primaryStructure)} setup`
+      ? `${formatSymbolResearchSetup(latestSignal.primaryStructure, dictionary)} setup`
       : null,
     ...interpretation.reasons.slice(0, 2),
     decisionSummary.multiTimeframeAlignment,
     decisionSummary.behaviorSupport,
   ]);
   const risks = uniqueDisplayItems([
-    "Manual review still required",
+    formatScannerReviewValue("Manual review still required", dictionary),
     `Risk score ${formatSymbolResearchScore(scoreBreakdown.riskScore)}`,
     marketContextImplication,
     behaviorSampleQuality?.sampleQualityLabel,
     showHistorySelectionNotice ? "Newer secondary rows exist" : null,
-    ...formatSymbolResearchList(latestSignal.detectedRiskTypes).slice(0, 2),
+    ...formatSymbolResearchList(latestSignal.detectedRiskTypes, dictionary).slice(0, 2),
   ]);
 
   return {
@@ -2379,11 +2404,13 @@ function buildSymbolResearchNextChecks({
   interpretation,
   researchSummary,
   timeframeSnapshots,
+  dictionary,
 }: {
   selectedTimeframe: string;
   interpretation: ReturnType<typeof getSymbolResearchInterpretation>;
   researchSummary: ReturnType<typeof buildSymbolResearchSummary>;
   timeframeSnapshots: SymbolResearchSignal[];
+  dictionary: SymbolResearchDisplayDictionary;
 }) {
   const higherTimeframeChecks = buildHigherTimeframeChecks(timeframeSnapshots);
 
@@ -2391,6 +2418,7 @@ function buildSymbolResearchNextChecks({
     "Price stays above MA20 / MA50 context",
     `${selectedTimeframe.toUpperCase()} remains ${formatSymbolResearchGroupForDisplay(
       interpretation.group,
+      dictionary,
     )} after the next scan`,
     ...higherTimeframeChecks,
     researchSummary.nextConfirmation[0],
@@ -2457,10 +2485,13 @@ function getSymbolGroupBadgeClassName(group: string | null | undefined) {
   }
 }
 
-function formatSymbolResearchGroupForDisplay(value: string | null | undefined) {
+function formatSymbolResearchGroupForDisplay(
+  value: string | null | undefined,
+  dictionary: SymbolResearchDisplayDictionary = dictionaries.en,
+) {
   return normalizeSymbolMarketContextGroup(value) === "overheated"
     ? "Hot"
-    : formatSymbolResearchGroup(value);
+    : formatSymbolResearchGroup(value, dictionary);
 }
 
 function formatHistoricalBehaviorSample(
@@ -2629,31 +2660,43 @@ function ResponsiveTable({
 function getSymbolResearchInterpretation(
   data: SymbolResearchSuccessResponse,
   latestSignal: SymbolResearchSignal,
+  dictionary: SymbolResearchDisplayDictionary = dictionaries.en,
 ) {
+  const rawLabel = data.interpretation?.label ?? latestSignal.signalLabel;
+  const rawAction =
+    data.interpretation?.action ??
+    latestSignal.actionBias ??
+    latestSignal.statusNote ??
+    "review_only";
+  const rawSetupType =
+    data.interpretation?.setupType ?? latestSignal.primaryStructure ?? "unknown";
+
   return {
     group: data.interpretation?.group ?? latestSignal.resultGroup ?? "neutral",
-    label: data.interpretation?.label ?? latestSignal.signalLabel ?? "Unknown",
-    action:
-      data.interpretation?.action ??
-      latestSignal.actionBias ??
-      latestSignal.statusNote ??
-      "review_only",
-    setupType:
-      data.interpretation?.setupType ?? latestSignal.primaryStructure ?? "unknown",
+    label: formatSymbolResearchSignalLabel(rawLabel, dictionary),
+    action: formatSymbolResearchAction(rawAction, dictionary),
+    setupType: formatSymbolResearchSetup(rawSetupType, dictionary),
     statusNote: formatScannerReviewValue(
       data.interpretation?.statusNote ??
         latestSignal.statusNoteKey ??
         latestSignal.statusNote,
-      dictionaries.en,
-      "No status note available.",
+      dictionary,
+      dictionary.scannerResultFallback.noStatusNote,
     ),
     reasons: (
       data.interpretation?.reasons ??
       latestSignal.statusReasonKeys ??
       latestSignal.statusReasons ??
       []
-    ).map((reason) => formatScannerReviewValue(reason, dictionaries.en)),
+    ).map((reason) => formatScannerReviewValue(reason, dictionary)),
   };
+}
+
+function formatSymbolResearchSignalLabel(
+  value: string | null | undefined,
+  dictionary: SymbolResearchDisplayDictionary,
+) {
+  return formatSignalLabel(value, dictionary);
 }
 
 function getSymbolResearchScoreBreakdown(

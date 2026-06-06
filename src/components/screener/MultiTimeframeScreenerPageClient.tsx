@@ -23,6 +23,7 @@ import {
   type StatusTone,
 } from "@/components/ui/workspace";
 import { formatDisplayDateTime } from "@/lib/utils/format";
+import { useAppLanguage } from "@/lib/i18n/AppLanguageProvider";
 import {
   formatDateTime,
   formatGroupLabel,
@@ -64,6 +65,7 @@ import {
   type MtfScreenerSnapshot,
   type MtfScreenerTimeframe,
 } from "./multiTimeframeScreenerUi";
+import type { ScannerDisplayDictionary } from "@/components/scanner/latestScanUi";
 
 const assetClass = "crypto";
 
@@ -305,6 +307,8 @@ export function MtfScreenerTable({
   onExportVisible?: () => void;
   onExportAll?: () => void;
 }) {
+  const { dictionary } = useAppLanguage();
+
   if (rows.length === 0) {
     return (
       <MtfStatePanel message="No symbols match the selected multi-timeframe filters." />
@@ -453,13 +457,14 @@ export function MtfScreenerTable({
                     key={`${row.symbol}-${timeframe}`}
                     row={row}
                     timeframe={timeframe}
+                    dictionary={dictionary}
                   />
                 ))}
                 <DataTableCell className="border-l border-[var(--table-group)]">
-                  <PrimarySignalCell row={row} />
+                  <PrimarySignalCell row={row} dictionary={dictionary} />
                 </DataTableCell>
                 <DataTableCell>
-                  <RiskNotesCell row={row} />
+                  <RiskNotesCell row={row} dictionary={dictionary} />
                 </DataTableCell>
                 <DataTableCell align="center">
                   <ResearchLink row={row} />
@@ -1088,6 +1093,7 @@ export function MtfScreenerDetailRail({
   marketContextIsError?: boolean;
   className?: string;
 }) {
+  const { dictionary } = useAppLanguage();
   const focusRows = getMtfDetailFocusRows(
     rows,
     sortState,
@@ -1188,6 +1194,7 @@ export function MtfScreenerDetailRail({
                 const notes = getMtfRiskNotesSummary(
                   row,
                   Number.MAX_SAFE_INTEGER,
+                  dictionary,
                 ).notes;
 
                 return (
@@ -1217,7 +1224,7 @@ export function MtfScreenerDetailRail({
                         {reason}
                       </span>
                       <span className="min-w-0 flex-1 truncate">
-                        {getMtfPrimarySignal(row)}
+                        {getMtfPrimarySignal(row, dictionary)}
                       </span>
                       <span className="shrink-0 font-mono uppercase text-[var(--accent)]">
                         {timeframe}
@@ -1939,16 +1946,18 @@ function TimeframeHeaderCells({
 function TimeframeCells({
   row,
   timeframe,
+  dictionary,
 }: {
   row: MtfScreenerRow;
   timeframe: MtfScreenerTimeframe;
+  dictionary: ScannerDisplayDictionary;
 }) {
   const snapshot = row.snapshots[timeframe];
 
   return (
     <>
       <DataTableCell className="border-l border-[var(--table-group)]">
-        <TimeframeStateValue snapshot={snapshot} />
+        <TimeframeStateValue snapshot={snapshot} dictionary={dictionary} />
       </DataTableCell>
       <DataTableCell align="right">
         <span
@@ -1963,14 +1972,16 @@ function TimeframeCells({
 
 function TimeframeStateValue({
   snapshot,
+  dictionary,
 }: {
   snapshot: MtfScreenerSnapshot | undefined;
+  dictionary: ScannerDisplayDictionary;
 }) {
   const group = snapshot?.resultGroup;
 
   return (
     <div
-      title={formatMtfGroup(snapshot)}
+      title={formatMtfGroup(snapshot, dictionary)}
       className={`inline-flex max-w-full items-center gap-1.5 border-l-2 pl-1.5 ${getMtfResearchBucketBorderClass(
         getMtfStateTone(group),
       )}`}
@@ -1978,7 +1989,9 @@ function TimeframeStateValue({
       <span
         className={`min-w-0 truncate text-[10px] font-semibold ${getMtfGroupTextClass(group)}`}
       >
-        {snapshot ? formatMtfGroup(snapshot) : "Missing"}
+        {snapshot
+          ? formatMtfGroup(snapshot, dictionary)
+          : dictionary.scannerResultFallback.notReturned}
       </span>
     </div>
   );
@@ -2227,30 +2240,39 @@ function formatMtfHigherTimeframeHealthLabel(label: string) {
     .replace("Limited HTF Data", "Limited data");
 }
 
-function PrimarySignalCell({ row }: { row: MtfScreenerRow }) {
+function PrimarySignalCell({
+  row,
+  dictionary,
+}: {
+  row: MtfScreenerRow;
+  dictionary: ScannerDisplayDictionary;
+}) {
   const snapshot = getMtfPrimarySignalSnapshot(row);
 
   if (!snapshot) {
     return (
-      <div className="text-[11px] text-[var(--muted-2)]" title="No latest signal">
-        No latest signal
+      <div
+        className="text-[11px] text-[var(--muted-2)]"
+        title={dictionary.scannerResultFallback.noLatestSignal}
+      >
+        {dictionary.scannerResultFallback.noLatestSignal}
       </div>
     );
   }
 
   return (
-    <div className="min-w-0" title={getMtfPrimarySignal(row)}>
+    <div className="min-w-0" title={getMtfPrimarySignal(row, dictionary)}>
       <div
         className={`truncate text-[11px] font-semibold ${getMtfGroupTextClass(snapshot.resultGroup)}`}
       >
-        {formatSignalLabel(snapshot.signalLabel)}
+        {formatSignalLabel(snapshot.signalLabel, dictionary)}
       </div>
       <div className="mt-0.5 flex min-w-0 items-center gap-1.5 text-[9px] uppercase text-[var(--muted)]">
         <span className="shrink-0 font-mono">{snapshot.timeframe}</span>
         <span
           className={`min-w-0 truncate font-semibold ${getMtfGroupTextClass(snapshot.resultGroup)}`}
         >
-          {formatGroupLabel(snapshot.resultGroup)}
+          {formatGroupLabel(snapshot.resultGroup, dictionary)}
         </span>
       </div>
     </div>
@@ -2270,8 +2292,14 @@ function getMtfPrimarySignalSnapshot(row: MtfScreenerRow) {
   );
 }
 
-function RiskNotesCell({ row }: { row: MtfScreenerRow }) {
-  const summary = getMtfPriorityRiskNotesSummary(row);
+function RiskNotesCell({
+  row,
+  dictionary,
+}: {
+  row: MtfScreenerRow;
+  dictionary: ScannerDisplayDictionary;
+}) {
+  const summary = getMtfPriorityRiskNotesSummary(row, dictionary);
 
   if (summary.notes.length === 0) {
     return <span className="text-[var(--muted-2)]">-</span>;
@@ -2329,8 +2357,15 @@ function formatMtfRiskNoteReason(text: string) {
   return text;
 }
 
-function getMtfPriorityRiskNotesSummary(row: MtfScreenerRow) {
-  const summary = getMtfRiskNotesSummary(row, Number.MAX_SAFE_INTEGER);
+function getMtfPriorityRiskNotesSummary(
+  row: MtfScreenerRow,
+  dictionary: ScannerDisplayDictionary,
+) {
+  const summary = getMtfRiskNotesSummary(
+    row,
+    Number.MAX_SAFE_INTEGER,
+    dictionary,
+  );
   const notes = prioritizeMtfRiskNotes(row, summary.notes);
   const visibleNotes = notes.slice(0, 1);
   const hiddenNotes = notes.slice(1);
