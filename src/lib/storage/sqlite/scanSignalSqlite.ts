@@ -34,12 +34,12 @@ type SignalRow = {
   primary_structure: ScanSignalRecord["primaryStructure"];
   secondary_structures_json: string;
   detected_risk_types_json: string;
-  bullish_factors_json: string;
-  bearish_factors_json: string;
-  risk_factors_json: string;
-  neutral_factors_json: string;
-  next_confirmation_json: string;
-  invalidation_json: string;
+  bullish_observations_json: string;
+  bearish_observations_json: string;
+  risk_observations_json: string;
+  neutral_observations_json: string;
+  next_confirmation_observations_json: string;
+  invalidation_observations_json: string;
   raw_metrics_json: string;
   legacy_signal: string;
   legacy_rank_score: number;
@@ -350,9 +350,11 @@ export class ScanSignalSqliteStore implements ScannerStorageAdapter {
           final_signal_score, opportunity_score, confirmation_score, risk_score,
           trend_score, momentum_score, volume_score, structure_score,
           signal_label, action_bias, primary_structure, secondary_structures_json,
-          detected_risk_types_json, bullish_factors_json, bearish_factors_json,
-          risk_factors_json, neutral_factors_json, next_confirmation_json,
-          invalidation_json, raw_metrics_json, legacy_signal, legacy_rank_score,
+          detected_risk_types_json, bullish_observations_json,
+          bearish_observations_json, risk_observations_json,
+          neutral_observations_json, next_confirmation_observations_json,
+          invalidation_observations_json, raw_metrics_json, legacy_signal,
+          legacy_rank_score,
           legacy_warnings_json, scoring_version, scanner_version, created_at
         )
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -378,12 +380,12 @@ export class ScanSignalSqliteStore implements ScannerStorageAdapter {
         signal.primaryStructure,
         signal.secondaryStructuresJson,
         signal.detectedRiskTypesJson,
-        signal.bullishFactorsJson,
-        signal.bearishFactorsJson,
-        signal.riskFactorsJson,
-        signal.neutralFactorsJson,
-        signal.nextConfirmationJson,
-        signal.invalidationJson,
+        signal.bullishObservationsJson,
+        signal.bearishObservationsJson,
+        signal.riskObservationsJson,
+        signal.neutralObservationsJson,
+        signal.nextConfirmationObservationsJson,
+        signal.invalidationObservationsJson,
         signal.rawMetricsJson,
         signal.legacySignal,
         signal.legacyRankScore,
@@ -540,12 +542,12 @@ function toSignalRecord(row: SignalRow): ScanSignalRecord {
     primaryStructure: row.primary_structure,
     secondaryStructuresJson: row.secondary_structures_json,
     detectedRiskTypesJson: row.detected_risk_types_json,
-    bullishFactorsJson: row.bullish_factors_json,
-    bearishFactorsJson: row.bearish_factors_json,
-    riskFactorsJson: row.risk_factors_json,
-    neutralFactorsJson: row.neutral_factors_json,
-    nextConfirmationJson: row.next_confirmation_json,
-    invalidationJson: row.invalidation_json,
+    bullishObservationsJson: row.bullish_observations_json,
+    bearishObservationsJson: row.bearish_observations_json,
+    riskObservationsJson: row.risk_observations_json,
+    neutralObservationsJson: row.neutral_observations_json,
+    nextConfirmationObservationsJson: row.next_confirmation_observations_json,
+    invalidationObservationsJson: row.invalidation_observations_json,
     rawMetricsJson: row.raw_metrics_json,
     legacySignal: row.legacy_signal,
     legacyRankScore: row.legacy_rank_score,

@@ -1,4 +1,13 @@
 import { formatDisplayDateTime } from "@/lib/utils/format";
+import { dictionaries } from "@/lib/i18n/dictionaries";
+import { formatScannerReviewText } from "@/lib/i18n/formatScannerObservation";
+import type {
+  ActionBias,
+  DetectedRiskType,
+  ScannerReviewKey,
+  ScannerReviewText,
+  ScannerSignalLabel,
+} from "@/lib/shared/scannerTypes";
 
 export const latestScanGroupOrder = [
   "eligible",
@@ -68,25 +77,7 @@ type LatestScanGroupSummaryInput = Partial<
   totalByGroup?: Partial<Record<LatestScanGroupKey, number | null | undefined>>;
 };
 
-const signalLabels: Record<string, string> = {
-  confirmed: "Confirmed",
-  watch: "Watch",
-  trend: "Trend",
-  overheated: "Overheated",
-  distribution_risk: "Distribution Risk",
-  weak_bounce: "Weak Bounce",
-  breakdown_risk: "Breakdown Risk",
-  weak: "Weak",
-  neutral: "Neutral",
-};
-
-const actionLabels: Record<string, string> = {
-  eligible: "Eligible",
-  watch_only: "Watch Only",
-  do_not_chase: "Overheated Review",
-  avoid: "Risk Review",
-  ignore: "Low Priority Review",
-};
+const defaultDictionary = dictionaries.en;
 
 const qualityLabels: Record<string, string> = {
   core: "Core",
@@ -148,7 +139,9 @@ export function formatSignalLabel(value: string | null | undefined) {
     return "Unknown";
   }
 
-  return signalLabels[value] ?? toTitleCase(value);
+  return isScannerSignalLabel(value)
+    ? defaultDictionary.signalLabel[value]
+    : toTitleCase(value);
 }
 
 export function formatActionBias(value: string | null | undefined) {
@@ -156,7 +149,7 @@ export function formatActionBias(value: string | null | undefined) {
     return "Unknown";
   }
 
-  return actionLabels[value] ?? toTitleCase(value);
+  return isActionBias(value) ? defaultDictionary.actionBias[value] : toTitleCase(value);
 }
 
 export function formatActionDisplay(
@@ -211,9 +204,16 @@ export function formatReviewTierLabel(value: string | null | undefined) {
 
 export function getReviewStatusNote(item: {
   statusNote?: string | null;
+  statusNoteKey?: string | null;
   reviewTier?: string | null;
   resultGroup?: string | null;
 }) {
+  const statusNoteKey = toScannerReviewText(item.statusNoteKey);
+
+  if (statusNoteKey) {
+    return formatScannerReviewText(statusNoteKey, defaultDictionary);
+  }
+
   if (item.statusNote?.trim()) {
     return item.statusNote.trim();
   }
@@ -229,11 +229,20 @@ export function getReviewStatusNote(item: {
 
 export function getReviewStatusReasons(item: {
   statusReasons?: unknown;
+  statusReasonKeys?: unknown;
   detectedRiskTypes?: unknown;
   primaryStructure?: string | null;
   rankScore?: number | null;
   resultGroup?: string | null;
 }) {
+  const statusReasonKeys = toScannerReviewTextArray(item.statusReasonKeys);
+
+  if (statusReasonKeys.length > 0) {
+    return statusReasonKeys.map((reason) =>
+      formatScannerReviewText(reason, defaultDictionary),
+    );
+  }
+
   if (Array.isArray(item.statusReasons)) {
     const reasons = item.statusReasons.filter(
       (reason): reason is string => typeof reason === "string" && reason.length > 0,
@@ -273,6 +282,52 @@ export function getReviewStatusReasons(item: {
   }
 
   return reasons;
+}
+
+function isScannerSignalLabel(value: string): value is ScannerSignalLabel {
+  return value in defaultDictionary.signalLabel;
+}
+
+function isActionBias(value: string): value is ActionBias {
+  return value in defaultDictionary.actionBias;
+}
+
+function isDetectedRiskType(value: string): value is DetectedRiskType {
+  return value in defaultDictionary.detectedRiskType;
+}
+
+function formatDetectedRiskType(value: string) {
+  return isDetectedRiskType(value)
+    ? defaultDictionary.detectedRiskType[value]
+    : toTitleCase(value);
+}
+
+function isScannerReviewKey(value: string): value is ScannerReviewKey {
+  return value in defaultDictionary.scannerReview;
+}
+
+function toScannerReviewText(value: unknown): ScannerReviewText | null {
+  if (typeof value === "string" && isScannerReviewKey(value)) {
+    return { key: value };
+  }
+
+  if (
+    value &&
+    typeof value === "object" &&
+    "key" in value &&
+    typeof value.key === "string" &&
+    isScannerReviewKey(value.key)
+  ) {
+    return value as ScannerReviewText;
+  }
+
+  return null;
+}
+
+function toScannerReviewTextArray(value: unknown) {
+  return Array.isArray(value)
+    ? value.map(toScannerReviewText).filter((item): item is ScannerReviewText => !!item)
+    : [];
 }
 
 export function getVisibleReviewReason(item: {
@@ -339,7 +394,9 @@ export function getDetectedRiskTypeLabels(value: unknown) {
   }
 
   return value
-    .map((riskType) => (typeof riskType === "string" ? toTitleCase(riskType) : ""))
+    .map((riskType) =>
+      typeof riskType === "string" ? formatDetectedRiskType(riskType) : "",
+    )
     .filter(Boolean);
 }
 

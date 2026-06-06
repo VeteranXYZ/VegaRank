@@ -27,6 +27,15 @@ describe("scan signal persistence model", () => {
       rsi: 58,
       closeAboveMA20: true,
     });
+    expect(JSON.parse(signal.bullishObservationsJson)).toEqual([
+      { key: "factor.rsiHealthyRepair", severity: "positive", scope: "momentum" },
+    ]);
+    expect(JSON.parse(signal.riskObservationsJson)).toEqual([
+      { key: "risk.overheat", severity: "risk", scope: "risk" },
+    ]);
+    expect(JSON.parse(signal.nextConfirmationObservationsJson)).toEqual([
+      { key: "confirmation.reclaimMa50", severity: "neutral", scope: "confirmation" },
+    ]);
     expect(signal.legacySignal).toBe("CONFIRMED");
     expect(signal.legacyRankScore).toBe(72.5);
   });
@@ -41,8 +50,8 @@ function makeResult(): ScanResult {
     phase: "TRENDING",
     signal: {
       state: "CONFIRMED",
-      label: "确认",
-      summary: "确认 / 可进入候选",
+      label: "confirmed",
+      summary: "confirmed / eligible",
     },
     opportunityScore: 70,
     confirmationScore: 85,
@@ -58,12 +67,22 @@ function makeResult(): ScanResult {
     primaryStructure: "strong_trend",
     secondaryStructures: ["trend_aligned"],
     detectedRiskTypes: ["overheat_risk"],
-    bullishFactors: ["RSI 位于 50-65 的健康修复区。"],
-    bearishFactors: [],
-    riskFactors: ["短线过热风险。"],
-    neutralFactors: [],
-    nextConfirmationText: ["回踩不破 MA20。"],
-    invalidationText: ["跌破 MA20。"],
+    bullishObservations: [
+      { key: "factor.rsiHealthyRepair", severity: "positive", scope: "momentum" },
+    ],
+    bearishObservations: [],
+    riskObservations: [{ key: "risk.overheat", severity: "risk", scope: "risk" }],
+    neutralObservations: [],
+    nextConfirmationObservations: [
+      { key: "confirmation.reclaimMa50", severity: "neutral", scope: "confirmation" },
+    ],
+    invalidationObservations: [
+      {
+        key: "invalidation.loseMa20Repair",
+        severity: "warning",
+        scope: "invalidation",
+      },
+    ],
     rawMetrics: {
       price: 100,
       rsi: 58,

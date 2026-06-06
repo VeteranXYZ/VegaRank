@@ -1,3 +1,5 @@
+import type { ScannerReviewKey, ScannerReviewText } from "@/lib/shared/scannerTypes";
+
 export const SCAN_RESULT_GROUPS = [
   "eligible",
   "watch",
@@ -35,9 +37,9 @@ export type ScanResultGroupInput = {
 
 export type ScanResultReview = {
   reviewTier: ScanResultReviewTier;
-  statusNote: string;
+  statusNoteKey: ScannerReviewKey;
   cautionLevel: ScanResultCautionLevel;
-  statusReasons: string[];
+  statusReasonKeys: ScannerReviewText[];
 };
 
 export type ScanResultGroupSummary = Record<ScanResultGroup, number> & {
@@ -144,62 +146,63 @@ export function getScanResultReview(
   const resultGroup = signal.resultGroup ?? classifyScanResultGroup(signal);
   const rankScore = signal.rankScore ?? Number.NEGATIVE_INFINITY;
   const primaryStructure = signal.primaryStructure ?? "";
-  const detectedRiskLabels = getDetectedRiskLabels(signal);
+  const detectedRiskCodes = getDetectedRiskCodes(signal);
 
   if (resultGroup === "eligible") {
     return {
       reviewTier: "eligible",
-      statusNote: "Manual review",
+      statusNoteKey: "review.status.manualReview",
       cautionLevel: "none",
-      statusReasons: [
-        "Clean candidate: positive rank, confirmed/trend signal, clear setup type, and no detected risks.",
-      ],
+      statusReasonKeys: [{ key: "review.reason.cleanCandidate" }],
     };
   }
 
   if (resultGroup === "risk") {
     return {
       reviewTier: "risk",
-      statusNote: "Avoid",
+      statusNoteKey: "review.status.avoid",
       cautionLevel: "caution",
-      statusReasons: ["Risk group has priority over opportunity score."],
+      statusReasonKeys: [{ key: "review.reason.riskGroupPriority" }],
     };
   }
 
   if (resultGroup === "overheated") {
     return {
       reviewTier: "overheated",
-      statusNote: "Do not chase",
+      statusNoteKey: "review.status.doNotChase",
       cautionLevel: "caution",
-      statusReasons: ["Overheated state has priority over opportunity score."],
+      statusReasonKeys: [{ key: "review.reason.overheatedPriority" }],
     };
   }
 
   if (resultGroup === "neutral") {
     return {
       reviewTier: "neutral",
-      statusNote: "No clear edge",
+      statusNoteKey: "review.status.noClearEdge",
       cautionLevel: "none",
-      statusReasons: ["Neutral group means no clear edge is present."],
+      statusReasonKeys: [{ key: "review.reason.neutralGroup" }],
     };
   }
 
   if (resultGroup === "insufficient_history") {
     return {
       reviewTier: "insufficient_history",
-      statusNote: "Not enough candles",
+      statusNoteKey: "review.status.notEnoughCandles",
       cautionLevel: "low",
-      statusReasons: ["Not enough candles for a full scanner read."],
+      statusReasonKeys: [{ key: "review.reason.insufficientHistory" }],
     };
   }
 
-  if (detectedRiskLabels.length > 0) {
+  if (detectedRiskCodes.length > 0) {
     return {
       reviewTier: "watch_caution",
-      statusNote: "Caution",
+      statusNoteKey: "review.status.caution",
       cautionLevel: "caution",
-      statusReasons: [
-        `Caution: detected ${detectedRiskLabels.join(", ")}, so this is not treated as a clean eligible candidate.`,
+      statusReasonKeys: [
+        {
+          key: "review.reason.detectedRisks",
+          params: { risks: detectedRiskCodes.join(", ") },
+        },
         ...getWatchLowPriorityReasons({ rankScore, primaryStructure }),
       ],
     };
@@ -213,19 +216,17 @@ export function getScanResultReview(
   if (lowPriorityReasons.length > 0) {
     return {
       reviewTier: "watch_low",
-      statusNote: "Low priority",
+      statusNoteKey: "review.status.lowPriority",
       cautionLevel: "low",
-      statusReasons: lowPriorityReasons,
+      statusReasonKeys: lowPriorityReasons,
     };
   }
 
   return {
     reviewTier: "watch_high",
-    statusNote: "Needs confirmation",
+    statusNoteKey: "review.status.needsConfirmation",
     cautionLevel: "none",
-    statusReasons: [
-      "Needs confirmation: positive rank with a meaningful setup, but eligible rules are not fully met.",
-    ],
+    statusReasonKeys: [{ key: "review.reason.needsConfirmation" }],
   };
 }
 
@@ -240,13 +241,11 @@ function hasAnyDetectedRiskType(
   );
 }
 
-function getDetectedRiskLabels(signal: ScanResultGroupInput) {
+function getDetectedRiskCodes(signal: ScanResultGroupInput) {
   const detectedRiskTypes = signal.detectedRiskTypes ?? [];
 
   return detectedRiskTypes
-    .map((riskType) =>
-      typeof riskType === "string" ? riskType.replace(/_/g, " ") : "",
-    )
+    .map((riskType) => (typeof riskType === "string" ? riskType : ""))
     .filter(Boolean);
 }
 
@@ -256,15 +255,15 @@ function getWatchLowPriorityReasons({
 }: {
   rankScore: number;
   primaryStructure: string;
-}) {
-  const reasons: string[] = [];
+}): ScannerReviewText[] {
+  const reasons: ScannerReviewText[] = [];
 
   if (rankScore < 0) {
-    reasons.push("Low priority watch because rank score is below zero.");
+    reasons.push({ key: "review.reason.rankBelowZero" });
   }
 
   if (primaryStructure === "" || primaryStructure === "neutral") {
-    reasons.push("Neutral setup type prevents clean eligible classification.");
+    reasons.push({ key: "review.reason.neutralSetup" });
   }
 
   return reasons;

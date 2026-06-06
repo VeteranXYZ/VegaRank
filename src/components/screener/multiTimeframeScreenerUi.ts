@@ -8,6 +8,7 @@ import {
 } from "@/components/scanner/latestScanUi";
 import { shortResearchDisclaimer } from "@/components/researchCopy";
 import { buildSymbolResearchHref } from "@/components/symbol/symbolResearchLinks";
+import type { ScannerReviewText } from "@/lib/shared/scannerTypes";
 
 export const MTF_SCREENER_TIMEFRAMES = ["1h", "4h", "1d", "1w"] as const;
 export type MtfScreenerTimeframe = (typeof MTF_SCREENER_TIMEFRAMES)[number];
@@ -93,7 +94,9 @@ export type MtfLatestScanItem = {
   action?: string | null;
   actionBias?: string | null;
   reviewTier?: string | null;
+  statusNoteKey?: string | null;
   statusNote?: string | null;
+  statusReasonKeys?: ScannerReviewText[];
   statusReasons?: string[];
   setupType?: string | null;
   primaryStructure?: string | null;

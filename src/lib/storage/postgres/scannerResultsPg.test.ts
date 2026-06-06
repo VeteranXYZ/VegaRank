@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Pool } from "pg";
+import type { ScanResult } from "@/lib/scanner/types";
 import {
   PgScannerResultsStore,
   isLikelyFullUniverseRun,
@@ -639,6 +640,50 @@ describe("PgScannerResultsStore latest scan queries", () => {
     expect(normalizeHistoricalSnapshotObservationWindow(10)).toBe(10);
     expect(normalizeHistoricalSnapshotObservationWindow(2)).toBeNull();
   });
+
+  it("stores scanner observations instead of display strings on insert", async () => {
+    const paramsList: unknown[][] = [];
+    const store = new PgScannerResultsStore(
+      makePool((_sql, params) => {
+        paramsList.push(params);
+        return { rows: [] };
+      }),
+    );
+
+    await store.insertScanSignals([
+      {
+        id: "signal-1",
+        scanRunId: "run-1",
+        symbolId: 1,
+        symbol: "BTCUSDT",
+        timeframe: "4h",
+        candleOpenTimeMs: null,
+        result: makeInsertResult(),
+      },
+    ]);
+
+    const params = paramsList[0];
+    const factors = JSON.parse(params[21] as string);
+    const nextConfirmation = JSON.parse(params[22] as string);
+    const invalidation = JSON.parse(params[23] as string);
+
+    expect(factors.bullish).toEqual([
+      { key: "factor.priceAboveMa20", severity: "positive", scope: "trend" },
+    ]);
+    expect(factors.risk).toEqual([
+      { key: "risk.overheat", severity: "risk", scope: "risk" },
+    ]);
+    expect(nextConfirmation).toEqual([
+      { key: "confirmation.reclaimMa50", severity: "neutral", scope: "confirmation" },
+    ]);
+    expect(invalidation).toEqual([
+      {
+        key: "invalidation.loseMa20Repair",
+        severity: "warning",
+        scope: "invalidation",
+      },
+    ]);
+  });
 });
 
 function makePool(
@@ -648,6 +693,96 @@ function makePool(
     query: (sql: string, params: unknown[] = []) => Promise.resolve(query(sql, params)),
     end: () => Promise.resolve(),
   } as unknown as Pool;
+}
+
+function makeInsertResult(): ScanResult {
+  return {
+    exchange: "binance",
+    symbol: "BTCUSDT",
+    timeframe: "4h",
+    price: 100,
+    phase: "TRENDING",
+    signal: {
+      state: "CONFIRMED",
+      label: "confirmed",
+      summary: "confirmed / eligible",
+    },
+    opportunityScore: 70,
+    confirmationScore: 80,
+    riskScore: 10,
+    trendScore: 90,
+    momentumScore: 40,
+    volumeScore: 20,
+    structureScore: 75,
+    finalSignalScore: 72,
+    rankScore: 72,
+    signalLabel: "confirmed",
+    actionBias: "eligible",
+    primaryStructure: "strong_trend",
+    secondaryStructures: [],
+    detectedRiskTypes: ["overheat_risk"],
+    bullishObservations: [
+      { key: "factor.priceAboveMa20", severity: "positive", scope: "trend" },
+    ],
+    bearishObservations: [],
+    riskObservations: [{ key: "risk.overheat", severity: "risk", scope: "risk" }],
+    neutralObservations: [],
+    nextConfirmationObservations: [
+      { key: "confirmation.reclaimMa50", severity: "neutral", scope: "confirmation" },
+    ],
+    invalidationObservations: [
+      {
+        key: "invalidation.loseMa20Repair",
+        severity: "warning",
+        scope: "invalidation",
+      },
+    ],
+    rawMetrics: {
+      price: 100,
+      rsi: 58,
+      bbPercent: 65,
+      volumeRatio: 1.2,
+      macdState: "improving",
+      closeAboveMA20: true,
+      closeAboveMA50: true,
+      closeAboveMA200: true,
+      ma20AboveMA50: true,
+      ma50AboveMA200: true,
+    },
+    rsi14: 58,
+    bbPercent: 65,
+    bbWidthPercentile: 50,
+    volumeRatio: 1.2,
+    volume: {
+      latest: 1000,
+      ma20: 900,
+      ma50: 850,
+      ratio20: 1.2,
+      ratio50: 1.3,
+      dryUp: false,
+      expanding: false,
+      abnormalSpike: false,
+      breakoutConfirmed: false,
+      pullbackHealthy: false,
+      distributionWarning: false,
+    },
+    maStatus: {
+      aboveMA20: true,
+      aboveMA50: true,
+      aboveMA200: true,
+      ma20AboveMA50: true,
+      ma50AboveMA200: true,
+    },
+    reasons: [],
+    warnings: [],
+    nextConfirmation: [],
+    invalidation: [],
+    dataQuality: {
+      candleCount: 300,
+      sufficientHistory: true,
+      missingIndicators: [],
+    },
+  };
 }
 
 function makeRunRow(id: string, overrides: Partial<Record<string, unknown>> = {}) {

@@ -601,7 +601,7 @@ describe("trade-api historical snapshots", () => {
       symbol: "SEIUSDT",
       group: "eligible",
       label: "confirmed",
-      primarySignal: "Manual review",
+      primarySignal: "review.status.manualReview",
       rankScore: 82,
     });
     expect(body.rows[1]).toMatchObject({
@@ -748,7 +748,7 @@ describe("trade-api historical snapshots", () => {
     expect(rowsBySymbol.get("SEIUSDT")).toMatchObject({
       symbol: "SEIUSDT",
       group: "eligible",
-      primarySignal: "Manual review",
+      primarySignal: "review.status.manualReview",
       anchorSource: "stored_signal",
       window: 3,
       observedChangePct: 2.5,
@@ -1496,7 +1496,7 @@ describe("trade-api multi-timeframe latest screener", () => {
       symbol: "BTCUSDT",
       resultGroup: "eligible",
       group: "eligible",
-      action: "Manual review",
+      action: "review.status.manualReview",
       setupType: "strong_trend",
       scanTime: "2026-05-31T00:00:01.000Z",
     });
@@ -1620,8 +1620,8 @@ describe("trade-api symbol research", () => {
     });
     expect(body.interpretation).toMatchObject({
       group: "eligible",
-      action: "Manual review",
-      setupType: "Strong Trend",
+      action: "review.status.manualReview",
+      setupType: "strong_trend",
     });
     expect(body.history).toHaveLength(1);
     expect(body.timeframes).toHaveLength(2);

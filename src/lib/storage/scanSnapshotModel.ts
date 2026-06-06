@@ -4,6 +4,7 @@ import type {
   MarketPhase,
   MultiTimeframeAlignment,
   ScanResult,
+  ScannerObservation,
   ScannerSignalState,
 } from "@/lib/scanner/types";
 
@@ -44,11 +45,12 @@ export type StoredScanResult = {
   secondaryStructures?: string[];
   detectedRiskTypes?: ScanResult["detectedRiskTypes"];
   rawMetrics?: ScanResult["rawMetrics"];
-  bullishFactors?: string[];
-  bearishFactors?: string[];
-  riskFactors?: string[];
-  nextConfirmation?: string[];
-  invalidation?: string[];
+  bullishObservations?: ScannerObservation[];
+  bearishObservations?: ScannerObservation[];
+  riskObservations?: ScannerObservation[];
+  neutralObservations?: ScannerObservation[];
+  nextConfirmationObservations?: ScannerObservation[];
+  invalidationObservations?: ScannerObservation[];
   multiTimeframe?: {
     alignment: MultiTimeframeAlignment;
     label: string;
@@ -98,11 +100,12 @@ export function toStoredResult(result: ScanResult): StoredScanResult {
     secondaryStructures: result.secondaryStructures,
     detectedRiskTypes: result.detectedRiskTypes,
     rawMetrics: result.rawMetrics,
-    bullishFactors: result.bullishFactors,
-    bearishFactors: result.bearishFactors,
-    riskFactors: result.riskFactors,
-    nextConfirmation: result.nextConfirmationText,
-    invalidation: result.invalidationText,
+    bullishObservations: result.bullishObservations,
+    bearishObservations: result.bearishObservations,
+    riskObservations: result.riskObservations,
+    neutralObservations: result.neutralObservations,
+    nextConfirmationObservations: result.nextConfirmationObservations,
+    invalidationObservations: result.invalidationObservations,
     multiTimeframe: result.multiTimeframe
       ? {
           alignment: result.multiTimeframe.alignment,

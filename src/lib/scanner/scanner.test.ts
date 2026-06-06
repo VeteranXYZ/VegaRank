@@ -476,7 +476,11 @@ describe("explainable scanner fixtures", () => {
     expect(scores.opportunityScore).toBeGreaterThan(0);
     expect(scores.confirmationScore).toBeGreaterThan(0);
     expect(scores.riskScore).toBeLessThan(70);
-    expect(scores.nextConfirmationText).toContain("价格需要重新收复 MA50。");
+    expect(scores.nextConfirmationObservations).toContainEqual({
+      key: "confirmation.reclaimMa50",
+      severity: "neutral",
+      scope: "confirmation",
+    });
   });
 
   it("Case D: classifies a confirmed trend", () => {
@@ -1080,12 +1084,12 @@ function makeScanResult(
     primaryStructure: "strong_trend",
     secondaryStructures: [],
     detectedRiskTypes: [],
-    bullishFactors: [],
-    bearishFactors: [],
-    riskFactors: [],
-    neutralFactors: [],
-    nextConfirmationText: [],
-    invalidationText: [],
+    bullishObservations: [],
+    bearishObservations: [],
+    riskObservations: [],
+    neutralObservations: [],
+    nextConfirmationObservations: [],
+    invalidationObservations: [],
     rawMetrics: {
       price: 100,
       rsi: 55,

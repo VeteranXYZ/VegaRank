@@ -71,6 +71,9 @@ import {
   type SymbolResearchUnavailableReason,
   type ResearchDecisionSummary,
 } from "./symbolResearchUi";
+import { dictionaries } from "@/lib/i18n/dictionaries";
+import { formatScannerReviewValue } from "@/lib/i18n/formatScannerObservation";
+import type { ScannerReviewText } from "@/lib/shared/scannerTypes";
 
 type BuildSymbolResearchUrlParams = {
   exchange: string;
@@ -142,8 +145,10 @@ export type SymbolResearchSignal = {
   actionBias: string | null;
   resultGroup?: string | null;
   reviewTier?: string | null;
+  statusNoteKey?: string | null;
   statusNote?: string | null;
   cautionLevel?: string | null;
+  statusReasonKeys?: ScannerReviewText[];
   statusReasons?: string[];
   primaryStructure: string | null;
   secondaryStructures?: unknown[];
@@ -776,7 +781,9 @@ export function SymbolResearchPageClient({
             rows={timeframeSnapshots.map((item) => [
               formatSelectedTimeframeLabel(item.timeframe, selectedTimeframe),
               formatSymbolResearchGroup(item.resultGroup),
-              formatSymbolResearchAction(item.actionBias ?? item.statusNote),
+              formatSymbolResearchAction(
+                item.actionBias ?? item.statusNoteKey ?? item.statusNote,
+              ),
               formatSymbolResearchScore(item.rankScore),
               formatSymbolResearchDateTime(item.scanTime),
               formatSymbolResearchRunContext(item),
@@ -2633,11 +2640,19 @@ function getSymbolResearchInterpretation(
       "review_only",
     setupType:
       data.interpretation?.setupType ?? latestSignal.primaryStructure ?? "unknown",
-    statusNote:
+    statusNote: formatScannerReviewValue(
       data.interpretation?.statusNote ??
-      latestSignal.statusNote ??
+        latestSignal.statusNoteKey ??
+        latestSignal.statusNote,
+      dictionaries.en,
       "No status note available.",
-    reasons: data.interpretation?.reasons ?? latestSignal.statusReasons ?? [],
+    ),
+    reasons: (
+      data.interpretation?.reasons ??
+      latestSignal.statusReasonKeys ??
+      latestSignal.statusReasons ??
+      []
+    ).map((reason) => formatScannerReviewValue(reason, dictionaries.en)),
   };
 }
 

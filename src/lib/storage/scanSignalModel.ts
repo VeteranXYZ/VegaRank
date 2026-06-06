@@ -40,12 +40,12 @@ export type ScanSignalRecord = {
   primaryStructure: ScanResult["primaryStructure"];
   secondaryStructuresJson: string;
   detectedRiskTypesJson: string;
-  bullishFactorsJson: string;
-  bearishFactorsJson: string;
-  riskFactorsJson: string;
-  neutralFactorsJson: string;
-  nextConfirmationJson: string;
-  invalidationJson: string;
+  bullishObservationsJson: string;
+  bearishObservationsJson: string;
+  riskObservationsJson: string;
+  neutralObservationsJson: string;
+  nextConfirmationObservationsJson: string;
+  invalidationObservationsJson: string;
   rawMetricsJson: string;
   legacySignal: string;
   legacyRankScore: number;
@@ -121,12 +121,14 @@ export function toScanSignalRecords({
     primaryStructure: result.primaryStructure,
     secondaryStructuresJson: safeJsonStringify(result.secondaryStructures),
     detectedRiskTypesJson: safeJsonStringify(result.detectedRiskTypes),
-    bullishFactorsJson: safeJsonStringify(result.bullishFactors),
-    bearishFactorsJson: safeJsonStringify(result.bearishFactors),
-    riskFactorsJson: safeJsonStringify(result.riskFactors),
-    neutralFactorsJson: safeJsonStringify(result.neutralFactors),
-    nextConfirmationJson: safeJsonStringify(result.nextConfirmationText),
-    invalidationJson: safeJsonStringify(result.invalidationText),
+    bullishObservationsJson: safeJsonStringify(result.bullishObservations),
+    bearishObservationsJson: safeJsonStringify(result.bearishObservations),
+    riskObservationsJson: safeJsonStringify(result.riskObservations),
+    neutralObservationsJson: safeJsonStringify(result.neutralObservations),
+    nextConfirmationObservationsJson: safeJsonStringify(
+      result.nextConfirmationObservations,
+    ),
+    invalidationObservationsJson: safeJsonStringify(result.invalidationObservations),
     rawMetricsJson: safeJsonStringify(result.rawMetrics),
     legacySignal: result.signal.state,
     legacyRankScore: result.rankScore,

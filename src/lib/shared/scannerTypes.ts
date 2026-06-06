@@ -62,6 +62,100 @@ export type DetectedRiskType =
   | "liquidity_spike_risk"
   | "failed_breakout_risk";
 
+export type ScannerTextParamValue = string | number | boolean | null;
+
+export type ScannerObservationSeverity =
+  | "positive"
+  | "neutral"
+  | "warning"
+  | "risk";
+
+export type ScannerObservationScope =
+  | "trend"
+  | "momentum"
+  | "volume"
+  | "structure"
+  | "risk"
+  | "quality"
+  | "confirmation"
+  | "invalidation"
+  | "system";
+
+export type ScannerObservationKey =
+  | "factor.priceAboveMa20"
+  | "factor.priceAboveMa50"
+  | "factor.priceAboveMa200"
+  | "factor.ma20AboveMa50"
+  | "factor.ma50AboveMa200"
+  | "factor.rsiHealthyRepair"
+  | "factor.macdImproving"
+  | "factor.macdStrong"
+  | "factor.strongClose"
+  | "factor.volumeSupportsUpside"
+  | "factor.priceBelowMa20"
+  | "factor.priceBelowMa50"
+  | "factor.priceBelowMa200"
+  | "factor.ma20BelowMa50"
+  | "factor.rsiWeak"
+  | "factor.macdWeakening"
+  | "factor.macdWeak"
+  | "risk.overheat"
+  | "risk.distribution"
+  | "risk.weakBounce"
+  | "risk.trendBreakdown"
+  | "risk.liquiditySpike"
+  | "risk.failedBreakout"
+  | "risk.longUpperWick"
+  | "risk.weakClose"
+  | "risk.volumeSpikeAboveMa20"
+  | "neutral.macdFlat"
+  | "neutral.volumeNearAverage"
+  | "neutral.rsiInsufficient"
+  | "neutral.bbPercentInsufficient"
+  | "confirmation.reclaimMa50"
+  | "confirmation.ma20ApproachOrCrossMa50"
+  | "confirmation.rsiRecoverAbove50"
+  | "confirmation.holdBreakoutLevel"
+  | "confirmation.closeAbovePriorHigh"
+  | "confirmation.pullbackVolumeStable"
+  | "invalidation.loseMa20Repair"
+  | "invalidation.bearishVolumeExpansion"
+  | "invalidation.failToReclaimMa50"
+  | "invalidation.macdWeakensFurther"
+  | "invalidation.loseBreakoutLevel"
+  | "invalidation.riskRisesConfirmationFalls";
+
+export type ScannerObservation = {
+  key: ScannerObservationKey;
+  severity: ScannerObservationSeverity;
+  scope: ScannerObservationScope;
+  params?: Record<string, ScannerTextParamValue>;
+};
+
+export type ScannerReviewKey =
+  | "review.status.manualReview"
+  | "review.status.avoid"
+  | "review.status.doNotChase"
+  | "review.status.noClearEdge"
+  | "review.status.notEnoughCandles"
+  | "review.status.caution"
+  | "review.status.lowPriority"
+  | "review.status.needsConfirmation"
+  | "review.reason.cleanCandidate"
+  | "review.reason.riskGroupPriority"
+  | "review.reason.overheatedPriority"
+  | "review.reason.neutralGroup"
+  | "review.reason.insufficientHistory"
+  | "review.reason.detectedRisks"
+  | "review.reason.rankBelowZero"
+  | "review.reason.neutralSetup"
+  | "review.reason.needsConfirmation";
+
+export type ScannerReviewText = {
+  key: ScannerReviewKey;
+  params?: Record<string, ScannerTextParamValue>;
+};
+
 export type ScannerExplanationKey =
   | "reason.bbWidthLow"
   | "reason.ma20Ma50Converging"
@@ -180,12 +274,12 @@ export type ScanResult = {
   primaryStructure: PrimaryStructure;
   secondaryStructures: string[];
   detectedRiskTypes: DetectedRiskType[];
-  bullishFactors: string[];
-  bearishFactors: string[];
-  riskFactors: string[];
-  neutralFactors: string[];
-  nextConfirmationText: string[];
-  invalidationText: string[];
+  bullishObservations: ScannerObservation[];
+  bearishObservations: ScannerObservation[];
+  riskObservations: ScannerObservation[];
+  neutralObservations: ScannerObservation[];
+  nextConfirmationObservations: ScannerObservation[];
+  invalidationObservations: ScannerObservation[];
   rawMetrics: {
     price: number;
     rsi: number | null;

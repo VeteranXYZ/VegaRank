@@ -14,10 +14,10 @@ import {
   type SignalSummaryItem,
 } from "./SignalSummaryBar";
 import {
-  mapActionBiasToChinese,
-  mapSignalLabelToChinese,
-  mapStructureToChinese,
-} from "@/lib/scanner/scoring";
+  formatActionBias,
+  formatSignalLabel,
+  toTitleCase,
+} from "@/components/scanner/latestScanUi";
 import type { TableSortKey, TableSortState } from "./ScannerPageClient";
 import type { ScannerSignalState, ScanResult } from "@/lib/shared/scannerTypes";
 import { formatDisplayDateTime } from "@/lib/utils/format";
@@ -85,7 +85,7 @@ export function ScannerTable({
         header: t.scanner.columns.setup,
         cell: ({ row }) => (
           <span className="truncate text-[11px] font-semibold text-[var(--foreground)]">
-            {mapStructureToChinese(row.original.primaryStructure)}
+            {toTitleCase(row.original.primaryStructure)}
           </span>
         ),
       },
@@ -99,7 +99,7 @@ export function ScannerTable({
         header: "Action",
         cell: ({ row }) => (
           <span className={getActionTextClass(row.original.actionBias)}>
-            {mapActionBiasToChinese(row.original.actionBias)}
+            {formatActionBias(row.original.actionBias)}
           </span>
         ),
       },
@@ -366,7 +366,7 @@ function SignalCell({ result }: { result: ScanResult }) {
         result.signalLabel,
       )}`}
     >
-      {mapSignalLabelToChinese(result.signalLabel)}
+      {formatSignalLabel(result.signalLabel)}
     </span>
   );
 }

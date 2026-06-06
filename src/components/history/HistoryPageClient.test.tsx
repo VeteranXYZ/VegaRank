@@ -228,6 +228,9 @@ describe("HistoryPageClient display formatting", () => {
     );
     expect(formatHistoryPrimarySignal("Avoid")).toBe("Risk review");
     expect(formatHistoryPrimarySignal("Manual review")).toBe("Manual review");
+    expect(formatHistoryPrimarySignal("review.status.manualReview")).toBe(
+      "Manual review",
+    );
   });
 
   it("renders safer History table labels and preserves full row count copy", () => {

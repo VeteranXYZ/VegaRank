@@ -1,4 +1,7 @@
 import { formatDisplayDateTime } from "@/lib/utils/format";
+import { dictionaries } from "@/lib/i18n/dictionaries";
+import { formatScannerReviewValue } from "@/lib/i18n/formatScannerObservation";
+import type { ScannerReviewText } from "@/lib/shared/scannerTypes";
 
 export type SymbolResearchGroup =
   | "eligible"
@@ -51,6 +54,7 @@ type TimeframeAvailabilitySignalInput = TimeframeSnapshotInput &
   RunContextInput & {
     resultGroup?: string | null;
     actionBias?: string | null;
+    statusNoteKey?: string | null;
     statusNote?: string | null;
     rankScore?: number | null;
     scanTime?: string | null;
@@ -66,6 +70,7 @@ type ResearchSummarySignalInput = RunContextInput & {
   confirmationScore?: number | null;
   riskScore?: number | null;
   detectedRiskTypes?: unknown;
+  statusReasonKeys?: ScannerReviewText[] | null;
   statusReasons?: string[] | null;
   factors?: Record<string, unknown> | null;
   nextConfirmation?: unknown;
@@ -334,6 +339,12 @@ export function formatSymbolResearchGroup(value: string | null | undefined) {
 export function formatSymbolResearchAction(value: string | null | undefined) {
   if (!value) {
     return "Review only";
+  }
+
+  const formattedReview = formatScannerReviewValue(value, dictionaries.en);
+
+  if (formattedReview !== value) {
+    return formattedReview;
   }
 
   if (Object.values(actionLabels).includes(value)) {
@@ -1011,7 +1022,9 @@ function buildTimeframeAvailabilityRow({
             : "Not available",
     group: signal ? formatSymbolResearchGroup(signal.resultGroup) : "-",
     action: signal
-      ? formatSymbolResearchAction(signal.actionBias ?? signal.statusNote)
+      ? formatSymbolResearchAction(
+          signal.actionBias ?? signal.statusNoteKey ?? signal.statusNote,
+        )
       : "-",
     rank: signal ? formatSymbolResearchScore(signal.rankScore) : "-",
     scanTime: signal ? formatSymbolResearchDateTime(signal.scanTime) : "-",

@@ -6,8 +6,9 @@ import { RiskBadge } from "./RiskBadge";
 import { SignalBadge } from "./SignalBadge";
 import { StrategyReadPanel } from "./StrategyReadPanel";
 import { HistoricalBehaviorPanel } from "./HistoricalBehaviorPanel";
-import type { ScanResult } from "@/lib/shared/scannerTypes";
+import type { ScannerObservation, ScanResult } from "@/lib/shared/scannerTypes";
 import { formatScannerExplanation } from "@/lib/i18n/formatScannerExplanation";
+import { formatScannerObservation } from "@/lib/i18n/formatScannerObservation";
 import {
   formatActionBias,
   formatSignalLabel,
@@ -208,18 +209,40 @@ export function SelectedSymbolPanel({ result }: SelectedSymbolPanelProps) {
         </InspectorSection>
 
         <InspectorSection title="Reasons">
-          <FactorList title="Constructive Factors" items={result.bullishFactors} />
-          <FactorList title="Weakness Factors" items={result.bearishFactors} />
-          <FactorList title="Risk Factors" items={result.riskFactors} />
-          <FactorList title="Neutral Factors" items={result.neutralFactors} />
+          <FactorList
+            title="Constructive Factors"
+            items={result.bullishObservations}
+            dictionary={t}
+          />
+          <FactorList
+            title="Weakness Factors"
+            items={result.bearishObservations}
+            dictionary={t}
+          />
+          <FactorList
+            title="Risk Factors"
+            items={result.riskObservations}
+            dictionary={t}
+          />
+          <FactorList
+            title="Neutral Factors"
+            items={result.neutralObservations}
+            dictionary={t}
+          />
         </InspectorSection>
 
         <InspectorSection title="Next Confirmation">
-          <PlainList items={result.nextConfirmationText} />
+          <ObservationList
+            items={result.nextConfirmationObservations}
+            dictionary={t}
+          />
         </InspectorSection>
 
         <InspectorSection title="Invalidation">
-          <PlainList items={result.invalidationText} />
+          <ObservationList
+            items={result.invalidationObservations}
+            dictionary={t}
+          />
         </InspectorSection>
 
         <div className="space-y-2 border-t border-[var(--border)] pt-2">
@@ -331,7 +354,15 @@ function TagList({ label, items }: { label: string; items: string[] }) {
   );
 }
 
-function FactorList({ title, items }: { title: string; items: string[] }) {
+function FactorList({
+  title,
+  items,
+  dictionary,
+}: {
+  title: string;
+  items: ScannerObservation[];
+  dictionary: ReturnType<typeof useLanguage>["dictionary"];
+}) {
   if (items.length === 0) {
     return null;
   }
@@ -341,12 +372,18 @@ function FactorList({ title, items }: { title: string; items: string[] }) {
       <h4 className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-[var(--muted)]">
         {title}
       </h4>
-      <PlainList items={items} />
+      <ObservationList items={items} dictionary={dictionary} />
     </div>
   );
 }
 
-function PlainList({ items }: { items: string[] }) {
+function ObservationList({
+  items,
+  dictionary,
+}: {
+  items: ScannerObservation[];
+  dictionary: ReturnType<typeof useLanguage>["dictionary"];
+}) {
   if (items.length === 0) {
     return <span className="text-xs text-[var(--muted)]">n/a</span>;
   }
@@ -354,8 +391,11 @@ function PlainList({ items }: { items: string[] }) {
   return (
     <ul className="space-y-1 text-xs leading-5 text-[var(--foreground)]">
       {items.map((item) => (
-        <li key={item} className="border-l-2 border-[var(--border)] pl-2">
-          {item}
+        <li
+          key={`${item.key}-${JSON.stringify(item.params ?? {})}`}
+          className="border-l-2 border-[var(--border)] pl-2"
+        >
+          {formatScannerObservation(item, dictionary)}
         </li>
       ))}
     </ul>

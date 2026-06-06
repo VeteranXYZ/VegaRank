@@ -170,6 +170,25 @@ describe("latest scan UI helpers", () => {
   it("explains review status from API fields or safe fallbacks", () => {
     expect(
       getReviewStatusNote({
+        statusNoteKey: "review.status.caution",
+        reviewTier: "watch_caution",
+        resultGroup: "watch",
+      }),
+    ).toBe("Caution");
+    expect(
+      getReviewStatusReasons({
+        statusReasonKeys: [
+          {
+            key: "review.reason.detectedRisks",
+            params: { risks: "overheat_risk" },
+          },
+        ],
+      }),
+    ).toEqual([
+      "Caution: detected overheat_risk, so this is not treated as a clean eligible candidate.",
+    ]);
+    expect(
+      getReviewStatusNote({
         statusNote: "Caution",
         reviewTier: "watch_caution",
         resultGroup: "watch",

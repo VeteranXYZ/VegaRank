@@ -9,6 +9,8 @@ import {
   formatSignalLabel,
   normalizeGroupKey,
 } from "@/components/scanner/latestScanUi";
+import { dictionaries } from "@/lib/i18n/dictionaries";
+import { formatScannerReviewValue } from "@/lib/i18n/formatScannerObservation";
 import {
   DataTable,
   DataTableCell,
@@ -3840,6 +3842,12 @@ export function formatHistoryPrimarySignal(value: string | null | undefined) {
 
   if (!label) {
     return "-";
+  }
+
+  const formattedReview = formatScannerReviewValue(label, dictionaries.en);
+
+  if (formattedReview !== label) {
+    return formattedReview;
   }
 
   return unsafePrimarySignalLabelMap[label.toLowerCase()] ?? label;

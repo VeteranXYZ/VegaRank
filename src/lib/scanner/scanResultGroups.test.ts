@@ -82,7 +82,7 @@ describe("scan result grouping", () => {
     expect(classifyScanResultGroup(signal)).toBe("watch");
     expect(getScanResultReview(signal)).toMatchObject({
       reviewTier: "watch_caution",
-      statusNote: "Caution",
+      statusNoteKey: "review.status.caution",
       cautionLevel: "caution",
     });
   });
@@ -98,7 +98,7 @@ describe("scan result grouping", () => {
     expect(classifyScanResultGroup(negativeWatch)).toBe("watch");
     expect(getScanResultReview(negativeWatch)).toMatchObject({
       reviewTier: "watch_low",
-      statusNote: "Low priority",
+      statusNoteKey: "review.status.lowPriority",
     });
 
     const sorted = [
@@ -124,7 +124,7 @@ describe("scan result grouping", () => {
       }),
     ).toMatchObject({
       reviewTier: "watch_high",
-      statusNote: "Needs confirmation",
+      statusNoteKey: "review.status.needsConfirmation",
       cautionLevel: "none",
     });
   });

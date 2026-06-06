@@ -25,6 +25,12 @@ import {
   type StatusTone,
 } from "@/components/ui/workspace";
 import { formatDisplayDateTime } from "@/lib/utils/format";
+import { dictionaries } from "@/lib/i18n/dictionaries";
+import { formatScannerObservation } from "@/lib/i18n/formatScannerObservation";
+import type {
+  ScannerObservation,
+  ScannerReviewText,
+} from "@/lib/shared/scannerTypes";
 import {
   formatDateTime,
   formatGroupLabel,
@@ -105,8 +111,10 @@ export type LatestScanItem = {
   signalLabel: string | null;
   actionBias: string | null;
   reviewTier?: string | null;
+  statusNoteKey?: string | null;
   statusNote?: string | null;
   cautionLevel?: string | null;
+  statusReasonKeys?: ScannerReviewText[];
   statusReasons?: string[];
   primaryStructure: string | null;
   qualityTier: string | null;
@@ -1555,7 +1563,7 @@ function normalizeFactors(factors: Record<string, unknown> | undefined) {
   const rows: string[] = [];
 
   for (const key of ["bullish", "bearish", "risk", "neutral"]) {
-    const values = formatUnknownList(factors?.[key]);
+    const values = formatObservationList(factors?.[key]);
 
     if (values.length > 0) {
       rows.push(`${toTitleCase(key)}: ${values.slice(0, 3).join(", ")}`);
@@ -1563,6 +1571,63 @@ function normalizeFactors(factors: Record<string, unknown> | undefined) {
   }
 
   return rows;
+}
+
+function formatObservationList(value: unknown) {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value
+    .map((item) => {
+      const observation = toScannerObservation(item);
+
+      return observation
+        ? formatScannerObservation(observation, dictionaries.en)
+        : "";
+    })
+    .filter(Boolean);
+}
+
+function toScannerObservation(value: unknown): ScannerObservation | null {
+  if (
+    value &&
+    typeof value === "object" &&
+    "key" in value &&
+    typeof value.key === "string" &&
+    value.key in dictionaries.en.scannerObservation &&
+    "severity" in value &&
+    isScannerObservationSeverity(value.severity) &&
+    "scope" in value &&
+    isScannerObservationScope(value.scope)
+  ) {
+    return value as ScannerObservation;
+  }
+
+  return null;
+}
+
+function isScannerObservationSeverity(value: unknown) {
+  return (
+    value === "positive" ||
+    value === "neutral" ||
+    value === "warning" ||
+    value === "risk"
+  );
+}
+
+function isScannerObservationScope(value: unknown) {
+  return (
+    value === "trend" ||
+    value === "momentum" ||
+    value === "volume" ||
+    value === "structure" ||
+    value === "risk" ||
+    value === "quality" ||
+    value === "confirmation" ||
+    value === "invalidation" ||
+    value === "system"
+  );
 }
 
 function pickRawMetrics(metrics: Record<string, unknown> | undefined) {

@@ -1515,7 +1515,7 @@ function buildMtfLatestSignalItem(
     timeframe,
     group: resultGroup,
     resultGroup,
-    action: review.statusNote,
+    action: review.statusNoteKey,
     setupType: signal.primaryStructure,
     ...review,
   };
@@ -1574,7 +1574,7 @@ function buildAvailableMarketContextProxy({
     actionBias: signal.actionBias,
     primaryStructure: signal.primaryStructure,
     detectedRiskTypes: normalizeMarketContextRiskTypes(signal.detectedRiskTypes),
-    statusNote: review.statusNote,
+    statusNote: review.statusNoteKey,
     cautionLevel: review.cautionLevel,
     scanTime: signal.scanTime,
     candleOpenTime: signal.candleOpenTime,
@@ -1970,46 +1970,18 @@ function buildSymbolResearchScoreBreakdown(signal: SymbolResearchSignalRecord) {
 function buildSymbolResearchInterpretation(signal: EnrichedSymbolResearchSignal) {
   return {
     group: signal.resultGroup,
-    label: toReadableLabel(signal.signalLabel),
+    label: signal.signalLabel ?? "unknown",
     action: getSymbolResearchActionLabel(signal),
-    setupType: toReadableLabel(signal.primaryStructure),
-    statusNote: signal.statusNote,
-    reasons: signal.statusReasons,
+    setupType: signal.primaryStructure ?? "unknown",
+    statusNote: signal.statusNoteKey,
+    reasons: signal.statusReasonKeys.map((reason) => reason.key),
     nextConfirmation: signal.nextConfirmation,
     invalidation: signal.invalidation,
   };
 }
 
 function getSymbolResearchActionLabel(signal: EnrichedSymbolResearchSignal) {
-  if (signal.resultGroup === "eligible") {
-    return "Manual review";
-  }
-
-  if (signal.resultGroup === "watch") {
-    if (signal.reviewTier === "watch_caution") {
-      return "Caution review";
-    }
-
-    if (signal.reviewTier === "watch_low") {
-      return "Low priority review";
-    }
-
-    return "Review only";
-  }
-
-  if (signal.resultGroup === "overheated") {
-    return "Do not chase";
-  }
-
-  if (signal.resultGroup === "risk") {
-    return "Avoid or wait for repair";
-  }
-
-  if (signal.resultGroup === "insufficient_history") {
-    return "Not enough candles";
-  }
-
-  return "No clear edge";
+  return signal.statusNoteKey;
 }
 
 function buildSymbolResearchCandlesPayload({
@@ -2039,18 +2011,6 @@ function toIsoTime(value: number) {
 
 function normalizeIdentityParam(value: string | null, fallback: string) {
   return (value?.trim() || fallback).toLowerCase();
-}
-
-function toReadableLabel(value: string | null | undefined) {
-  if (!value) {
-    return "Unknown";
-  }
-
-  return value
-    .split(/[_\s-]+/)
-    .filter(Boolean)
-    .map((part) => part.charAt(0).toUpperCase() + part.slice(1).toLowerCase())
-    .join(" ");
 }
 
 async function handleScanRuns(response: http.ServerResponse, url: URL) {
@@ -3169,9 +3129,9 @@ function buildHistoricalSnapshotRow(signal: LatestScanSignalRecord) {
     group,
     resultGroup: group,
     label: signal.signalLabel,
-    primarySignal: review.statusNote,
+    primarySignal: review.statusNoteKey,
     reviewTier: review.reviewTier,
-    riskNotes: review.statusReasons.join(" "),
+    riskNotes: review.statusReasonKeys.map((reason) => reason.key).join(" "),
     riskTypes,
     rankScore: signal.rankScore,
     componentScores: {

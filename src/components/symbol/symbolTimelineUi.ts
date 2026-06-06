@@ -1,4 +1,7 @@
 import { formatDisplayDateTime } from "@/lib/utils/format";
+import { dictionaries } from "@/lib/i18n/dictionaries";
+import { formatScannerReviewValue } from "@/lib/i18n/formatScannerObservation";
+import type { ScannerReviewText } from "@/lib/shared/scannerTypes";
 import { formatSymbolResearchRunContext } from "./symbolResearchUi";
 
 export type RawSymbolTimelineSignal = {
@@ -11,9 +14,11 @@ export type RawSymbolTimelineSignal = {
   resultGroup?: string | null;
   signalLabel?: string | null;
   actionBias?: string | null;
+  statusNoteKey?: string | null;
   statusNote?: string | null;
   reviewTier?: string | null;
   cautionLevel?: string | null;
+  statusReasonKeys?: ScannerReviewText[] | null;
   statusReasons?: string[] | null;
   primaryStructure?: string | null;
   rankScore?: number | null;
@@ -202,8 +207,12 @@ export function getTimelineGroupDescription(value: string | null | undefined) {
 }
 
 export function getTimelineStatusText(item: RawSymbolTimelineSignal) {
+  if (item.statusNoteKey) {
+    return formatScannerReviewValue(item.statusNoteKey, dictionaries.en);
+  }
+
   if (item.statusNote) {
-    return toTitleCase(item.statusNote);
+    return formatScannerReviewValue(item.statusNote, dictionaries.en);
   }
 
   if (item.reviewTier) {
@@ -214,10 +223,12 @@ export function getTimelineStatusText(item: RawSymbolTimelineSignal) {
     return `Caution level: ${toTitleCase(item.cautionLevel)}`;
   }
 
-  const firstReason = item.statusReasons?.find((reason) => reason.trim().length > 0);
+  const firstReason =
+    item.statusReasonKeys?.find((reason) => reason.key.length > 0) ??
+    item.statusReasons?.find((reason) => reason.trim().length > 0);
 
   if (firstReason) {
-    return toTitleCase(firstReason);
+    return formatScannerReviewValue(firstReason, dictionaries.en);
   }
 
   return "No status note available.";
@@ -245,7 +256,7 @@ function getTimelineActionText(item: RawSymbolTimelineSignal) {
   }
 
   if (item.statusNote) {
-    return toTitleCase(item.statusNote);
+    return formatScannerReviewValue(item.statusNote, dictionaries.en);
   }
 
   return "Review only";

@@ -1,8 +1,14 @@
 import type { MtfPreset } from "@/lib/shared/scannerConfig";
 import type {
+  ActionBias,
+  DetectedRiskType,
   MarketPhase,
   MultiTimeframeAlignment,
+  PrimaryStructure,
+  ScannerObservationKey,
   ScannerExplanationKey,
+  ScannerReviewKey,
+  ScannerSignalLabel,
   ScannerSignalState,
 } from "@/lib/shared/scannerTypes";
 import type { Timeframe } from "@/lib/shared/timeframes";
@@ -415,6 +421,135 @@ export const dictionaries = {
       WEAK: "Price and momentum are below key trend levels.",
       NEUTRAL: "No clear edge from the current scanner rules.",
     } satisfies Record<ScannerSignalState, string>,
+    signalLabel: {
+      confirmed: "Confirmed",
+      watch: "Watch",
+      trend: "Trend",
+      overheated: "Overheated",
+      distribution_risk: "Distribution Risk",
+      weak_bounce: "Weak Bounce",
+      breakdown_risk: "Breakdown Risk",
+      weak: "Weak",
+      neutral: "Neutral",
+    } satisfies Record<ScannerSignalLabel, string>,
+    actionBias: {
+      eligible: "Eligible",
+      watch_only: "Watch Only",
+      do_not_chase: "Overheated Review",
+      avoid: "Risk Review",
+      ignore: "Low Priority Review",
+    } satisfies Record<ActionBias, string>,
+    primaryStructure: {
+      strong_trend: "Strong Trend",
+      healthy_pullback: "Healthy Pullback",
+      trend_repair: "Trend Repair",
+      breakout_attempt: "Breakout Attempt",
+      overextended: "Overextended",
+      distribution_risk: "Distribution Risk",
+      weak_bounce: "Weak Bounce",
+      trend_breakdown: "Trend Breakdown",
+      neutral: "Neutral",
+    } satisfies Record<PrimaryStructure, string>,
+    detectedRiskType: {
+      overheat_risk: "Overheat Risk",
+      distribution_risk: "Distribution Risk",
+      weak_bounce_risk: "Weak Bounce Risk",
+      trend_breakdown_risk: "Trend Breakdown Risk",
+      liquidity_spike_risk: "Liquidity Spike Risk",
+      failed_breakout_risk: "Failed Breakout Risk",
+    } satisfies Record<DetectedRiskType, string>,
+    scannerObservation: {
+      "factor.priceAboveMa20": "Price has reclaimed MA20.",
+      "factor.priceAboveMa50": "Price is above MA50.",
+      "factor.priceAboveMa200": "Price is above MA200.",
+      "factor.ma20AboveMa50": "MA20 is above MA50.",
+      "factor.ma50AboveMa200": "MA50 is above MA200.",
+      "factor.rsiHealthyRepair": "RSI is in the healthy 50-65 repair zone.",
+      "factor.macdImproving": "MACD momentum is improving.",
+      "factor.macdStrong": "MACD structure is strong.",
+      "factor.strongClose": "The latest candle closed in a strong position.",
+      "factor.volumeSupportsUpside":
+        "Volume supports the current upside structure.",
+      "factor.priceBelowMa20": "Price is below MA20.",
+      "factor.priceBelowMa50": "Price remains below MA50.",
+      "factor.priceBelowMa200":
+        "Price remains below MA200, so long-term trend structure is unrepaired.",
+      "factor.ma20BelowMa50": "MA20 remains below MA50.",
+      "factor.rsiWeak": "RSI is below 45, indicating weak momentum.",
+      "factor.macdWeakening": "MACD is weakening.",
+      "factor.macdWeak": "MACD is in a weak state.",
+      "risk.overheat":
+        "RSI, BB%, or extension from MA20 shows short-term overheat risk.",
+      "risk.distribution":
+        "Volume expanded with weaker close or wick quality; distinguish absorption from distribution.",
+      "risk.weakBounce":
+        "Price is bouncing below key averages before trend repair is complete.",
+      "risk.trendBreakdown":
+        "Price or momentum lost key trend conditions, creating breakdown risk.",
+      "risk.liquiditySpike":
+        "Volume spiked without matching price confirmation, creating liquidity shock risk.",
+      "risk.failedBreakout":
+        "Breakout failed to hold above the key area, creating fakeout risk.",
+      "risk.longUpperWick": "The latest candle has a long upper wick.",
+      "risk.weakClose": "The latest candle closed weakly.",
+      "risk.volumeSpikeAboveMa20":
+        "Volume is significantly above the 20-period average.",
+      "neutral.macdFlat": "MACD is currently flat.",
+      "neutral.volumeNearAverage":
+        "Volume is close to its 20-period average.",
+      "neutral.rsiInsufficient": "RSI data is insufficient.",
+      "neutral.bbPercentInsufficient": "BB% data is insufficient.",
+      "confirmation.reclaimMa50": "Price needs to reclaim MA50.",
+      "confirmation.ma20ApproachOrCrossMa50":
+        "MA20 needs to keep rising and approach or cross MA50.",
+      "confirmation.rsiRecoverAbove50": "RSI needs to recover above 50.",
+      "confirmation.holdBreakoutLevel":
+        "The breakout level needs to hold on the next candle.",
+      "confirmation.closeAbovePriorHigh":
+        "The next candle needs to close above the prior high.",
+      "confirmation.pullbackVolumeStable":
+        "Pullback volume should stay stable instead of expanding further.",
+      "invalidation.loseMa20Repair":
+        "The repair structure fails if price loses MA20 again.",
+      "invalidation.bearishVolumeExpansion":
+        "Risk weight should rise if bearish candles continue on expanding volume.",
+      "invalidation.failToReclaimMa50":
+        "Trend repair is not valid if price cannot reclaim MA50.",
+      "invalidation.macdWeakensFurther":
+        "Confirmation should be reduced if MACD weakens further.",
+      "invalidation.loseBreakoutLevel":
+        "The breakout structure fails if price falls back below the breakout level.",
+      "invalidation.riskRisesConfirmationFalls":
+        "If risk rises while confirmation falls, prioritize the risk structure.",
+    } satisfies Record<ScannerObservationKey, string>,
+    scannerReview: {
+      "review.status.manualReview": "Manual review",
+      "review.status.avoid": "Avoid",
+      "review.status.doNotChase": "Do not chase",
+      "review.status.noClearEdge": "No clear edge",
+      "review.status.notEnoughCandles": "Not enough candles",
+      "review.status.caution": "Caution",
+      "review.status.lowPriority": "Low priority",
+      "review.status.needsConfirmation": "Needs confirmation",
+      "review.reason.cleanCandidate":
+        "Clean candidate: positive rank, confirmed/trend signal, clear setup type, and no detected risks.",
+      "review.reason.riskGroupPriority":
+        "Risk group has priority over opportunity score.",
+      "review.reason.overheatedPriority":
+        "Overheated state has priority over opportunity score.",
+      "review.reason.neutralGroup":
+        "Neutral group means no clear edge is present.",
+      "review.reason.insufficientHistory":
+        "Not enough candles for a full scanner read.",
+      "review.reason.detectedRisks":
+        "Caution: detected {risks}, so this is not treated as a clean eligible candidate.",
+      "review.reason.rankBelowZero":
+        "Low priority watch because rank score is below zero.",
+      "review.reason.neutralSetup":
+        "Neutral setup type prevents clean eligible classification.",
+      "review.reason.needsConfirmation":
+        "Needs confirmation: positive rank with a meaningful setup, but eligible rules are not fully met.",
+    } satisfies Record<ScannerReviewKey, string>,
     phase: {
       BASE_BUILDING: "Base Building",
       SQUEEZE: "Squeeze",
@@ -941,6 +1076,114 @@ export const dictionaries = {
       WEAK: "价格和动量低于关键趋势水平。",
       NEUTRAL: "当前规则没有给出明确优势。",
     } satisfies Record<ScannerSignalState, string>,
+    signalLabel: {
+      confirmed: "确认",
+      watch: "观察",
+      trend: "趋势",
+      overheated: "过热",
+      distribution_risk: "派发风险",
+      weak_bounce: "弱反弹",
+      breakdown_risk: "破坏风险",
+      weak: "弱势",
+      neutral: "中性",
+    } satisfies Record<ScannerSignalLabel, string>,
+    actionBias: {
+      eligible: "可进入候选",
+      watch_only: "仅观察",
+      do_not_chase: "不追高",
+      avoid: "回避",
+      ignore: "忽略",
+    } satisfies Record<ActionBias, string>,
+    primaryStructure: {
+      strong_trend: "强趋势",
+      healthy_pullback: "健康回踩",
+      trend_repair: "趋势修复",
+      breakout_attempt: "突破尝试",
+      overextended: "过度延伸",
+      distribution_risk: "派发风险",
+      weak_bounce: "弱势反弹",
+      trend_breakdown: "趋势破坏",
+      neutral: "中性",
+    } satisfies Record<PrimaryStructure, string>,
+    detectedRiskType: {
+      overheat_risk: "过热风险",
+      distribution_risk: "派发风险",
+      weak_bounce_risk: "弱势反弹风险",
+      trend_breakdown_risk: "趋势破坏风险",
+      liquidity_spike_risk: "流动性异常风险",
+      failed_breakout_risk: "假突破风险",
+    } satisfies Record<DetectedRiskType, string>,
+    scannerObservation: {
+      "factor.priceAboveMa20": "价格重新站上 MA20。",
+      "factor.priceAboveMa50": "价格位于 MA50 上方。",
+      "factor.priceAboveMa200": "价格位于 MA200 上方。",
+      "factor.ma20AboveMa50": "MA20 位于 MA50 上方。",
+      "factor.ma50AboveMa200": "MA50 位于 MA200 上方。",
+      "factor.rsiHealthyRepair": "RSI 位于 50-65 的健康修复区。",
+      "factor.macdImproving": "MACD 动能正在改善。",
+      "factor.macdStrong": "MACD 结构偏强。",
+      "factor.strongClose": "最新 K 线收盘位置偏强。",
+      "factor.volumeSupportsUpside": "成交量对当前上行结构有支持。",
+      "factor.priceBelowMa20": "价格低于 MA20。",
+      "factor.priceBelowMa50": "价格仍低于 MA50。",
+      "factor.priceBelowMa200": "价格仍低于 MA200，长期趋势结构未修复。",
+      "factor.ma20BelowMa50": "MA20 仍低于 MA50。",
+      "factor.rsiWeak": "RSI 低于 45，动量仍偏弱。",
+      "factor.macdWeakening": "MACD 正在转弱。",
+      "factor.macdWeak": "MACD 处于弱势状态。",
+      "risk.overheat": "RSI、BB% 或价格相对 MA20 的延伸显示短线过热风险。",
+      "risk.distribution": "成交量放大且收盘或影线质量偏弱，需要区分承接和派发。",
+      "risk.weakBounce": "价格仍在关键均线下方反弹，结构尚未完成趋势修复。",
+      "risk.trendBreakdown": "价格或动量跌破关键趋势条件，存在趋势破坏风险。",
+      "risk.liquiditySpike": "成交量异常放大但价格结构未同步确认，存在流动性冲击风险。",
+      "risk.failedBreakout": "突破后未能维持在关键区域上方，存在假突破风险。",
+      "risk.longUpperWick": "最新 K 线存在较长上影线。",
+      "risk.weakClose": "最新 K 线收盘位置偏弱。",
+      "risk.volumeSpikeAboveMa20": "成交量显著高于 20 周期均量。",
+      "neutral.macdFlat": "MACD 当前偏平。",
+      "neutral.volumeNearAverage": "成交量接近 20 周期均量。",
+      "neutral.rsiInsufficient": "RSI 数据不足。",
+      "neutral.bbPercentInsufficient": "BB% 数据不足。",
+      "confirmation.reclaimMa50": "价格需要重新收复 MA50。",
+      "confirmation.ma20ApproachOrCrossMa50":
+        "MA20 需要继续上行并接近或上穿 MA50。",
+      "confirmation.rsiRecoverAbove50": "RSI 需要重新回到 50 上方。",
+      "confirmation.holdBreakoutLevel": "突破位需要在下一根 K 线继续守住。",
+      "confirmation.closeAbovePriorHigh": "下一根 K 线需要收在前高上方。",
+      "confirmation.pullbackVolumeStable":
+        "回踩时成交量应保持稳定，而不是继续放大。",
+      "invalidation.loseMa20Repair": "如果价格重新跌破 MA20，当前修复结构失效。",
+      "invalidation.bearishVolumeExpansion": "如果阴线继续放量，风险权重应提高。",
+      "invalidation.failToReclaimMa50":
+        "如果价格无法重新收复 MA50，趋势修复仍不成立。",
+      "invalidation.macdWeakensFurther": "如果 MACD 继续转弱，确认分应下调。",
+      "invalidation.loseBreakoutLevel":
+        "如果价格继续跌回突破位下方，突破结构失效。",
+      "invalidation.riskRisesConfirmationFalls":
+        "如果风险分继续上升且确认分下降，应优先按风险结构处理。",
+    } satisfies Record<ScannerObservationKey, string>,
+    scannerReview: {
+      "review.status.manualReview": "人工复核",
+      "review.status.avoid": "回避",
+      "review.status.doNotChase": "不追高",
+      "review.status.noClearEdge": "优势不明确",
+      "review.status.notEnoughCandles": "K 线不足",
+      "review.status.caution": "谨慎",
+      "review.status.lowPriority": "低优先级",
+      "review.status.needsConfirmation": "需要确认",
+      "review.reason.cleanCandidate":
+        "干净候选：综合分为正，信号为确认/趋势，结构类型明确，且没有检测到风险。",
+      "review.reason.riskGroupPriority": "风险分组优先于机会分。",
+      "review.reason.overheatedPriority": "过热状态优先于机会分。",
+      "review.reason.neutralGroup": "中性分组表示当前没有明确优势。",
+      "review.reason.insufficientHistory": "K 线不足，无法形成完整扫描判断。",
+      "review.reason.detectedRisks":
+        "谨慎：检测到{risks}，因此不作为干净候选处理。",
+      "review.reason.rankBelowZero": "综合分低于 0，因此观察优先级较低。",
+      "review.reason.neutralSetup": "结构类型为中性，无法归为干净候选。",
+      "review.reason.needsConfirmation":
+        "需要确认：综合分为正且结构有意义，但尚未完全满足候选规则。",
+    } satisfies Record<ScannerReviewKey, string>,
     phase: {
       BASE_BUILDING: "筑底",
       SQUEEZE: "压缩",

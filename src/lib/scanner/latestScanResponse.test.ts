@@ -69,7 +69,7 @@ describe("latest scan response", () => {
     expect(response.items[0]).toMatchObject({
       symbol: "ETHUSDT",
       reviewTier: "eligible",
-      statusNote: "Manual review",
+      statusNoteKey: "review.status.manualReview",
       cautionLevel: "none",
     });
   });
@@ -96,9 +96,84 @@ describe("latest scan response", () => {
     expect(response.groups.watch.map((item) => item.symbol)).toEqual(["HBARUSDT"]);
     expect(response.groups.watch[0]).toMatchObject({
       reviewTier: "watch_low",
-      statusNote: "Low priority",
+      statusNoteKey: "review.status.lowPriority",
     });
     expect(response.summary.watch).toBe(1);
+  });
+
+  it("returns observation objects and review keys as the scanner API contract", () => {
+    const response = buildLatestScanResponse({
+      run: makeRun("run-contract"),
+      signals: [
+        makeSignal({
+          id: "1",
+          scanRunId: "run-contract",
+          symbol: "ETHUSDT",
+          factors: {
+            bullish: [
+              {
+                key: "factor.priceAboveMa20",
+                severity: "positive",
+                scope: "trend",
+              },
+            ],
+            bearish: [],
+            risk: [
+              {
+                key: "risk.overheat",
+                severity: "risk",
+                scope: "risk",
+              },
+            ],
+            neutral: [],
+          },
+          nextConfirmation: [
+            {
+              key: "confirmation.reclaimMa50",
+              severity: "neutral",
+              scope: "confirmation",
+            },
+          ],
+          invalidation: [
+            {
+              key: "invalidation.loseMa20Repair",
+              severity: "warning",
+              scope: "invalidation",
+            },
+          ],
+        }),
+      ],
+      limit: 100,
+      includeLowQuality: true,
+    });
+
+    const item = response.items[0];
+
+    expect(item).toMatchObject({
+      statusNoteKey: "review.status.manualReview",
+      statusReasonKeys: [{ key: "review.reason.cleanCandidate" }],
+      factors: {
+        bullish: [
+          {
+            key: "factor.priceAboveMa20",
+            severity: "positive",
+            scope: "trend",
+          },
+        ],
+      },
+      nextConfirmation: [
+        {
+          key: "confirmation.reclaimMa50",
+          severity: "neutral",
+          scope: "confirmation",
+        },
+      ],
+    });
+    expect(item).not.toHaveProperty("statusNote");
+    expect(item).not.toHaveProperty("statusReasons");
+    expect(item).not.toHaveProperty("bullishFactors");
+    expect(item).not.toHaveProperty("nextConfirmationText");
+    expect(collectStrings(item).join("\n")).not.toMatch(/\p{Script=Han}/u);
   });
 
   it("allocates limited latest-scan rows across populated major groups", () => {
@@ -174,6 +249,22 @@ describe("latest scan response", () => {
   });
 });
 
+function collectStrings(value: unknown): string[] {
+  if (typeof value === "string") {
+    return [value];
+  }
+
+  if (Array.isArray(value)) {
+    return value.flatMap(collectStrings);
+  }
+
+  if (value && typeof value === "object") {
+    return Object.values(value).flatMap(collectStrings);
+  }
+
+  return [];
+}
+
 function makeRun(id: string): ScanRunRecord {
   return {
     id,
@@ -227,9 +318,9 @@ function makeSignal(
     primaryStructure: overrides.primaryStructure ?? "strong_trend",
     secondaryStructures: [],
     detectedRiskTypes: overrides.detectedRiskTypes ?? [],
-    factors: {},
-    nextConfirmation: null,
-    invalidation: null,
+    factors: overrides.factors ?? {},
+    nextConfirmation: overrides.nextConfirmation ?? null,
+    invalidation: overrides.invalidation ?? null,
     rawMetrics: {},
     scoringVersion: "test",
     scannerVersion: "test",

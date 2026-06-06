@@ -6,6 +6,7 @@ import type {
   MarketPhase,
   PrimaryStructure,
   ScanResult,
+  ScannerObservation,
   ScannerSignalLabel,
   ScannerSignalState,
 } from "./types";
@@ -76,12 +77,12 @@ export type ScannerScoreResult = ScannerScores &
   StructureDiagnosis &
   SignalClassification & {
     detectedRiskTypes: DetectedRiskType[];
-    bullishFactors: string[];
-    bearishFactors: string[];
-    riskFactors: string[];
-    neutralFactors: string[];
-    nextConfirmationText: string[];
-    invalidationText: string[];
+    bullishObservations: ScannerObservation[];
+    bearishObservations: ScannerObservation[];
+    riskObservations: ScannerObservation[];
+    neutralObservations: ScannerObservation[];
+    nextConfirmationObservations: ScannerObservation[];
+    invalidationObservations: ScannerObservation[];
     rawMetrics: ScannerRawMetrics;
   };
 
@@ -698,169 +699,323 @@ export function explainScore({
   detectedRiskTypes: DetectedRiskType[];
   derived: ScannerDerivedMetrics;
 }) {
-  const bullishFactors: string[] = [];
-  const bearishFactors: string[] = [];
-  const riskFactors: string[] = [];
-  const neutralFactors: string[] = [];
-  const nextConfirmationText: string[] = [];
-  const invalidationText: string[] = [];
+  const bullishObservations: ScannerObservation[] = [];
+  const bearishObservations: ScannerObservation[] = [];
+  const riskObservations: ScannerObservation[] = [];
+  const neutralObservations: ScannerObservation[] = [];
+  const nextConfirmationObservations: ScannerObservation[] = [];
+  const invalidationObservations: ScannerObservation[] = [];
 
-  if (metrics.closeAboveMA20 === true) bullishFactors.push("价格重新站上 MA20。");
-  if (metrics.closeAboveMA50 === true) bullishFactors.push("价格位于 MA50 上方。");
-  if (metrics.closeAboveMA200 === true) bullishFactors.push("价格位于 MA200 上方。");
-  if (metrics.ma20AboveMA50 === true) bullishFactors.push("MA20 位于 MA50 上方。");
-  if (metrics.ma50AboveMA200 === true) bullishFactors.push("MA50 位于 MA200 上方。");
+  if (metrics.closeAboveMA20 === true) {
+    bullishObservations.push({
+      key: "factor.priceAboveMa20",
+      severity: "positive",
+      scope: "trend",
+    });
+  }
+  if (metrics.closeAboveMA50 === true) {
+    bullishObservations.push({
+      key: "factor.priceAboveMa50",
+      severity: "positive",
+      scope: "trend",
+    });
+  }
+  if (metrics.closeAboveMA200 === true) {
+    bullishObservations.push({
+      key: "factor.priceAboveMa200",
+      severity: "positive",
+      scope: "trend",
+    });
+  }
+  if (metrics.ma20AboveMA50 === true) {
+    bullishObservations.push({
+      key: "factor.ma20AboveMa50",
+      severity: "positive",
+      scope: "trend",
+    });
+  }
+  if (metrics.ma50AboveMA200 === true) {
+    bullishObservations.push({
+      key: "factor.ma50AboveMa200",
+      severity: "positive",
+      scope: "trend",
+    });
+  }
   if (isBetween(metrics.rsi, 50, 65)) {
-    bullishFactors.push("RSI 位于 50-65 的健康修复区。");
+    bullishObservations.push({
+      key: "factor.rsiHealthyRepair",
+      severity: "positive",
+      scope: "momentum",
+    });
   }
   if (metrics.macdState === "improving") {
-    bullishFactors.push("MACD 动能正在改善。");
+    bullishObservations.push({
+      key: "factor.macdImproving",
+      severity: "positive",
+      scope: "momentum",
+    });
   }
-  if (metrics.macdState === "strong") bullishFactors.push("MACD 结构偏强。");
-  if (metrics.isStrongClose) bullishFactors.push("最新 K 线收盘位置偏强。");
-  if (scores.volumeScore > 0) bullishFactors.push("成交量对当前上行结构有支持。");
+  if (metrics.macdState === "strong") {
+    bullishObservations.push({
+      key: "factor.macdStrong",
+      severity: "positive",
+      scope: "momentum",
+    });
+  }
+  if (metrics.isStrongClose) {
+    bullishObservations.push({
+      key: "factor.strongClose",
+      severity: "positive",
+      scope: "structure",
+    });
+  }
+  if (scores.volumeScore > 0) {
+    bullishObservations.push({
+      key: "factor.volumeSupportsUpside",
+      severity: "positive",
+      scope: "volume",
+    });
+  }
 
-  if (metrics.closeAboveMA20 === false) bearishFactors.push("价格低于 MA20。");
-  if (metrics.closeAboveMA50 === false) bearishFactors.push("价格仍低于 MA50。");
+  if (metrics.closeAboveMA20 === false) {
+    bearishObservations.push({
+      key: "factor.priceBelowMa20",
+      severity: "warning",
+      scope: "trend",
+    });
+  }
+  if (metrics.closeAboveMA50 === false) {
+    bearishObservations.push({
+      key: "factor.priceBelowMa50",
+      severity: "warning",
+      scope: "trend",
+    });
+  }
   if (metrics.closeAboveMA200 === false) {
-    bearishFactors.push("价格仍低于 MA200，长期趋势结构未修复。");
+    bearishObservations.push({
+      key: "factor.priceBelowMa200",
+      severity: "warning",
+      scope: "trend",
+    });
   }
-  if (metrics.ma20AboveMA50 === false) bearishFactors.push("MA20 仍低于 MA50。");
+  if (metrics.ma20AboveMA50 === false) {
+    bearishObservations.push({
+      key: "factor.ma20BelowMa50",
+      severity: "warning",
+      scope: "trend",
+    });
+  }
   if (metrics.rsi !== null && metrics.rsi < 45) {
-    bearishFactors.push("RSI 低于 45，动量仍偏弱。");
+    bearishObservations.push({
+      key: "factor.rsiWeak",
+      severity: "warning",
+      scope: "momentum",
+    });
   }
-  if (metrics.macdState === "weakening") bearishFactors.push("MACD 正在转弱。");
-  if (metrics.macdState === "weak") bearishFactors.push("MACD 处于弱势状态。");
+  if (metrics.macdState === "weakening") {
+    bearishObservations.push({
+      key: "factor.macdWeakening",
+      severity: "warning",
+      scope: "momentum",
+    });
+  }
+  if (metrics.macdState === "weak") {
+    bearishObservations.push({
+      key: "factor.macdWeak",
+      severity: "warning",
+      scope: "momentum",
+    });
+  }
 
   if (detectedRiskTypes.includes("overheat_risk")) {
-    riskFactors.push("RSI、BB% 或价格相对 MA20 的延伸显示短线过热风险。");
+    riskObservations.push({
+      key: "risk.overheat",
+      severity: "risk",
+      scope: "risk",
+    });
   }
   if (detectedRiskTypes.includes("distribution_risk")) {
-    riskFactors.push("成交量放大且收盘或影线质量偏弱，需要区分承接和派发。");
+    riskObservations.push({
+      key: "risk.distribution",
+      severity: "risk",
+      scope: "risk",
+    });
   }
   if (detectedRiskTypes.includes("weak_bounce_risk")) {
-    riskFactors.push("价格仍在关键均线下方反弹，结构尚未完成趋势修复。");
+    riskObservations.push({
+      key: "risk.weakBounce",
+      severity: "risk",
+      scope: "risk",
+    });
   }
   if (detectedRiskTypes.includes("trend_breakdown_risk")) {
-    riskFactors.push("价格或动量跌破关键趋势条件，存在趋势破坏风险。");
+    riskObservations.push({
+      key: "risk.trendBreakdown",
+      severity: "risk",
+      scope: "risk",
+    });
   }
   if (detectedRiskTypes.includes("liquidity_spike_risk")) {
-    riskFactors.push("成交量异常放大但价格结构未同步确认，存在流动性冲击风险。");
+    riskObservations.push({
+      key: "risk.liquiditySpike",
+      severity: "risk",
+      scope: "risk",
+    });
   }
   if (detectedRiskTypes.includes("failed_breakout_risk")) {
-    riskFactors.push("突破后未能维持在关键区域上方，存在假突破风险。");
+    riskObservations.push({
+      key: "risk.failedBreakout",
+      severity: "risk",
+      scope: "risk",
+    });
   }
-  if (metrics.isLongUpperWick) riskFactors.push("最新 K 线存在较长上影线。");
-  if (metrics.isWeakClose) riskFactors.push("最新 K 线收盘位置偏弱。");
+  if (metrics.isLongUpperWick) {
+    riskObservations.push({
+      key: "risk.longUpperWick",
+      severity: "risk",
+      scope: "structure",
+    });
+  }
+  if (metrics.isWeakClose) {
+    riskObservations.push({
+      key: "risk.weakClose",
+      severity: "risk",
+      scope: "structure",
+    });
+  }
   if (metrics.volumeRatio !== null && metrics.volumeRatio > 3) {
-    riskFactors.push("成交量显著高于 20 周期均量。");
+    riskObservations.push({
+      key: "risk.volumeSpikeAboveMa20",
+      severity: "risk",
+      scope: "volume",
+    });
   }
 
-  if (metrics.macdState === "flat") neutralFactors.push("MACD 当前偏平。");
-  if (metrics.volumeRatio !== null && isBetween(metrics.volumeRatio, 0.8, 1.2)) {
-    neutralFactors.push("成交量接近 20 周期均量。");
+  if (metrics.macdState === "flat") {
+    neutralObservations.push({
+      key: "neutral.macdFlat",
+      severity: "neutral",
+      scope: "momentum",
+    });
   }
-  if (metrics.rsi === null) neutralFactors.push("RSI 数据不足。");
-  if (metrics.bbPercent === null) neutralFactors.push("BB% 数据不足。");
+  if (metrics.volumeRatio !== null && isBetween(metrics.volumeRatio, 0.8, 1.2)) {
+    neutralObservations.push({
+      key: "neutral.volumeNearAverage",
+      severity: "neutral",
+      scope: "volume",
+    });
+  }
+  if (metrics.rsi === null) {
+    neutralObservations.push({
+      key: "neutral.rsiInsufficient",
+      severity: "neutral",
+      scope: "quality",
+    });
+  }
+  if (metrics.bbPercent === null) {
+    neutralObservations.push({
+      key: "neutral.bbPercentInsufficient",
+      severity: "neutral",
+      scope: "quality",
+    });
+  }
 
   if (metrics.closeAboveMA50 !== true) {
-    nextConfirmationText.push("价格需要重新收复 MA50。");
+    nextConfirmationObservations.push({
+      key: "confirmation.reclaimMa50",
+      severity: "neutral",
+      scope: "confirmation",
+    });
   }
   if (metrics.ma20AboveMA50 !== true) {
-    nextConfirmationText.push("MA20 需要继续上行并接近或上穿 MA50。");
+    nextConfirmationObservations.push({
+      key: "confirmation.ma20ApproachOrCrossMa50",
+      severity: "neutral",
+      scope: "confirmation",
+    });
   }
   if (metrics.rsi !== null && metrics.rsi < 50) {
-    nextConfirmationText.push("RSI 需要重新回到 50 上方。");
+    nextConfirmationObservations.push({
+      key: "confirmation.rsiRecoverAbove50",
+      severity: "neutral",
+      scope: "confirmation",
+    });
   }
   if (structure.primaryStructure === "breakout_attempt" || derived.failedBreakout) {
-    nextConfirmationText.push("突破位需要在下一根 K 线继续守住。");
-    nextConfirmationText.push("下一根 K 线需要收在前高上方。");
+    nextConfirmationObservations.push({
+      key: "confirmation.holdBreakoutLevel",
+      severity: "neutral",
+      scope: "confirmation",
+    });
+    nextConfirmationObservations.push({
+      key: "confirmation.closeAbovePriorHigh",
+      severity: "neutral",
+      scope: "confirmation",
+    });
   }
   if (metrics.volumeRatio !== null && metrics.volumeRatio > 1.8) {
-    nextConfirmationText.push("回踩时成交量应保持稳定，而不是继续放大。");
+    nextConfirmationObservations.push({
+      key: "confirmation.pullbackVolumeStable",
+      severity: "neutral",
+      scope: "confirmation",
+    });
   }
   if (metrics.closeAboveMA20 === true) {
-    invalidationText.push("如果价格重新跌破 MA20，当前修复结构失效。");
+    invalidationObservations.push({
+      key: "invalidation.loseMa20Repair",
+      severity: "warning",
+      scope: "invalidation",
+    });
   }
-  invalidationText.push("如果阴线继续放量，风险权重应提高。");
+  invalidationObservations.push({
+    key: "invalidation.bearishVolumeExpansion",
+    severity: "warning",
+    scope: "invalidation",
+  });
   if (metrics.closeAboveMA50 !== true) {
-    invalidationText.push("如果价格无法重新收复 MA50，趋势修复仍不成立。");
+    invalidationObservations.push({
+      key: "invalidation.failToReclaimMa50",
+      severity: "warning",
+      scope: "invalidation",
+    });
   }
   if (metrics.macdState === "weakening" || metrics.macdState === "weak") {
-    invalidationText.push("如果 MACD 继续转弱，确认分应下调。");
+    invalidationObservations.push({
+      key: "invalidation.macdWeakensFurther",
+      severity: "warning",
+      scope: "invalidation",
+    });
   }
   if (derived.failedBreakout) {
-    invalidationText.push("如果价格继续跌回突破位下方，突破结构失效。");
+    invalidationObservations.push({
+      key: "invalidation.loseBreakoutLevel",
+      severity: "warning",
+      scope: "invalidation",
+    });
   }
   if (scores.riskScore > 70) {
-    invalidationText.push("如果风险分继续上升且确认分下降，应优先按风险结构处理。");
+    invalidationObservations.push({
+      key: "invalidation.riskRisesConfirmationFalls",
+      severity: "warning",
+      scope: "invalidation",
+    });
   }
 
+  const dedupedBullish = dedupeObservations(bullishObservations);
+  const dedupedBearish = dedupeObservations(bearishObservations);
+  const dedupedRisk = dedupeObservations(riskObservations);
+  const dedupedNeutral = dedupeObservations(neutralObservations);
+  const dedupedNextConfirmation = dedupeObservations(nextConfirmationObservations);
+  const dedupedInvalidation = dedupeObservations(invalidationObservations);
+
   return {
-    bullishFactors: dedupe(bullishFactors),
-    bearishFactors: dedupe(bearishFactors),
-    riskFactors: dedupe(riskFactors),
-    neutralFactors: dedupe(neutralFactors),
-    nextConfirmationText: dedupe(nextConfirmationText),
-    invalidationText: dedupe(invalidationText),
+    bullishObservations: dedupedBullish,
+    bearishObservations: dedupedBearish,
+    riskObservations: dedupedRisk,
+    neutralObservations: dedupedNeutral,
+    nextConfirmationObservations: dedupedNextConfirmation,
+    invalidationObservations: dedupedInvalidation,
   };
-}
-
-export function mapSignalLabelToChinese(signalLabel: ScannerSignalLabel) {
-  const labels: Record<ScannerSignalLabel, string> = {
-    confirmed: "确认",
-    watch: "观察",
-    trend: "趋势",
-    overheated: "过热",
-    distribution_risk: "派发风险",
-    weak_bounce: "弱反弹",
-    breakdown_risk: "破坏风险",
-    weak: "弱势",
-    neutral: "中性",
-  };
-
-  return labels[signalLabel];
-}
-
-export function mapActionBiasToChinese(actionBias: ActionBias) {
-  const labels: Record<ActionBias, string> = {
-    eligible: "可进入候选",
-    watch_only: "仅观察",
-    do_not_chase: "不追高",
-    avoid: "回避",
-    ignore: "忽略",
-  };
-
-  return labels[actionBias];
-}
-
-export function mapStructureToChinese(primaryStructure: PrimaryStructure) {
-  const labels: Record<PrimaryStructure, string> = {
-    strong_trend: "强趋势",
-    healthy_pullback: "健康回踩",
-    trend_repair: "趋势修复",
-    breakout_attempt: "突破尝试",
-    overextended: "过度延伸",
-    distribution_risk: "派发风险",
-    weak_bounce: "弱势反弹",
-    trend_breakdown: "趋势破坏",
-    neutral: "中性",
-  };
-
-  return labels[primaryStructure];
-}
-
-export function mapRiskTypeToChinese(riskType: DetectedRiskType) {
-  const labels: Record<DetectedRiskType, string> = {
-    overheat_risk: "过热风险",
-    distribution_risk: "派发风险",
-    weak_bounce_risk: "弱势反弹风险",
-    trend_breakdown_risk: "趋势破坏风险",
-    liquidity_spike_risk: "流动性异常风险",
-    failed_breakout_risk: "假突破风险",
-  };
-
-  return labels[riskType];
 }
 
 export function mapSignalLabelToLegacyState(
@@ -893,10 +1048,8 @@ export function buildLegacySignal(
 
   return {
     state,
-    label: mapSignalLabelToChinese(signalLabel),
-    summary: `${mapSignalLabelToChinese(signalLabel)} / ${mapActionBiasToChinese(
-      actionBias,
-    )}`,
+    label: signalLabel,
+    summary: `${signalLabel} / ${actionBias}`,
   };
 }
 
@@ -1136,4 +1289,18 @@ function areNear(left: number | null, right: number | null, tolerance: number) {
 
 function dedupe<T>(items: T[]) {
   return Array.from(new Set(items));
+}
+
+function dedupeObservations(items: ScannerObservation[]) {
+  const seen = new Set<string>();
+
+  return items.filter((item) => {
+    const id = JSON.stringify(item);
+    if (seen.has(id)) {
+      return false;
+    }
+
+    seen.add(id);
+    return true;
+  });
 }
