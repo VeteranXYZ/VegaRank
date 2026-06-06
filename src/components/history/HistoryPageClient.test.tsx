@@ -229,7 +229,7 @@ describe("HistoryPageClient display formatting", () => {
     expect(formatHistoryPrimarySignal("Avoid")).toBe("Risk review");
     expect(formatHistoryPrimarySignal("Manual review")).toBe("Manual review");
     expect(formatHistoryPrimarySignal("review.status.manualReview")).toBe(
-      "Manual review",
+      "Manual Review",
     );
   });
 

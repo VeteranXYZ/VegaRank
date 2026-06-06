@@ -34,7 +34,7 @@ describe("latest scan UI helpers", () => {
 
   it("formats readable labels without buy or sell language", () => {
     expect(formatSignalLabel("breakdown_risk")).toBe("Breakdown Risk");
-    expect(formatActionBias("do_not_chase")).toBe("Overheated Review");
+    expect(formatActionBias("do_not_chase")).toBe("Overheated");
     expect(formatQualityTier("wrapped_or_staked")).toBe("Wrapped/Staked");
     expect(formatGroupLabel("eligible")).toBe("Eligible");
     expect(formatGroupHint("eligible")).toBe(
@@ -109,10 +109,10 @@ describe("latest scan UI helpers", () => {
     expect(formatActionDisplay("watch_only", ["overheat_risk"])).toBe(
       "Watch / Caution",
     );
-    expect(formatActionDisplay("avoid", ["overheat_risk"])).toBe("Risk Review");
+    expect(formatActionDisplay("avoid", ["overheat_risk"])).toBe("Risk");
     expect(formatActionDisplay("do_not_chase", [])).toBe("Overheated review");
-    expect(formatActionDisplay("ignore", [])).toBe("Low Priority Review");
-    expect(formatActionDisplay("watch_only", [])).toBe("Watch Only");
+    expect(formatActionDisplay("ignore", [])).toBe("Low Priority");
+    expect(formatActionDisplay("watch_only", [])).toBe("Watch");
   });
 
   it("uses conservative Watch action labels and visible reasons", () => {
@@ -174,7 +174,7 @@ describe("latest scan UI helpers", () => {
         reviewTier: "watch_caution",
         resultGroup: "watch",
       }),
-    ).toBe("Caution");
+    ).toBe("Manual Review");
     expect(
       getReviewStatusReasons({
         statusReasonKeys: [
@@ -185,7 +185,7 @@ describe("latest scan UI helpers", () => {
         ],
       }),
     ).toEqual([
-      "Caution: detected overheat_risk, so this is not treated as a clean eligible candidate.",
+      "Detected risks: overheat_risk. Treat as manual review, not a clean candidate.",
     ]);
     expect(
       getReviewStatusNote({

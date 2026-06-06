@@ -84,6 +84,23 @@ Display copy is not allowed in:
 - API response builders
 - persistence writers
 
+## Display Copy Guidelines
+
+Scanner result copy should be concise, professional, and research-oriented.
+English copy should use neutral wording such as "watch", "needs confirmation",
+"risk remains elevated", "structure improving", and "invalidation". Chinese
+copy should use terms such as "观察", "需要确认", "风险仍偏高", "结构改善",
+"失效条件", and "研究参考".
+
+Keep technical terms unchanged in both languages, including RSI, MACD, MA20,
+MA50, MA200, BB%, ATR, OHLCV, ticker symbols, exchange names, and timeframe
+values such as 15m, 1h, 4h, 1d, and 1w.
+
+Display copy must not read like trading advice or hype. Backend scanner,
+storage, server, and shared core files must continue to emit structured keys and
+params only; English and Chinese display text belongs in frontend i18n
+dictionaries and formatters.
+
 ## Removed Legacy Fields
 
 The scanner result no longer exposes these fields:

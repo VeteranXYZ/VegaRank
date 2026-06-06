@@ -15,6 +15,7 @@ export function formatScannerObservation(
   return formatScannerTemplate(
     t.scannerObservation[observation.key] ?? observation.key,
     observation.params,
+    t.common.notAvailable,
   );
 }
 
@@ -22,6 +23,7 @@ export function formatScannerReviewText(reviewText: ScannerReviewText, t: Dictio
   return formatScannerTemplate(
     t.scannerReview[reviewText.key] ?? reviewText.key,
     reviewText.params,
+    t.common.notAvailable,
   );
 }
 
@@ -29,6 +31,7 @@ export function formatScanEvaluationNote(note: ScanEvaluationNote, t: Dictionary
   return formatScannerTemplate(
     t.scanEvaluationNote[note.key] ?? note.key,
     note.params,
+    t.common.notAvailable,
   );
 }
 
@@ -72,14 +75,16 @@ export function toScannerReviewText(
 function formatScannerTemplate(
   template: string,
   params: Record<string, ScannerTextParamValue> | undefined,
+  missingParamFallback: string,
 ) {
-  if (!params) {
-    return template;
-  }
-
-  return Object.entries(params).reduce(
+  const withParams = Object.entries(params ?? {}).reduce(
     (text, [key, value]) =>
-      text.replaceAll(`{${key}}`, value === null ? "" : String(value)),
+      text.replaceAll(
+        `{${key}}`,
+        value === null ? missingParamFallback : String(value),
+      ),
     template,
   );
+
+  return withParams.replace(/\{[^{}]+\}/g, missingParamFallback);
 }
