@@ -156,6 +156,16 @@ export type ScannerReviewText = {
   params?: Record<string, ScannerTextParamValue>;
 };
 
+export type ScanEvaluationNoteKey =
+  | "evaluation.insufficientFutureCandles"
+  | "evaluation.riskOutcomeVerified"
+  | "evaluation.opportunityOutcomeVerified";
+
+export type ScanEvaluationNote = {
+  key: ScanEvaluationNoteKey;
+  params?: Record<string, ScannerTextParamValue>;
+};
+
 export type ScannerExplanationKey =
   | "reason.bbWidthLow"
   | "reason.ma20Ma50Converging"

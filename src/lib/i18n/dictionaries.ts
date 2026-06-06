@@ -5,6 +5,7 @@ import type {
   MarketPhase,
   MultiTimeframeAlignment,
   PrimaryStructure,
+  ScanEvaluationNoteKey,
   ScannerObservationKey,
   ScannerExplanationKey,
   ScannerReviewKey,
@@ -550,6 +551,14 @@ export const dictionaries = {
       "review.reason.needsConfirmation":
         "Needs confirmation: positive rank with a meaningful setup, but eligible rules are not fully met.",
     } satisfies Record<ScannerReviewKey, string>,
+    scanEvaluationNote: {
+      "evaluation.insufficientFutureCandles":
+        "Not enough future candles are available to complete the evaluation.",
+      "evaluation.riskOutcomeVerified":
+        "Risk label evaluation result: {outcome}.",
+      "evaluation.opportunityOutcomeVerified":
+        "Opportunity label evaluation result: {outcome}.",
+    } satisfies Record<ScanEvaluationNoteKey, string>,
     phase: {
       BASE_BUILDING: "Base Building",
       SQUEEZE: "Squeeze",
@@ -1184,6 +1193,11 @@ export const dictionaries = {
       "review.reason.needsConfirmation":
         "需要确认：综合分为正且结构有意义，但尚未完全满足候选规则。",
     } satisfies Record<ScannerReviewKey, string>,
+    scanEvaluationNote: {
+      "evaluation.insufficientFutureCandles": "未来 K 线不足，暂不能完成评估。",
+      "evaluation.riskOutcomeVerified": "风险标签验证结果：{outcome}。",
+      "evaluation.opportunityOutcomeVerified": "机会类标签验证结果：{outcome}。",
+    } satisfies Record<ScanEvaluationNoteKey, string>,
     phase: {
       BASE_BUILDING: "筑底",
       SQUEEZE: "压缩",

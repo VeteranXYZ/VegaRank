@@ -10,6 +10,7 @@ import type {
   ScannerSignalState,
 } from "@/lib/scanner/types";
 import type { Candle, Timeframe } from "@/lib/exchanges/types";
+import type { ScanEvaluationNote } from "@/lib/shared/scannerTypes";
 import { parseJsonArray, type ScanSignalRecord } from "./scanSignalModel";
 import type { StoredScanResult, StoredScanSnapshot } from "./scanSnapshotModel";
 
@@ -132,7 +133,7 @@ export function evaluateSignalForward({
       signalLabelAtEvaluation: null,
       actionBiasAtEvaluation: null,
       outcomeLabel: "insufficient_data",
-      notesJson: JSON.stringify(["未来 K 线不足，暂不能完成评估。"]),
+      notesJson: JSON.stringify(buildInsufficientFutureCandlesNotes()),
       metricsJson: JSON.stringify({ candlesAvailable: futureCandles.length }),
     };
   }
@@ -580,9 +581,9 @@ function summarizeBucket(values: SignalForwardEvaluation[]): EvaluationSummaryBu
 function buildOutcomeNotes(
   signal: Pick<ScanSignalRecord, "signalLabel">,
   outcome: ForwardOutcomeLabel,
-) {
+): ScanEvaluationNote[] {
   if (outcome === "insufficient_data") {
-    return ["未来 K 线不足，暂不能完成评估。"];
+    return buildInsufficientFutureCandlesNotes();
   }
 
   if (
@@ -591,10 +592,24 @@ function buildOutcomeNotes(
     signal.signalLabel === "breakdown_risk" ||
     signal.signalLabel === "weak_bounce"
   ) {
-    return [`风险标签验证结果：${outcome}。`];
+    return [
+      {
+        key: "evaluation.riskOutcomeVerified",
+        params: { outcome },
+      },
+    ];
   }
 
-  return [`机会类标签验证结果：${outcome}。`];
+  return [
+    {
+      key: "evaluation.opportunityOutcomeVerified",
+      params: { outcome },
+    },
+  ];
+}
+
+function buildInsufficientFutureCandlesNotes(): ScanEvaluationNote[] {
+  return [{ key: "evaluation.insufficientFutureCandles" }];
 }
 
 function getScoreBucket(score: number) {

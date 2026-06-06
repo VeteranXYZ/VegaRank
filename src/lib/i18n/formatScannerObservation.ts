@@ -1,5 +1,6 @@
 import type { useLanguage } from "@/components/providers/LanguageProvider";
 import type {
+  ScanEvaluationNote,
   ScannerObservation,
   ScannerReviewText,
   ScannerTextParamValue,
@@ -21,6 +22,13 @@ export function formatScannerReviewText(reviewText: ScannerReviewText, t: Dictio
   return formatScannerTemplate(
     t.scannerReview[reviewText.key] ?? reviewText.key,
     reviewText.params,
+  );
+}
+
+export function formatScanEvaluationNote(note: ScanEvaluationNote, t: Dictionary) {
+  return formatScannerTemplate(
+    t.scanEvaluationNote[note.key] ?? note.key,
+    note.params,
   );
 }
 

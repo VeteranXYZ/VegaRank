@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Candle } from "@/lib/exchanges/types";
+import type { ScanEvaluationNote } from "@/lib/shared/scannerTypes";
 import {
   evaluateSignalForward,
   getSignalPerformanceByLabel,
@@ -24,6 +25,12 @@ describe("scan signal forward evaluation", () => {
     expect(evaluation.maxReturnPct).toBeCloseTo(7, 6);
     expect(evaluation.maxDrawdownPct).toBe(-2);
     expect(evaluation.outcomeLabel).toBe("favorable");
+    expect(parseNotes(evaluation.notesJson)).toEqual([
+      {
+        key: "evaluation.opportunityOutcomeVerified",
+        params: { outcome: "favorable" },
+      },
+    ]);
   });
 
   it("marks insufficient_data when future candles do not cover the horizon", () => {
@@ -37,6 +44,9 @@ describe("scan signal forward evaluation", () => {
 
     expect(evaluation.outcomeLabel).toBe("insufficient_data");
     expect(evaluation.returnPct).toBeNull();
+    expect(parseNotes(evaluation.notesJson)).toEqual([
+      { key: "evaluation.insufficientFutureCandles" },
+    ]);
   });
 
   it("treats distribution_risk followed by pullback as favorable risk validation", () => {
@@ -51,6 +61,41 @@ describe("scan signal forward evaluation", () => {
     expect(evaluation.returnPct).toBe(-4);
     expect(evaluation.maxDrawdownPct).toBe(-6);
     expect(evaluation.outcomeLabel).toBe("favorable");
+    expect(parseNotes(evaluation.notesJson)).toEqual([
+      {
+        key: "evaluation.riskOutcomeVerified",
+        params: { outcome: "favorable" },
+      },
+    ]);
+  });
+
+  it("keeps generated storage notes free of Chinese display text", () => {
+    const source = [
+      evaluateSignalForward({
+        signal: makeSignal({ signalLabel: "watch", priceAtSignal: 100 }),
+        horizon: "24h",
+        candles: [
+          makeCandle({
+            closeTime: Date.parse("2026-05-25T04:00:00.000Z"),
+            close: 102,
+          }),
+        ],
+      }).notesJson,
+      evaluateSignalForward({
+        signal: makeSignal({ signalLabel: "confirmed", priceAtSignal: 100 }),
+        horizon: "4h",
+        candles: [
+          makeCandle({
+            closeTime: Date.parse("2026-05-25T04:00:00.000Z"),
+            close: 105,
+            high: 107,
+            low: 98,
+          }),
+        ],
+      }).notesJson,
+    ].join("\n");
+
+    expect(source).not.toMatch(/\p{Script=Han}/u);
   });
 
   it("aggregates performance by signalLabel", () => {
@@ -89,6 +134,10 @@ describe("scan signal forward evaluation", () => {
     expect(summary.pendingCount).toBe(1);
   });
 });
+
+function parseNotes(notesJson: string) {
+  return JSON.parse(notesJson) as ScanEvaluationNote[];
+}
 
 function makeSignal(overrides: Partial<ScanSignalRecord> = {}): ScanSignalRecord {
   return {

@@ -1,10 +1,14 @@
 import { describe, expect, it } from "vitest";
 import { dictionaries } from "./dictionaries";
 import {
+  formatScanEvaluationNote,
   formatScannerObservation,
   formatScannerReviewText,
 } from "./formatScannerObservation";
-import type { ScannerObservation } from "@/lib/shared/scannerTypes";
+import type {
+  ScanEvaluationNoteKey,
+  ScannerObservation,
+} from "@/lib/shared/scannerTypes";
 
 describe("formatScannerObservation", () => {
   it("renders scanner observations in English", () => {
@@ -57,5 +61,45 @@ describe("formatScannerObservation", () => {
     ).toBe(
       "Caution: detected overheat_risk, so this is not treated as a clean eligible candidate.",
     );
+  });
+
+  it("renders scan evaluation notes in English", () => {
+    expect(
+      formatScanEvaluationNote(
+        {
+          key: "evaluation.opportunityOutcomeVerified",
+          params: { outcome: "favorable" },
+        },
+        dictionaries.en,
+      ),
+    ).toBe("Opportunity label evaluation result: favorable.");
+  });
+
+  it("renders scan evaluation notes in Chinese", () => {
+    expect(
+      formatScanEvaluationNote(
+        {
+          key: "evaluation.riskOutcomeVerified",
+          params: { outcome: "invalidated" },
+        },
+        dictionaries.zh,
+      ),
+    ).toBe("风险标签验证结果：invalidated。");
+  });
+
+  it("falls back to the scan evaluation note key when translation is missing", () => {
+    const dictionary = {
+      ...dictionaries.en,
+      scanEvaluationNote: {} as Record<ScanEvaluationNoteKey, string>,
+    };
+
+    expect(
+      formatScanEvaluationNote(
+        {
+          key: "evaluation.insufficientFutureCandles",
+        },
+        dictionary,
+      ),
+    ).toBe("evaluation.insufficientFutureCandles");
   });
 });

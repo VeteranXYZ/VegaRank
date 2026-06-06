@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 const backendFiles = [
   "src/lib/scanner/scoring.ts",
   "src/lib/scanner/scanResultGroups.ts",
+  "src/lib/storage/scanEvaluation.ts",
   "src/lib/storage/postgres/scannerResultsPg.ts",
 ];
 
