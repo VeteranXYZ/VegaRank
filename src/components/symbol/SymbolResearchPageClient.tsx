@@ -288,6 +288,7 @@ const defaultHistoryLimit = 30;
 const defaultCandleLimit = 120;
 const defaultTimeframe = DEFAULT_SYMBOL_RESEARCH_TIMEFRAME;
 const symbolResearchTimeframes = ["4h", "1d", "1w", "1h"] as const;
+const symbolResearchExchanges = ["binance", "coinbase"] as const;
 const symbolResearchMarketContextAssetClass = "crypto";
 const symbolResearchMainClass =
   "symbol-terminal flex h-full min-h-0 w-full max-w-none flex-col overflow-hidden bg-[var(--workspace-background)] px-1.5 py-1.5 text-[var(--foreground)] sm:px-2";
@@ -434,6 +435,25 @@ export function SymbolResearchPageClient({
     );
   };
 
+  const handleExchangeChange = (nextExchange: string) => {
+    if (isVisualCheck) {
+      return;
+    }
+
+    const normalizedExchange =
+      symbolResearchExchanges.find((option) => option === nextExchange.toLowerCase()) ??
+      "binance";
+
+    router.push(
+      buildSymbolResearchSwitchHref({
+        exchange: normalizedExchange,
+        symbol: normalizedSymbol,
+        timeframe,
+        searchParams,
+      }),
+    );
+  };
+
   if (!isVisualCheck && query.isLoading) {
     return (
       <main className={symbolResearchMainClass}>
@@ -448,6 +468,7 @@ export function SymbolResearchPageClient({
           searchParams={searchParams}
           isFetching={isFetching}
           onSymbolSubmit={handleSymbolSubmit}
+          onExchangeChange={handleExchangeChange}
           onRefresh={handleRefresh}
         />
         <ResearchState
@@ -477,6 +498,7 @@ export function SymbolResearchPageClient({
           searchParams={searchParams}
           isFetching={isFetching}
           onSymbolSubmit={handleSymbolSubmit}
+          onExchangeChange={handleExchangeChange}
           onRefresh={handleRefresh}
         />
         <ResearchState
@@ -505,6 +527,7 @@ export function SymbolResearchPageClient({
           searchParams={searchParams}
           isFetching={isFetching}
           onSymbolSubmit={handleSymbolSubmit}
+          onExchangeChange={handleExchangeChange}
           onRefresh={handleRefresh}
         />
         <ResearchState
@@ -555,6 +578,7 @@ export function SymbolResearchPageClient({
           searchParams={searchParams}
           isFetching={isFetching}
           onSymbolSubmit={handleSymbolSubmit}
+          onExchangeChange={handleExchangeChange}
           onRefresh={handleRefresh}
           availabilityRows={timeframeAvailability ?? undefined}
         />
@@ -595,6 +619,7 @@ export function SymbolResearchPageClient({
           searchParams={searchParams}
           isFetching={isFetching}
           onSymbolSubmit={handleSymbolSubmit}
+          onExchangeChange={handleExchangeChange}
           onRefresh={handleRefresh}
         />
         <ResearchState
@@ -613,10 +638,6 @@ export function SymbolResearchPageClient({
   const scoreBreakdown = getSymbolResearchScoreBreakdown(data, latestSignal);
   const candles = normalizeSymbolResearchCandles(data.candles);
   const candleSummary = getSymbolResearchCandleSummary(candles);
-  const riskTypes = formatSymbolResearchList(latestSignal.detectedRiskTypes);
-  const secondaryStructures = formatSymbolResearchList(
-    latestSignal.secondaryStructures,
-  );
   const timeframeSnapshots = getSymbolResearchTimeframeSnapshots({
     timeframes,
     latestSignal,
@@ -713,9 +734,9 @@ export function SymbolResearchPageClient({
       className="terminal-panel px-2.5 py-2 text-[11px] text-[var(--muted)]"
     >
       <summary className="cursor-pointer list-none font-semibold uppercase text-[var(--muted)] transition hover:text-[var(--foreground)]">
-        Details / Raw Diagnostics
+        Diagnostics
         <span className="ml-1 font-normal normal-case text-[var(--muted-2)]">
-          source data
+          source summary
         </span>
       </summary>
       <div className="mt-2 space-y-2">
@@ -813,24 +834,6 @@ export function SymbolResearchPageClient({
           </p>
         </Panel>
 
-        <Panel title="Raw Details">
-          <details>
-            <summary className="cursor-pointer text-sm font-semibold text-[var(--info)]">
-              Show selected details
-            </summary>
-            <div className="mt-3 grid gap-3">
-              <TextList title="Secondary Structures" values={secondaryStructures} />
-              <TextList title="Detected Risks" values={riskTypes} />
-              <JsonBlock
-                title="Next Confirmation"
-                value={latestSignal.nextConfirmation}
-              />
-              <JsonBlock title="Invalidation" value={latestSignal.invalidation} />
-              <JsonBlock title="Factors" value={latestSignal.factors} />
-              <JsonBlock title="Selected Metrics" value={latestSignal.rawMetrics} />
-            </div>
-          </details>
-        </Panel>
       </div>
     </details>
   );
@@ -849,6 +852,7 @@ export function SymbolResearchPageClient({
           searchParams={searchParams}
           isFetching={isFetching}
           onSymbolSubmit={handleSymbolSubmit}
+          onExchangeChange={handleExchangeChange}
           onRefresh={handleRefresh}
           availabilityRows={timeframeAvailability}
           extraStats={[
@@ -886,6 +890,7 @@ export function SymbolResearchPageClient({
             className="shrink-0"
           />
           <SymbolResearchChart
+            exchange={exchange}
             symbol={data.symbol.symbol}
             timeframe={selectedTimeframe}
             candles={candles.rows}
@@ -1328,6 +1333,7 @@ function SymbolResearchNavigation({
   searchParams,
   isFetching,
   onSymbolSubmit,
+  onExchangeChange,
   onRefresh,
   availabilityRows,
   extraStats = [],
@@ -1342,12 +1348,19 @@ function SymbolResearchNavigation({
   searchParams: QueryStateInput;
   isFetching: boolean;
   onSymbolSubmit: (value: string) => void;
+  onExchangeChange: (value: string) => void;
   onRefresh: () => void;
   availabilityRows?: SymbolResearchTimeframeAvailabilityRow[];
   extraStats?: SymbolTerminalStat[];
   watchlistSymbol?: string;
 }) {
   const [symbolInput, setSymbolInput] = useState(symbol);
+  const normalizedExchange = exchange.toLowerCase();
+  const exchangeValue = symbolResearchExchanges.includes(
+    normalizedExchange as (typeof symbolResearchExchanges)[number],
+  )
+    ? normalizedExchange
+    : "binance";
   const timeframeOptions = buildSymbolResearchTimeframeNavigation({
     timeframes: symbolResearchTimeframes,
     selectedTimeframe: timeframe,
@@ -1384,9 +1397,20 @@ function SymbolResearchNavigation({
           title={`Symbol Research / ${symbol} / Selected timeframe: ${timeframe}`}
         >
           <h1 className="terminal-command-title">SYMBOL</h1>
-          <span className="shrink-0 font-mono text-[10px] text-[var(--terminal-bar-muted)]">
-            {exchange}
-          </span>
+          <label className="shrink-0">
+            <span className="sr-only">Exchange</span>
+            <select
+              value={exchangeValue}
+              onChange={(event) => onExchangeChange(event.target.value)}
+              className="h-6 border border-white/15 bg-white/[0.05] px-1.5 font-mono text-[10px] uppercase text-[var(--terminal-bar-foreground)] outline-none focus:border-[var(--accent)]"
+            >
+              {symbolResearchExchanges.map((option) => (
+                <option key={option} value={option}>
+                  {option}
+                </option>
+              ))}
+            </select>
+          </label>
           <span className="sr-only">Selected timeframe: {timeframe}</span>
         </div>
 
@@ -1819,9 +1843,10 @@ function DecisionHeader({
 
   return (
     <section
-      className={`terminal-panel mb-1 border-l-4 px-2.5 py-2 ${groupToneClass}`}
+      className={`terminal-panel mb-1 border-l-4 px-2 py-1.5 ${groupToneClass}`}
+      title={primaryReason}
     >
-      <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1">
+      <div className="flex min-w-0 items-center gap-2 overflow-x-auto whitespace-nowrap">
         <div className="flex min-w-0 shrink-0 items-center gap-1.5">
           <span className="text-[10px] font-semibold uppercase text-[var(--muted)]">
             Decision
@@ -1841,11 +1866,11 @@ function DecisionHeader({
           </span>
         </div>
 
-        <div className="min-w-[220px] flex-1 truncate text-sm font-semibold text-[var(--foreground)]">
+        <div className="min-w-[180px] max-w-[320px] flex-1 truncate text-sm font-semibold text-[var(--foreground)]">
           {stance}
         </div>
 
-        <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-[var(--muted)]">
+        <div className="flex min-w-0 shrink-0 items-center gap-3 text-[11px] text-[var(--muted)]">
           <DecisionInlineStat label="Primary" value={interpretation.label} />
           <DecisionInlineStat
             label="Rank"
@@ -1860,13 +1885,6 @@ function DecisionHeader({
               value={formatSymbolResearchDateTime(latestScanTime)}
             />
           ) : null}
-        </div>
-
-        <div
-          className="basis-full truncate text-[11px] text-[var(--muted)]"
-          title={primaryReason}
-        >
-          {primaryReason}
         </div>
       </div>
     </section>
@@ -1996,9 +2014,14 @@ function MtfContextStrip({
   const orderedSnapshots = orderTimeframeSnapshots(snapshots);
 
   return (
-    <WorkspacePanel title="MTF" className={`px-2 py-2 ${className}`}>
+    <section
+      className={`terminal-panel flex min-h-8 min-w-0 items-center gap-1.5 overflow-x-auto px-2 py-1 ${className}`}
+    >
+      <span className="shrink-0 text-[10px] font-semibold uppercase text-[var(--muted)]">
+        MTF
+      </span>
       {orderedSnapshots.length > 0 ? (
-        <div className="flex min-w-0 flex-wrap gap-1">
+        <div className="flex min-w-0 items-center gap-1">
           {orderedSnapshots.map((snapshot) => {
             const timeframe = snapshot.timeframe || "Unknown";
             const isSelected =
@@ -2007,37 +2030,35 @@ function MtfContextStrip({
             return (
               <div
                 key={`${timeframe}-${snapshot.resultGroup ?? "missing"}`}
-                className={`min-w-0 flex-1 basis-[120px] border px-2 py-1 ${getMtfContextCellClassName(
+                className={`inline-flex h-6 shrink-0 items-center gap-1.5 border px-1.5 ${getMtfContextCellClassName(
                   snapshot.resultGroup,
                   isSelected,
                 )}`}
               >
-                <div className="flex items-baseline gap-1.5">
-                  <span className="font-mono text-[11px] font-semibold uppercase">
-                    {timeframe}
+                {isSelected ? (
+                  <span className="text-[9px] font-semibold uppercase text-[var(--muted)]">
+                    Sel
                   </span>
-                  <span className="text-[11px] font-semibold">
-                    {formatSymbolResearchGroupForDisplay(snapshot.resultGroup)}
-                  </span>
-                  <span className="font-mono text-[11px] font-semibold">
-                    {formatSymbolResearchScore(snapshot.rankScore)}
-                  </span>
-                  {isSelected ? (
-                    <span className="ml-auto text-[9px] font-semibold uppercase text-[var(--muted)]">
-                      Sel
-                    </span>
-                  ) : null}
-                </div>
+                ) : null}
+                <span className="font-mono text-[11px] font-semibold uppercase">
+                  {timeframe}
+                </span>
+                <span className="text-[11px] font-semibold">
+                  {formatSymbolResearchGroupForDisplay(snapshot.resultGroup)}
+                </span>
+                <span className="font-mono text-[11px] font-semibold">
+                  {formatSymbolResearchScore(snapshot.rankScore)}
+                </span>
               </div>
             );
           })}
         </div>
       ) : (
-        <p className="text-sm text-[var(--muted)]">
+        <p className="text-xs text-[var(--muted)]">
           MTF context is not available for this symbol.
         </p>
       )}
-    </WorkspacePanel>
+    </section>
   );
 }
 
@@ -2548,34 +2569,6 @@ function uniqueDisplayItems(values: Array<string | null | undefined>) {
   }
 
   return items;
-}
-
-function TextList({ title, values }: { title: string; values: string[] }) {
-  return (
-    <div className="mt-3">
-      <h3 className="text-[11px] uppercase text-[var(--muted)]">{title}</h3>
-      {values.length > 0 ? (
-        <ul className="mt-2 space-y-1 text-sm text-[var(--muted)]">
-          {values.map((value) => (
-            <li key={value}>{value}</li>
-          ))}
-        </ul>
-      ) : (
-        <p className="mt-2 text-sm text-[var(--muted)]">None noted.</p>
-      )}
-    </div>
-  );
-}
-
-function JsonBlock({ title, value }: { title: string; value: unknown }) {
-  return (
-    <div>
-      <h3 className="text-[11px] uppercase text-[var(--muted)]">{title}</h3>
-      <pre className="mt-2 max-h-64 overflow-auto whitespace-pre-wrap border border-[var(--border)] bg-[var(--panel)] p-3 text-[11px] leading-5 text-[var(--muted)]">
-        {JSON.stringify(value ?? null, null, 2)}
-      </pre>
-    </div>
-  );
 }
 
 function ResponsiveTable({

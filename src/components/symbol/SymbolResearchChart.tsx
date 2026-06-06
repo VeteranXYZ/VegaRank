@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   CandlestickSeries,
   ColorType,
@@ -9,6 +9,7 @@ import {
   createSeriesMarkers,
   type CandlestickData,
   type LineData,
+  type LogicalRange,
   type Time,
 } from "lightweight-charts";
 import {
@@ -20,6 +21,7 @@ import {
 } from "./symbolChartUi";
 
 type SymbolResearchChartProps = {
+  exchange?: string;
   symbol: string;
   timeframe: string;
   candles: RawSymbolChartCandle[];
@@ -33,7 +35,12 @@ type SymbolResearchChartProps = {
   };
 };
 
+const maxLazyCandleLimit = 1000;
+const lazyCandleStep = 240;
+const lazyLoadLeftEdgeThreshold = 24;
+
 export function SymbolResearchChart({
+  exchange = "binance",
   symbol,
   timeframe,
   candles,
@@ -43,6 +50,12 @@ export function SymbolResearchChart({
   latestSignal,
 }: SymbolResearchChartProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
+  const [lazyCandleState, setLazyCandleState] = useState<{
+    key: string;
+    count: number;
+    error: string | null;
+  } | null>(null);
+  const [loadingCandleKey, setLoadingCandleKey] = useState<string | null>(null);
   const chartData = useMemo(() => {
     const normalizedCandles = normalizeCandlesForChart(candles);
     const latestClose = normalizedCandles[normalizedCandles.length - 1]?.close ?? null;
@@ -58,6 +71,15 @@ export function SymbolResearchChart({
       }),
     };
   }, [candles, latestSignal?.candleOpenTime]);
+
+  const chartDataKey = `${exchange.toLowerCase()}:${symbol.toUpperCase()}:${timeframe}:${chartData.candles.length}`;
+  const displayedCandleCount =
+    lazyCandleState?.key === chartDataKey
+      ? lazyCandleState.count
+      : chartData.candles.length;
+  const lazyLoadError =
+    lazyCandleState?.key === chartDataKey ? lazyCandleState.error : null;
+  const isLoadingMoreCandles = loadingCandleKey === chartDataKey;
 
   useEffect(() => {
     const container = containerRef.current;
@@ -119,6 +141,12 @@ export function SymbolResearchChart({
     ma20Series.setData(toLineData(chartData.ma20));
     ma50Series.setData(toLineData(chartData.ma50));
 
+    let activeCandles = chartData.candles;
+    let activeLoadedLimit = Math.max(candleCount, candles.length, activeCandles.length);
+    let loadingMore = false;
+    let isDisposed = false;
+    const canLazyLoadRemoteCandles = exchange.toLowerCase() === "binance";
+
     const markerApi =
       chartData.latestSignalCandleTime === null
         ? null
@@ -135,12 +163,93 @@ export function SymbolResearchChart({
           ]);
 
     chart.timeScale().fitContent();
+    const loadMoreCandles = async () => {
+      if (
+        loadingMore ||
+        !canLazyLoadRemoteCandles ||
+        activeLoadedLimit >= maxLazyCandleLimit
+      ) {
+        return;
+      }
+
+      loadingMore = true;
+      if (!isDisposed) {
+        setLoadingCandleKey(chartDataKey);
+        setLazyCandleState({
+          key: chartDataKey,
+          count: activeCandles.length,
+          error: null,
+        });
+      }
+
+      try {
+        const nextLimit = Math.min(
+          maxLazyCandleLimit,
+          Math.max(activeLoadedLimit + lazyCandleStep, activeCandles.length + lazyCandleStep),
+        );
+        const nextCandles = await fetchLazyCandles({
+          symbol,
+          timeframe,
+          limit: nextLimit,
+        });
+        const normalizedCandles = normalizeCandlesForChart(nextCandles);
+
+        activeLoadedLimit = nextLimit;
+
+        if (normalizedCandles.length > activeCandles.length) {
+          activeCandles = normalizedCandles;
+          candlestickSeries.setData(toCandlestickData(activeCandles));
+          ma20Series.setData(
+            toLineData(computeSimpleMovingAverage(activeCandles, 20)),
+          );
+          ma50Series.setData(
+            toLineData(computeSimpleMovingAverage(activeCandles, 50)),
+          );
+
+          if (!isDisposed) {
+            setLazyCandleState({
+              key: chartDataKey,
+              count: activeCandles.length,
+              error: null,
+            });
+          }
+        }
+      } catch {
+        if (!isDisposed) {
+          setLazyCandleState({
+            key: chartDataKey,
+            count: activeCandles.length,
+            error: "More candles unavailable",
+          });
+        }
+      } finally {
+        loadingMore = false;
+        if (!isDisposed) {
+          setLoadingCandleKey((current) =>
+            current === chartDataKey ? null : current,
+          );
+        }
+      }
+    };
+    const handleVisibleRangeChange = (range: LogicalRange | null) => {
+      if (!range || range.from > lazyLoadLeftEdgeThreshold) {
+        return;
+      }
+
+      void loadMoreCandles();
+    };
+
+    chart.timeScale().subscribeVisibleLogicalRangeChange(handleVisibleRangeChange);
 
     return () => {
+      isDisposed = true;
+      chart
+        .timeScale()
+        .unsubscribeVisibleLogicalRangeChange(handleVisibleRangeChange);
       markerApi?.detach();
       chart.remove();
     };
-  }, [chartData]);
+  }, [candleCount, candles.length, chartData, chartDataKey, exchange, symbol, timeframe]);
 
   const hasCandles = chartData.candles.length > 0;
   const emptyMessage =
@@ -176,7 +285,14 @@ export function SymbolResearchChart({
             label="Latest signal"
             value={latestSignal?.statusNote || latestSignal?.resultGroup || "Not available"}
           />
-          <LegendValue label="Candles" value={String(candleCount)} />
+          <LegendValue
+            label="Candles"
+            value={
+              isLoadingMoreCandles
+                ? `${displayedCandleCount}+`
+                : String(Math.max(displayedCandleCount, chartData.candles.length))
+            }
+          />
           <div className="flex items-center gap-3 text-left lg:justify-end">
             <span className="inline-flex items-center gap-1">
               <span className="h-0.5 w-5 bg-[var(--warning)]" />
@@ -191,10 +307,17 @@ export function SymbolResearchChart({
       </div>
 
       {hasCandles ? (
-        <div
-          ref={containerRef}
-          className={`min-w-0 overflow-hidden border border-[var(--border-medium)] bg-[var(--panel-data)] ${isCompact ? "h-[340px] min-h-[320px] lg:h-auto lg:min-h-[360px] lg:flex-1" : "h-[300px] sm:h-[360px]"}`}
-        />
+        <>
+          <div
+            ref={containerRef}
+            className={`min-w-0 overflow-hidden border border-[var(--border-medium)] bg-[var(--panel-data)] ${isCompact ? "h-[340px] min-h-[320px] lg:h-auto lg:min-h-[360px] lg:flex-1" : "h-[300px] sm:h-[360px]"}`}
+          />
+          {lazyLoadError ? (
+            <p className="mt-1 text-[10px] font-semibold uppercase text-[var(--warning)]">
+              {lazyLoadError}
+            </p>
+          ) : null}
+        </>
       ) : (
         <div className={`flex items-center justify-center border border-[var(--border-medium)] bg-[var(--panel-data)] px-4 text-center text-sm text-[var(--muted)] ${isCompact ? "h-[340px] min-h-[320px] lg:h-auto lg:min-h-[360px] lg:flex-1" : "h-[260px]"}`}>
           {emptyMessage}
@@ -211,6 +334,37 @@ function LegendValue({ label, value }: { label: string; value: string }) {
       <span className="ml-1 font-semibold text-[var(--foreground)]">{value}</span>
     </div>
   );
+}
+
+async function fetchLazyCandles({
+  symbol,
+  timeframe,
+  limit,
+}: {
+  symbol: string;
+  timeframe: string;
+  limit: number;
+}) {
+  const params = new URLSearchParams({
+    source: "remote",
+    symbol,
+    timeframe,
+    limit: String(limit),
+  });
+  const response = await fetch(`/api/candles?${params.toString()}`);
+  const body = (await response.json().catch(() => null)) as
+    | { candles?: unknown }
+    | null;
+
+  if (!response.ok || !Array.isArray(body?.candles)) {
+    throw new Error("Candles unavailable");
+  }
+
+  return body.candles.filter(isRawChartCandle);
+}
+
+function isRawChartCandle(value: unknown): value is RawSymbolChartCandle {
+  return value !== null && typeof value === "object";
 }
 
 function toCandlestickData(

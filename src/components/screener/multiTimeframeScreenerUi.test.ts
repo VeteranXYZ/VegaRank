@@ -287,7 +287,7 @@ describe("multi-timeframe screener helpers", () => {
       ...mtfScreenerPresetIds,
     ]);
     expect(mtfResearchBuckets.map((bucket) => bucket.label)).toEqual([
-      "Short-term Repair",
+      "Short-term Observation",
       "MTF Strength",
       "Higher-TF Watchlist",
       "Overheated",

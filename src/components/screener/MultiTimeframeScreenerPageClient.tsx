@@ -1392,7 +1392,7 @@ function getMtfDetailFocusRows(
       getMtfFirstTimeframeWithGroup(row, ["eligible"]),
     );
   } else if (presetId === "short_term_repair") {
-    addFocusRows(getMtfRepairFocusRows(rows), "Repair", "repair", () => "1h");
+    addFocusRows(getMtfRepairFocusRows(rows), "Observation", "observation", () => "1h");
   } else if (presetId === "higher_timeframe_safe_watchlist") {
     addFocusRows(getMtfWatchFocusRows(rows), "Watch", "watch", (row) =>
       getMtfFirstTimeframeWithGroup(row, ["watch", "eligible"]),
@@ -1418,7 +1418,7 @@ function getMtfDetailFocusRows(
         "eligible",
       ]),
     );
-    addFocusRow(getMtfRepairFocusRows(rows)[0], "Repair", "repair", "1h");
+    addFocusRow(getMtfRepairFocusRows(rows)[0], "Observation", "observation", "1h");
     addFocusRow(
       getMtfRiskFocusRows(rows)[0],
       "Risk",
@@ -2069,6 +2069,7 @@ function getMtfRowStateDotClass(row: MtfScreenerRow) {
 
 type MtfBucketTone =
   | "accent"
+  | "observation"
   | "repair"
   | "eligible"
   | "watch"
@@ -2080,7 +2081,7 @@ function getMtfResearchBucketTone(id: MtfScreenerPresetId): MtfBucketTone {
     case "mtf_strength":
       return "eligible";
     case "short_term_repair":
-      return "repair";
+      return "observation";
     case "higher_timeframe_safe_watchlist":
       return "watch";
     case "overheated_caution":

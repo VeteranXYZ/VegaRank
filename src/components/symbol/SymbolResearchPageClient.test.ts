@@ -462,7 +462,7 @@ describe("SymbolResearchPageClient success state", () => {
     expect(html).toContain("Backdrop");
     expect(html).toContain("History");
     expect(html).toContain("Timeline");
-    expect(html).toContain("Details / Raw Diagnostics");
+    expect(html).toContain("Diagnostics");
     expect(html.indexOf("Decision")).toBeLessThan(
       html.indexOf("MTF"),
     );
@@ -485,7 +485,7 @@ describe("SymbolResearchPageClient success state", () => {
       html.indexOf("Timeline"),
     );
     expect(html.indexOf("Timeline")).toBeLessThan(
-      html.indexOf("Details / Raw Diagnostics"),
+      html.indexOf("Diagnostics"),
     );
     expect(html).not.toContain("Research stance");
     expect(html).not.toContain("Primary reason");
@@ -498,7 +498,6 @@ describe("SymbolResearchPageClient success state", () => {
     expect(html).toContain("Timeframe Availability");
     expect(html).toContain("Constructive, manual review required");
     expect(html).toContain("Price stays above MA20 / MA50 context");
-    expect(html).toContain("Invalidation");
     expect(html).toContain("Data Source");
     expect(html).toContain("Signal Evaluation");
     expect(html).toContain("Across the broader market");
@@ -513,8 +512,8 @@ describe("SymbolResearchPageClient success state", () => {
     expect(html).toContain("Timeline");
     expect(html).toMatch(/Timeframe Snapshot|Multi-Timeframe Snapshot/);
     expect(html).toContain("Recent Candles Summary");
-    expect(html).toContain("Raw Details");
-    expect(html).toContain("<details>");
+    expect(html).not.toContain("Raw Details");
+    expect(html).toContain('id="symbol-details"');
     expect(html).not.toContain("<details open");
     expect(html).toContain("In Watchlist");
     expect(html).toContain('href="/watchlist"');
@@ -781,7 +780,7 @@ describe("SymbolResearchPageClient success state", () => {
     expect(html).toContain("History");
     expect(html).toContain("Historical Behavior");
     expect(html).toContain("Timeline");
-    expect(html).toContain("Details / Raw Diagnostics");
+    expect(html).toContain("Diagnostics");
     expect(html).toContain("visual-check mock");
     expect(html).not.toContain("Loading symbol research");
 

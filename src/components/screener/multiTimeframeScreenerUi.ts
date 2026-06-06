@@ -185,8 +185,8 @@ export type MtfHigherTimeframeHealth = {
 export const mtfScreenerPresets: MtfScreenerPreset[] = [
   {
     id: "short_term_repair",
-    label: "Short-term Repair",
-    description: "1h improving; higher timeframes not risk.",
+    label: "Short-term Observation",
+    description: "1h improving; higher timeframes need observation.",
   },
   {
     id: "mtf_strength",
@@ -211,7 +211,7 @@ export const mtfScreenerPresets: MtfScreenerPreset[] = [
 ];
 
 const mtfResearchBucketImplications: Record<MtfResearchBucketId, string> = {
-  short_term_repair: "Repair context",
+  short_term_repair: "Observation context",
   mtf_strength: "Stronger candidates",
   higher_timeframe_safe_watchlist: "Needs confirmation",
   overheated_caution: "Extended/crowded",

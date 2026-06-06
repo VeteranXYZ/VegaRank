@@ -73,7 +73,7 @@ describe("MultiTimeframeScreenerTable", () => {
     expect(html).toContain("Research Buckets");
     expect(html).toContain("Buckets");
     expect(html).toContain("Full Table");
-    expect(html).toContain("Short-term Repair");
+    expect(html).toContain("Short-term Observation");
     expect(html).toContain("MTF Strength");
     expect(html).toContain("Higher-TF Watchlist");
     expect(html).toContain("Overheated");

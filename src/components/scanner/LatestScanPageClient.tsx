@@ -345,11 +345,8 @@ export function LatestScanPageClient({
             finishedAt={finishedAt}
             totalSignals={totalSignals}
             returnedItems={returnedItems}
-            count={data?.count}
             lowQualityExcluded={lowQualityExcluded}
           />
-
-          {data?.summary && <LatestScanGroupSummary summary={data.summary} />}
 
           {hasUnavailableData ? (
             <StatePanel
@@ -369,6 +366,7 @@ export function LatestScanPageClient({
           ) : (
             <LatestScanResultsTable
               rows={visibleRows}
+              summary={data.summary}
               sortState={tableSort}
               onSortChange={updateTableSort}
               timeframe={timeframe}
@@ -610,7 +608,6 @@ function LatestScanSummaryPanel({
   finishedAt,
   totalSignals,
   returnedItems,
-  count,
   lowQualityExcluded,
 }: {
   data: LatestScanResponse | null;
@@ -620,7 +617,6 @@ function LatestScanSummaryPanel({
   finishedAt: string | null;
   totalSignals: number;
   returnedItems: number;
-  count: number | null | undefined;
   lowQualityExcluded: number;
 }) {
   const run = data?.run;
@@ -628,12 +624,6 @@ function LatestScanSummaryPanel({
     assetClass,
     symbolsTotal: run?.symbolsTotal,
   });
-  const limitedViewWarning = buildLimitedViewWarning({
-    count,
-    returnedItems,
-    totalSignals,
-  });
-
   return (
     <section className="terminal-panel px-2 py-1">
       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -671,11 +661,6 @@ function LatestScanSummaryPanel({
           Scan universe incomplete: {formatInteger(run?.symbolsTotal)} crypto symbols.
         </p>
       ) : null}
-      {limitedViewWarning ? (
-        <p className="mt-1 inline-flex border border-[var(--accent-border)] bg-[var(--accent-soft)] px-1.5 py-0.5 text-[10px] font-semibold uppercase text-[var(--accent)]">
-          {limitedViewWarning}
-        </p>
-      ) : null}
     </section>
   );
 }
@@ -697,7 +682,7 @@ function ControlSection({
   );
 }
 
-function LatestScanGroupSummary({ summary }: { summary: LatestScanSummary }) {
+function LatestScanGroupSummaryChips({ summary }: { summary: LatestScanSummary }) {
   const chips = getLatestScanGroupSummaryChips(summary);
 
   if (chips.length === 0) {
@@ -705,7 +690,7 @@ function LatestScanGroupSummary({ summary }: { summary: LatestScanSummary }) {
   }
 
   return (
-    <section className="terminal-panel flex min-h-7 flex-wrap items-center gap-1.5 px-2 py-1">
+    <div className="flex min-w-0 flex-wrap items-center gap-1.5">
       <span className="text-[10px] font-semibold uppercase text-[var(--muted)]">
         Group Counts
       </span>
@@ -714,12 +699,13 @@ function LatestScanGroupSummary({ summary }: { summary: LatestScanSummary }) {
           {chip.label} {formatInteger(chip.count)}
         </StatusBadge>
       ))}
-    </section>
+    </div>
   );
 }
 
 function LatestScanResultsTable({
   rows,
+  summary,
   sortState,
   onSortChange,
   timeframe,
@@ -728,6 +714,7 @@ function LatestScanResultsTable({
   limit,
 }: {
   rows: LatestScanTableRow[];
+  summary: LatestScanSummary | null;
   sortState: DataSortState<LatestScanSortKey> | null;
   onSortChange: (
     key: LatestScanSortKey,
@@ -745,8 +732,11 @@ function LatestScanResultsTable({
 
   return (
     <section className="terminal-panel-data min-h-0 overflow-hidden xl:flex xl:flex-1 xl:flex-col">
-      <div className="terminal-panel-header">
-        <div className="min-w-0">
+      <div className="terminal-panel-header gap-2">
+        <div className="min-w-0 flex-1">
+          {summary ? <LatestScanGroupSummaryChips summary={summary} /> : null}
+        </div>
+        <div className="min-w-0 shrink-0">
           <div className="flex flex-wrap items-center gap-1.5">
             <h2 className="terminal-panel-title">
               Latest Scan Rows
@@ -768,7 +758,7 @@ function LatestScanResultsTable({
           minWidth={showCandleTimeColumn ? "min-w-[900px]" : "min-w-[790px]"}
           className="table-fixed"
         >
-          <thead>
+          <thead className="sticky top-0 z-20 bg-[var(--table-header)]">
             <tr>
               <DataTableHeaderCell
                 sortKey="symbol"

@@ -81,10 +81,6 @@ type HistoryTerminalTone =
   | "neutral"
   | "risk"
   | "watch";
-type RequestedObservationRows = {
-  runId: string;
-  window: ObservationWindow;
-};
 export type ObservationRowsSortKey =
   | "symbol"
   | "group"
@@ -435,11 +431,6 @@ export function HistoryPageClient({
   );
   const [refreshingTimeframe, setRefreshingTimeframe] =
     useState<HistoryTimeframe | null>(null);
-  const [requestedSnapshotRunId, setRequestedSnapshotRunId] = useState<
-    string | null
-  >(null);
-  const [requestedObservationRows, setRequestedObservationRows] =
-    useState<RequestedObservationRows | null>(null);
   const snapshotsQuery = useQuery({
     queryKey: buildHistorySnapshotsQueryKey({ timeframe, assetClass }),
     queryFn: ({ signal }) =>
@@ -454,14 +445,9 @@ export function HistoryPageClient({
     manualSelectedRunId && snapshots.some((run) => run.runId === manualSelectedRunId)
       ? manualSelectedRunId
       : snapshots[0]?.runId ?? null;
-  const shouldLoadSnapshotRows =
-    isVisualCheck ||
-    (selectedRunId !== null && requestedSnapshotRunId === selectedRunId);
-  const shouldLoadObservationRows =
-    isVisualCheck ||
-    (selectedRunId !== null &&
-      requestedObservationRows?.runId === selectedRunId &&
-      requestedObservationRows.window === observationWindow);
+
+  const shouldLoadSnapshotRows = isVisualCheck || selectedRunId !== null;
+  const shouldLoadObservationRows = isVisualCheck || selectedRunId !== null;
   const visualSnapshotData =
     selectedRunId && visualCheckData
       ? visualCheckData.snapshotsByRunId[selectedRunId] ?? null
@@ -670,14 +656,6 @@ export function HistoryPageClient({
             uiState={forwardObservationUiState}
             selectedRun={selectedRun}
             isRequested={shouldLoadObservationRows}
-            onRequestLoad={() => {
-              if (selectedRunId) {
-                setRequestedObservationRows({
-                  runId: selectedRunId,
-                  window: observationWindow,
-                });
-              }
-            }}
             snapshotError={
               shouldLoadSnapshotRows && !isVisualCheck && snapshotQuery.isError
                 ? formatQueryError(snapshotQuery.error)
@@ -703,11 +681,6 @@ export function HistoryPageClient({
                 ? formatQueryError(snapshotQuery.error)
                 : null
             }
-            onRequestLoad={() => {
-              if (selectedRunId) {
-                setRequestedSnapshotRunId(selectedRunId);
-              }
-            }}
           />
         </main>
       </div>
@@ -1046,7 +1019,6 @@ export function ForwardObservationSection({
   uiState,
   selectedRun = null,
   isRequested = true,
-  onRequestLoad,
   snapshotError = null,
   snapshotIsLoading = false,
 }: {
@@ -1057,7 +1029,6 @@ export function ForwardObservationSection({
   uiState: ForwardObservationUiState;
   selectedRun?: HistoricalSnapshotRun | null;
   isRequested?: boolean;
-  onRequestLoad?: () => void;
   snapshotError?: string | null;
   snapshotIsLoading?: boolean;
 }) {
@@ -1128,9 +1099,13 @@ export function ForwardObservationSection({
 
       <div className="flex min-h-0 flex-col gap-1 px-2 py-1 xl:flex-1 xl:overflow-hidden">
         {!isRequested ? (
-          <OutcomeRowsLoadPanel
-            selectedRun={selectedReadinessRun}
-            onRequestLoad={onRequestLoad}
+          <StatePanel
+            title="Loading Outcome Rows"
+            message={
+              selectedReadinessRun
+                ? `Selected scan ${shortRunId(selectedReadinessRun.runId)} is loading automatically.`
+                : "Choose a run from Recent Runs."
+            }
           />
         ) : snapshotError ? (
           <StatePanel title="Selected Scan unavailable" message={snapshotError} />
@@ -1189,39 +1164,6 @@ export function ForwardObservationSection({
   );
 }
 
-function OutcomeRowsLoadPanel({
-  selectedRun,
-  onRequestLoad,
-}: {
-  selectedRun: HistoricalSnapshotRun | null;
-  onRequestLoad?: () => void;
-}) {
-  return (
-    <div className="terminal-state-panel">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="min-w-0">
-          <h3 className="terminal-panel-title">
-            Outcome Rows not loaded
-          </h3>
-          <p className="mt-1 text-[11px] leading-4 text-[var(--muted)]">
-            {selectedRun
-              ? `Selected scan ${shortRunId(selectedRun.runId)}.`
-              : "Choose a run from Recent Runs."}
-          </p>
-        </div>
-        <button
-          type="button"
-          onClick={onRequestLoad}
-          disabled={!selectedRun || !onRequestLoad}
-          className="terminal-mini-action is-accent h-7 px-2"
-        >
-          Load Outcome Rows
-        </button>
-      </div>
-    </div>
-  );
-}
-
 function SelectedScanValidationStrip({
   selectedRun,
   validationRun,
@@ -1242,7 +1184,7 @@ function SelectedScanValidationStrip({
   });
 
   return (
-    <div className="grid gap-1 border border-[var(--border)] bg-[var(--panel-muted)] px-2 py-1 text-[10px] lg:grid-cols-2">
+    <div className="terminal-panel-data flex min-w-0 flex-wrap items-center gap-x-4 gap-y-1 px-2 py-1 text-[10px] shadow-none">
       <HistoryContextStripLine
         label="Scan"
         runId={selectedRun?.runId ?? null}
@@ -2673,7 +2615,6 @@ export function SnapshotTable({
   isLoading,
   isError = false,
   errorMessage = null,
-  onRequestLoad,
   initialSortState = null,
 }: {
   rows: HistoricalSnapshotRow[];
@@ -2683,7 +2624,6 @@ export function SnapshotTable({
   isLoading: boolean;
   isError?: boolean;
   errorMessage?: string | null;
-  onRequestLoad?: () => void;
   initialSortState?: DataSortState<SnapshotRowsSortKey> | null;
 }) {
   const requested = isRequested ?? true;
@@ -2716,11 +2656,6 @@ export function SnapshotTable({
   return (
     <details
       className="terminal-panel-data shrink-0 overflow-hidden"
-      onToggle={(event) => {
-        if (event.currentTarget.open && !requested) {
-          onRequestLoad?.();
-        }
-      }}
     >
       <summary className="terminal-panel-header cursor-pointer list-none marker:hidden">
         <div className="flex min-w-0 items-center gap-2">
@@ -2751,16 +2686,10 @@ export function SnapshotTable({
       {!requested ? (
         <div className="terminal-state-panel">
           <p className="text-[12px] leading-5 text-[var(--muted)]">
-            Rows are loaded on demand to keep the initial History page light.
+            Rows load automatically after selecting a run to keep the initial
+            History page light.
             {selectedRunId ? ` Selected run ${shortRunId(selectedRunId)}.` : ""}
           </p>
-          <button
-            type="button"
-            onClick={onRequestLoad}
-            className="terminal-mini-action is-accent mt-2 h-7 px-2"
-          >
-            Load Original Rows
-          </button>
         </div>
       ) : isError ? (
         <StatePanel

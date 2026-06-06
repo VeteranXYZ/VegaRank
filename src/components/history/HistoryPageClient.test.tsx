@@ -202,8 +202,8 @@ describe("HistoryPageClient display formatting", () => {
     expect(html).toContain("Selected Scan");
     expect(html).toContain("Validation");
     expect(html).toContain("Outcome Summary");
-    expect(html).toContain("Outcome Rows not loaded");
-    expect(html).toContain("Load Outcome Rows");
+    expect(html).toContain("Loading Outcome Rows");
+    expect(html).not.toContain("Load Outcome Rows");
     expect(html).toContain("Original Scan Rows");
     expect(html).toContain("terminal-command-bar");
     expect(html).not.toContain(
