@@ -295,10 +295,57 @@ describe("PgScannerResultsStore latest scan queries", () => {
     expect(queries[0]).toContain("s.is_scanner_eligible = true");
     expect(queries[0]).toContain("s.is_market_context = false");
     expect(queries[0]).toContain("JOIN filtered_symbols fs");
+    expect(queries[0]).toContain("fs.exchange = mc.exchange");
+    expect(queries[0]).toContain("fs.market = mc.market");
     expect(queries[0]).toContain("WHERE mc.timeframe = $2");
     expect(queries[0]).not.toMatch(
       /SELECT symbol_id\s+FROM scan_signals\s+WHERE scan_run_id = \$1/i,
     );
+  });
+
+  it("can skip latest-scan coverage aggregation and use scanner history bars", async () => {
+    const queries: string[] = [];
+    const store = new PgScannerResultsStore(
+      makePool((sql, params) => {
+        queries.push(sql);
+        expect(params).toEqual(["run-1", "4h", "crypto"]);
+
+        return {
+          rows: [
+            makeSignalRow({
+              id: "signal-1",
+              scan_run_id: "run-1",
+              symbol: "BTCUSDT",
+              scan_time: "2026-05-31T00:00:01.000Z",
+              candle_count: null,
+              first_open_time: null,
+              raw_metrics: {
+                codeContract: {
+                  metrics: {
+                    historyBars: 420,
+                  },
+                },
+              },
+            }),
+          ],
+        };
+      }),
+    );
+
+    const signals = await store.listLatestScanSignalsForRun({
+      scanRunId: "run-1",
+      timeframe: "4h",
+      assetClass: "crypto",
+      includeCoverage: false,
+    });
+
+    expect(signals[0]?.candleCount).toBe(420);
+    expect(signals[0]?.firstOpenTime).toBeNull();
+    expect(queries[0]).toContain("WITH filtered_signals AS");
+    expect(queries[0]).toContain("NULL::bigint AS candle_count");
+    expect(queries[0]).not.toContain("FROM market_candles");
+    expect(queries[0]).not.toContain("JOIN filtered_symbols");
+    expect(queries[0]).not.toMatch(/COUNT\(\*\)\s+AS candle_count/i);
   });
 
   it("lists recent successful historical runs by timeframe and asset class", async () => {
@@ -891,7 +938,7 @@ function makeSignalRow(
     factors: {},
     next_confirmation: null,
     invalidation: null,
-    raw_metrics: {},
+    raw_metrics: overrides.raw_metrics ?? {},
     scoring_version: "test",
     scanner_version: "test",
     created_at: overrides.scan_time,
@@ -899,8 +946,11 @@ function makeSignalRow(
     is_scanner_eligible: true,
     is_backtest_eligible: true,
     is_market_context: false,
-    candle_count: "1000",
-    first_open_time: "2024-01-01T00:00:00.000Z",
+    candle_count: "candle_count" in overrides ? overrides.candle_count : "1000",
+    first_open_time:
+      "first_open_time" in overrides
+        ? overrides.first_open_time
+        : "2024-01-01T00:00:00.000Z",
   };
 }
 

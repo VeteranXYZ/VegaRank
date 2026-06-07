@@ -591,12 +591,14 @@ export class PgScannerResultsStore {
     assetClass = "all",
     includeNonScanner = false,
     includeMarketContext = false,
+    includeCoverage = true,
   }: {
     scanRunId: string;
     timeframe: string;
     assetClass?: SymbolAssetClassFilter;
     includeNonScanner?: boolean;
     includeMarketContext?: boolean;
+    includeCoverage?: boolean;
   }): Promise<LatestScanSignalRecord[]> {
     const params: unknown[] = [scanRunId, timeframe];
     const filters = [
@@ -618,6 +620,40 @@ export class PgScannerResultsStore {
       filters.push("s.is_market_context = false");
     }
 
+    const coverageCtes = includeCoverage
+      ? `,
+        filtered_symbols AS (
+          SELECT DISTINCT symbol_id, exchange, market, symbol
+          FROM filtered_signals
+        ),
+        coverage AS (
+          SELECT
+            mc.symbol_id,
+            COUNT(*) AS candle_count,
+            MIN(mc.open_time) AS first_open_time
+          FROM market_candles mc
+          JOIN filtered_symbols fs
+            ON fs.symbol_id = mc.symbol_id
+            AND fs.exchange = mc.exchange
+            AND fs.market = mc.market
+            AND fs.symbol = mc.symbol
+          WHERE mc.timeframe = $2
+          GROUP BY mc.symbol_id
+        )`
+      : "";
+    const coverageColumns = includeCoverage
+      ? `
+          COALESCE(coverage.candle_count, 0) AS candle_count,
+          coverage.first_open_time`
+      : `
+          NULL::bigint AS candle_count,
+          NULL::timestamptz AS first_open_time`;
+    const coverageJoin = includeCoverage
+      ? `
+        LEFT JOIN coverage
+          ON coverage.symbol_id = filtered_signals.symbol_id`
+      : "";
+
     const result = await this.pool.query<LatestScanSignalRow>(
       `
         WITH filtered_signals AS (
@@ -631,29 +667,12 @@ export class PgScannerResultsStore {
           JOIN symbols s
             ON s.id = ss.symbol_id
           WHERE ${filters.join("\n            AND ")}
-        ),
-        filtered_symbols AS (
-          SELECT DISTINCT symbol_id
-          FROM filtered_signals
-        ),
-        coverage AS (
-          SELECT
-            mc.symbol_id,
-            COUNT(*) AS candle_count,
-            MIN(mc.open_time) AS first_open_time
-          FROM market_candles mc
-          JOIN filtered_symbols fs
-            ON fs.symbol_id = mc.symbol_id
-          WHERE mc.timeframe = $2
-          GROUP BY mc.symbol_id
-        )
+        )${coverageCtes}
         SELECT
           filtered_signals.*,
-          COALESCE(coverage.candle_count, 0) AS candle_count,
-          coverage.first_open_time
+          ${coverageColumns}
         FROM filtered_signals
-        LEFT JOIN coverage
-          ON coverage.symbol_id = filtered_signals.symbol_id
+        ${coverageJoin}
         ORDER BY filtered_signals.symbol ASC
       `,
       params,
@@ -1163,6 +1182,7 @@ function toScanSignalRecord(row: ScanSignalRow): ScanSignalRecord {
 
 function toLatestScanSignalRecord(row: LatestScanSignalRow): LatestScanSignalRecord {
   const signal = toScanSignalRecord(row);
+  const coverageCandleCount = toNullableNumber(row.candle_count);
 
   return {
     ...signal,
@@ -1170,11 +1190,30 @@ function toLatestScanSignalRecord(row: LatestScanSignalRow): LatestScanSignalRec
     isScannerEligible: row.is_scanner_eligible ?? true,
     isBacktestEligible: row.is_backtest_eligible ?? true,
     isMarketContext: row.is_market_context ?? false,
-    candleCount: Number(row.candle_count ?? 0),
+    candleCount:
+      coverageCandleCount !== null && Number.isFinite(coverageCandleCount)
+        ? coverageCandleCount
+        : getCodeContractHistoryBars(signal.rawMetrics) ?? 0,
     firstOpenTime: row.first_open_time
       ? new Date(row.first_open_time).toISOString()
       : null,
   };
+}
+
+function getCodeContractHistoryBars(rawMetrics: Record<string, unknown>) {
+  const codeContract = rawMetrics.codeContract;
+
+  if (!isPlainObject(codeContract)) {
+    return null;
+  }
+
+  const metrics = codeContract.metrics;
+
+  if (!isPlainObject(metrics)) {
+    return null;
+  }
+
+  return toFiniteNumber(metrics.historyBars);
 }
 
 function toHistoricalSnapshotObservationRecord(
@@ -1404,6 +1443,20 @@ function roundObservationPercent(value: number) {
 
 function toNullableNumber(value: number | string | null) {
   return value === null ? null : Number(value);
+}
+
+function toFiniteNumber(value: unknown) {
+  if (typeof value !== "number" && typeof value !== "string") {
+    return null;
+  }
+
+  const parsed = Number(value);
+
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
 }
 
 function sqlLiteral(value: string) {

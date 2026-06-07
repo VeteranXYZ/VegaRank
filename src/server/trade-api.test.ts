@@ -327,6 +327,14 @@ describe("trade-api latest scan run selection", () => {
       preferFullUniverse: true,
       minExpectedSymbols: 300,
     });
+    expect(listLatestScanSignalsForRunMock).toHaveBeenCalledWith({
+      scanRunId: "full-run",
+      timeframe: "4h",
+      assetClass: "crypto",
+      includeNonScanner: false,
+      includeMarketContext: false,
+      includeCoverage: false,
+    });
     expect(body.summary.latestRunSelection).toEqual({
       preferredFullUniverse: true,
       isLikelyFullUniverse: true,

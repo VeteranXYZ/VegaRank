@@ -1261,6 +1261,7 @@ async function handleLatestScan(response: http.ServerResponse, url: URL) {
       assetClass: assetClass.value,
       includeNonScanner,
       includeMarketContext,
+      includeCoverage: false,
     });
     const latestScan = buildLatestScanResponse({
       run,
