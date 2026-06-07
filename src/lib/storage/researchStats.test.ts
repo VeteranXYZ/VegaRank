@@ -1,6 +1,7 @@
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import type { ScanResult } from "@/lib/scanner/types";
+import { scannerCodeVersions } from "@/lib/scanner-codebook/codeRegistry";
 import { cleanupTestTempDir, createTestTempDir } from "@/lib/test/testTempDir";
 import type { SignalForwardEvaluation } from "./scanEvaluation";
 import { getResearchStats } from "./researchStats";
@@ -61,21 +62,21 @@ describe("research stats", () => {
       expect(stats.insufficientDataCount).toBe(1);
       expect(stats.bySignalLabel).toEqual(
         expect.arrayContaining([
-          { signalLabel: "confirmed", count: 1 },
-          { signalLabel: "distribution_risk", count: 1 },
+          { signalLabel: "PX_501", count: 1 },
+          { signalLabel: "RK_302", count: 1 },
         ]),
       );
       expect(stats.byActionBias).toEqual(
         expect.arrayContaining([
-          { actionBias: "eligible", count: 1 },
-          { actionBias: "avoid", count: 1 },
+          { actionBias: "AC_501", count: 1 },
+          { actionBias: "AC_302", count: 1 },
         ]),
       );
       expect(stats.byRiskType).toEqual([
-        { riskType: "distribution_risk", count: 1 },
+        { riskType: "RK_302", count: 1 },
       ]);
       expect(stats.scoringVersions[0]).toMatchObject({
-        scoringVersion: "explainable-v1",
+        scoringVersion: "quant-factor-v1",
         count: 2,
       });
     } finally {
@@ -141,6 +142,13 @@ function makeEvaluation(
 }
 
 function makeResult(overrides: Partial<ScanResult> = {}): ScanResult {
+  const signalLabel = overrides.signalLabel ?? "confirmed";
+  const isRiskSignal = signalLabel === "distribution_risk";
+  const signalCode = isRiskSignal ? "RK_302" : "PX_501";
+  const actionCode = isRiskSignal ? "AC_302" : "AC_501";
+  const setupCode = isRiskSignal ? "ST_302" : "TR_601";
+  const riskCodes = isRiskSignal ? ["RK_302"] : [];
+
   return {
     exchange: "binance",
     symbol: "BTCUSDT",
@@ -216,6 +224,55 @@ function makeResult(overrides: Partial<ScanResult> = {}): ScanResult {
       candleCount: 300,
       sufficientHistory: true,
       missingIndicators: [],
+    },
+    codeContract: {
+      exchange: "binance",
+      symbol: overrides.symbol ?? "BTCUSDT",
+      timeframe: "4h",
+      groupCode: isRiskSignal ? "GR_301" : "GR_501",
+      actionCode,
+      riskCode: riskCodes[0] ?? null,
+      riskCodes,
+      setupCode,
+      phaseCode: "TR_202",
+      reasonCodes: [],
+      signalCodes: [signalCode],
+      qualityCodes: ["QH_001"],
+      metrics: {
+        rankScore: 72.5,
+        riskAdjustedScore: 72.5,
+        setupQualityScore: 70,
+        confidenceScore: 85,
+        absoluteSetupScore: 70,
+        universePercentile: null,
+        trendScore: 110,
+        momentumScore: 45,
+        structureScore: 90,
+        volatilityScore: 50,
+        volumeScore: 20,
+        mtfAgreementScore: 50,
+        riskPenalty: 20,
+        qualityPenalty: 0,
+        historyBars: 300,
+        volumeRank: 1.2,
+        volatilityPercentile: 50,
+        atrExtension: null,
+        distanceFromBase: null,
+        scoringModelVersion: "quant-factor-v1",
+        scoringCalibrationVersion: "deterministic-baseline-1",
+        score: 72.5,
+        finalSignalScore: 72.5,
+        opportunityScore: 70,
+        confirmationScore: 85,
+        riskScore: 20,
+        qualityScore: 100,
+        price: 100,
+        rsi14: 58,
+        bbPercent: 65,
+        bbWidthPercentile: 50,
+        volumeRatio: 1.2,
+      },
+      ...scannerCodeVersions,
     },
     ...overrides,
   };

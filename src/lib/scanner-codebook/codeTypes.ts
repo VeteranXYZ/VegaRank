@@ -45,4 +45,4 @@ export type ExplainScannerCodeOptions = {
 
 export const SCANNER_CODE_SCHEMA_VERSION = "1.0.0";
 export const SCANNER_DICTIONARY_VERSION = "1.0.0";
-export const SCANNER_PROTOCOL_VERSION = "16.2.0";
+export const SCANNER_PROTOCOL_VERSION = "19.0.0";

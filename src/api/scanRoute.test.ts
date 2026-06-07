@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { GET } from "../../app/api/scan/route";
 import { clearMemoryCache } from "@/lib/cache/memory";
+import { scannerCodeVersions } from "@/lib/scanner-codebook/codeRegistry";
 
 const getEligibleUsdtMarketsMock = vi.hoisted(() => vi.fn());
 const scanMarketMock = vi.hoisted(() => vi.fn());
@@ -215,7 +216,7 @@ describe("scan API remote market universe", () => {
       totalUsdtPairs: 10,
       eligibleCount: 6,
       scannedCount: 4,
-      skippedCount: 1,
+      skippedCount: 0,
       failedCount: 2,
       cached: false,
       concurrency: 3,
@@ -236,8 +237,9 @@ describe("scan API remote market universe", () => {
     expect(body.cacheExpiresAt).toEqual(expect.any(String));
     expect(body.updatedAt).toEqual(expect.any(String));
     expect(body.durationMs).toEqual(expect.any(Number));
-    expect(body.results).toHaveLength(1);
+    expect(body.results).toHaveLength(2);
     expectPublicScannerResultItem(body.results[0]);
+    expect(body.results.some((item: Record<string, unknown>) => item.groupCode === "GR_401")).toBe(true);
     expect(body.errors).toHaveLength(2);
   });
 
@@ -377,6 +379,9 @@ function makeResult({
   sufficientHistory: boolean;
   rankScore?: number;
 }) {
+  const groupCode = sufficientHistory ? "GR_501" : "GR_401";
+  const actionCode = sufficientHistory ? "AC_501" : "AC_401";
+
   return {
     exchange: "binance",
     symbol,
@@ -391,7 +396,66 @@ function makeResult({
     opportunityScore: 70,
     confirmationScore: 50,
     riskScore: 20,
+    finalSignalScore: rankScore,
     rankScore,
+    riskAdjustedScore: rankScore,
+    setupQualityScore: 70,
+    confidenceScore: sufficientHistory ? 70 : 20,
+    absoluteSetupScore: 70,
+    universePercentile: null,
+    volatilityScore: 50,
+    mtfAgreementScore: 50,
+    riskPenalty: 20,
+    qualityPenalty: sufficientHistory ? 0 : 100,
+    codeContract: {
+      exchange: "binance",
+      symbol,
+      timeframe: "4h",
+      groupCode,
+      actionCode,
+      riskCode: null,
+      riskCodes: [],
+      setupCode: "VO_501",
+      phaseCode: "VO_501",
+      reasonCodes: ["VO_202"],
+      signalCodes: ["VO_501"],
+      qualityCodes: sufficientHistory ? ["QH_001"] : ["QH_401"],
+      metrics: {
+        score: rankScore,
+        rankScore,
+        riskAdjustedScore: rankScore,
+        setupQualityScore: 70,
+        confidenceScore: sufficientHistory ? 70 : 20,
+        absoluteSetupScore: 70,
+        universePercentile: null,
+        finalSignalScore: rankScore,
+        opportunityScore: 70,
+        confirmationScore: sufficientHistory ? 70 : 20,
+        riskScore: 20,
+        qualityScore: sufficientHistory ? 100 : 20,
+        trendScore: 60,
+        momentumScore: 55,
+        structureScore: 60,
+        volatilityScore: 50,
+        volumeScore: 55,
+        mtfAgreementScore: 50,
+        riskPenalty: 20,
+        qualityPenalty: sufficientHistory ? 0 : 100,
+        historyBars: sufficientHistory ? 300 : 20,
+        volumeRank: 1,
+        volatilityPercentile: 20,
+        atrExtension: null,
+        distanceFromBase: null,
+        scoringModelVersion: "quant-factor-v1",
+        scoringCalibrationVersion: "deterministic-baseline-1",
+        price: 100,
+        rsi14: 55,
+        bbPercent: null,
+        bbWidthPercentile: 20,
+        volumeRatio: 1,
+      },
+      ...scannerCodeVersions,
+    },
     rsi14: 55,
     bbWidthPercentile: 20,
     volumeRatio: 1,
@@ -479,6 +543,35 @@ function expectPublicScannerResultItem(item: Record<string, unknown>) {
   }
 
   expect(item.metrics).toEqual(expect.any(Object));
+  const metrics = item.metrics as Record<string, unknown>;
+  for (const field of [
+    "rankScore",
+    "riskAdjustedScore",
+    "setupQualityScore",
+    "confidenceScore",
+    "absoluteSetupScore",
+    "universePercentile",
+    "trendScore",
+    "momentumScore",
+    "structureScore",
+    "volatilityScore",
+    "volumeScore",
+    "mtfAgreementScore",
+    "riskPenalty",
+    "qualityPenalty",
+    "historyBars",
+    "volumeRank",
+    "volatilityPercentile",
+    "atrExtension",
+    "distanceFromBase",
+  ] as const) {
+    expect(metrics).toHaveProperty(field);
+    expect(metrics[field] === null || typeof metrics[field] === "number").toBe(
+      true,
+    );
+  }
+  expect(metrics.scoringModelVersion).toBe("quant-factor-v1");
+  expect(metrics.scoringCalibrationVersion).toBe("deterministic-baseline-1");
   expect(item.scannerVersion).toEqual(expect.any(String));
   expect(item.codeSchemaVersion).toEqual(expect.any(String));
   expect(item.dictionaryVersion).toEqual(expect.any(String));

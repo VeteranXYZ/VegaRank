@@ -284,13 +284,18 @@ function getTimelineTone(
 function normalizeGroup(value: string | null | undefined) {
   const code = normalizeGroupCode(value);
 
+  if (code === "GR_201") {
+    return "watch";
+  }
+
   return Object.prototype.hasOwnProperty.call(resultGroupByGroupCode, code)
     ? resultGroupByGroupCode[code as keyof typeof resultGroupByGroupCode]
     : "neutral";
 }
 
 function normalizeGroupCode(value: string | null | undefined) {
-  return value && Object.prototype.hasOwnProperty.call(resultGroupByGroupCode, value)
+  return value === "GR_201" ||
+    (value && Object.prototype.hasOwnProperty.call(resultGroupByGroupCode, value))
     ? value
     : "GR_001";
 }

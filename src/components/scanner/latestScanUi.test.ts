@@ -281,7 +281,7 @@ describe("latest scan UI helpers", () => {
       )
       .join(" ");
 
-    expect(renderedText).toContain("人工复核");
+    expect(renderedText).toContain("研究观察");
     expect(renderedText).toContain("观察");
     expect(renderedText).toContain("过热");
     expect(renderedText).toContain("筑底");

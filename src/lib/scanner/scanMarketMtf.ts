@@ -1,11 +1,14 @@
 import { getCandles } from "@/lib/exchanges/binance";
 import type { Timeframe } from "@/lib/exchanges/types";
 import {
-  calculateMultiTimeframeRankScore,
   mtfPresetTimeframes,
   summarizeMultiTimeframe,
   type MtfPreset,
 } from "./multiTimeframe";
+import {
+  applyQuantContextScores,
+  calculateMtfAgreementScore,
+} from "./quantScoring";
 import { scanCandles } from "./scanCandles";
 import type { ScanResult } from "./types";
 
@@ -21,11 +24,13 @@ export async function scanMarketMultiTimeframe(
     }),
   );
   const summary = summarizeMultiTimeframe(results);
-  const rankScore = calculateMultiTimeframeRankScore(results, summary);
   const primary = pickPrimaryResult(results, timeframes);
+  const mtfAgreementScore = calculateMtfAgreementScore(results);
+  const primaryWithMtf = applyQuantContextScores(primary, { mtfAgreementScore });
+  const rankScore = primaryWithMtf.rankScore;
 
   return {
-    ...primary,
+    ...primaryWithMtf,
     rankScore,
     multiTimeframe: {
       ...summary,

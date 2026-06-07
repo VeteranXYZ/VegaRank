@@ -18,11 +18,13 @@ import {
 import { isScannerCodeDomain } from "./domains";
 
 export type ScannerResultGroupCodeKey =
+  | "high_priority"
   | "eligible"
   | "watch"
   | "overheated"
   | "risk"
   | "neutral"
+  | "low_quality"
   | "insufficient_history";
 
 export const scannerCodeVersions = {
@@ -34,21 +36,30 @@ export const scannerCodeVersions = {
 export const scannerCodeRegistry = {
   GR_001: defineCode("GR_001", "neutral_group", "neutral", "group"),
   GR_101: defineCode("GR_101", "watch", "info", "group"),
-  GR_201: defineCode("GR_201", "eligible", "positive", "group"),
-  GR_301: defineCode("GR_301", "overheated", "warning", "group"),
-  GR_302: defineCode("GR_302", "risk", "risk", "group"),
+  GR_201: defineCode("GR_201", "constructive_watch", "info", "group"),
+  GR_301: defineCode("GR_301", "risk", "risk", "group"),
+  GR_302: defineCode("GR_302", "overheated", "warning", "group"),
   GR_401: defineCode("GR_401", "insufficient_history", "block", "group"),
+  GR_402: defineCode("GR_402", "low_quality_excluded", "block", "group"),
+  GR_501: defineCode("GR_501", "eligible", "positive", "group"),
+  GR_601: defineCode("GR_601", "high_priority", "positive", "group"),
 
   AC_001: defineCode("AC_001", "ignore", "neutral", "action"),
   AC_101: defineCode("AC_101", "watch_only", "info", "action"),
+  AC_102: defineCode("AC_102", "wait", "info", "action"),
+  AC_103: defineCode("AC_103", "monitor_only", "neutral", "action"),
   AC_201: defineCode("AC_201", "needs_confirmation", "info", "action"),
   AC_301: defineCode("AC_301", "do_not_chase", "warning", "action"),
-  AC_302: defineCode("AC_302", "avoid", "risk", "action"),
-  AC_501: defineCode("AC_501", "manual_review", "positive", "action"),
+  AC_302: defineCode("AC_302", "reduce_priority", "risk", "action"),
+  AC_401: defineCode("AC_401", "exclude", "block", "action"),
+  AC_501: defineCode("AC_501", "add_to_research_watch", "positive", "action"),
+  AC_601: defineCode("AC_601", "high_priority_review", "positive", "action"),
 
   MO_001: defineCode("MO_001", "neutral_momentum", "neutral", "signal"),
   MO_101: defineCode("MO_101", "weak_momentum", "warning", "signal"),
+  MO_201: defineCode("MO_201", "improving_momentum", "info", "signal"),
   MO_202: defineCode("MO_202", "watch_momentum", "info", "signal"),
+  MO_340: defineCode("MO_340", "overheated_momentum", "warning", "signal"),
   MO_301: defineCode("MO_301", "rsi_weak", "warning", "reason"),
   MO_302: defineCode("MO_302", "macd_weakening", "warning", "reason"),
   MO_303: defineCode("MO_303", "macd_weak", "risk", "reason"),
@@ -94,26 +105,38 @@ export const scannerCodeRegistry = {
   PX_604: defineCode("PX_604", "squeeze_breakout", "positive", "setup"),
 
   VO_001: defineCode("VO_001", "normal_volatility", "neutral", "reason"),
+  VO_101: defineCode("VO_101", "low_volatility", "neutral", "reason"),
+  VO_102: defineCode("VO_102", "normal_volatility", "neutral", "reason"),
   VO_202: defineCode("VO_202", "compression", "info", "setup"),
+  VO_301: defineCode("VO_301", "volatility_expansion_risk", "warning", "risk"),
+  VO_302: defineCode("VO_302", "unstable_volatility", "risk", "risk"),
   VO_501: defineCode("VO_501", "squeeze_setup", "positive", "setup"),
+  VO_601: defineCode("VO_601", "confirmed_expansion", "positive", "signal"),
 
   VL_001: defineCode("VL_001", "volume_near_average", "neutral", "reason"),
+  VL_101: defineCode("VL_101", "volume_below_preferred_range", "warning", "quality"),
   VL_104: defineCode("VL_104", "weak_volume", "warning", "quality"),
   VL_201: defineCode("VL_201", "quiet_volume_compression", "info", "reason"),
+  VL_202: defineCode("VL_202", "inconsistent_trading_activity", "warning", "quality"),
+  VL_301: defineCode("VL_301", "elevated_liquidity_risk", "risk", "risk"),
   VL_302: defineCode("VL_302", "volume_spike_above_ma20", "warning", "risk"),
   VL_303: defineCode("VL_303", "bearish_volume_expansion", "risk", "reason"),
   VL_304: defineCode("VL_304", "liquidity_spike_risk", "risk", "risk"),
+  VL_401: defineCode("VL_401", "excluded_by_liquidity", "block", "quality"),
   VL_501: defineCode("VL_501", "volume_expansion", "positive", "reason"),
   VL_601: defineCode("VL_601", "volume_supports_upside", "positive", "reason"),
   VL_602: defineCode("VL_602", "pullback_volume_stable", "positive", "reason"),
 
+  RK_101: defineCode("RK_101", "minor_caution", "warning", "risk"),
   RK_201: defineCode("RK_201", "detected_risks", "warning", "risk"),
-  RK_301: defineCode("RK_301", "overheat_risk", "warning", "risk"),
-  RK_302: defineCode("RK_302", "distribution_risk", "risk", "risk"),
-  RK_303: defineCode("RK_303", "weak_bounce_risk", "risk", "risk"),
-  RK_304: defineCode("RK_304", "trend_breakdown_risk", "risk", "risk"),
+  RK_202: defineCode("RK_202", "asymmetric_risk", "warning", "risk"),
+  RK_301: defineCode("RK_301", "elevated_risk", "warning", "risk"),
+  RK_302: defineCode("RK_302", "poor_reward_risk_profile", "risk", "risk"),
+  RK_303: defineCode("RK_303", "chase_risk", "risk", "risk"),
+  RK_304: defineCode("RK_304", "false_breakout_risk", "risk", "risk"),
   RK_305: defineCode("RK_305", "failed_breakout_risk", "risk", "risk"),
   RK_306: defineCode("RK_306", "risk_rises_confirmation_falls", "risk", "reason"),
+  RK_401: defineCode("RK_401", "hard_risk_exclusion", "block", "risk"),
 
   ST_001: defineCode("ST_001", "neutral_setup", "neutral", "setup"),
   ST_201: defineCode("ST_201", "base_building", "info", "setup"),
@@ -130,6 +153,9 @@ export const scannerCodeRegistry = {
   QH_103: defineCode("QH_103", "bb_percent_insufficient", "info", "reason"),
   QH_201: defineCode("QH_201", "insufficient_history", "block", "quality"),
   QH_202: defineCode("QH_202", "new_listing", "warning", "quality"),
+  QH_301: defineCode("QH_301", "unreliable_historical_sample", "risk", "quality"),
+  QH_401: defineCode("QH_401", "excluded_by_insufficient_history", "block", "quality"),
+  QH_402: defineCode("QH_402", "excluded_by_poor_data_quality", "block", "quality"),
   QH_501: defineCode("QH_501", "major_quality", "positive", "quality"),
   QH_601: defineCode("QH_601", "core_quality", "positive", "quality"),
 
@@ -168,11 +194,13 @@ export function looksLikeScannerCode(value: unknown): value is ScannerCode {
 }
 
 export const groupCodeByResultGroup = {
-  eligible: "GR_201",
+  high_priority: "GR_601",
+  eligible: "GR_501",
   watch: "GR_101",
-  overheated: "GR_301",
-  risk: "GR_302",
+  overheated: "GR_302",
+  risk: "GR_301",
   neutral: "GR_001",
+  low_quality: "GR_402",
   insufficient_history: "GR_401",
 } as const satisfies Record<ScannerResultGroupCodeKey, ActiveScannerCode>;
 
@@ -236,10 +264,10 @@ export const setupCodeByDisplayAlias = {
 } as const satisfies Record<string, ActiveScannerCode>;
 
 export const riskCodeByType = {
-  overheat_risk: "RK_301",
+  overheat_risk: "RK_303",
   distribution_risk: "RK_302",
-  weak_bounce_risk: "RK_303",
-  trend_breakdown_risk: "RK_304",
+  weak_bounce_risk: "RK_301",
+  trend_breakdown_risk: "RK_302",
   liquidity_spike_risk: "VL_304",
   failed_breakout_risk: "RK_305",
 } as const satisfies Record<DetectedRiskType, ActiveScannerCode>;
@@ -260,9 +288,9 @@ export const reviewCodeByKey = {
   "review.status.caution": "NX_201",
   "review.status.lowPriority": "AC_101",
   "review.status.needsConfirmation": "AC_201",
-  "review.reason.cleanCandidate": "GR_201",
-  "review.reason.riskGroupPriority": "GR_302",
-  "review.reason.overheatedPriority": "GR_301",
+  "review.reason.cleanCandidate": "GR_501",
+  "review.reason.riskGroupPriority": "GR_301",
+  "review.reason.overheatedPriority": "GR_302",
   "review.reason.neutralGroup": "GR_001",
   "review.reason.insufficientHistory": "QH_201",
   "review.reason.detectedRisks": "RK_201",

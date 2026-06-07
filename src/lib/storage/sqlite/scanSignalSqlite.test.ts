@@ -2,6 +2,7 @@ import { writeFile } from "node:fs/promises";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import type { ScanResult } from "@/lib/scanner/types";
+import { scannerCodeVersions } from "@/lib/scanner-codebook/codeRegistry";
 import { cleanupTestTempDir, createTestTempDir } from "@/lib/test/testTempDir";
 import { safeJsonParse } from "../json";
 import type { SignalForwardEvaluation } from "../scanEvaluation";
@@ -40,11 +41,12 @@ describe("SQLite scanner research storage", () => {
       expect(signal.finalSignalScore).toBe(-25);
       expect(signal.riskScore).toBe(125);
       expect(signal.confirmationScore).toBe(85);
-      expect(safeJsonParse(signal.detectedRiskTypesJson, [])).toEqual([
-        "distribution_risk",
-      ]);
+      expect(safeJsonParse(signal.detectedRiskTypesJson, [])).toEqual([]);
       expect(safeJsonParse(signal.rawMetricsJson, {})).toMatchObject({
-        price: 100,
+        codeContract: {
+          signalCodes: ["PX_501"],
+          riskCodes: [],
+        },
       });
     } finally {
       store.close();
@@ -89,7 +91,7 @@ describe("SQLite scanner research storage", () => {
       ]);
 
       const groups = await store.getSignalPerformanceByLabel({ horizon: "24h" });
-      const confirmedGroup = groups.find((group) => group.group === "confirmed");
+      const confirmedGroup = groups.find((group) => group.group === "PX_501");
       expect(confirmedGroup).toMatchObject({
         count: 1,
         completedCount: 1,
@@ -199,6 +201,19 @@ function makeEvaluation(
 
 function makeResult(overrides: Partial<ScanResult> = {}): ScanResult {
   const signalLabel = overrides.signalLabel ?? "confirmed";
+  const isRiskSignal = signalLabel === "distribution_risk";
+  const signalCode = isRiskSignal
+    ? "RK_302"
+    : signalLabel === "watch"
+      ? "MO_202"
+      : "PX_501";
+  const actionCode = isRiskSignal
+    ? "AC_302"
+    : signalLabel === "watch"
+      ? "AC_101"
+      : "AC_501";
+  const setupCode = isRiskSignal ? "ST_302" : "TR_601";
+  const riskCodes = isRiskSignal ? ["RK_302"] : [];
 
   return {
     exchange: "binance",
@@ -225,7 +240,7 @@ function makeResult(overrides: Partial<ScanResult> = {}): ScanResult {
     primaryStructure:
       signalLabel === "distribution_risk" ? "distribution_risk" : "strong_trend",
     secondaryStructures: ["trend_aligned"],
-    detectedRiskTypes: ["distribution_risk"],
+    detectedRiskTypes: isRiskSignal ? ["distribution_risk"] : [],
     bullishObservations: [],
     bearishObservations: [],
     riskObservations: [],
@@ -276,6 +291,55 @@ function makeResult(overrides: Partial<ScanResult> = {}): ScanResult {
       candleCount: 300,
       sufficientHistory: true,
       missingIndicators: [],
+    },
+    codeContract: {
+      exchange: "binance",
+      symbol: overrides.symbol ?? "BTCUSDT",
+      timeframe: "4h",
+      groupCode: isRiskSignal ? "GR_301" : "GR_501",
+      actionCode,
+      riskCode: riskCodes[0] ?? null,
+      riskCodes,
+      setupCode,
+      phaseCode: "TR_202",
+      reasonCodes: [],
+      signalCodes: [signalCode],
+      qualityCodes: ["QH_001"],
+      metrics: {
+        rankScore: overrides.rankScore ?? 72.5,
+        riskAdjustedScore: overrides.finalSignalScore ?? 72.5,
+        setupQualityScore: 70,
+        confidenceScore: 85,
+        absoluteSetupScore: 70,
+        universePercentile: null,
+        trendScore: 110,
+        momentumScore: 45,
+        structureScore: 90,
+        volatilityScore: 50,
+        volumeScore: 20,
+        mtfAgreementScore: 50,
+        riskPenalty: overrides.riskScore ?? 20,
+        qualityPenalty: 0,
+        historyBars: 300,
+        volumeRank: 1.2,
+        volatilityPercentile: 50,
+        atrExtension: null,
+        distanceFromBase: null,
+        scoringModelVersion: "quant-factor-v1",
+        scoringCalibrationVersion: "deterministic-baseline-1",
+        score: overrides.rankScore ?? 72.5,
+        finalSignalScore: overrides.finalSignalScore ?? 72.5,
+        opportunityScore: 70,
+        confirmationScore: 85,
+        riskScore: overrides.riskScore ?? 20,
+        qualityScore: 100,
+        price: 100,
+        rsi14: 58,
+        bbPercent: 65,
+        bbWidthPercentile: 50,
+        volumeRatio: 1.2,
+      },
+      ...scannerCodeVersions,
     },
     ...overrides,
   };

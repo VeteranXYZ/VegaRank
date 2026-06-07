@@ -29,18 +29,18 @@ describe("scanner codebook", () => {
 
   it("explains active codes in English", () => {
     expect(explainCode("GR_201", "en")).toEqual({
-      label: "Eligible",
-      short: "Candidate is eligible for manual review.",
+      label: "Constructive Watch",
+      short: "Setup is constructive, but confidence or confirmation is limited.",
     });
-    expect(explainCode("AC_501", "en").label).toBe("Manual Review");
+    expect(explainCode("AC_501", "en").label).toBe("Research Watch");
   });
 
   it("explains active codes in Chinese", () => {
     expect(explainCode("GR_201", "zh")).toEqual({
-      label: "符合条件",
-      short: "该标的符合人工复核条件。",
+      label: "建设性观察",
+      short: "结构偏建设性，但置信度或确认条件仍有限。",
     });
-    expect(explainCode("AC_501", "zh").label).toBe("人工复核");
+    expect(explainCode("AC_501", "zh").label).toBe("研究观察");
   });
 
   it("falls back safely for unknown codes", () => {

@@ -109,6 +109,7 @@ type SignalEvaluationRow = {
   price_at_signal: number | string | null;
   rank_score: number | string | null;
   risk_score: number | string | null;
+  group_code: string | null;
   signal_label: string | null;
   action_bias: string | null;
   primary_structure: string | null;
@@ -232,10 +233,10 @@ function normalizeInput(input: LoadSignalEvaluationPgInput) {
   const exchange = input.exchange.trim().toLowerCase();
   const market = input.market.trim().toLowerCase();
   const symbol = input.symbol?.trim().toUpperCase() || null;
-  const signalLabel = input.signalLabel?.trim().toLowerCase() || null;
-  const setupType = input.setupType?.trim().toLowerCase() || null;
+  const signalLabel = normalizeCodeOrLegacyFilter(input.signalLabel);
+  const setupType = normalizeCodeOrLegacyFilter(input.setupType);
   const primaryStructure =
-    input.primaryStructure?.trim().toLowerCase() || setupType || null;
+    normalizeCodeOrLegacyFilter(input.primaryStructure) || setupType || null;
   const horizons = normalizeHorizons(input.horizons);
   const minSamples = Math.max(
     1,
@@ -264,6 +265,18 @@ function normalizeInput(input: LoadSignalEvaluationPgInput) {
     limit,
     includeBreakdowns: input.includeBreakdowns ?? true,
   };
+}
+
+function normalizeCodeOrLegacyFilter(value: string | null | undefined) {
+  const trimmed = value?.trim();
+
+  if (!trimmed) {
+    return null;
+  }
+
+  return /^[a-z]{2}_\d{3}$/i.test(trimmed)
+    ? trimmed.toUpperCase()
+    : trimmed.toLowerCase();
 }
 
 async function loadSignalEvaluationRowsPg(
@@ -332,6 +345,7 @@ async function loadSignalEvaluationRowsPg(
         cs.price_at_signal,
         cs.rank_score,
         cs.risk_score,
+        cs.factors->>'groupCode' AS group_code,
         cs.signal_label,
         cs.action_bias,
         cs.primary_structure,
@@ -411,6 +425,7 @@ function analyzeEvaluationRow(
 
 function getSignalResultGroup(row: SignalEvaluationRow) {
   return classifyScanResultGroup({
+    groupCode: row.group_code,
     signalLabel: row.signal_label,
     actionBias: row.action_bias,
     primaryStructure: row.primary_structure,
@@ -967,15 +982,7 @@ function getGroupSqlFilter(group: SignalEvaluationGroup) {
 function getRiskSqlCondition() {
   return `
     (
-      ss.action_bias = 'avoid'
-      OR ss.signal_label IN ('breakdown_risk', 'distribution_risk')
-      OR ss.primary_structure IN ('trend_breakdown', 'distribution_risk')
-      OR COALESCE(ss.detected_risk_types, '[]'::jsonb) ?| array[
-        'distribution_risk',
-        'trend_breakdown_risk',
-        'liquidity_spike_risk',
-        'failed_breakout_risk'
-      ]
+      ss.factors->>'groupCode' = 'GR_301'
     )
   `;
 }
@@ -983,9 +990,7 @@ function getRiskSqlCondition() {
 function getOverheatedSqlCondition() {
   return `
     (
-      ss.action_bias = 'do_not_chase'
-      OR ss.signal_label = 'overheated'
-      OR ss.primary_structure = 'overextended'
+      ss.factors->>'groupCode' = 'GR_302'
     )
   `;
 }
@@ -999,22 +1004,7 @@ function getEligibleSqlCondition({
 }) {
   return `
     (
-      NOT (${risk})
-      AND NOT (${overheated})
-      AND ss.action_bias = 'eligible'
-      AND ss.signal_label IN ('confirmed', 'trend')
-      AND ss.rank_score > 0
-      AND COALESCE(ss.primary_structure, '') NOT IN ('', 'neutral')
-      AND NOT (
-        COALESCE(ss.detected_risk_types, '[]'::jsonb) ?| array[
-          'overheat_risk',
-          'weak_bounce_risk',
-          'distribution_risk',
-          'trend_breakdown_risk',
-          'liquidity_spike_risk',
-          'failed_breakout_risk'
-        ]
-      )
+      ss.factors->>'groupCode' IN ('GR_501', 'GR_601')
     )
   `;
 }
@@ -1030,17 +1020,7 @@ function getWatchSqlCondition({
 }) {
   return `
     (
-      NOT (${risk})
-      AND NOT (${overheated})
-      AND NOT (${eligible})
-      AND (
-        (
-          ss.action_bias = 'eligible'
-          AND (ss.signal_label IN ('confirmed', 'trend') OR ss.rank_score > 0)
-        )
-        OR ss.action_bias = 'watch_only'
-        OR ss.signal_label IN ('watch', 'weak_bounce')
-      )
+      ss.factors->>'groupCode' IN ('GR_101', 'GR_201')
     )
   `;
 }

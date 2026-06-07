@@ -35,9 +35,9 @@ export type ScanSignalRecord = {
   momentumScore: number;
   volumeScore: number;
   structureScore: number;
-  signalLabel: ScanResult["signalLabel"];
-  actionBias: ScanResult["actionBias"];
-  primaryStructure: ScanResult["primaryStructure"];
+  signalLabel: string;
+  actionBias: string;
+  primaryStructure: string;
   secondaryStructuresJson: string;
   detectedRiskTypesJson: string;
   bullishObservationsJson: string;
@@ -116,11 +116,11 @@ export function toScanSignalRecords({
     momentumScore: result.momentumScore,
     volumeScore: result.volumeScore,
     structureScore: result.structureScore,
-    signalLabel: result.signalLabel,
-    actionBias: result.actionBias,
-    primaryStructure: result.primaryStructure,
+    signalLabel: result.codeContract?.signalCodes[0] ?? "NX_801",
+    actionBias: result.codeContract?.actionCode ?? "NX_801",
+    primaryStructure: result.codeContract?.setupCode ?? "NX_801",
     secondaryStructuresJson: safeJsonStringify(result.secondaryStructures),
-    detectedRiskTypesJson: safeJsonStringify(result.detectedRiskTypes),
+    detectedRiskTypesJson: safeJsonStringify(result.codeContract?.riskCodes ?? []),
     bullishObservationsJson: safeJsonStringify(result.bullishObservations),
     bearishObservationsJson: safeJsonStringify(result.bearishObservations),
     riskObservationsJson: safeJsonStringify(result.riskObservations),
@@ -129,7 +129,9 @@ export function toScanSignalRecords({
       result.nextConfirmationObservations,
     ),
     invalidationObservationsJson: safeJsonStringify(result.invalidationObservations),
-    rawMetricsJson: safeJsonStringify(result.rawMetrics),
+    rawMetricsJson: safeJsonStringify({
+      codeContract: result.codeContract,
+    }),
     legacySignal: result.signal.state,
     legacyRankScore: result.rankScore,
     legacyWarningsJson: safeJsonStringify(result.warnings),

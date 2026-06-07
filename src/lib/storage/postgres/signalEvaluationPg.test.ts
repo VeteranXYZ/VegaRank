@@ -16,9 +16,9 @@ describe("loadSignalEvaluationPg", () => {
             makeEvaluationRow({
               id: "risk-1",
               price_at_signal: "100",
-              signal_label: "breakdown_risk",
-              action_bias: "avoid",
-              primary_structure: "trend_breakdown",
+              signal_label: "RK_302",
+              action_bias: "AC_302",
+              primary_structure: "ST_302",
               forward_candles: [
                 { close: 90 },
                 { close: 80 },
@@ -35,9 +35,9 @@ describe("loadSignalEvaluationPg", () => {
             makeEvaluationRow({
               id: "risk-2",
               price_at_signal: "100",
-              signal_label: "breakdown_risk",
-              action_bias: "avoid",
-              primary_structure: "trend_breakdown",
+              signal_label: "RK_302",
+              action_bias: "AC_302",
+              primary_structure: "ST_302",
               forward_candles: [
                 { close: 105 },
                 { close: 100 },
@@ -59,7 +59,7 @@ describe("loadSignalEvaluationPg", () => {
         market: "spot",
         timeframe: "4h",
         group: "risk",
-        signalLabel: "breakdown_risk",
+        signalLabel: "RK_302",
         horizons: [1, 3, 5, 10],
         minSamples: 2,
         limit: 500,
@@ -111,13 +111,13 @@ describe("loadSignalEvaluationPg", () => {
       "spot",
       "4h",
       "crypto",
-      "breakdown_risk",
+      "RK_302",
       500,
       10,
     ]);
     expect(queries[0]).toContain("FROM scan_signals ss");
     expect(queries[0]).toContain("ss.signal_label = $5");
-    expect(queries[0]).toContain("ss.action_bias = 'avoid'");
+    expect(queries[0]).toContain("ss.factors->>'groupCode' = 'GR_301'");
     expect(queries[0]).toContain("LIMIT $6");
     expect(queries[0]).toContain("LIMIT $7");
   });

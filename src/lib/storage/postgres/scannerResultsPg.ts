@@ -30,6 +30,7 @@ export function currentScanSignalCodeContractCondition(alias = "ss") {
     ${alias}.raw_metrics ? 'codeContract'
     AND ${alias}.raw_metrics->'codeContract'->>'scannerVersion' = ${sqlLiteral(PG_SCANNER_VERSION)}
     AND ${alias}.raw_metrics->'codeContract'->>'codeSchemaVersion' = ${sqlLiteral(scannerCodeVersions.codeSchemaVersion)}
+    AND ${alias}.raw_metrics->'codeContract'->'metrics'->>'scoringModelVersion' = ${sqlLiteral(SCORING_VERSION)}
   `;
 }
 
@@ -473,7 +474,7 @@ export class PgScannerResultsStore {
           codeContract.signalCodes[0] ?? "NX_801",
           codeContract.actionCode,
           codeContract.setupCode,
-          JSON.stringify(result.secondaryStructures.map(() => "NX_801")),
+          JSON.stringify(result.secondaryStructures.filter(isScannerCode)),
           JSON.stringify(codeContract.riskCodes),
           JSON.stringify({
             groupCode: codeContract.groupCode,

@@ -324,6 +324,35 @@ function expectPublicScannerResultItem(item: Record<string, unknown>) {
   }
 
   expect(item.metrics).toEqual(expect.any(Object));
+  const metrics = item.metrics as Record<string, unknown>;
+  for (const field of [
+    "rankScore",
+    "riskAdjustedScore",
+    "setupQualityScore",
+    "confidenceScore",
+    "absoluteSetupScore",
+    "universePercentile",
+    "trendScore",
+    "momentumScore",
+    "structureScore",
+    "volatilityScore",
+    "volumeScore",
+    "mtfAgreementScore",
+    "riskPenalty",
+    "qualityPenalty",
+    "historyBars",
+    "volumeRank",
+    "volatilityPercentile",
+    "atrExtension",
+    "distanceFromBase",
+  ] as const) {
+    expect(metrics).toHaveProperty(field);
+    expect(metrics[field] === null || typeof metrics[field] === "number").toBe(
+      true,
+    );
+  }
+  expect(metrics.scoringModelVersion).toBe("quant-factor-v1");
+  expect(metrics.scoringCalibrationVersion).toBe("deterministic-baseline-1");
   expect(item.scannerVersion).toEqual(expect.any(String));
   expect(item.codeSchemaVersion).toEqual(expect.any(String));
   expect(item.dictionaryVersion).toEqual(expect.any(String));

@@ -735,14 +735,17 @@ function hasMajorDetectedRisk(proxy: AvailableMarketContextProxy) {
 
 function getProxyGroup(proxy: AvailableMarketContextProxy): ScanResultGroup {
   switch (proxy.groupCode) {
-    case "GR_201":
+    case "GR_601":
+    case "GR_501":
       return "eligible";
+    case "GR_201":
     case "GR_101":
       return "watch";
-    case "GR_301":
-      return "overheated";
     case "GR_302":
+      return "overheated";
+    case "GR_301":
       return "risk";
+    case "GR_402":
     case "GR_401":
       return "insufficient_history";
     default:

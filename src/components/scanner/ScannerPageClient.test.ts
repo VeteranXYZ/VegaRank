@@ -23,6 +23,10 @@ import {
   serializeScanResultToCodeContract,
   type ScannerCodeContractResult,
 } from "@/lib/scanner-codebook/serializeScanResult";
+import {
+  phaseCodeByMarketPhase,
+  scannerCodeVersions,
+} from "@/lib/scanner-codebook/codeRegistry";
 
 describe("scanner result filtering", () => {
   it("defaults the display count to 50 rows", () => {
@@ -636,6 +640,7 @@ function makeResult({
   warningCount?: number;
 }): ScannerCodeContractResult {
   const signalSemantics = getSignalSemantics(signalState);
+  const warningReasonCodes = ["NX_101", "NX_302"].slice(0, warningCount);
   const result: ScanResult = {
     exchange: "binance",
     symbol,
@@ -698,6 +703,55 @@ function makeResult({
       sufficientHistory: true,
       missingIndicators: [],
     },
+    codeContract: {
+      exchange: "binance",
+      symbol,
+      timeframe: "4h",
+      groupCode: signalSemantics.groupCode,
+      actionCode: signalSemantics.actionCode,
+      riskCode: signalSemantics.riskCodes[0] ?? null,
+      riskCodes: signalSemantics.riskCodes,
+      setupCode: signalSemantics.setupCode,
+      phaseCode: phaseCodeByMarketPhase[phase],
+      reasonCodes: warningReasonCodes,
+      signalCodes: signalSemantics.signalCodes,
+      qualityCodes: ["QH_001"],
+      metrics: {
+        rankScore,
+        riskAdjustedScore: rankScore,
+        setupQualityScore: opportunityScore,
+        confidenceScore: confirmationScore,
+        absoluteSetupScore: opportunityScore,
+        universePercentile: null,
+        trendScore: 75,
+        momentumScore: 45,
+        structureScore: 60,
+        volatilityScore: 50,
+        volumeScore: 25,
+        mtfAgreementScore: 50,
+        riskPenalty: riskScore,
+        qualityPenalty: 0,
+        historyBars: 300,
+        volumeRank: volumeRatio,
+        volatilityPercentile: 20,
+        atrExtension: null,
+        distanceFromBase: null,
+        scoringModelVersion: "quant-factor-v1",
+        scoringCalibrationVersion: "deterministic-baseline-1",
+        score: rankScore,
+        finalSignalScore: rankScore,
+        opportunityScore,
+        confirmationScore,
+        riskScore,
+        qualityScore: 100,
+        price: 100,
+        rsi14,
+        bbPercent: 55,
+        bbWidthPercentile: 20,
+        volumeRatio,
+      },
+      ...scannerCodeVersions,
+    },
   };
 
   return serializeScanResultToCodeContract(result);
@@ -756,6 +810,12 @@ function getSignalSemantics(signalState: ScannerSignalState) {
         actionBias: "eligible" as const,
         primaryStructure: "strong_trend" as const,
         detectedRiskTypes: [],
+        groupCode: "GR_501",
+        actionCode: "AC_501",
+        setupCode: "TR_601",
+        signalCodes: ["PX_501"],
+        reasonCodes: ["TR_501"],
+        riskCodes: [],
       };
     case "TREND_CONTINUATION":
       return {
@@ -763,6 +823,12 @@ function getSignalSemantics(signalState: ScannerSignalState) {
         actionBias: "eligible" as const,
         primaryStructure: "strong_trend" as const,
         detectedRiskTypes: [],
+        groupCode: "GR_601",
+        actionCode: "AC_601",
+        setupCode: "TR_601",
+        signalCodes: ["TR_601"],
+        reasonCodes: ["TR_501"],
+        riskCodes: [],
       };
     case "HIGH_RISK":
       return {
@@ -770,6 +836,12 @@ function getSignalSemantics(signalState: ScannerSignalState) {
         actionBias: "do_not_chase" as const,
         primaryStructure: "overextended" as const,
         detectedRiskTypes: ["overheat_risk" as const],
+        groupCode: "GR_302",
+        actionCode: "AC_301",
+        setupCode: "ST_301",
+        signalCodes: ["MO_340"],
+        reasonCodes: ["MO_201"],
+        riskCodes: ["RK_303"],
       };
     case "WEAK":
       return {
@@ -777,6 +849,12 @@ function getSignalSemantics(signalState: ScannerSignalState) {
         actionBias: "avoid" as const,
         primaryStructure: "trend_breakdown" as const,
         detectedRiskTypes: ["trend_breakdown_risk" as const],
+        groupCode: "GR_301",
+        actionCode: "AC_302",
+        setupCode: "PX_303",
+        signalCodes: ["PX_101"],
+        reasonCodes: ["TR_301"],
+        riskCodes: ["RK_302"],
       };
     case "NEUTRAL":
       return {
@@ -784,6 +862,12 @@ function getSignalSemantics(signalState: ScannerSignalState) {
         actionBias: "ignore" as const,
         primaryStructure: "neutral" as const,
         detectedRiskTypes: [],
+        groupCode: "GR_101",
+        actionCode: "AC_101",
+        setupCode: "ST_001",
+        signalCodes: ["MO_001"],
+        reasonCodes: [],
+        riskCodes: [],
       };
     case "WATCHLIST":
     default:
@@ -792,6 +876,12 @@ function getSignalSemantics(signalState: ScannerSignalState) {
         actionBias: "watch_only" as const,
         primaryStructure: "breakout_attempt" as const,
         detectedRiskTypes: [],
+        groupCode: "GR_201",
+        actionCode: "AC_102",
+        setupCode: "PX_201",
+        signalCodes: ["MO_202"],
+        reasonCodes: ["TR_501"],
+        riskCodes: [],
       };
   }
 }

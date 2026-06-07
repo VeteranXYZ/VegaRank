@@ -15,7 +15,7 @@ import {
   type ScanFailureSummary,
 } from "@/lib/scanner/diagnostics";
 import { scanMarket } from "@/lib/scanner/scanMarket";
-import { SCORING_VERSION } from "@/lib/scanner/scoring";
+import { calculateUniversePercentiles, SCORING_VERSION } from "@/lib/scanner/scoring";
 import type { ScanResult } from "@/lib/scanner/types";
 import {
   serializeScanResultToCodeContract,
@@ -161,9 +161,9 @@ export async function GET(request: Request) {
       batch: batchMode ? { cursor: cursor.value, batchSize } : null,
     });
     const successful = settled.flatMap((item) => (item.result ? [item.result] : []));
-    const results = successful
-      .filter((result) => result.dataQuality.sufficientHistory)
-      .sort((left, right) => right.rankScore - left.rankScore);
+    const results = calculateUniversePercentiles(successful).sort(
+      (left, right) => right.rankScore - left.rankScore,
+    );
     const publicResults = results.map(serializeScanResultToCodeContract);
     const errors = settled.flatMap((item) => (item.error ? [item.error] : []));
     const skippedCount = successful.length - results.length;

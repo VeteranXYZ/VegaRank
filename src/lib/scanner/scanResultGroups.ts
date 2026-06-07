@@ -2,6 +2,7 @@ import type { ScannerReviewKey, ScannerReviewText } from "@/lib/shared/scannerTy
 import {
   actionBiasByCode,
   primaryStructureBySetupCode,
+  resultGroupByGroupCode,
   riskTypeByCode,
   signalLabelByCode,
 } from "@/lib/scanner-codebook/codeRegistry";
@@ -33,6 +34,7 @@ export type ScanResultReviewTier = (typeof SCAN_RESULT_REVIEW_TIERS)[number];
 export type ScanResultCautionLevel = "none" | "caution" | "low";
 
 export type ScanResultGroupInput = {
+  groupCode?: string | null;
   signalLabel?: string | null;
   actionBias?: string | null;
   primaryStructure?: string | null;
@@ -80,6 +82,12 @@ const WATCH_REVIEW_TIER_ORDER: Partial<Record<ScanResultReviewTier, number>> = {
 export function classifyScanResultGroup(
   signal: ScanResultGroupInput,
 ): ScanResultGroup {
+  const codeGroup = normalizeGroupCode(signal.groupCode);
+
+  if (codeGroup) {
+    return codeGroup;
+  }
+
   const actionBias = normalizeActionBias(signal.actionBias);
   const signalLabel = normalizeSignalLabel(signal.signalLabel);
   const primaryStructure = normalizePrimaryStructure(signal.primaryStructure);
@@ -144,6 +152,27 @@ export function classifyScanResultGroup(
   }
 
   return "neutral";
+}
+
+function normalizeGroupCode(value: string | null | undefined): ScanResultGroup | "" {
+  if (!value) {
+    return "";
+  }
+
+  const resultGroup =
+    resultGroupByGroupCode[value as keyof typeof resultGroupByGroupCode];
+
+  if (resultGroup === "high_priority") {
+    return "eligible";
+  }
+
+  if (resultGroup === "low_quality") {
+    return "insufficient_history";
+  }
+
+  return SCAN_RESULT_GROUPS.includes(resultGroup as ScanResultGroup)
+    ? (resultGroup as ScanResultGroup)
+    : "";
 }
 
 export function getScanResultReview(

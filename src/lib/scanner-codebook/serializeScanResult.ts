@@ -1,48 +1,32 @@
-import { classifyScanResultGroup } from "@/lib/scanner/scanResultGroups";
 import type {
-  ScannerExplanation,
-  ScannerObservation,
+  ScannerCodeContractMetrics,
+  ScannerCodeContractShape,
   ScanResult,
 } from "@/lib/shared/scannerTypes";
 import {
-  actionCodeByBias,
-  explanationCodeByKey,
-  groupCodeByResultGroup,
-  observationCodeByKey,
-  phaseCodeByMarketPhase,
-  riskCodeByType,
+  isScannerCode,
   scannerCodeVersions,
-  setupCodeByPrimaryStructure,
-  signalCodeByLabel,
   type ActiveScannerCode,
 } from "./codeRegistry";
+import {
+  QUANT_SCORING_CALIBRATION_VERSION,
+  QUANT_SCORING_MODEL_VERSION,
+} from "@/lib/scanner/quantScoring";
 
-export type ScannerCodeMetrics = {
-  score: number;
-  rankScore: number;
-  finalSignalScore: number;
-  opportunityScore: number;
-  confirmationScore: number;
-  riskScore: number;
-  qualityScore: number;
-  trendScore: number;
-  momentumScore: number;
-  volumeScore: number;
-  structureScore: number;
-  volumeRank: number | null;
-  historyBars: number;
-  price: number;
-  rsi14: number | null;
-  bbPercent: number | null;
-  bbWidthPercentile: number | null;
-  volumeRatio: number | null;
-};
+export type ScannerCodeMetrics = ScannerCodeContractMetrics;
 
-export type ScannerCodeContractResult = {
-  exchange: "binance";
-  symbol: string;
-  timeframe: string;
-  assetClass?: string;
+export type ScannerCodeContractResult = Omit<
+  ScannerCodeContractShape,
+  | "groupCode"
+  | "actionCode"
+  | "riskCode"
+  | "riskCodes"
+  | "setupCode"
+  | "phaseCode"
+  | "reasonCodes"
+  | "signalCodes"
+  | "qualityCodes"
+> & {
   groupCode: ActiveScannerCode;
   actionCode: ActiveScannerCode;
   riskCode: ActiveScannerCode | null;
@@ -52,132 +36,146 @@ export type ScannerCodeContractResult = {
   reasonCodes: ActiveScannerCode[];
   signalCodes: ActiveScannerCode[];
   qualityCodes: ActiveScannerCode[];
-  metrics: ScannerCodeMetrics;
-  scannerVersion: string;
-  codeSchemaVersion: string;
-  dictionaryVersion: string;
 };
 
 export function serializeScanResultToCodeContract(
   result: ScanResult,
 ): ScannerCodeContractResult {
-  const resultGroup = classifyScanResultGroup(result);
-  const riskCodes = uniqueCodes(
-    (result.detectedRiskTypes ?? []).map((risk) => riskCodeByType[risk] ?? "NX_801"),
-  );
-  const signalCodes = uniqueCodes([
-    signalCodeByLabel[result.signalLabel] ?? "NX_801",
-    ...observationsToCodes(result.bullishObservations ?? []),
-    ...observationsToCodes(result.bearishObservations ?? []),
-    ...observationsToCodes(result.neutralObservations ?? []),
-  ]);
-  const reasonCodes = uniqueCodes([
-    ...explanationsToCodes(result.reasons ?? []),
-    ...explanationsToCodes(result.warnings ?? []),
-    ...observationsToCodes(result.riskObservations ?? []),
-    ...observationsToCodes(result.nextConfirmationObservations ?? []),
-    ...observationsToCodes(result.invalidationObservations ?? []),
-    ...explanationsToCodes(result.nextConfirmation ?? []),
-    ...explanationsToCodes(result.invalidation ?? []),
-  ]);
+  const contract = result.codeContract ?? buildFallbackCodeContract(result);
 
   return {
     exchange: result.exchange,
     symbol: result.symbol,
     timeframe: result.timeframe,
-    groupCode: groupCodeByResultGroup[resultGroup],
-    actionCode: actionCodeByBias[result.actionBias] ?? "NX_801",
-    riskCode: riskCodes[0] ?? null,
-    riskCodes,
-    setupCode: setupCodeByPrimaryStructure[result.primaryStructure] ?? "NX_801",
-    phaseCode: phaseCodeByMarketPhase[result.phase] ?? "NX_801",
-    reasonCodes,
-    signalCodes,
-    qualityCodes: getQualityCodes(result),
-    metrics: {
-      score: result.rankScore,
-      rankScore: result.rankScore,
-      finalSignalScore: result.finalSignalScore ?? result.rankScore ?? 0,
-      opportunityScore: result.opportunityScore ?? 0,
-      confirmationScore: result.confirmationScore ?? 0,
-      riskScore: result.riskScore ?? 0,
-      qualityScore: calculateQualityScore(result),
-      trendScore: result.trendScore ?? 0,
-      momentumScore: result.momentumScore ?? 0,
-      volumeScore: result.volumeScore ?? 0,
-      structureScore: result.structureScore ?? 0,
-      volumeRank: result.volume?.ratio20 ?? null,
-      historyBars: result.dataQuality?.candleCount ?? 0,
-      price: result.price,
-      rsi14: result.rsi14,
-      bbPercent: result.bbPercent,
-      bbWidthPercentile: result.bbWidthPercentile,
-      volumeRatio: result.volumeRatio,
-    },
+    assetClass: contract.assetClass,
+    groupCode: toCode(contract.groupCode, "GR_101"),
+    actionCode: toCode(contract.actionCode, "AC_101"),
+    riskCode: nullableCode(contract.riskCode),
+    riskCodes: normalizeCodes(contract.riskCodes),
+    setupCode: toCode(contract.setupCode, "ST_001"),
+    phaseCode: toCode(contract.phaseCode, "NX_801"),
+    reasonCodes: normalizeCodes(contract.reasonCodes),
+    signalCodes: normalizeCodes(contract.signalCodes),
+    qualityCodes: normalizeCodes(contract.qualityCodes),
+    metrics: normalizeMetrics(contract.metrics, result),
+    scannerVersion: contract.scannerVersion || scannerCodeVersions.scannerVersion,
+    codeSchemaVersion:
+      contract.codeSchemaVersion || scannerCodeVersions.codeSchemaVersion,
+    dictionaryVersion:
+      contract.dictionaryVersion || scannerCodeVersions.dictionaryVersion,
+  };
+}
+
+function normalizeMetrics(
+  metrics: ScannerCodeContractMetrics | undefined,
+  result: ScanResult,
+): ScannerCodeContractMetrics {
+  return {
+    rankScore: numberOrNull(metrics?.rankScore ?? result.rankScore),
+    riskAdjustedScore: numberOrNull(
+      metrics?.riskAdjustedScore ?? result.riskAdjustedScore ?? result.finalSignalScore,
+    ),
+    setupQualityScore: numberOrNull(
+      metrics?.setupQualityScore ?? result.setupQualityScore ?? result.opportunityScore,
+    ),
+    confidenceScore: numberOrNull(
+      metrics?.confidenceScore ?? result.confidenceScore ?? result.confirmationScore,
+    ),
+    absoluteSetupScore: numberOrNull(
+      metrics?.absoluteSetupScore ??
+        result.absoluteSetupScore ??
+        result.setupQualityScore ??
+        result.opportunityScore,
+    ),
+    universePercentile: numberOrNull(
+      metrics?.universePercentile ?? result.universePercentile ?? null,
+    ),
+    trendScore: numberOrNull(metrics?.trendScore ?? result.trendScore),
+    momentumScore: numberOrNull(metrics?.momentumScore ?? result.momentumScore),
+    structureScore: numberOrNull(metrics?.structureScore ?? result.structureScore),
+    volatilityScore: numberOrNull(metrics?.volatilityScore ?? result.volatilityScore),
+    volumeScore: numberOrNull(metrics?.volumeScore ?? result.volumeScore),
+    mtfAgreementScore: numberOrNull(
+      metrics?.mtfAgreementScore ?? result.mtfAgreementScore ?? null,
+    ),
+    riskPenalty: numberOrNull(
+      metrics?.riskPenalty ?? result.riskPenalty ?? result.riskScore,
+    ),
+    qualityPenalty: numberOrNull(metrics?.qualityPenalty ?? result.qualityPenalty),
+    historyBars: numberOrNull(
+      metrics?.historyBars ?? result.dataQuality?.candleCount ?? null,
+    ),
+    volumeRank: numberOrNull(metrics?.volumeRank ?? result.volume?.ratio20 ?? null),
+    volatilityPercentile: numberOrNull(
+      metrics?.volatilityPercentile ?? result.bbWidthPercentile,
+    ),
+    atrExtension: numberOrNull(metrics?.atrExtension ?? null),
+    distanceFromBase: numberOrNull(metrics?.distanceFromBase ?? null),
+    scoringModelVersion: QUANT_SCORING_MODEL_VERSION,
+    scoringCalibrationVersion: QUANT_SCORING_CALIBRATION_VERSION,
+    score: numberOrNull(metrics?.score ?? metrics?.rankScore ?? result.rankScore),
+    finalSignalScore: numberOrNull(
+      metrics?.finalSignalScore ??
+        metrics?.riskAdjustedScore ??
+        result.finalSignalScore,
+    ),
+    opportunityScore: numberOrNull(
+      metrics?.opportunityScore ??
+        metrics?.setupQualityScore ??
+        result.opportunityScore,
+    ),
+    confirmationScore: numberOrNull(
+      metrics?.confirmationScore ??
+        metrics?.confidenceScore ??
+        result.confirmationScore,
+    ),
+    riskScore: numberOrNull(
+      metrics?.riskScore ?? metrics?.riskPenalty ?? result.riskScore,
+    ),
+    qualityScore: numberOrNull(metrics?.qualityScore ?? null),
+    price: numberOrNull(metrics?.price ?? result.price),
+    rsi14: numberOrNull(metrics?.rsi14 ?? result.rsi14),
+    bbPercent: numberOrNull(metrics?.bbPercent ?? result.bbPercent),
+    bbWidthPercentile: numberOrNull(
+      metrics?.bbWidthPercentile ?? result.bbWidthPercentile,
+    ),
+    volumeRatio: numberOrNull(metrics?.volumeRatio ?? result.volumeRatio),
+  };
+}
+
+function buildFallbackCodeContract(result: ScanResult): ScannerCodeContractShape {
+  return {
+    exchange: result.exchange,
+    symbol: result.symbol,
+    timeframe: result.timeframe,
+    groupCode: "GR_101",
+    actionCode: "AC_101",
+    riskCode: null,
+    riskCodes: [],
+    setupCode: "ST_001",
+    phaseCode: "NX_801",
+    reasonCodes: [],
+    signalCodes: [],
+    qualityCodes: result.dataQuality?.sufficientHistory ? ["QH_001"] : ["QH_201"],
+    metrics: normalizeMetrics(undefined, result),
     ...scannerCodeVersions,
   };
 }
 
-function observationsToCodes(observations: ScannerObservation[]) {
-  return observations
-    .map((observation) => observationCodeByKey[observation.key])
-    .filter(isActiveScannerCode);
+function normalizeCodes(values: unknown) {
+  const rawValues = Array.isArray(values) ? values : [];
+
+  return [...new Set(rawValues.filter(isScannerCode))];
 }
 
-function explanationsToCodes(explanations: ScannerExplanation[]) {
-  return explanations
-    .map((explanation) => explanationCodeByKey[explanation.key])
-    .filter(isActiveScannerCode);
+function nullableCode(value: unknown) {
+  return isScannerCode(value) ? value : null;
 }
 
-function getQualityCodes(result: ScanResult) {
-  const codes: ActiveScannerCode[] = [];
-
-  if (!result.dataQuality?.sufficientHistory) {
-    codes.push("QH_201");
-  }
-
-  if ((result.dataQuality?.missingIndicators ?? []).length > 0) {
-    codes.push("QH_101");
-  }
-
-  if (result.volume?.ratio20 !== null && result.volume?.ratio20 < 0.75) {
-    codes.push("VL_104");
-  }
-
-  if (codes.length === 0) {
-    codes.push("QH_001");
-  }
-
-  return uniqueCodes(codes);
+function toCode(value: unknown, fallback: ActiveScannerCode) {
+  return isScannerCode(value) ? value : fallback;
 }
 
-function calculateQualityScore(result: ScanResult) {
-  let score = result.dataQuality?.sufficientHistory ? 70 : 35;
-
-  if ((result.dataQuality?.candleCount ?? 0) >= 420) {
-    score += 15;
-  } else if ((result.dataQuality?.candleCount ?? 0) >= 200) {
-    score += 10;
-  }
-
-  if (result.volume?.ratio20 !== null && result.volume?.ratio20 >= 1) {
-    score += 10;
-  }
-
-  if ((result.dataQuality?.missingIndicators ?? []).length === 0) {
-    score += 5;
-  }
-
-  return Math.max(0, Math.min(100, score));
-}
-
-function uniqueCodes(codes: ActiveScannerCode[]) {
-  return [...new Set(codes)];
-}
-
-function isActiveScannerCode(
-  code: ActiveScannerCode | undefined,
-): code is ActiveScannerCode {
-  return code !== undefined;
+function numberOrNull(value: unknown) {
+  return typeof value === "number" && Number.isFinite(value) ? value : null;
 }

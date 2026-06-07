@@ -2,10 +2,11 @@ import type { Candle, Timeframe } from "@/lib/exchanges/types";
 import { calculateIndicatorSnapshot } from "@/lib/indicators";
 import { getReasons, getInvalidation, getNextConfirmation } from "./explanations";
 import { determineMarketPhase } from "./marketPhase";
+import { buildResearchSignal, calculateScannerScores } from "./quantScoring";
 import { getRiskWarnings } from "./riskFilters";
-import { buildLegacySignal, calculateScannerScores } from "./scoring";
 import type { ScanResult } from "./types";
 import { getVolumeAnalysis } from "./volumeAnalysis";
+import { scannerCodeVersions } from "@/lib/scanner-codebook/codeRegistry";
 
 export function scanCandles(
   symbol: string,
@@ -25,8 +26,27 @@ export function scanCandles(
     volume,
     candles: closedCandles,
   });
-  const signal = buildLegacySignal(scores.signalLabel, scores.actionBias);
+  const signal = buildResearchSignal(
+    scores.attribution.groupCode,
+    scores.attribution.actionCode,
+  );
   const lastClosedCandle = closedCandles.at(-1);
+  const codeContract = {
+    exchange: "binance" as const,
+    symbol,
+    timeframe,
+    groupCode: scores.attribution.groupCode,
+    actionCode: scores.attribution.actionCode,
+    riskCode: scores.attribution.riskCode,
+    riskCodes: scores.attribution.riskCodes,
+    setupCode: scores.attribution.setupCode,
+    phaseCode: scores.attribution.phaseCode,
+    reasonCodes: scores.attribution.reasonCodes,
+    signalCodes: scores.attribution.signalCodes,
+    qualityCodes: scores.attribution.qualityCodes,
+    metrics: scores.metrics,
+    ...scannerCodeVersions,
+  };
 
   return {
     exchange: "binance",
@@ -36,8 +56,9 @@ export function scanCandles(
     phase,
     signal,
     ...scores,
+    codeContract,
     rsi14: snapshot.rsi14,
-    bbPercent: scores.rawMetrics.bbPercent,
+    bbPercent: scores.metrics.bbPercent ?? null,
     bbWidthPercentile: snapshot.bollinger.widthPercentile,
     volumeRatio: snapshot.volume.ratio20,
     volume,

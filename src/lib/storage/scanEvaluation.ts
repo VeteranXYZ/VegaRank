@@ -294,6 +294,8 @@ export function calculateForwardOutcome({
         return "neutral";
       }
       return returnPct > 0 ? "favorable" : "unfavorable";
+    default:
+      return "neutral";
   }
 }
 

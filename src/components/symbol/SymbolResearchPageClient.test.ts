@@ -306,7 +306,7 @@ describe("symbol market context implication copy", () => {
         data: makeMarketContextResponse(),
         selectedGroup: "eligible",
         selectedTimeframe: "4h",
-        timeframeSnapshots: [{ timeframe: "1d", groupCode: "GR_302" }],
+        timeframeSnapshots: [{ timeframe: "1d", groupCode: "GR_301" }],
       }),
     ).toContain("Higher-timeframe risk in the symbol snapshot");
 
@@ -892,7 +892,7 @@ function makeSuccessResponse({
       structureScore: 80,
     },
     interpretation: {
-      groupCode: "GR_201",
+      groupCode: "GR_501",
       actionCode: "AC_501",
       setupCode: "TR_601",
       phaseCode: "TR_601",
@@ -999,7 +999,7 @@ function makeSymbolResearchSignal(
   const groupCode =
     stringOverride(overrides.groupCode) ??
     groupCodeByResultGroup[readableGroup as keyof typeof groupCodeByResultGroup] ??
-    "GR_201";
+    "GR_501";
   const rankScore = numberOverride(overrides.rankScore) ?? 82;
 
   return {

@@ -616,15 +616,15 @@ describe("trade-api historical snapshots", () => {
     ]);
     expect(body.rows[0]).toMatchObject({
       symbol: "SEIUSDT",
-      groupCode: "GR_201",
+      groupCode: "GR_501",
       actionCode: "AC_501",
       setupCode: "TR_601",
     });
     expectPublicScannerCodeContract(body.rows[0]);
     expect(body.rows[1]).toMatchObject({
       symbol: "RISKUSDT",
-      groupCode: "GR_302",
-      riskCodes: ["RK_304"],
+      groupCode: "GR_301",
+      riskCodes: ["RK_302"],
     });
     expectPublicScannerCodeContract(body.rows[1]);
     expect(getHistoricalScanRunMock).toHaveBeenCalledWith({
@@ -766,7 +766,7 @@ describe("trade-api historical snapshots", () => {
 
     expect(rowsBySymbol.get("SEIUSDT")).toMatchObject({
       symbol: "SEIUSDT",
-      groupCode: "GR_201",
+      groupCode: "GR_501",
       actionCode: "AC_501",
       anchorSource: "stored_signal",
       window: 3,
@@ -780,8 +780,8 @@ describe("trade-api historical snapshots", () => {
     );
     expect(rowsBySymbol.get("RISKUSDT")).toMatchObject({
       symbol: "RISKUSDT",
-      groupCode: "GR_302",
-      riskCodes: ["RK_304"],
+      groupCode: "GR_301",
+      riskCodes: ["RK_302"],
       dataStatus: "partial",
       missingReason: "insufficient_future_candles",
     });
@@ -1289,7 +1289,7 @@ describe("trade-api market context", () => {
     expect(body.proxies.BTCUSDT["1d"]).toMatchObject({
       available: true,
       timeframe: "1d",
-      groupCode: "GR_201",
+      groupCode: "GR_501",
       signalCodes: ["PX_501"],
       metrics: { rankScore: 84 },
       runContext: "selected_full_universe",
@@ -1401,8 +1401,8 @@ describe("trade-api market context", () => {
     });
     expect(body.proxies.BTCUSDT["4h"]).toMatchObject({
       available: true,
-      groupCode: "GR_302",
-      riskCodes: ["RK_304"],
+      groupCode: "GR_301",
+      riskCodes: ["RK_302"],
       runContext: "selected_full_universe",
     });
     expectPublicScannerCodeContract(body.proxies.BTCUSDT["4h"]);
@@ -1525,7 +1525,7 @@ describe("trade-api multi-timeframe latest screener", () => {
     expect(btc.timeframes["1h"]).toMatchObject({
       id: "1h-btc",
       symbol: "BTCUSDT",
-      groupCode: "GR_201",
+      groupCode: "GR_501",
       actionCode: "AC_501",
       setupCode: "TR_601",
       scanTime: "2026-05-31T00:00:01.000Z",
@@ -1537,7 +1537,7 @@ describe("trade-api multi-timeframe latest screener", () => {
     expect(btc.timeframes["1w"]).toBeNull();
     expect(sei.timeframes["1d"]).toMatchObject({
       id: "1d-sei",
-      groupCode: "GR_302",
+      groupCode: "GR_301",
     });
     expectPublicScannerCodeContract(sei.timeframes["1d"]);
     expect(eth.timeframes["1h"]).toBeNull();
@@ -1631,7 +1631,7 @@ describe("trade-api symbol research", () => {
     expect(body.symbol.symbol).toBe("SEIUSDT");
     expect(body.latest.scanRun.id).toBe("full-run");
     expect(body.latest.signal.id).toBe("signal-latest");
-    expect(body.latest.signal.groupCode).toBe("GR_201");
+    expect(body.latest.signal.groupCode).toBe("GR_501");
     expect(body.latest.signal.actionCode).toBe("AC_501");
     expectPublicScannerCodeContract(body.latest.signal);
     expect(body.latest.signal.isSelectedCurrentRun).toBe(true);
@@ -1655,7 +1655,7 @@ describe("trade-api symbol research", () => {
       opportunityScore: 74,
     });
     expect(body.interpretation).toMatchObject({
-      groupCode: "GR_201",
+      groupCode: "GR_501",
       actionCode: "AC_501",
       setupCode: "TR_601",
     });
@@ -1906,7 +1906,7 @@ describe("trade-api symbol research", () => {
     expect(response.status).toBe(200);
     expect(body.timeframe).toBe("4h");
     expect(body.latest.signal.id).toBe("selected-risk");
-    expect(body.latest.signal.groupCode).toBe("GR_302");
+    expect(body.latest.signal.groupCode).toBe("GR_301");
     expectPublicScannerCodeContract(body.latest.signal);
     expect(body.history[0]).toMatchObject({
       id: "newer-limited",

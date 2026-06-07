@@ -380,8 +380,8 @@ describe("multi-timeframe screener helpers", () => {
 
     expect(formatMtfGroup(row.snapshots["4h"])).toBe("Not returned");
     expect(formatMtfRank(row.snapshots["4h"])).toBe("-");
-    expect(getMtfPrimarySignal(row)).toBe("1h Trend Breakdown Risk / Risk");
-    expect(getMtfRiskNotes(row)).toBe("1h: Distribution Risk");
+    expect(getMtfPrimarySignal(row)).toBe("1h False Breakout Risk / Risk");
+    expect(getMtfRiskNotes(row)).toBe("1h: Poor Reward-Risk");
   });
 
   it("summarizes risk notes with accessible hidden details", () => {
@@ -746,6 +746,11 @@ function makeItem(
     metrics: {
       score: rankScore,
       rankScore,
+      riskAdjustedScore: rankScore,
+      setupQualityScore: null,
+      confidenceScore: null,
+      absoluteSetupScore: null,
+      universePercentile: null,
       finalSignalScore: rankScore,
       opportunityScore: null,
       confirmationScore: null,
@@ -755,8 +760,17 @@ function makeItem(
       momentumScore: null,
       volumeScore: null,
       structureScore: null,
+      volatilityScore: null,
+      mtfAgreementScore: null,
+      riskPenalty: null,
+      qualityPenalty: null,
       volumeRank: null,
       historyBars: null,
+      volatilityPercentile: null,
+      atrExtension: null,
+      distanceFromBase: null,
+      scoringModelVersion: "quant-factor-v1",
+      scoringCalibrationVersion: "deterministic-baseline-1",
       price: null,
       rsi14: null,
       bbPercent: null,

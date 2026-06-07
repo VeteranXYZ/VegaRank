@@ -3,27 +3,13 @@ import {
   scannerCodeVersions,
   type ActiveScannerCode,
 } from "./codeRegistry";
+import type { ScannerCodeContractMetrics } from "@/lib/shared/scannerTypes";
+import {
+  QUANT_SCORING_CALIBRATION_VERSION,
+  QUANT_SCORING_MODEL_VERSION,
+} from "@/lib/scanner/quantScoring";
 
-export type ScannerStoredCodeMetrics = {
-  score: number | null;
-  rankScore: number | null;
-  finalSignalScore: number | null;
-  opportunityScore: number | null;
-  confirmationScore: number | null;
-  riskScore: number | null;
-  qualityScore: number | null;
-  trendScore: number | null;
-  momentumScore: number | null;
-  volumeScore: number | null;
-  structureScore: number | null;
-  volumeRank: number | null;
-  historyBars: number | null;
-  price: number | null;
-  rsi14: number | null;
-  bbPercent: number | null;
-  bbWidthPercentile: number | null;
-  volumeRatio: number | null;
-};
+export type ScannerStoredCodeMetrics = ScannerCodeContractMetrics;
 
 export type StoredSignalCodeFields = {
   groupCode: ActiveScannerCode;
@@ -179,68 +165,11 @@ export function serializeStoredSignalToCodeContract(
     candleOpenTime: source.candleOpenTime,
     ...codeFields,
     qualityCodes,
-    metrics: {
-      score:
-        numberValue(embeddedMetrics?.score) ??
-        numberValue(embeddedMetrics?.rankScore) ??
-        source.rankScore ??
-        null,
-      rankScore:
-        numberValue(embeddedMetrics?.rankScore) ?? source.rankScore ?? null,
-      finalSignalScore:
-        numberValue(embeddedMetrics?.finalSignalScore) ??
-        source.finalSignalScore ??
-        null,
-      opportunityScore:
-        numberValue(embeddedMetrics?.opportunityScore) ??
-        source.opportunityScore ??
-        null,
-      confirmationScore:
-        numberValue(embeddedMetrics?.confirmationScore) ??
-        source.confirmationScore ??
-        null,
-      riskScore:
-        numberValue(embeddedMetrics?.riskScore) ?? source.riskScore ?? null,
-      qualityScore:
-        numberValue(embeddedMetrics?.qualityScore) ??
-        numberValue(rawMetrics.qualityScore),
-      trendScore:
-        numberValue(embeddedMetrics?.trendScore) ?? source.trendScore ?? null,
-      momentumScore:
-        numberValue(embeddedMetrics?.momentumScore) ??
-        source.momentumScore ??
-        null,
-      volumeScore:
-        numberValue(embeddedMetrics?.volumeScore) ?? source.volumeScore ?? null,
-      structureScore:
-        numberValue(embeddedMetrics?.structureScore) ??
-        source.structureScore ??
-        null,
-      volumeRank:
-        numberValue(embeddedMetrics?.volumeRank) ??
-        numberValue(rawMetrics.volumeRank),
-      historyBars:
-        numberValue(embeddedMetrics?.historyBars) ??
-        (typeof source.candleCount === "number"
-          ? source.candleCount
-          : numberValue(rawMetrics.historyBars)),
-      price:
-        numberValue(embeddedMetrics?.price) ??
-        source.priceAtSignal ??
-        numberValue(rawMetrics.price),
-      rsi14:
-        numberValue(embeddedMetrics?.rsi14) ??
-        numberValue(rawMetrics.rsi14 ?? rawMetrics.rsi),
-      bbPercent:
-        numberValue(embeddedMetrics?.bbPercent) ??
-        numberValue(rawMetrics.bbPercent),
-      bbWidthPercentile:
-        numberValue(embeddedMetrics?.bbWidthPercentile) ??
-        numberValue(rawMetrics.bbWidthPercentile),
-      volumeRatio:
-        numberValue(embeddedMetrics?.volumeRatio) ??
-        numberValue(rawMetrics.volumeRatio),
-    },
+    metrics: buildStoredMetrics({
+      embeddedMetrics,
+      rawMetrics,
+      source,
+    }),
   };
 }
 
@@ -297,6 +226,107 @@ const qualityCodeBySymbolQualityValue: Partial<Record<string, ActiveScannerCode>
 
 function uniqueCodes(codes: ActiveScannerCode[]) {
   return [...new Set(codes)];
+}
+
+function buildStoredMetrics({
+  embeddedMetrics,
+  rawMetrics,
+  source,
+}: {
+  embeddedMetrics: Record<string, unknown> | null;
+  rawMetrics: Record<string, unknown>;
+  source: PublicStoredScannerSignalInput;
+}): ScannerStoredCodeMetrics {
+  const rankScore = numberValue(embeddedMetrics?.rankScore) ?? source.rankScore ?? null;
+  const riskAdjustedScore =
+    numberValue(embeddedMetrics?.riskAdjustedScore) ??
+    numberValue(embeddedMetrics?.finalSignalScore) ??
+    source.finalSignalScore ??
+    null;
+  const setupQualityScore =
+    numberValue(embeddedMetrics?.setupQualityScore) ??
+    numberValue(embeddedMetrics?.opportunityScore) ??
+    source.opportunityScore ??
+    null;
+  const confidenceScore =
+    numberValue(embeddedMetrics?.confidenceScore) ??
+    numberValue(embeddedMetrics?.confirmationScore) ??
+    source.confirmationScore ??
+    null;
+  const riskPenalty =
+    numberValue(embeddedMetrics?.riskPenalty) ??
+    numberValue(embeddedMetrics?.riskScore) ??
+    source.riskScore ??
+    null;
+
+  return {
+    rankScore,
+    riskAdjustedScore,
+    setupQualityScore,
+    confidenceScore,
+    absoluteSetupScore:
+      numberValue(embeddedMetrics?.absoluteSetupScore) ?? setupQualityScore,
+    universePercentile: numberValue(embeddedMetrics?.universePercentile),
+    trendScore:
+      numberValue(embeddedMetrics?.trendScore) ?? source.trendScore ?? null,
+    momentumScore:
+      numberValue(embeddedMetrics?.momentumScore) ??
+      source.momentumScore ??
+      null,
+    structureScore:
+      numberValue(embeddedMetrics?.structureScore) ??
+      source.structureScore ??
+      null,
+    volatilityScore: numberValue(embeddedMetrics?.volatilityScore),
+    volumeScore:
+      numberValue(embeddedMetrics?.volumeScore) ?? source.volumeScore ?? null,
+    mtfAgreementScore: numberValue(embeddedMetrics?.mtfAgreementScore),
+    riskPenalty,
+    qualityPenalty: numberValue(embeddedMetrics?.qualityPenalty),
+    historyBars:
+      numberValue(embeddedMetrics?.historyBars) ??
+      (typeof source.candleCount === "number"
+        ? source.candleCount
+        : numberValue(rawMetrics.historyBars)),
+    volumeRank:
+      numberValue(embeddedMetrics?.volumeRank) ??
+      numberValue(rawMetrics.volumeRank),
+    volatilityPercentile:
+      numberValue(embeddedMetrics?.volatilityPercentile) ??
+      numberValue(embeddedMetrics?.bbWidthPercentile) ??
+      numberValue(rawMetrics.bbWidthPercentile),
+    atrExtension: numberValue(embeddedMetrics?.atrExtension),
+    distanceFromBase: numberValue(embeddedMetrics?.distanceFromBase),
+    scoringModelVersion: QUANT_SCORING_MODEL_VERSION,
+    scoringCalibrationVersion: QUANT_SCORING_CALIBRATION_VERSION,
+    score: numberValue(embeddedMetrics?.score) ?? rankScore,
+    finalSignalScore:
+      numberValue(embeddedMetrics?.finalSignalScore) ?? riskAdjustedScore,
+    opportunityScore:
+      numberValue(embeddedMetrics?.opportunityScore) ?? setupQualityScore,
+    confirmationScore:
+      numberValue(embeddedMetrics?.confirmationScore) ?? confidenceScore,
+    riskScore: numberValue(embeddedMetrics?.riskScore) ?? riskPenalty,
+    qualityScore:
+      numberValue(embeddedMetrics?.qualityScore) ??
+      numberValue(rawMetrics.qualityScore),
+    price:
+      numberValue(embeddedMetrics?.price) ??
+      source.priceAtSignal ??
+      numberValue(rawMetrics.price),
+    rsi14:
+      numberValue(embeddedMetrics?.rsi14) ??
+      numberValue(rawMetrics.rsi14 ?? rawMetrics.rsi),
+    bbPercent:
+      numberValue(embeddedMetrics?.bbPercent) ??
+      numberValue(rawMetrics.bbPercent),
+    bbWidthPercentile:
+      numberValue(embeddedMetrics?.bbWidthPercentile) ??
+      numberValue(rawMetrics.bbWidthPercentile),
+    volumeRatio:
+      numberValue(embeddedMetrics?.volumeRatio) ??
+      numberValue(rawMetrics.volumeRatio),
+  };
 }
 
 function firstCode(...values: unknown[]) {

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { Pool } from "pg";
 import type { ScanResult } from "@/lib/scanner/types";
+import { scannerCodeVersions } from "@/lib/scanner-codebook/codeRegistry";
 import {
   PgScannerResultsStore,
   isLikelyFullUniverseRun,
@@ -723,21 +724,21 @@ describe("PgScannerResultsStore latest scan queries", () => {
     const invalidation = JSON.parse(params[23] as string);
     const rawMetrics = JSON.parse(params[24] as string);
 
-    expect(signalLabel).toBe("PX_501");
-    expect(actionBias).toBe("AC_501");
+    expect(signalLabel).toBe("TR_601");
+    expect(actionBias).toBe("AC_601");
     expect(primaryStructure).toBe("TR_601");
-    expect(detectedRiskTypes).toEqual(["RK_301"]);
+    expect(detectedRiskTypes).toEqual(["RK_303"]);
     expect(factors).toMatchObject({
-      groupCode: "GR_101",
-      actionCode: "AC_501",
-      riskCode: "RK_301",
-      riskCodes: ["RK_301"],
+      groupCode: "GR_601",
+      actionCode: "AC_601",
+      riskCode: "RK_303",
+      riskCodes: ["RK_303"],
       setupCode: "TR_601",
-      signalCodes: ["PX_501", "TR_501"],
-      reasonCodes: ["RK_301", "TR_603", "TR_304"],
+      signalCodes: ["TR_601"],
+      reasonCodes: ["TR_501"],
     });
-    expect(nextConfirmation).toEqual(["TR_603"]);
-    expect(invalidation).toEqual(["TR_304"]);
+    expect(nextConfirmation).toEqual([]);
+    expect(invalidation).toEqual([]);
     expect(rawMetrics.codeContract).toMatchObject(factors);
     expect([
       signalLabel,
@@ -782,6 +783,64 @@ function makeInsertResult(): ScanResult {
     structureScore: 75,
     finalSignalScore: 72,
     rankScore: 72,
+    riskAdjustedScore: 72,
+    setupQualityScore: 70,
+    confidenceScore: 80,
+    absoluteSetupScore: 70,
+    universePercentile: 90,
+    volatilityScore: 55,
+    mtfAgreementScore: 50,
+    riskPenalty: 10,
+    qualityPenalty: 0,
+    codeContract: {
+      exchange: "binance",
+      symbol: "BTCUSDT",
+      timeframe: "4h",
+      groupCode: "GR_601",
+      actionCode: "AC_601",
+      riskCode: "RK_303",
+      riskCodes: ["RK_303"],
+      setupCode: "TR_601",
+      phaseCode: "TR_601",
+      reasonCodes: ["TR_501"],
+      signalCodes: ["TR_601"],
+      qualityCodes: ["QH_001"],
+      metrics: {
+        score: 72,
+        rankScore: 72,
+        riskAdjustedScore: 72,
+        setupQualityScore: 70,
+        confidenceScore: 80,
+        absoluteSetupScore: 70,
+        universePercentile: 90,
+        finalSignalScore: 72,
+        opportunityScore: 70,
+        confirmationScore: 80,
+        riskScore: 10,
+        qualityScore: 100,
+        trendScore: 90,
+        momentumScore: 40,
+        volumeScore: 20,
+        structureScore: 75,
+        volatilityScore: 55,
+        mtfAgreementScore: 50,
+        riskPenalty: 10,
+        qualityPenalty: 0,
+        volumeRank: 1.2,
+        historyBars: 300,
+        volatilityPercentile: 50,
+        atrExtension: null,
+        distanceFromBase: null,
+        scoringModelVersion: "quant-factor-v1",
+        scoringCalibrationVersion: "deterministic-baseline-1",
+        price: 100,
+        rsi14: 58,
+        bbPercent: 65,
+        bbWidthPercentile: 50,
+        volumeRatio: 1.2,
+      },
+      ...scannerCodeVersions,
+    },
     signalLabel: "confirmed",
     actionBias: "eligible",
     primaryStructure: "strong_trend",
@@ -793,16 +852,8 @@ function makeInsertResult(): ScanResult {
     bearishObservations: [],
     riskObservations: [{ key: "risk.overheat", severity: "risk", scope: "risk" }],
     neutralObservations: [],
-    nextConfirmationObservations: [
-      { key: "confirmation.reclaimMa50", severity: "neutral", scope: "confirmation" },
-    ],
-    invalidationObservations: [
-      {
-        key: "invalidation.loseMa20Repair",
-        severity: "warning",
-        scope: "invalidation",
-      },
-    ],
+    nextConfirmationObservations: [],
+    invalidationObservations: [],
     rawMetrics: {
       price: 100,
       rsi: 58,

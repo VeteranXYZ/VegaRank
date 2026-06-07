@@ -24,44 +24,72 @@ export const manualEnglishScannerCodeEntries = {
     short: "Worth monitoring, but confirmation is incomplete.",
   },
   GR_201: {
-    label: "Eligible",
-    short: "Candidate is eligible for manual review.",
+    label: "Constructive Watch",
+    short: "Setup is constructive, but confidence or confirmation is limited.",
   },
   GR_301: {
-    label: "Overheated",
-    short: "Move is extended; avoid chasing without a reset.",
-  },
-  GR_302: {
     label: "Risk",
     short: "Risk conditions dominate the scanner read.",
+  },
+  GR_302: {
+    label: "Overheated",
+    short: "Momentum or extension creates elevated chase risk.",
   },
   GR_401: {
     label: "Insufficient History",
     short: "Not enough candles are available for a reliable scanner read.",
+  },
+  GR_402: {
+    label: "Low Quality Excluded",
+    short: "Data or liquidity quality is below the scanner's research threshold.",
+  },
+  GR_501: {
+    label: "Eligible",
+    short: "Candidate is eligible for manual research review.",
+  },
+  GR_601: {
+    label: "High Priority",
+    short: "Candidate ranks highly with acceptable risk and stronger evidence.",
   },
   AC_001: {
     label: "Low Priority",
     short: "No immediate action is suggested by the scanner.",
   },
   AC_101: {
-    label: "Low Priority Review",
-    short: "Review only if broader context improves.",
+    label: "Watch",
+    short: "Keep on the research watchlist.",
+  },
+  AC_102: {
+    label: "Wait",
+    short: "Evidence is incomplete; wait for additional confirmation.",
+  },
+  AC_103: {
+    label: "Monitor Only",
+    short: "Monitor as background context without raising priority.",
   },
   AC_201: {
-    label: "Needs Confirmation",
-    short: "Wait for confirmation before treating this as actionable.",
+    label: "Manual Review",
+    short: "Review the scanner evidence manually.",
   },
   AC_301: {
-    label: "Overheated Review",
-    short: "Do not chase while extension risk is elevated.",
+    label: "Avoid Chasing",
+    short: "Extension risk is elevated; do not chase the move.",
   },
   AC_302: {
-    label: "Risk Review",
-    short: "Risk controls should dominate any review.",
+    label: "Reduce Priority",
+    short: "Risk or quality penalties reduce research priority.",
+  },
+  AC_401: {
+    label: "Exclude",
+    short: "Excluded from research priority because required evidence is weak.",
   },
   AC_501: {
-    label: "Manual Review",
-    short: "Candidate is suitable for manual research review.",
+    label: "Research Watch",
+    short: "Add to the research watchlist for manual review.",
+  },
+  AC_601: {
+    label: "High-Priority Review",
+    short: "Prioritize for manual research review.",
   },
   NX_001: {
     label: "Neutral",
@@ -164,20 +192,20 @@ export const manualEnglishScannerCodeEntries = {
     short: "One or more risk conditions were detected.",
   },
   RK_301: {
-    label: "Overheat Risk",
-    short: "Extension or momentum conditions are elevated.",
+    label: "Elevated Risk",
+    short: "Risk conditions are elevated.",
   },
   RK_302: {
-    label: "Distribution Risk",
-    short: "Volume or candle structure suggests distribution risk.",
+    label: "Poor Reward-Risk",
+    short: "Setup quality is outweighed by risk conditions.",
   },
   RK_303: {
-    label: "Weak Bounce Risk",
-    short: "Bounce structure is weak and may fail.",
+    label: "Chase Risk",
+    short: "Momentum or extension is late enough to reduce priority.",
   },
   RK_304: {
-    label: "Trend Breakdown Risk",
-    short: "Trend structure is breaking down.",
+    label: "False Breakout Risk",
+    short: "Breakout or reclaim evidence is vulnerable to failure.",
   },
   RK_305: {
     label: "Failed Breakout Risk",

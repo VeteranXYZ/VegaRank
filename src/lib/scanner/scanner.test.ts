@@ -94,9 +94,9 @@ describe("scanner phase classification", () => {
 });
 
 describe("scanner scoring", () => {
-  it("preserves unclamped score values", () => {
-    expect(clampScore(-20)).toBe(-20);
-    expect(clampScore(120)).toBe(120);
+  it("clamps score values to the quant v1 0-100 range", () => {
+    expect(clampScore(-20)).toBe(0);
+    expect(clampScore(120)).toBe(100);
     expect(clampScore(55)).toBe(55);
   });
 
@@ -118,9 +118,15 @@ describe("scanner scoring", () => {
 
     expect(scores.opportunityScore).toBeGreaterThan(0);
     expect(scores.confirmationScore).toBeGreaterThan(0);
-    expect(scores.riskScore).toBeLessThanOrEqual(0);
-    expect(scores.rankScore).toBe(scores.finalSignalScore);
+    expect(scores.riskScore).toBeGreaterThanOrEqual(0);
+    expect(scores.finalSignalScore).toBe(scores.riskAdjustedScore);
+    expect(scores.rankScore).toBeGreaterThanOrEqual(0);
+    expect(scores.rankScore).toBeLessThanOrEqual(100);
     expect(scores.trendScore).toBeGreaterThan(0);
+    expect(scores.metrics.scoringModelVersion).toBe("quant-factor-v1");
+    expect(scores.metrics.scoringCalibrationVersion).toBe(
+      "deterministic-baseline-1",
+    );
   });
 
   it("demotes high-risk phases in risk and rank scores", () => {
@@ -197,7 +203,9 @@ describe("scanner scoring", () => {
     expect(macdScores.confirmationScore).toBeGreaterThan(
       baseScores.confirmationScore,
     );
-    expect(macdScores.confirmationScore - baseScores.confirmationScore).toBe(25);
+    expect(macdScores.confirmationScore - baseScores.confirmationScore).toBeLessThan(
+      10,
+    );
   });
 
   it("caps opportunity score for breakdown compression structures", () => {
@@ -218,7 +226,7 @@ describe("scanner scoring", () => {
     });
 
     expect(scores.opportunityScore).toBeLessThanOrEqual(40);
-    expect(scores.rankScore).toBeLessThan(20);
+    expect(scores.rankScore).toBeLessThan(35);
   });
 
   it("caps opportunity score below both MA50 and MA200 without recovery confirmation", () => {
@@ -258,7 +266,9 @@ describe("scanner scoring", () => {
       phase: "SQUEEZE",
     });
 
-    expect(scores.confirmationScore).toBeLessThan(20);
+    expect(scores.confirmationScore).toBeGreaterThan(0);
+    expect(scores.qualityPenalty).toBeGreaterThan(0);
+    expect(scores.qualityPenalty).toBeLessThan(20);
     expect(scores.opportunityScore).toBeGreaterThan(0);
   });
 
@@ -284,8 +294,9 @@ describe("scanner scoring", () => {
       }),
     });
 
-    expect(scores.opportunityScore).toBeGreaterThanOrEqual(80);
+    expect(scores.opportunityScore).toBeGreaterThanOrEqual(60);
     expect(scores.confirmationScore).toBeGreaterThan(0);
+    expect(scores.attribution.reasonCodes).toContain("VO_202");
   });
 
   it("rewards breakout volume expansion as confirmation", () => {
@@ -417,11 +428,13 @@ describe("explainable scanner fixtures", () => {
       candles: [makeCandle({ open: 118, high: 126, low: 116, close: 125 })],
     });
 
-    expect(scores.trendScore).toBeGreaterThan(100);
+    expect(scores.trendScore).toBe(100);
     expect(scores.riskScore).toBeGreaterThan(70);
     expect(scores.signalLabel).toBe("overheated");
     expect(scores.actionBias).toBe("do_not_chase");
-    expect(scores.detectedRiskTypes).toContain("overheat_risk");
+    expect(scores.attribution.groupCode).toBe("GR_302");
+    expect(scores.attribution.actionCode).toBe("AC_301");
+    expect(scores.attribution.riskCodes).toContain("RK_303");
     expect(scores.signalLabel).not.toBe("confirmed");
   });
 
@@ -444,12 +457,13 @@ describe("explainable scanner fixtures", () => {
       candles: [makeCandle({ open: 86, high: 95, low: 84, close: 87 })],
     });
 
-    expect(["weak_bounce", "distribution_risk"]).toContain(scores.signalLabel);
+    expect(["weak_bounce", "distribution_risk", "breakdown_risk"]).toContain(
+      scores.signalLabel,
+    );
     expect(["avoid", "watch_only"]).toContain(scores.actionBias);
     expect(scores.riskScore).toBeGreaterThan(70);
-    expect(scores.confirmationScore).toBeLessThan(0);
-    expect(scores.detectedRiskTypes).toContain("weak_bounce_risk");
-    expect(scores.detectedRiskTypes).toContain("distribution_risk");
+    expect(scores.attribution.groupCode).toBe("GR_301");
+    expect(scores.attribution.riskCodes).toContain("RK_302");
   });
 
   it("Case C: classifies a watch candidate near MA50", () => {
@@ -476,11 +490,7 @@ describe("explainable scanner fixtures", () => {
     expect(scores.opportunityScore).toBeGreaterThan(0);
     expect(scores.confirmationScore).toBeGreaterThan(0);
     expect(scores.riskScore).toBeLessThan(70);
-    expect(scores.nextConfirmationObservations).toContainEqual({
-      key: "confirmation.reclaimMa50",
-      severity: "neutral",
-      scope: "confirmation",
-    });
+    expect(scores.attribution.reasonCodes).toContain("TR_501");
   });
 
   it("Case D: classifies a confirmed trend", () => {
@@ -535,9 +545,9 @@ describe("explainable scanner fixtures", () => {
 
     expect(scores.signalLabel).toBe("breakdown_risk");
     expect(scores.actionBias).toBe("avoid");
-    expect(scores.detectedRiskTypes).toContain("trend_breakdown_risk");
+    expect(scores.attribution.groupCode).toBe("GR_301");
     expect(scores.riskScore).toBeGreaterThan(70);
-    expect(scores.confirmationScore).toBeLessThan(0);
+    expect(scores.confirmationScore).toBeGreaterThan(0);
   });
 
   it("Case F: classifies a neutral mixed setup", () => {
@@ -560,7 +570,7 @@ describe("explainable scanner fixtures", () => {
     });
 
     expect(scores.signalLabel).toBe("neutral");
-    expect(scores.actionBias).toBe("ignore");
+    expect(scores.actionBias).toBe("watch_only");
     expect(Math.abs(scores.finalSignalScore)).toBeLessThan(50);
     expect(scores.detectedRiskTypes).toHaveLength(0);
   });

@@ -311,6 +311,27 @@ function buildPreviewSignal(overrides: PreviewSignalOverrides = {}): SymbolResea
     metrics: {
       score: rankScore,
       rankScore,
+      riskAdjustedScore:
+        overrides.metrics?.riskAdjustedScore ??
+        overrides.metrics?.finalSignalScore ??
+        overrides.finalSignalScore ??
+        83.4,
+      setupQualityScore:
+        overrides.metrics?.setupQualityScore ??
+        overrides.metrics?.opportunityScore ??
+        overrides.opportunityScore ??
+        86.1,
+      confidenceScore:
+        overrides.metrics?.confidenceScore ??
+        overrides.metrics?.confirmationScore ??
+        overrides.confirmationScore ??
+        82.6,
+      absoluteSetupScore:
+        overrides.metrics?.absoluteSetupScore ??
+        overrides.metrics?.opportunityScore ??
+        overrides.opportunityScore ??
+        86.1,
+      universePercentile: overrides.metrics?.universePercentile ?? null,
       finalSignalScore:
         overrides.metrics?.finalSignalScore ?? overrides.finalSignalScore ?? 83.4,
       opportunityScore:
@@ -325,8 +346,23 @@ function buildPreviewSignal(overrides: PreviewSignalOverrides = {}): SymbolResea
       volumeScore: overrides.metrics?.volumeScore ?? overrides.volumeScore ?? 68.5,
       structureScore:
         overrides.metrics?.structureScore ?? overrides.structureScore ?? 89.7,
+      volatilityScore: overrides.metrics?.volatilityScore ?? null,
+      mtfAgreementScore: overrides.metrics?.mtfAgreementScore ?? null,
+      riskPenalty:
+        overrides.metrics?.riskPenalty ??
+        overrides.metrics?.riskScore ??
+        overrides.riskScore ??
+        18.3,
+      qualityPenalty: overrides.metrics?.qualityPenalty ?? null,
       volumeRank: overrides.metrics?.volumeRank ?? null,
       historyBars: overrides.metrics?.historyBars ?? 720,
+      volatilityPercentile: overrides.metrics?.volatilityPercentile ?? null,
+      atrExtension: overrides.metrics?.atrExtension ?? null,
+      distanceFromBase: overrides.metrics?.distanceFromBase ?? null,
+      scoringModelVersion:
+        overrides.metrics?.scoringModelVersion ?? "quant-factor-v1",
+      scoringCalibrationVersion:
+        overrides.metrics?.scoringCalibrationVersion ?? "deterministic-baseline-1",
       price: overrides.metrics?.price ?? overrides.priceAtSignal ?? 102320,
       rsi14: overrides.metrics?.rsi14 ?? null,
       bbPercent: overrides.metrics?.bbPercent ?? null,

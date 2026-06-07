@@ -89,6 +89,7 @@ export type SymbolBehaviorLoadResult = {
 
 export type SymbolBehaviorCurrentSignalInput = {
   id?: string | null;
+  groupCode?: string | null;
   signalLabel?: string | null;
   actionBias?: string | null;
   primaryStructure?: string | null;
@@ -117,6 +118,7 @@ type SymbolBehaviorSignalRow = {
   price_at_signal: number | string | null;
   rank_score: number | string | null;
   risk_score: number | string | null;
+  group_code: string | null;
   signal_label: string | null;
   action_bias: string | null;
   primary_structure: string | null;
@@ -280,6 +282,7 @@ async function loadSymbolBehaviorRowsPg(
         ss.price_at_signal,
         ss.rank_score,
         ss.risk_score,
+        ss.factors->>'groupCode' AS group_code,
         ss.signal_label,
         ss.action_bias,
         ss.primary_structure,
@@ -335,6 +338,7 @@ async function loadSymbolBehaviorRowsPg(
 
 function analyzeBehaviorRow(row: SymbolBehaviorSignalRow): AnalyzedBehaviorOutcome {
   const resultGroup = classifyScanResultGroup({
+    groupCode: row.group_code,
     signalLabel: row.signal_label,
     actionBias: row.action_bias,
     primaryStructure: row.primary_structure,
@@ -446,6 +450,7 @@ function buildCurrentContext({
 }: LoadSymbolBehaviorPgInput): SymbolBehaviorCurrentContext {
   const resultGroup = currentSignal
     ? classifyScanResultGroup({
+        groupCode: currentSignal.groupCode,
         signalLabel: currentSignal.signalLabel,
         actionBias: currentSignal.actionBias,
         primaryStructure: currentSignal.primaryStructure,

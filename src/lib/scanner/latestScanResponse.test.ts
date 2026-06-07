@@ -76,7 +76,7 @@ describe("latest scan response", () => {
     expect(response.summary.allocationStrategy).toBe("balanced_group_quota_v1");
     expect(response.items[0]).toMatchObject({
       symbol: "ETHUSDT",
-      groupCode: "GR_201",
+      groupCode: "GR_501",
       actionCode: "AC_501",
       setupCode: "TR_601",
       signalCodes: ["PX_501"],
@@ -161,7 +161,7 @@ describe("latest scan response", () => {
 
     expect(item).toMatchObject({
       symbol: "ETHUSDT",
-      groupCode: "GR_201",
+      groupCode: "GR_501",
       actionCode: "AC_501",
       setupCode: "TR_601",
       signalCodes: ["PX_501"],

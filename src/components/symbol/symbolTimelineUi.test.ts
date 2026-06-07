@@ -52,13 +52,13 @@ describe("symbol timeline UI helpers", () => {
 
   it("formats risk types readably", () => {
     expect(getTimelineRiskText(["RK_303", "RK_305"])).toBe(
-      "Weak Bounce Risk, Failed Breakout Risk",
+      "Chase Risk, Failed Breakout Risk",
     );
     expect(getTimelineRiskText([{ risk: true }])).toBe("No specific risk codes noted.");
   });
 
   it("uses a safe group label fallback", () => {
-    expect(getTimelineGroupLabel("GR_201")).toBe("Eligible");
+    expect(getTimelineGroupLabel("GR_201")).toBe("Constructive Watch");
     expect(getTimelineGroupLabel("unknown_group")).toBe("Neutral");
   });
 
@@ -207,6 +207,11 @@ function makeMetricsBase(): TimelineMetrics {
   return {
     score: null,
     rankScore: null,
+    riskAdjustedScore: null,
+    setupQualityScore: null,
+    confidenceScore: null,
+    absoluteSetupScore: null,
+    universePercentile: null,
     finalSignalScore: null,
     opportunityScore: null,
     confirmationScore: null,
@@ -216,8 +221,17 @@ function makeMetricsBase(): TimelineMetrics {
     momentumScore: null,
     volumeScore: null,
     structureScore: null,
+    volatilityScore: null,
+    mtfAgreementScore: null,
+    riskPenalty: null,
+    qualityPenalty: null,
     volumeRank: null,
     historyBars: null,
+    volatilityPercentile: null,
+    atrExtension: null,
+    distanceFromBase: null,
+    scoringModelVersion: "quant-factor-v1",
+    scoringCalibrationVersion: "deterministic-baseline-1",
     price: null,
     rsi14: null,
     bbPercent: null,

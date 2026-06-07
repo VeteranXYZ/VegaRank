@@ -344,7 +344,11 @@ function SignalCell({ result }: { result: ScannerCodeContractResult }) {
   );
 }
 
-function getRiskTextClass(riskScore: number) {
+function getRiskTextClass(riskScore: number | null) {
+  if (riskScore === null) {
+    return "text-[var(--muted)]";
+  }
+
   if (riskScore > 100) {
     return "text-[var(--danger)]";
   }
@@ -356,7 +360,11 @@ function getRiskTextClass(riskScore: number) {
   return "text-[var(--muted)]";
 }
 
-function getFinalScoreTextClass(finalSignalScore: number) {
+function getFinalScoreTextClass(finalSignalScore: number | null) {
+  if (finalSignalScore === null) {
+    return "text-[var(--foreground)]";
+  }
+
   if (finalSignalScore > 100) {
     return "text-[var(--accent)]";
   }
@@ -375,13 +383,15 @@ function getFinalScoreTextClass(finalSignalScore: number) {
 function getSignalTextClass(groupCode: string) {
   switch (groupCode) {
     case "GR_201":
+    case "GR_501":
+    case "GR_601":
       return "border-[var(--eligible-border)] bg-[var(--eligible-bg)] text-[var(--eligible)]";
     case "GR_101":
       return "border-[var(--watch-border)] bg-[var(--watch-bg)] text-[var(--watch)]";
     case "GR_301":
-      return "border-[var(--overheated-border)] bg-[var(--overheated-bg)] text-[var(--overheated)]";
-    case "GR_302":
       return "border-[var(--risk-border)] bg-[var(--risk-bg)] text-[var(--risk)]";
+    case "GR_302":
+      return "border-[var(--overheated-border)] bg-[var(--overheated-bg)] text-[var(--overheated)]";
     default:
       return "border-[var(--neutral-border)] bg-[var(--neutral-bg)] text-[var(--neutral)]";
   }
@@ -406,7 +416,11 @@ function formatNumber(value: number, decimals: number) {
   return value.toFixed(decimals);
 }
 
-function formatSigned(value: number, decimals: number) {
+function formatSigned(value: number | null, decimals: number) {
+  if (value === null) {
+    return "n/a";
+  }
+
   const formatted = value.toFixed(decimals);
   return value > 0 ? `+${formatted}` : formatted;
 }

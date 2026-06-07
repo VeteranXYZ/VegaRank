@@ -869,7 +869,8 @@ export function mergeBatchScanResponses(
   }
 
   const results = Array.from(resultMap.values()).sort(
-    (left, right) => right.metrics.rankScore - left.metrics.rankScore,
+    (left, right) =>
+      nullableNumber(right.metrics.rankScore) - nullableNumber(left.metrics.rankScore),
   );
   const failedCount = responses.reduce(
     (sum, response) => sum + (response.failedCount ?? 0),
@@ -1121,8 +1122,8 @@ export function filterAndSortResults(
     return (
       matchesSignalFilter(result, filters.signal) &&
       matchesPhaseFilter(result, filters.phase) &&
-      result.metrics.opportunityScore >= filters.minOpportunityScore &&
-      result.metrics.riskScore <= filters.maxRiskScore
+      nullableNumber(result.metrics.opportunityScore) >= filters.minOpportunityScore &&
+      nullableNumber(result.metrics.riskScore) <= filters.maxRiskScore
     );
   });
 
@@ -1133,14 +1134,26 @@ export function filterAndSortResults(
   return filtered.sort((left, right) => {
     switch (filters.sortBy) {
       case "opportunityScore":
-        return right.metrics.opportunityScore - left.metrics.opportunityScore;
+        return (
+          nullableNumber(right.metrics.opportunityScore) -
+          nullableNumber(left.metrics.opportunityScore)
+        );
       case "confirmationScore":
-        return right.metrics.confirmationScore - left.metrics.confirmationScore;
+        return (
+          nullableNumber(right.metrics.confirmationScore) -
+          nullableNumber(left.metrics.confirmationScore)
+        );
       case "lowestRiskScore":
-        return left.metrics.riskScore - right.metrics.riskScore;
+        return (
+          nullableNumber(left.metrics.riskScore) -
+          nullableNumber(right.metrics.riskScore)
+        );
       case "rankScore":
       default:
-        return right.metrics.rankScore - left.metrics.rankScore;
+        return (
+          nullableNumber(right.metrics.rankScore) -
+          nullableNumber(left.metrics.rankScore)
+        );
     }
   });
 }
@@ -1171,7 +1184,9 @@ export function sortResultsByColumn(
       return primary;
     }
 
-    return right.metrics.rankScore - left.metrics.rankScore;
+    return (
+      nullableNumber(right.metrics.rankScore) - nullableNumber(left.metrics.rankScore)
+    );
   });
 }
 
@@ -1195,9 +1210,17 @@ function compareColumnValue(
       );
     case "score":
     case "rank":
-      return direction * (left.metrics.rankScore - right.metrics.rankScore);
+      return (
+        direction *
+        (nullableNumber(left.metrics.rankScore) -
+          nullableNumber(right.metrics.rankScore))
+      );
     case "ocr":
-      return direction * (left.metrics.opportunityScore - right.metrics.opportunityScore);
+      return (
+        direction *
+        (nullableNumber(left.metrics.opportunityScore) -
+          nullableNumber(right.metrics.opportunityScore))
+      );
     case "rsi":
       return direction * (nullableNumber(left.metrics.rsi14) - nullableNumber(right.metrics.rsi14));
     case "bb":

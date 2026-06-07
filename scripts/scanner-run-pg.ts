@@ -13,6 +13,7 @@ import {
   PgScannerResultsStore,
   type InsertScanSignalInput,
 } from "@/lib/storage/postgres/scannerResultsPg";
+import { calculateUniversePercentiles } from "@/lib/scanner/scoring";
 
 type ScannerRunOptions = {
   symbols: string[];
@@ -172,7 +173,7 @@ async function main() {
             });
             symbolsScanned += 1;
             console.info(
-              `scanner:run:pg ${symbol.symbol} scanned rankScore=${result.rankScore.toFixed(2)} signal=${result.signalLabel}`,
+              `scanner:run:pg ${symbol.symbol} scanned rankScore=${result.rankScore.toFixed(2)} group=${result.codeContract?.groupCode ?? "NX_801"}`,
             );
           } catch (error) {
             failedSymbols += 1;
@@ -183,6 +184,7 @@ async function main() {
       ),
     );
 
+    calculateUniversePercentiles(signals.map((signal) => signal.result));
     signals.sort((left, right) => right.result.rankScore - left.result.rankScore);
     await scannerResults.insertScanSignals(signals);
     signalsCreated = signals.length;
