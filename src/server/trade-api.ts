@@ -1125,6 +1125,7 @@ async function handleMarketContext(response: http.ServerResponse, url: URL) {
           assetClass: assetClass.value,
           includeNonScanner: false,
           includeMarketContext: false,
+          includeCoverage: false,
         });
 
         return {
@@ -1346,6 +1347,7 @@ async function handleMtfLatestScan(response: http.ServerResponse, url: URL) {
           assetClass: assetClass.value,
           includeNonScanner,
           includeMarketContext,
+          includeCoverage: false,
         });
 
         return {
@@ -2213,6 +2215,7 @@ async function handleHistorySnapshot(response: http.ServerResponse, url: URL) {
       assetClass: assetClass.value,
       includeNonScanner: false,
       includeMarketContext: false,
+      includeCoverage: false,
     });
     const rows = signals
       .sort(compareScanResultGroupItems)

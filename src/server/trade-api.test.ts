@@ -638,6 +638,7 @@ describe("trade-api historical snapshots", () => {
       assetClass: "crypto",
       includeNonScanner: false,
       includeMarketContext: false,
+      includeCoverage: false,
     });
   });
 
@@ -1322,6 +1323,7 @@ describe("trade-api market context", () => {
       assetClass: "crypto",
       includeNonScanner: false,
       includeMarketContext: false,
+      includeCoverage: false,
     });
     expect(closeMock).toHaveBeenCalled();
   });
@@ -1562,6 +1564,7 @@ describe("trade-api multi-timeframe latest screener", () => {
       assetClass: "crypto",
       includeNonScanner: false,
       includeMarketContext: false,
+      includeCoverage: false,
     });
   });
 });
