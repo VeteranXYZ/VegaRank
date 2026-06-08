@@ -84,6 +84,8 @@ const HISTORY_RESEARCH_DISCLAIMER =
 const HISTORY_OBSERVATION_READINESS_CANDIDATE_LIMIT = 25;
 const allowedOrigins = new Set([
   "https://s.bitcoinmind.com",
+  "https://vegarank.com",
+  "https://www.vegarank.com",
   "http://localhost:3000",
 ]);
 
