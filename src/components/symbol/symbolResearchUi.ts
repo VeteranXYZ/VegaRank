@@ -304,7 +304,7 @@ export function formatSymbolResearchScore(
   decimals = 1,
 ) {
   if (value === null || value === undefined || !Number.isFinite(value)) {
-    return "-";
+    return "N/A";
   }
 
   return value.toFixed(decimals);
@@ -1642,7 +1642,7 @@ function getResearchDecisionConfidenceNote({
   }
 
   return behaviorReadout?.sampleConfidenceLabel
-    ? `Behavior sample confidence: ${behaviorReadout.sampleConfidenceLabel}.`
+    ? `Behavior evidence reliability: ${behaviorReadout.sampleConfidenceLabel}.`
     : "Behavior sample quality is not available.";
 }
 

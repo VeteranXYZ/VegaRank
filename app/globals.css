@@ -439,10 +439,17 @@ a:focus-visible {
   margin-left: auto;
   display: flex;
   flex: 0 0 auto;
+  min-width: 0;
+  max-width: 100%;
   flex-wrap: wrap;
   align-items: center;
   justify-content: flex-end;
   gap: 0.25rem;
+}
+
+.terminal-command-actions > * {
+  min-width: 0;
+  max-width: 100%;
 }
 
 .terminal-command-band {

@@ -44,9 +44,9 @@ describe("symbol timeline UI helpers", () => {
   });
 
   it("formats missing scores safely", () => {
-    expect(formatTimelineScore(null)).toBe("-");
-    expect(formatTimelineScore(undefined)).toBe("-");
-    expect(formatTimelineScore(Number.NaN)).toBe("-");
+    expect(formatTimelineScore(null)).toBe("N/A");
+    expect(formatTimelineScore(undefined)).toBe("N/A");
+    expect(formatTimelineScore(Number.NaN)).toBe("N/A");
     expect(formatTimelineScore(72.24)).toBe("72.2");
   });
 

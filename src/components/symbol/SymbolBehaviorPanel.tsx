@@ -183,7 +183,7 @@ function BehaviorReadoutCard({
       </div>
       <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
         <BehaviorFact
-          label="Sample Confidence"
+          label="Evidence Reliability"
           value={readout.sampleConfidenceLabel}
         />
         <BehaviorFact label="Selected Horizon" value={readout.selectedHorizonLabel} />

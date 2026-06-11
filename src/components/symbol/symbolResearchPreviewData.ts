@@ -45,6 +45,7 @@ export function buildSymbolResearchVisualCheckData(): SymbolResearchVisualCheckD
     momentumScore: 77.8,
     volumeScore: 68.5,
     structureScore: 89.7,
+    detectedRiskTypes: ["overheat_risk", "liquidity_spike_risk"],
     statusReasons: [
       "Price reclaimed the 20-period moving average after a controlled pullback.",
       "Higher-timeframe context remains constructive.",

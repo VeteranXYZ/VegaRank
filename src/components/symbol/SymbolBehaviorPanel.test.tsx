@@ -22,7 +22,7 @@ describe("SymbolBehaviorPanel", () => {
     expect(html).toContain("for this symbol and timeframe only");
     expect(html).toContain("Behavior Readout");
     expect(html).toContain("Constructive tendency");
-    expect(html).toContain("Sample Confidence");
+    expect(html).toContain("Evidence Reliability");
     expect(html).toContain("Selected Horizon");
     expect(html).toContain("Horizon Agreement");
     expect(html).toContain("Historical Bias");

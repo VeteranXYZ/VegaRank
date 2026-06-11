@@ -30,7 +30,7 @@ import {
 describe("symbol research UI helpers", () => {
   it("formats nullable numbers safely", () => {
     expect(formatSymbolResearchScore(82.28)).toBe("82.3");
-    expect(formatSymbolResearchScore(null)).toBe("-");
+    expect(formatSymbolResearchScore(null)).toBe("N/A");
     expect(formatSymbolResearchPrice(1234.567)).toBe("1,234.57");
     expect(formatSymbolResearchPrice(undefined)).toBe("-");
     expect(formatSymbolResearchDateTime("not-a-date")).toBe("Not available");
@@ -88,7 +88,7 @@ describe("symbol research UI helpers", () => {
     ).toEqual([
       { label: "Rank Score", value: "81.2" },
       { label: "Risk-Adjusted Score", value: "70.0" },
-      { label: "Setup Quality", value: "-" },
+      { label: "Setup Quality", value: "N/A" },
       { label: "Confirmation", value: "62.1" },
       { label: "Risk", value: "20.0" },
       { label: "Trend", value: "54.0" },

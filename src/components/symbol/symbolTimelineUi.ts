@@ -156,7 +156,7 @@ export function formatTimelineDate(value: string | number | null | undefined) {
 
 export function formatTimelineScore(value: number | null | undefined) {
   if (value === null || value === undefined || !Number.isFinite(value)) {
-    return "-";
+    return "N/A";
   }
 
   return value.toFixed(1);

@@ -39,12 +39,6 @@ import {
   type MarketContextResponse,
 } from "@/components/market-context/marketContextUi";
 import {
-  buildBehaviorReadout,
-  buildBehaviorSampleQuality,
-  buildHistoricalFollowThroughEvaluation,
-  formatBehaviorSampleSize,
-  type BehaviorSampleQualityReadout,
-  type HistoricalFollowThroughEvaluation,
   type SymbolBehavior,
   type SymbolBehaviorDiagnostics,
 } from "./symbolBehaviorUi";
@@ -61,20 +55,15 @@ import {
 } from "./symbolResearchLinks";
 import {
   buildSignalEvaluationReadout,
-  buildResearchDecisionSummary,
   buildSymbolResearchDiagnostics,
-  buildSymbolResearchSummary,
   buildSymbolResearchTimeframeAvailability,
   buildSymbolResearchTimeframeNavigation,
   buildSymbolResearchUnavailableContent,
-  formatSymbolResearchAction,
   formatSymbolResearchDateTime,
   formatSymbolResearchGroup,
-  formatSymbolResearchList,
   formatSymbolResearchPrice,
   formatSymbolResearchRunContext,
   formatSymbolResearchScore,
-  formatSymbolResearchSetup,
   getSymbolResearchTimeframeSnapshots,
   getTimeframeSnapshotNote,
   getTimeframeSnapshotTitle,
@@ -86,12 +75,9 @@ import {
   type SymbolResearchTimeframeAvailabilityRow,
   type SymbolResearchTimeframeNavigationOption,
   type SymbolResearchUnavailableReason,
-  type ResearchDecisionSummary,
   type SymbolResearchDisplayDictionary,
 } from "./symbolResearchUi";
 import { dictionaries } from "@/lib/i18n/dictionaries";
-import { formatScannerReviewValue } from "@/lib/i18n/formatScannerObservation";
-import type { ScannerReviewText } from "@/lib/shared/rankingTypes";
 
 type BuildSymbolResearchUrlParams = {
   exchange: string;
@@ -302,7 +288,7 @@ const symbolResearchTimeframes = ["4h", "1d", "1w", "1h"] as const;
 const symbolResearchExchanges = ["binance", "coinbase"] as const;
 const symbolResearchMarketContextAssetClass = "crypto";
 const symbolResearchMainClass =
-  "symbol-terminal flex h-full min-h-0 w-full max-w-none flex-col overflow-hidden bg-[var(--workspace-background)] px-1.5 py-1.5 text-[var(--foreground)] sm:px-2";
+  "symbol-terminal flex min-h-[calc(100dvh-var(--app-header-height))] w-full max-w-none flex-col overflow-x-hidden bg-[var(--workspace-background)] px-1.5 py-1.5 text-[var(--foreground)] sm:px-2 xl:h-full xl:min-h-0 xl:overflow-hidden";
 
 type SymbolTerminalTone =
   | "accent"
@@ -709,41 +695,12 @@ export function SymbolResearchPageClient({
     ...history,
     ...timeframes,
   ]);
-  const researchSummary = buildSymbolResearchSummary(latestSignal, dictionary);
   const diagnostics = buildSymbolResearchDiagnostics({
     selectedTimeframe,
     currentSelection: data.currentSelection,
     latestSignal,
     history,
   });
-  const behaviorReadout = data.behavior
-    ? buildBehaviorReadout({
-        resultGroup: data.behavior.currentContext?.resultGroup,
-        signalLabel: data.behavior.currentContext?.signalLabel,
-        sampleSize: data.behavior.sampleSize,
-        horizons: data.behavior.horizons,
-        warnings: Array.isArray(data.behavior.warnings)
-          ? data.behavior.warnings
-          : [],
-      })
-    : null;
-  const behaviorSampleQuality = data.behavior
-    ? buildBehaviorSampleQuality({ behavior: data.behavior, signalHistory: history })
-    : null;
-  const decisionSummary = buildResearchDecisionSummary({
-    selectedSignal: latestSignal,
-    selectedTimeframe,
-    timeframeSnapshots,
-    behaviorReadout,
-    behaviorDiagnostics: data.behaviorDiagnostics,
-    sampleQuality: behaviorSampleQuality,
-  });
-  const historicalFollowThroughEvaluation =
-    buildHistoricalFollowThroughEvaluation({
-      behavior: data.behavior,
-      diagnostics: data.behaviorDiagnostics,
-      sampleQuality: behaviorSampleQuality,
-    });
   const signalEvaluationReadout = buildSignalEvaluationReadout(
     signalEvaluationData,
     {
@@ -760,33 +717,7 @@ export function SymbolResearchPageClient({
     timeframeSnapshots,
   });
   const candleRowsNotice = getCandleRowsNotice(candles);
-  const primaryReason = getSymbolResearchPrimaryReason({
-    interpretation,
-    latestSignal,
-    decisionSummary,
-    selectedTimeframe,
-    timeframeSnapshots,
-  });
-  const evidence = buildSymbolResearchEvidence({
-    selectedTimeframe,
-    interpretation,
-    latestSignal,
-    scoreBreakdown,
-    decisionSummary,
-    marketContextImplication,
-    behaviorSampleQuality,
-    showHistorySelectionNotice,
-    dictionary,
-    language,
-  });
-  const nextCheckItems = buildSymbolResearchNextChecks({
-    selectedTimeframe,
-    interpretation,
-    researchSummary,
-    timeframeSnapshots,
-    dictionary,
-    language,
-  });
+  const archiveSnapshotStatus = getArchiveSnapshotStatus(searchParams);
   const detailsDiagnosticsPanel = (
     <details
       id="symbol-details"
@@ -799,6 +730,14 @@ export function SymbolResearchPageClient({
         </span>
       </summary>
       <div className="mt-2 space-y-2">
+        <MarketContextPanel
+          variant="compact"
+          data={marketContextData}
+          isLoading={marketContextIsLoading}
+          isError={marketContextIsError}
+          implication={marketContextImplication}
+        />
+
         <SignalEvaluationPanel
           readout={signalEvaluationReadout}
           isLoading={
@@ -934,27 +873,26 @@ export function SymbolResearchPageClient({
           ]}
           watchlistSymbol={data.symbol.symbol}
         />
-
-        <DecisionHeader
-          symbol={data.symbol.symbol}
-          selectedTimeframe={selectedTimeframe}
-          interpretation={interpretation}
-          scoreBreakdown={scoreBreakdown}
-          qualityTier={data.symbol.qualityTier}
-          latestScanTime={data.latest?.scanRun?.finishedAt}
-          stance={getSymbolResearchStance(interpretation.group)}
-          primaryReason={primaryReason}
-          dictionary={dictionary}
-        />
       </div>
 
-      <section className="grid min-h-0 min-w-0 flex-1 gap-2 overflow-hidden lg:grid-cols-[minmax(0,1.32fr)_minmax(300px,0.68fr)_minmax(292px,0.58fr)]">
-        <div className="flex min-h-0 min-w-0 flex-col gap-2 overflow-hidden">
+      <section className="grid min-w-0 flex-1 gap-2 xl:min-h-0 xl:grid-cols-[minmax(0,1.38fr)_minmax(330px,0.62fr)] xl:overflow-hidden">
+        <div className="flex min-w-0 flex-col gap-2 xl:min-h-0 xl:overflow-hidden">
+          <ResearchSnapshotPanel
+            symbol={data.symbol.symbol}
+            selectedTimeframe={selectedTimeframe}
+            interpretation={interpretation}
+            scoreBreakdown={scoreBreakdown}
+            latestSignal={latestSignal}
+            latestScanTime={data.latest?.scanRun?.finishedAt}
+            qualityTier={data.symbol.qualityTier}
+            language={language}
+            dictionary={dictionary}
+            className="shrink-0"
+          />
           <MtfContextStrip
             snapshots={timeframeSnapshots}
             selectedTimeframe={selectedTimeframe}
             className="shrink-0"
-            dictionary={dictionary}
             language={language}
           />
           <SymbolResearchChart
@@ -963,7 +901,7 @@ export function SymbolResearchPageClient({
             timeframe={selectedTimeframe}
             candles={candles.rows}
             candleCount={candles.count}
-            className="min-h-0 flex-1"
+            className="h-[420px] min-h-[360px] xl:h-auto xl:min-h-0 xl:flex-1"
             density="compact"
             latestSignal={{
               candleOpenTime: latestSignal.candleOpenTime,
@@ -972,30 +910,21 @@ export function SymbolResearchPageClient({
           />
         </div>
 
-        <div className="min-h-0 min-w-0 overflow-y-auto overscroll-contain pr-1">
-          <div className="grid min-w-0 content-start gap-2">
-            <WhyThisStatePanel
-              positiveEvidence={evidence.positive}
-              risksAndLimits={evidence.risks}
-              scoreBreakdown={scoreBreakdown}
-            />
-            <NextChecksPanel items={nextCheckItems} />
-            <HistoricalEvidenceSummaryPanel
-              behavior={data.behavior}
-              evaluation={historicalFollowThroughEvaluation}
-              sampleQuality={behaviorSampleQuality}
-              signalEvaluationReadout={signalEvaluationReadout}
-            />
-          </div>
-        </div>
-
-        <aside className="grid min-h-0 min-w-0 content-start gap-2 overflow-y-auto overscroll-contain pr-1">
-          <MarketContextPanel
-            variant="compact"
-            data={marketContextData}
-            isLoading={marketContextIsLoading}
-            isError={marketContextIsError}
-            implication={marketContextImplication}
+        <aside className="grid min-w-0 content-start gap-2 xl:min-h-0 xl:overflow-y-auto xl:overscroll-contain xl:pr-1">
+          <EvidenceOverviewPanel
+            latestSignal={latestSignal}
+            scoreBreakdown={scoreBreakdown}
+            language={language}
+          />
+          <ArchiveContextPanel
+            archiveHref={buildArchiveHref({
+              timeframe: selectedTimeframe,
+              assetClass: data.symbol.assetClass,
+              symbol: data.symbol.symbol,
+            })}
+            archiveSnapshotStatus={archiveSnapshotStatus}
+            selectedTimeframe={selectedTimeframe}
+            latestScanTime={data.latest?.scanRun?.finishedAt}
           />
           <SymbolSignalTimeline
             history={history}
@@ -1907,97 +1836,294 @@ function SymbolResearchUnavailableState({
   );
 }
 
-function DecisionHeader({
+function ResearchSnapshotPanel({
   symbol,
   selectedTimeframe,
   interpretation,
   scoreBreakdown,
-  qualityTier,
+  latestSignal,
   latestScanTime,
-  stance,
-  primaryReason,
+  qualityTier,
+  language,
   dictionary,
+  className = "",
 }: {
   symbol: string;
   selectedTimeframe: string;
   interpretation: ReturnType<typeof getSymbolResearchInterpretation>;
   scoreBreakdown: ReturnType<typeof getSymbolResearchScoreBreakdown>;
-  qualityTier?: string | null;
+  latestSignal: SymbolResearchSignal;
   latestScanTime?: string | null;
-  stance: string;
-  primaryReason: string;
+  qualityTier?: string | null;
+  language: Language;
   dictionary: SymbolResearchDisplayDictionary;
+  className?: string;
 }) {
-  const groupToneClass = getSymbolPostureToneClass(interpretation.group);
+  const riskCodes = getCodeEvidenceItems(latestSignal.riskCodes, language);
+  const qualityCodes = getCodeEvidenceItems(latestSignal.qualityCodes, language);
+  const snapshotMetrics = [
+    {
+      label: "Rank Score",
+      value: formatSymbolResearchScore(scoreBreakdown.rankScore),
+    },
+    {
+      label: "Confidence",
+      value: formatSymbolResearchScore(
+        firstFiniteNumber(
+          latestSignal.metrics.confidenceScore,
+          scoreBreakdown.confirmationScore,
+        ),
+      ),
+    },
+    {
+      label: "Risk-Adjusted Score",
+      value: formatSymbolResearchScore(
+        firstFiniteNumber(
+          latestSignal.metrics.riskAdjustedScore,
+          scoreBreakdown.finalSignalScore,
+        ),
+      ),
+    },
+    {
+      label: "Setup Quality",
+      value: formatSymbolResearchScore(
+        firstFiniteNumber(
+          latestSignal.metrics.setupQualityScore,
+          scoreBreakdown.opportunityScore,
+        ),
+      ),
+    },
+  ];
+  const riskMetricRows = [
+    {
+      label: "Risk Context",
+      value: formatSymbolResearchScore(
+        firstFiniteNumber(latestSignal.metrics.riskPenalty, scoreBreakdown.riskScore),
+      ),
+    },
+    {
+      label: "Risk Codes",
+      value:
+        riskCodes.length > 0
+          ? riskCodes.map((item) => item.label).join(", ")
+          : "No additional risk codes",
+    },
+  ];
+  const qualityLabel =
+    qualityCodes.length > 0
+      ? qualityCodes.map((item) => item.label).join(", ")
+      : "No additional codes";
 
   return (
     <section
-      className={`terminal-panel mb-1 border-l-4 px-2 py-1.5 ${groupToneClass}`}
-      title={primaryReason}
+      className={`terminal-panel min-w-0 border-l-4 px-2.5 py-2 ${getSymbolPostureToneClass(
+        interpretation.group,
+      )} ${className}`}
     >
-      <div className="flex min-w-0 items-center gap-2 overflow-x-auto whitespace-nowrap">
-        <div className="flex min-w-0 shrink-0 items-center gap-1.5">
-          <span className="text-[10px] font-semibold uppercase text-[var(--muted)]">
-            Current Context
-          </span>
-          <span className="font-mono text-base font-semibold text-[var(--foreground)]">
-            {symbol}
-          </span>
-          <span className="font-mono text-xs font-semibold text-[var(--muted)]">
-            {selectedTimeframe.toUpperCase()}
-          </span>
-          <span
-            className={`border px-2 py-0.5 text-[10px] font-semibold uppercase ${getSymbolGroupBadgeClassName(
-              interpretation.group,
-            )}`}
-          >
-            {formatSymbolResearchGroupForDisplay(interpretation.group, dictionary)}
-          </span>
-        </div>
+      <div className="mb-2 flex min-w-0 flex-wrap items-center gap-1.5 border-b border-[var(--border)] pb-1.5">
+        <h2 className="shrink-0 text-[11px] font-semibold uppercase text-[var(--foreground)]">
+          Research Snapshot
+        </h2>
+        <span className="font-mono text-sm font-semibold text-[var(--foreground)]">
+          {symbol}
+        </span>
+        <span className="font-mono text-[11px] font-semibold uppercase text-[var(--muted)]">
+          {selectedTimeframe}
+        </span>
+        <span
+          className={`border px-2 py-0.5 text-[10px] font-semibold uppercase ${getSymbolGroupBadgeClassName(
+            interpretation.group,
+          )}`}
+        >
+          {formatSymbolResearchGroupForDisplay(interpretation.group, dictionary)}
+        </span>
+      </div>
 
-        <div className="min-w-[180px] max-w-[320px] flex-1 truncate text-sm font-semibold text-[var(--foreground)]">
-          {stance}
-        </div>
-
-        <div className="flex min-w-0 shrink-0 items-center gap-3 text-[11px] text-[var(--muted)]">
-          <DecisionInlineStat label="Action" value={interpretation.action} />
-          <DecisionInlineStat label="Research Priority" value={interpretation.label} />
-          <DecisionInlineStat
-            label="Rank Score"
-            value={formatSymbolResearchScore(scoreBreakdown.rankScore)}
+      <div className="grid min-w-0 gap-2 lg:grid-cols-[minmax(0,1fr)_minmax(240px,0.78fr)]">
+        <div className="grid min-w-0 gap-1.5 sm:grid-cols-2">
+          <SnapshotFact
+            label="Research Group"
+            value={formatSymbolResearchGroupForDisplay(interpretation.group, dictionary)}
           />
-          <DecisionInlineStat
-            label="Risk Context"
-            value={formatSymbolResearchScore(scoreBreakdown.riskScore)}
+          <SnapshotFact label="Action" value={interpretation.action} />
+          <SnapshotFact label="Setup" value={interpretation.setupType} />
+          <SnapshotFact label="Evidence Quality" value={qualityLabel} />
+          <SnapshotFact label="Timeframe" value={selectedTimeframe.toUpperCase()} />
+          <SnapshotFact
+            label="Updated"
+            value={formatSymbolResearchDateTime(latestScanTime)}
           />
           {qualityTier ? (
-            <DecisionInlineStat label="Quality" value={toTitleCase(qualityTier)} />
-          ) : null}
-          {latestScanTime ? (
-            <DecisionInlineStat
-              label="Latest"
-              value={formatSymbolResearchDateTime(latestScanTime)}
-            />
+            <SnapshotFact label="Asset Quality" value={toTitleCase(qualityTier)} />
           ) : null}
         </div>
+
+        <div className="terminal-panel-muted min-w-0 border-l-2 border-l-[var(--risk)] px-2 py-2">
+          <div className="mb-1 text-[10px] font-semibold uppercase text-[var(--risk)]">
+            Risk Context
+          </div>
+          <div className="grid gap-1.5">
+            {riskMetricRows.map((row) => (
+              <SnapshotFact key={row.label} label={row.label} value={row.value} />
+            ))}
+          </div>
+        </div>
+      </div>
+
+      <div className="mt-2 grid min-w-0 grid-cols-2 gap-1.5 md:grid-cols-4">
+        {snapshotMetrics.map((metric) => (
+          <MiniMetric
+            key={metric.label}
+            label={metric.label}
+            value={metric.value}
+          />
+        ))}
       </div>
     </section>
   );
 }
 
-function DecisionInlineStat({ label, value }: { label: string; value: string }) {
+function SnapshotFact({ label, value }: { label: string; value: string }) {
   return (
-    <span className="inline-flex min-w-0 items-baseline gap-1">
-      <span className="shrink-0 text-[10px] font-semibold uppercase text-[var(--muted-2)]">
+    <div className="min-w-0 border border-[var(--border)] bg-[var(--panel-data)] px-2 py-1.5">
+      <div className="text-[9px] font-semibold uppercase text-[var(--muted)]">
         {label}
-      </span>
-      <span
-        className="max-w-[200px] truncate font-mono text-[11px] font-semibold text-[var(--foreground)]"
+      </div>
+      <div
+        className="mt-0.5 min-w-0 truncate text-[12px] font-semibold text-[var(--foreground)]"
         title={value}
       >
         {value}
-      </span>
-    </span>
+      </div>
+    </div>
+  );
+}
+
+function EvidenceOverviewPanel({
+  latestSignal,
+  scoreBreakdown,
+  language,
+}: {
+  latestSignal: SymbolResearchSignal;
+  scoreBreakdown: ReturnType<typeof getSymbolResearchScoreBreakdown>;
+  language: Language;
+}) {
+  const sections = buildEvidenceOverviewSections({
+    latestSignal,
+    scoreBreakdown,
+    language,
+  });
+
+  if (sections.length === 0) {
+    return null;
+  }
+
+  return (
+    <WorkspacePanel title="Evidence Overview">
+      <div className="space-y-2">
+        {sections.map((section) => (
+          <EvidenceOverviewSectionView key={section.title} section={section} />
+        ))}
+      </div>
+    </WorkspacePanel>
+  );
+}
+
+type EvidenceOverviewSection = {
+  title: string;
+  codes: CodeEvidenceItem[];
+  metrics: Array<{ label: string; value: string }>;
+};
+
+type CodeEvidenceItem = {
+  key: string;
+  label: string;
+  short: string;
+};
+
+function EvidenceOverviewSectionView({
+  section,
+}: {
+  section: EvidenceOverviewSection;
+}) {
+  return (
+    <section className="min-w-0 border border-[var(--border)] bg-[var(--panel-data)] px-2 py-2">
+      <h3 className="text-[10px] font-semibold uppercase text-[var(--muted)]">
+        {section.title}
+      </h3>
+      {section.metrics.length > 0 ? (
+        <div className="mt-1.5 grid grid-cols-2 gap-1.5">
+          {section.metrics.map((metric) => (
+            <MiniMetric
+              key={`${section.title}-${metric.label}`}
+              label={metric.label}
+              value={metric.value}
+            />
+          ))}
+        </div>
+      ) : null}
+      {section.codes.length > 0 ? (
+        <CodeEvidenceList items={section.codes} className="mt-1.5" />
+      ) : null}
+    </section>
+  );
+}
+
+function CodeEvidenceList({
+  items,
+  className = "",
+}: {
+  items: CodeEvidenceItem[];
+  className?: string;
+}) {
+  if (items.length === 0) {
+    return null;
+  }
+
+  return (
+    <ul className={`space-y-1 ${className}`}>
+      {items.map((item) => (
+        <li
+          key={item.key}
+          className="min-w-0 border-l border-[var(--border-medium)] pl-2"
+        >
+          <div className="truncate text-[12px] font-semibold text-[var(--foreground)]">
+            {item.label}
+          </div>
+          <p className="mt-0.5 text-[11px] leading-4 text-[var(--muted)]">
+            {item.short}
+          </p>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+function ArchiveContextPanel({
+  archiveHref,
+  archiveSnapshotStatus,
+  selectedTimeframe,
+  latestScanTime,
+}: {
+  archiveHref: string;
+  archiveSnapshotStatus: string;
+  selectedTimeframe: string;
+  latestScanTime?: string | null;
+}) {
+  return (
+    <WorkspacePanel title="Archive Context">
+      <div className="grid gap-1.5 sm:grid-cols-2 xl:grid-cols-1">
+        <SnapshotFact label="Archive Snapshot" value={archiveSnapshotStatus} />
+        <SnapshotFact label="Timeframe" value={selectedTimeframe.toUpperCase()} />
+        <SnapshotFact
+          label="Current Updated"
+          value={formatSymbolResearchDateTime(latestScanTime)}
+        />
+      </div>
+      <Link href={archiveHref} className="ui-button mt-2 h-7 px-2 text-[11px]">
+        Review Archive
+      </Link>
+    </WorkspacePanel>
   );
 }
 
@@ -2023,80 +2149,137 @@ function getSymbolPostureToneClass(group: string | null | undefined) {
   return "border-[var(--border)] border-l-[var(--neutral)]";
 }
 
-function WhyThisStatePanel({
-  positiveEvidence,
-  risksAndLimits,
+function buildEvidenceOverviewSections({
+  latestSignal,
   scoreBreakdown,
+  language,
 }: {
-  positiveEvidence: string[];
-  risksAndLimits: string[];
+  latestSignal: SymbolResearchSignal;
   scoreBreakdown: ReturnType<typeof getSymbolResearchScoreBreakdown>;
-}) {
-  return (
-    <WorkspacePanel title="Evidence Quality">
-      <div className="mb-2 grid grid-cols-3 gap-1.5">
-        <MiniMetric label="Rank Score" value={formatSymbolResearchScore(scoreBreakdown.rankScore)} />
-        <MiniMetric
-          label="Confidence"
-          value={formatSymbolResearchScore(scoreBreakdown.confirmationScore)}
-        />
-        <MiniMetric label="Risk" value={formatSymbolResearchScore(scoreBreakdown.riskScore)} />
-      </div>
-      <EvidenceList title="Supportive Evidence" values={positiveEvidence} />
-      <EvidenceList title="Limits" values={risksAndLimits} className="mt-2" />
-    </WorkspacePanel>
+  language: Language;
+}): EvidenceOverviewSection[] {
+  const metrics = latestSignal.metrics;
+  const sections: EvidenceOverviewSection[] = [
+    {
+      title: "Structure & Setup",
+      codes: getCodeEvidenceItems(
+        uniqueDisplayItems([latestSignal.setupCode, latestSignal.phaseCode]),
+        language,
+      ),
+      metrics: [
+        {
+          label: "Structure",
+          value: formatSymbolResearchScore(scoreBreakdown.structureScore),
+        },
+        {
+          label: "Trend",
+          value: formatSymbolResearchScore(scoreBreakdown.trendScore),
+        },
+      ],
+    },
+    {
+      title: "Evidence Codes",
+      codes: getCodeEvidenceItems(
+        uniqueDisplayItems([...latestSignal.signalCodes, ...latestSignal.reasonCodes]),
+        language,
+      ),
+      metrics: [
+        {
+          label: "Momentum",
+          value: formatSymbolResearchScore(scoreBreakdown.momentumScore),
+        },
+        {
+          label: "Liquidity",
+          value: formatSymbolResearchScore(scoreBreakdown.volumeScore),
+        },
+      ],
+    },
+    {
+      title: "Data Quality",
+      codes: getCodeEvidenceItems(latestSignal.qualityCodes, language),
+      metrics: [
+        {
+          label: "Quality Score",
+          value: formatSymbolResearchScore(metrics.qualityScore),
+        },
+        {
+          label: "History Bars",
+          value: formatIntegerMetric(metrics.historyBars),
+        },
+        {
+          label: "Volatility",
+          value: formatSymbolResearchScore(metrics.volatilityScore),
+        },
+        {
+          label: "MTF Agreement",
+          value: formatSymbolResearchScore(metrics.mtfAgreementScore),
+        },
+      ],
+    },
+  ];
+
+  return sections.filter(
+    (section) =>
+      section.codes.length > 0 ||
+      section.metrics.some((metric) => metric.value !== "N/A"),
   );
 }
 
-function EvidenceList({
-  title,
-  values,
-  className = "",
-}: {
-  title: string;
-  values: string[];
-  className?: string;
-}) {
-  return (
-    <div className={`min-w-0 ${className}`}>
-      <h3 className="text-[11px] font-semibold uppercase text-[var(--muted)]">
-        {title}
-      </h3>
-      <ul className="mt-1.5 space-y-1 text-[12px] text-[var(--foreground)]">
-        {values.map((value) => (
-          <li key={value} className="border-l border-[var(--border-medium)] pl-2 leading-4">
-            {value}
-          </li>
-        ))}
-      </ul>
-    </div>
-  );
+function getCodeEvidenceItems(
+  codes: Array<string | null | undefined> | null | undefined,
+  language: Language,
+): CodeEvidenceItem[] {
+  const seen = new Set<string>();
+
+  return explainCodes(codes, language)
+    .map((entry) => ({
+      key: `${entry.label}-${entry.short}`,
+      label: entry.label,
+      short: entry.short,
+    }))
+    .filter((item) => {
+      const key = item.key.toLowerCase();
+
+      if (seen.has(key)) {
+        return false;
+      }
+
+      seen.add(key);
+      return true;
+    });
 }
 
-function NextChecksPanel({ items }: { items: string[] }) {
-  const primaryItems = items.slice(0, 4);
+function firstFiniteNumber(...values: Array<number | null | undefined>) {
+  return values.find((value) => typeof value === "number" && Number.isFinite(value));
+}
 
-  return (
-    <WorkspacePanel title="Review Next">
-      <ul className="space-y-1 text-[12px] text-[var(--foreground)]">
-        {primaryItems.map((item) => (
-          <li
-            key={item}
-            className="terminal-panel-muted px-2 py-1.5 leading-4"
-          >
-            {item}
-          </li>
-        ))}
-      </ul>
-    </WorkspacePanel>
-  );
+function formatIntegerMetric(value: number | null | undefined) {
+  if (typeof value !== "number" || !Number.isFinite(value)) {
+    return "N/A";
+  }
+
+  return Math.trunc(value).toLocaleString();
+}
+
+function getArchiveSnapshotStatus(searchParams: QueryStateInput) {
+  const snapshotId = getQueryStateValue(searchParams, "snapshotId");
+  const runId = getQueryStateValue(searchParams, "runId");
+
+  if (snapshotId) {
+    return `Snapshot ${snapshotId}`;
+  }
+
+  if (runId) {
+    return `Run ${runId}`;
+  }
+
+  return "No archive snapshot available yet.";
 }
 
 function MtfContextStrip({
   snapshots,
   selectedTimeframe,
   className = "",
-  dictionary,
   language,
 }: {
   snapshots: Array<{
@@ -2106,7 +2289,6 @@ function MtfContextStrip({
   }>;
   selectedTimeframe: string;
   className?: string;
-  dictionary: SymbolResearchDisplayDictionary;
   language: Language;
 }) {
   const orderedSnapshots = orderTimeframeSnapshots(snapshots);
@@ -2157,53 +2339,6 @@ function MtfContextStrip({
         </p>
       )}
     </section>
-  );
-}
-
-function HistoricalEvidenceSummaryPanel({
-  behavior,
-  evaluation,
-  sampleQuality,
-  signalEvaluationReadout,
-}: {
-  behavior?: SymbolBehavior | null;
-  evaluation: HistoricalFollowThroughEvaluation;
-  sampleQuality?: BehaviorSampleQualityReadout | null;
-  signalEvaluationReadout: SignalEvaluationReadout;
-}) {
-  const summaryParts = [
-    formatHistoricalBehaviorSample(behavior, evaluation),
-    evaluation.selectedHorizonLabel,
-    evaluation.medianReturnLabel,
-    evaluation.positiveRateLabel,
-    sampleQuality?.sampleQualityLabel ?? evaluation.sampleConfidenceLabel,
-  ].filter((value) => value && value !== "Not available");
-
-  return (
-    <WorkspacePanel title="Behavior">
-      <div className="grid grid-cols-2 gap-1.5 text-[12px]">
-        {summaryParts.slice(0, 4).map((part) => (
-          <div
-            key={part}
-            className="terminal-panel-muted min-w-0 px-2 py-1 font-semibold text-[var(--foreground)]"
-            title={part}
-          >
-            {part}
-          </div>
-        ))}
-      </div>
-      <div className="mt-2 grid grid-cols-2 gap-1.5">
-        <MiniMetric label="Match" value={evaluation.directionMatchLabel} />
-        <MiniMetric
-          label="Broad"
-          value={
-            signalEvaluationReadout.available
-              ? signalEvaluationReadout.medianReturn
-              : "N/A"
-          }
-        />
-      </div>
-    </WorkspacePanel>
   );
 }
 
@@ -2354,152 +2489,6 @@ function getCandleRowsNotice(candles: SymbolResearchCandles) {
     : "No candle rows available for this symbol/timeframe yet.";
 }
 
-function getSymbolResearchStance(group?: string | null) {
-  switch (normalizeSymbolMarketContextGroup(group)) {
-    case "eligible":
-      return "Constructive, manual review required";
-    case "watch":
-      return "Developing, confirmation review required";
-    case "risk":
-      return "Risk-oriented, repair review required";
-    case "overheated":
-      return "Extended, caution review required";
-    case "insufficient_history":
-      return "Insufficient data for this timeframe";
-    default:
-      return "Mixed, review only";
-  }
-}
-
-function getSymbolResearchPrimaryReason({
-  interpretation,
-  latestSignal,
-  decisionSummary,
-  selectedTimeframe,
-  timeframeSnapshots,
-}: {
-  interpretation: ReturnType<typeof getSymbolResearchInterpretation>;
-  latestSignal: SymbolResearchSignal;
-  decisionSummary: ResearchDecisionSummary;
-  selectedTimeframe: string;
-  timeframeSnapshots: SymbolResearchSignal[];
-}) {
-  const group = normalizeSymbolMarketContextGroup(interpretation.group);
-  const signal = formatSymbolSignalPhrase(interpretation.label);
-  const signalSetup = formatSignalSetupPhrase(
-    signal,
-    interpretation.setupType,
-  );
-  const higherTimeframeText = getHigherTimeframeReasonText({
-    selectedTimeframe,
-    timeframeSnapshots,
-  });
-
-  if (group === "eligible") {
-    return `${signalSetup} with ${higherTimeframeText}.`;
-  }
-
-  if (group === "watch") {
-    return `${signalSetup}; confirmation remains incomplete.`;
-  }
-
-  if (group === "risk") {
-    return `${signal} risk context; ${decisionSummary.keyCaution}`;
-  }
-
-  if (group === "overheated") {
-    return `${signal} extended state; overextension risk is elevated.`;
-  }
-
-  if (group === "insufficient_history") {
-    return "Not enough completed ranking history for this timeframe.";
-  }
-
-  return interpretation.statusNote || decisionSummary.currentStance;
-}
-
-function buildSymbolResearchEvidence({
-  selectedTimeframe,
-  interpretation,
-  latestSignal,
-  scoreBreakdown,
-  decisionSummary,
-  marketContextImplication,
-  behaviorSampleQuality,
-  showHistorySelectionNotice,
-  dictionary,
-  language,
-}: {
-  selectedTimeframe: string;
-  interpretation: ReturnType<typeof getSymbolResearchInterpretation>;
-  latestSignal: SymbolResearchSignal;
-  scoreBreakdown: ReturnType<typeof getSymbolResearchScoreBreakdown>;
-  decisionSummary: ResearchDecisionSummary;
-  marketContextImplication: string;
-  behaviorSampleQuality?: BehaviorSampleQualityReadout | null;
-  showHistorySelectionNotice: boolean;
-  dictionary: SymbolResearchDisplayDictionary;
-  language: Language;
-}) {
-  const positive = uniqueDisplayItems([
-    `${selectedTimeframe.toUpperCase()} research group is ${formatSymbolResearchGroupForDisplay(
-      interpretation.group,
-      dictionary,
-    )}`,
-    `Rank Score ${formatSymbolResearchScore(scoreBreakdown.rankScore)}`,
-    `Confirmation ${formatSymbolResearchScore(scoreBreakdown.confirmationScore)}`,
-    `${explainCode(latestSignal.setupCode, language).label} setup`,
-    ...interpretation.reasons.slice(0, 2),
-    decisionSummary.multiTimeframeAlignment,
-    decisionSummary.behaviorSupport,
-  ]);
-  const risks = uniqueDisplayItems([
-    formatScannerReviewValue("Manual review still required", dictionary),
-    `Risk score ${formatSymbolResearchScore(scoreBreakdown.riskScore)}`,
-    marketContextImplication,
-    behaviorSampleQuality?.sampleQualityLabel,
-    showHistorySelectionNotice ? "Newer secondary rows exist" : null,
-    ...explainCodes(latestSignal.riskCodes, language)
-      .map((entry) => entry.label)
-      .slice(0, 2),
-  ]);
-
-  return {
-    positive: positive.slice(0, 6),
-    risks: risks.slice(0, 6),
-  };
-}
-
-function buildSymbolResearchNextChecks({
-  selectedTimeframe,
-  interpretation,
-  researchSummary,
-  timeframeSnapshots,
-  dictionary,
-}: {
-  selectedTimeframe: string;
-  interpretation: ReturnType<typeof getSymbolResearchInterpretation>;
-  researchSummary: ReturnType<typeof buildSymbolResearchSummary>;
-  timeframeSnapshots: SymbolResearchSignal[];
-  dictionary: SymbolResearchDisplayDictionary;
-  language: Language;
-}) {
-  const higherTimeframeChecks = buildHigherTimeframeChecks(timeframeSnapshots);
-
-  return uniqueDisplayItems([
-    "Price stays above MA20 / MA50 context",
-    `${selectedTimeframe.toUpperCase()} remains ${formatSymbolResearchGroupForDisplay(
-      interpretation.group,
-      dictionary,
-    )} after the next ranking run`,
-    ...higherTimeframeChecks,
-    researchSummary.nextConfirmation[0],
-    "Historical evidence supports follow-through",
-    "BTC/ETH backdrop does not turn against the symbol",
-    researchSummary.invalidation[0],
-  ]).slice(0, 7);
-}
-
 function orderTimeframeSnapshots<
   T extends { timeframe?: string | null },
 >(snapshots: T[]) {
@@ -2564,99 +2553,6 @@ function formatSymbolResearchGroupForDisplay(
   return normalizeSymbolMarketContextGroup(value) === "overheated"
     ? "Hot"
     : formatSymbolResearchGroup(value, dictionary);
-}
-
-function formatHistoricalBehaviorSample(
-  behavior: SymbolBehavior | null | undefined,
-  evaluation: HistoricalFollowThroughEvaluation,
-) {
-  if (behavior) {
-    return `${formatBehaviorSampleSize(behavior.sampleSize)} similar setups`;
-  }
-
-  return evaluation.sampleLabel;
-}
-
-function buildHigherTimeframeChecks(timeframeSnapshots: SymbolResearchSignal[]) {
-  const checks = [];
-  const oneDay = timeframeSnapshots.find(
-    (snapshot) => snapshot.timeframe?.toLowerCase() === "1d",
-  );
-  const oneWeek = timeframeSnapshots.find(
-    (snapshot) => snapshot.timeframe?.toLowerCase() === "1w",
-  );
-
-  if (oneDay) {
-    checks.push("1D does not shift into Risk");
-  }
-
-  if (oneWeek) {
-    const group = normalizeSymbolMarketContextGroup(getSymbolResearchGroup(oneWeek));
-    checks.push(
-      group === "watch"
-        ? "1W remains Watch or improves"
-        : "1W does not shift into Risk",
-    );
-  }
-
-  return checks.length > 0
-    ? checks
-    : ["Higher timeframe context remains available"];
-}
-
-function getHigherTimeframeReasonText({
-  selectedTimeframe,
-  timeframeSnapshots,
-}: {
-  selectedTimeframe: string;
-  timeframeSnapshots: SymbolResearchSignal[];
-}) {
-  const selectedRank = getSymbolResearchTimeframeRank(selectedTimeframe);
-  const hasHigherRisk = timeframeSnapshots.some((snapshot) => {
-    const rank = getSymbolResearchTimeframeRank(snapshot.timeframe);
-
-    return (
-      selectedRank !== null &&
-      rank !== null &&
-      rank > selectedRank &&
-      normalizeSymbolMarketContextGroup(getSymbolResearchGroup(snapshot)) === "risk"
-    );
-  });
-
-  if (hasHigherRisk) {
-    return "higher-timeframe risk still present";
-  }
-
-  return timeframeSnapshots.length > 1
-    ? "higher-timeframe context not in risk"
-    : "selected timeframe evidence";
-}
-
-function formatSymbolSignalPhrase(value: string | null | undefined) {
-  const label = value?.trim();
-
-  if (!label || label.toLowerCase() === "unknown") {
-    return "Current";
-  }
-
-  return toTitleCase(label);
-}
-
-function formatSignalSetupPhrase(
-  signal: string,
-  primaryStructure: string | null | undefined,
-) {
-  if (!primaryStructure) {
-    return `${signal} selected setup`;
-  }
-
-  const setup = toTitleCase(primaryStructure);
-
-  if (signal.toLowerCase().includes(setup.toLowerCase())) {
-    return `${signal} setup`;
-  }
-
-  return `${signal} ${setup} setup`;
 }
 
 function uniqueDisplayItems(values: Array<string | null | undefined>) {

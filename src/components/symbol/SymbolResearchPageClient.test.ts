@@ -446,7 +446,7 @@ describe("SymbolResearchPageClient success state", () => {
     useQueryMock.mockReset();
   });
 
-  it("renders the behavior section from the research response", () => {
+  it("renders the symbol research hierarchy from the research response", () => {
     useQueryMock.mockReturnValue({
       isLoading: false,
       isError: false,
@@ -462,55 +462,59 @@ describe("SymbolResearchPageClient success state", () => {
       }),
     );
 
-    expect(html).toContain("Current Context");
-    expect(html).toContain("Research Priority");
+    expect(html).toContain("Research Snapshot");
+    expect(html).toContain("Action");
+    expect(html).toContain("Risk Context");
     expect(html).toContain("Selected timeframe: 4h");
+    expect(html).toContain("Rank Score");
+    expect(html).toContain("Confidence");
     expect(html).toContain("Evidence Quality");
-    expect(html).toContain("Positive");
-    expect(html).toContain("Limits");
-    expect(html).toContain("Review Next");
+    expect(html).toContain("Evidence Overview");
+    expect(html).toContain("Structure &amp; Setup");
+    expect(html).toContain("Evidence Codes");
+    expect(html).toContain("Data Quality");
+    expect(html).toContain("Archive Context");
+    expect(html).toContain("No archive snapshot available yet.");
     expect(html).toContain("Chart");
     expect(html).toContain("Multi-Timeframe");
-    expect(html).toContain("Backdrop");
-    expect(html).toContain("Behavior");
     expect(html).toContain("Timeline");
     expect(html).toContain("Diagnostics");
-    expect(html.indexOf("Current Context")).toBeLessThan(
+    expect(html.indexOf("Research Snapshot")).toBeLessThan(
       html.indexOf("Multi-Timeframe"),
     );
     expect(html.indexOf("Multi-Timeframe")).toBeLessThan(
       html.indexOf("Chart"),
     );
     expect(html.indexOf("Chart")).toBeLessThan(
-      html.indexOf("Evidence Quality"),
+      html.indexOf("Evidence Overview"),
     );
-    expect(html.indexOf("Evidence Quality")).toBeLessThan(
-      html.indexOf("Review Next"),
+    expect(html.indexOf("Evidence Overview")).toBeLessThan(
+      html.indexOf("Archive Context"),
     );
-    expect(html.indexOf("Review Next")).toBeLessThan(
-      html.indexOf("Behavior"),
-    );
-    expect(html.indexOf("Behavior")).toBeLessThan(
-      html.indexOf("Backdrop"),
-    );
-    expect(html.indexOf("Backdrop")).toBeLessThan(
+    expect(html.indexOf("Archive Context")).toBeLessThan(
       html.indexOf("Timeline"),
     );
     expect(html.indexOf("Timeline")).toBeLessThan(
       html.indexOf("Diagnostics"),
     );
+    expect(html.indexOf("Action")).toBeLessThan(html.indexOf("Evidence Overview"));
+    expect(html.indexOf("Risk Context")).toBeLessThan(
+      html.indexOf("Evidence Overview"),
+    );
     expect(html).not.toContain("Research stance");
     expect(html).not.toContain("Primary reason");
     expect(html).not.toContain("Why This State");
     expect(html).not.toContain("What to Check Next");
+    expect(html).not.toContain("Review Next");
+    expect(html).not.toContain("Supportive Evidence");
+    expect(html).not.toContain("Limits");
     expect(html).not.toContain("Chart + MTF Context");
     expect(html).not.toContain("Market Backdrop");
     expect(html).not.toContain("Historical Evidence");
     expect(html).not.toContain("Compact Signal Timeline");
     expect(html).toContain("Timeframe Availability");
-    expect(html).toContain("Constructive, manual review required");
-    expect(html).toContain("Price stays above MA20 / MA50 context");
     expect(html).toContain("Data Source");
+    expect(html).toContain("Backdrop");
     expect(html).toContain("Validation");
     expect(html).toContain("Across the broader market");
     expect(html).toContain("Behavior");
@@ -521,7 +525,6 @@ describe("SymbolResearchPageClient success state", () => {
     expect(html).toContain("Current context");
     expect(html).toContain("Recent Observations");
     expect(html).toContain("Most recent prior observations with available forward changes.");
-    expect(html).toContain("Timeline");
     expect(html).toMatch(/Timeframe Snapshot|Multi-Timeframe Snapshot/);
     expect(html).toContain("Recent Candles Summary");
     expect(html).not.toContain("Raw Details");
@@ -583,7 +586,7 @@ describe("SymbolResearchPageClient success state", () => {
     expect(JSON.stringify(marketContextCall?.[0].queryKey)).not.toContain("SEIUSDT");
   });
 
-  it("keeps decision header and current classification visible when market context fails", () => {
+  it("keeps research snapshot and current classification visible when market context fails", () => {
     useQueryMock.mockImplementation(
       ({ queryKey }: { queryKey: [string, unknown] }) => ({
         isLoading: false,
@@ -608,8 +611,10 @@ describe("SymbolResearchPageClient success state", () => {
 
     expect(html).toContain("Market context unavailable");
     expect(html).toContain("symbol data remains available");
-    expect(html).toContain("Current Context");
-    expect(html).toContain("Evidence Quality");
+    expect(html).toContain("Research Snapshot");
+    expect(html).toContain("Research Group");
+    expect(html).toContain("Risk Context");
+    expect(html).toContain("Evidence Overview");
   });
 
   it("keeps symbol research request shape unchanged while adding layout sections", () => {
@@ -826,10 +831,16 @@ describe("SymbolResearchPageClient success state", () => {
     );
 
     expect(html).toContain("BTCUSDT");
-    expect(html).toContain("Current Context");
+    expect(html).toContain("Research Snapshot");
     expect(html).toContain("Chart");
+    expect(html).toContain("Risk Context");
+    expect(html).toContain("Risk Codes");
+    expect(html).toContain("Chase Risk");
+    expect(html).toContain("Liquidity Spike Risk");
     expect(html).toContain("Evidence Quality");
-    expect(html).toContain("Review Next");
+    expect(html).toContain("Evidence Overview");
+    expect(html).toContain("Archive Context");
+    expect(html).toContain("No archive snapshot available yet.");
     expect(html).toContain("Multi-Timeframe Snapshot");
     expect(html).toContain("Backdrop");
     expect(html).toContain("Constructive backdrop");
@@ -838,6 +849,7 @@ describe("SymbolResearchPageClient success state", () => {
     expect(html).toContain("Diagnostics");
     expect(html).toContain("visual-check mock");
     expect(html).not.toContain("Loading symbol research");
+    expect(html).not.toContain("Review Next");
 
     expect(useQueryMock).toHaveBeenCalledTimes(3);
     expect(
