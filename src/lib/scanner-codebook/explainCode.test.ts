@@ -30,7 +30,7 @@ describe("scanner codebook", () => {
   it("explains active codes in English", () => {
     expect(explainCode("GR_201", "en")).toEqual({
       label: "Constructive Watch",
-      short: "Setup is constructive, but confidence or confirmation is limited.",
+      short: "Constructive evidence is developing, but confirmation remains limited.",
     });
     expect(explainCode("AC_501", "en").label).toBe("Research Watch");
   });
