@@ -111,7 +111,7 @@ describe("production smoke helpers", () => {
     };
 
     const response = await fetchJson({
-      baseUrl: "https://api.auere.com",
+      baseUrl: "https://api.vegarank.com",
       path: "/api/test",
       fetchImpl,
     });
@@ -119,7 +119,7 @@ describe("production smoke helpers", () => {
     expect(response.ok).toBe(false);
     expect(response.status).toBe(503);
     expect(calls).toEqual([
-      { url: "https://api.auere.com/api/test", method: "GET" },
+      { url: "https://api.vegarank.com/api/test", method: "GET" },
     ]);
   });
 
@@ -141,7 +141,7 @@ describe("production smoke helpers", () => {
     };
 
     await runProductionSmokeTest({
-      baseUrl: "https://api.auere.com",
+      baseUrl: "https://api.vegarank.com",
       report,
       fetchImpl,
     });
@@ -149,7 +149,7 @@ describe("production smoke helpers", () => {
     expect(report.failures).toEqual([]);
     expect(report.passes.map((message) => message.title)).toEqual(
       expect.arrayContaining([
-        "/api/scan/mtf-latest?assetClass=crypto",
+        "/api/rankings/mtf-latest?assetClass=crypto",
         "/api/market/context?assetClass=crypto",
         "/api/symbol/research?exchange=binance&symbol=BTCUSDT&timeframe=1h",
         "/api/signal/evaluation?timeframe=4h&group=risk&signalLabel=breakdown_risk&assetClass=crypto",
@@ -173,7 +173,7 @@ const mtfSignal = {
 };
 
 const mockResponses: Record<string, unknown> = {
-  "/api/scan/mtf-latest?assetClass=crypto": {
+  "/api/rankings/mtf-latest?assetClass=crypto": {
     ok: true,
     assetClass: "crypto",
     count: 2,

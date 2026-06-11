@@ -11,10 +11,10 @@ import {
 export default function HomePage() {
   const workspaceLinks = [
     {
-      href: "/scanner",
-      title: "Latest Scan Results",
-      description: "Review the latest persisted scanner run and grouped signals.",
-      action: "Open Scanner",
+      href: "/rankings",
+      title: "Market Rankings",
+      description: "Review the latest ranked research results and grouped setups.",
+      action: "Open Rankings",
       primary: true,
       tone: "rows" as const,
     },
@@ -35,10 +35,10 @@ export default function HomePage() {
       tone: "selected" as const,
     },
     {
-      href: "/history",
-      title: "Historical Research",
+      href: "/archive",
+      title: "Research Archive",
       description: "Inspect stored snapshots and forward observation context.",
-      action: "Open History",
+      action: "Open Archive",
       primary: false,
       tone: "observation" as const,
     },
@@ -47,15 +47,15 @@ export default function HomePage() {
   return (
     <PageShell className="min-h-0">
       <PageHeader
-        eyebrow="Technical screening workspace"
-        title="Crypto Technical Scanner"
+        eyebrow="Technical research rankings"
+        title="VegaRank"
         tone="screener"
-        description="Compact research workspace for Binance USDT spot-pair technical structure, confirmation strength, and risk context."
+        description="Rank crypto setups by structure, confirmation, and risk context."
         metadata={[
           { label: "Mode", value: "Research-only", tone: "accent" },
-          { label: "Execution", value: "No trading", tone: "neutral" },
-          { label: "Wallets", value: "Not connected", tone: "neutral" },
-          { label: "Primary view", value: "Screener", tone: "info" },
+          { label: "Guidance", value: "No instructions", tone: "neutral" },
+          { label: "Accounts", value: "Not connected", tone: "neutral" },
+          { label: "Primary view", value: "Rankings", tone: "info" },
         ]}
       />
 

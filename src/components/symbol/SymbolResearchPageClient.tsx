@@ -7,6 +7,10 @@ import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from "re
 import { RefreshIconButton } from "@/components/ui/workspace";
 import { useAppLanguage } from "@/lib/i18n/AppLanguageProvider";
 import type { Language } from "@/lib/i18n/dictionaries";
+import {
+  getVegaRankApiBaseUrl,
+  getVegaRankApiOriginLabel,
+} from "@/lib/runtime/vegaRankApi";
 import { explainCode, explainCodes } from "@/lib/scanner-codebook/explainCode";
 import { resultGroupByGroupCode } from "@/lib/scanner-codebook/codeRegistry";
 import type { PublicStoredScannerSignal } from "@/lib/scanner-codebook/serializeStoredSignal";
@@ -1045,7 +1049,7 @@ export function buildSymbolResearchUrl({
     assetClass,
   });
 
-  return `${getTradeApiBaseUrl(tradeApiBaseUrl)}/api/symbol/research?${params.toString()}`;
+  return `${getVegaRankApiBaseUrl(tradeApiBaseUrl)}/api/symbol/research?${params.toString()}`;
 }
 
 export function buildSignalEvaluationUrl({
@@ -1074,7 +1078,7 @@ export function buildSignalEvaluationUrl({
     params.set("signalLabel", normalizedSignalLabel);
   }
 
-  return `${getTradeApiBaseUrl(tradeApiBaseUrl)}/api/signal/evaluation?${params.toString()}`;
+  return `${getVegaRankApiBaseUrl(tradeApiBaseUrl)}/api/signal/evaluation?${params.toString()}`;
 }
 
 export function buildSymbolMarketContextImplication({
@@ -1136,23 +1140,13 @@ export function buildSymbolMarketContextImplication({
 export function getTradeApiBaseUrl(
   value: string | null | undefined = process.env.NEXT_PUBLIC_TRADE_API_BASE_URL,
 ) {
-  return value?.trim().replace(/\/+$/, "") ?? "";
+  return getVegaRankApiBaseUrl(value);
 }
 
 export function getSymbolResearchApiOriginLabel(
   baseUrl?: string | null,
 ) {
-  const normalizedBaseUrl = baseUrl?.trim();
-
-  if (!normalizedBaseUrl) {
-    return "same-origin";
-  }
-
-  try {
-    return new URL(normalizedBaseUrl).origin;
-  } catch {
-    return "same-origin";
-  }
+  return getVegaRankApiOriginLabel(baseUrl);
 }
 
 function normalizeSymbolMarketContextGroup(value: string | null | undefined) {
@@ -1296,7 +1290,7 @@ export function buildScannerReturnHref(
 
   const query = params.toString();
 
-  return query ? `/scanner?${query}` : "/scanner";
+  return query ? `/rankings?${query}` : "/rankings";
 }
 
 export function buildSymbolResearchTimeframeHref({
@@ -1512,7 +1506,7 @@ function SymbolResearchNavigation({
             href={scannerReturnHref}
             className="terminal-command-action"
           >
-            Back to Scanner
+            Back to Rankings
           </Link>
           {watchlistSymbol ? (
             <SymbolWatchlistControl
@@ -1803,7 +1797,7 @@ function ResearchState({
           href={scannerReturnHref}
           className="ui-button mt-4 h-8 px-3 text-xs"
         >
-          Back to Scanner
+          Back to Rankings
         </Link>
       ) : null}
     </section>
@@ -2816,9 +2810,9 @@ export function formatSymbolResearchApiError(
 function getKnownSymbolResearchErrorMessage(errorCode: string | null) {
   switch (errorCode) {
     case "SYMBOL_NOT_FOUND":
-      return "Symbol not found in scanner universe.";
+      return "Symbol not found in the VegaRank universe.";
     case "NO_LATEST_SIGNAL":
-      return "No scanner signal is available for this symbol/timeframe from the selected latest run.";
+      return "No ranking result is available for this symbol/timeframe from the selected latest run.";
     case "INVALID_TIMEFRAME":
       return "Invalid timeframe. Try 1h, 4h, 1d, or 1w.";
     default:

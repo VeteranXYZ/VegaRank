@@ -36,6 +36,7 @@ import {
   type StatusTone,
 } from "@/components/ui/workspace";
 import { formatDisplayDateTime } from "@/lib/utils/format";
+import { getVegaRankApiBaseUrl } from "@/lib/runtime/vegaRankApi";
 import {
   buildObservationSummary,
   type ObservationGroupSummary,
@@ -630,6 +631,10 @@ export function HistoryPageClient({
         onTimeframeChange={setTimeframe}
         onRefresh={refreshData}
       />
+      <p className="mb-1 text-[11px] leading-4 text-[var(--muted)]">
+        Browse stored runs and snapshots to review how setups evolved over time.
+        Use it to revisit prior structures and compare what followed.
+      </p>
 
       <div className="grid min-h-0 flex-1 gap-2 xl:grid-cols-[260px_minmax(0,1fr)] xl:overflow-hidden">
         <RecentSuccessfulRunsPanel
@@ -717,7 +722,7 @@ function HistoryCommandBar({
     <header className="terminal-command-bar mb-1">
       <div className="terminal-command-row text-[var(--terminal-bar-muted)]">
         <div className="terminal-command-brand">
-          <h1 className="terminal-command-title">HISTORY</h1>
+          <h1 className="terminal-command-title">Research Archive</h1>
           <span className="shrink-0 font-mono text-[10px] text-[var(--terminal-bar-muted)]">
             Crypto
           </span>
@@ -728,10 +733,10 @@ function HistoryCommandBar({
             onTimeframeChange={onTimeframeChange}
           />
           <HistoryCommandStat
-            label="Scan"
+            label="Run"
             value={selectedRunId ? shortRunId(selectedRunId) : "None"}
             tone={selectedRunId ? "accent" : "missing"}
-            title={`Selected Scan: ${selectedRunId ?? "None"}`}
+            title={`Selected Run: ${selectedRunId ?? "None"}`}
           />
           <HistoryCommandStat
             label="Validation"
@@ -846,7 +851,7 @@ export function RecentSuccessfulRunsPanel({
     <section
       className={recentRunsPanelClassName}
       data-testid="recent-runs-panel"
-      aria-label="Selected Scan recent runs"
+      aria-label="Selected Run recent runs"
     >
       <div className="terminal-panel-header-stack shrink-0">
         <div className="flex items-center justify-between gap-2">
@@ -861,20 +866,20 @@ export function RecentSuccessfulRunsPanel({
           </StatusBadge>
         </div>
         <p className="terminal-panel-subtitle text-[9px]">
-          Selected Scan
+          Selected Run
         </p>
       </div>
       {isError ? (
         <StatePanel
-          title="History unavailable"
-          message={errorMessage ?? "Stored scan runs could not be loaded."}
+          title="Archive unavailable"
+          message={errorMessage ?? "Stored ranking runs could not be loaded."}
         />
       ) : isLoading ? (
-        <StatePanel title="Loading runs" message="Loading stored scan runs." />
+        <StatePanel title="Loading runs" message="Loading stored ranking runs." />
       ) : snapshots.length === 0 ? (
         <StatePanel
           title="No runs"
-          message={`No successful ${timeframe} scans are available.`}
+          message={`No successful ${timeframe} runs are available.`}
         />
       ) : (
         <div
@@ -1107,17 +1112,17 @@ export function ForwardObservationSection({
             title="Loading Outcome Rows"
             message={
               selectedReadinessRun
-                ? `Selected scan ${shortRunId(selectedReadinessRun.runId)} is loading automatically.`
+                ? `Selected run ${shortRunId(selectedReadinessRun.runId)} is loading automatically.`
                 : "Choose a run from Recent Runs."
             }
           />
         ) : snapshotError ? (
-          <StatePanel title="Selected Scan unavailable" message={snapshotError} />
+          <StatePanel title="Selected Run unavailable" message={snapshotError} />
         ) : snapshotIsLoading ? (
-          <StatePanel title="Loading Selected Scan" message="Loading scan rows." />
+          <StatePanel title="Loading Selected Run" message="Loading ranking rows." />
         ) : !selectedReadinessRun ? (
           <StatePanel
-            title="No Selected Scan"
+            title="No Selected Run"
             message="Choose a run from Recent Runs."
           />
         ) : summary ? (
@@ -1128,7 +1133,7 @@ export function ForwardObservationSection({
         ) : (
           <StatePanel
             title="Validation Source unavailable"
-            message="No validation source is available for the selected scan."
+            message="No validation source is available for the selected run."
           />
         )}
 
@@ -1190,7 +1195,7 @@ function SelectedScanValidationStrip({
   return (
     <div className="terminal-panel-data flex min-w-0 flex-wrap items-center gap-x-4 gap-y-1 px-2 py-1 text-[10px] shadow-none">
       <HistoryContextStripLine
-        label="Scan"
+        label="Run"
         runId={selectedRun?.runId ?? null}
         items={[
           {
@@ -1384,7 +1389,7 @@ function HistoryDetails({
         <ObservationDataStatusLegend />
         <DetailLine
           label="Data path"
-          value="Outcome metrics use Validation Source; Original Scan Rows stay tied to Selected Scan."
+          value="Outcome metrics use Validation Source; Original Ranking Rows stay tied to Selected Run."
         />
         {readyContextNote ? (
           <DetailLine label="Validation note" value={readyContextNote} />
@@ -2446,13 +2451,13 @@ function getForwardObservationPanelTitle(uiState: ForwardObservationUiState) {
     case "readiness_unavailable":
       return "Validation Source unavailable";
     case "not_ready_for_selected_run":
-      return "Selected Scan is not mature";
+      return "Selected Run is not mature";
     case "no_observable_run":
       return isMarketCoverageBlocker(uiState)
         ? "Validation Source unavailable"
         : "No Validation Source available";
     case "using_selected_run":
-      return "Using Selected Scan";
+      return "Using Selected Run";
     case "using_recommended_observable_run":
       return "Using Validation Source";
     case "loading_observation_rows":
@@ -2482,10 +2487,10 @@ function getForwardObservationPanelMessage({
       return "Validation Source readiness could not be determined.";
     case "not_ready_for_selected_run":
       if (isWaitingForFutureCandlesDiagnostic(uiState, readiness)) {
-        return "The Selected Scan is waiting for completed future candles.";
+        return "The Selected Run is waiting for completed future candles.";
       }
 
-      return "The Selected Scan is not mature for this forward window.";
+      return "The Selected Run is not mature for this forward window.";
     case "no_observable_run":
       if (isStaleMarketDataDiagnostic(uiState, readiness)) {
         return "Market data appears stale for this forward window.";
@@ -2497,9 +2502,9 @@ function getForwardObservationPanelMessage({
 
       return "No mature validation source is available within the readiness search window.";
     case "using_selected_run":
-      return "The Selected Scan is also the Validation Source.";
+      return "The Selected Run is also the Validation Source.";
     case "using_recommended_observable_run":
-      return "The Selected Scan remains unchanged; Outcome Rows use the Validation Source.";
+      return "The Selected Run remains unchanged; Outcome Rows use the Validation Source.";
     case "loading_observation_rows":
       return "Loading Outcome Rows for the Validation Source.";
     case "observation_rows_error":
@@ -2675,7 +2680,7 @@ export function SnapshotTable({
       <summary className="terminal-panel-header cursor-pointer list-none marker:hidden">
         <div className="flex min-w-0 items-center gap-2">
           <h2 className="terminal-panel-title">
-            Original Scan Rows
+            Original Ranking Rows
           </h2>
         </div>
         <StatusBadge
@@ -2695,28 +2700,28 @@ export function SnapshotTable({
       </summary>
       <div className="border-t border-[var(--border)] px-2 py-2">
         <p className="mb-2 text-[11px] leading-4 text-[var(--muted)]">
-          Original scanner output from Selected Scan. Research opens current
+          Original ranking output from Selected Run. Research opens current
           symbol view, not historical replay.
         </p>
       {!requested ? (
         <div className="terminal-state-panel">
           <p className="text-[12px] leading-5 text-[var(--muted)]">
             Rows load automatically after selecting a run to keep the initial
-            History page light.
+            archive page light.
             {selectedRunId ? ` Selected run ${shortRunId(selectedRunId)}.` : ""}
           </p>
         </div>
       ) : isError ? (
         <StatePanel
           title="Original rows unavailable"
-          message={errorMessage ?? "Original scan rows could not be loaded."}
+          message={errorMessage ?? "Original ranking rows could not be loaded."}
         />
       ) : isLoading && rows.length === 0 ? (
-        <StatePanel title="Loading rows" message="Loading original scan rows." />
+        <StatePanel title="Loading rows" message="Loading original ranking rows." />
       ) : rows.length === 0 ? (
         <StatePanel
           title="No rows"
-          message="No scan rows are available for the Selected Scan."
+          message="No ranking rows are available for the Selected Run."
         />
       ) : (
         <DataTableScroll className="max-h-72 !overflow-x-auto !overflow-y-auto">
@@ -3691,9 +3696,9 @@ export function buildHistoricalSnapshotsUrl({
     assetClass,
     limit: String(limit),
   });
-  const baseUrl = tradeApiBaseUrl?.trim().replace(/\/+$/, "") ?? "";
+  const baseUrl = getVegaRankApiBaseUrl(tradeApiBaseUrl);
 
-  return `${baseUrl}/api/history/snapshots?${params.toString()}`;
+  return `${baseUrl}/api/archive/snapshots?${params.toString()}`;
 }
 
 export function buildHistoricalSnapshotUrl({
@@ -3706,9 +3711,9 @@ export function buildHistoricalSnapshotUrl({
   tradeApiBaseUrl?: string;
 }) {
   const params = new URLSearchParams({ runId, assetClass });
-  const baseUrl = tradeApiBaseUrl?.trim().replace(/\/+$/, "") ?? "";
+  const baseUrl = getVegaRankApiBaseUrl(tradeApiBaseUrl);
 
-  return `${baseUrl}/api/history/snapshot?${params.toString()}`;
+  return `${baseUrl}/api/archive/snapshot?${params.toString()}`;
 }
 
 export function buildHistoricalSnapshotObservationsUrl({
@@ -3727,9 +3732,9 @@ export function buildHistoricalSnapshotObservationsUrl({
     assetClass,
     window: String(window),
   });
-  const baseUrl = tradeApiBaseUrl?.trim().replace(/\/+$/, "") ?? "";
+  const baseUrl = getVegaRankApiBaseUrl(tradeApiBaseUrl);
 
-  return `${baseUrl}/api/history/snapshot-observations?${params.toString()}`;
+  return `${baseUrl}/api/archive/snapshot-observations?${params.toString()}`;
 }
 
 export function buildHistoricalObservationReadinessUrl({
@@ -3756,9 +3761,9 @@ export function buildHistoricalObservationReadinessUrl({
     params.set("runId", trimmedRunId);
   }
 
-  const baseUrl = tradeApiBaseUrl?.trim().replace(/\/+$/, "") ?? "";
+  const baseUrl = getVegaRankApiBaseUrl(tradeApiBaseUrl);
 
-  return `${baseUrl}/api/history/observation-readiness?${params.toString()}`;
+  return `${baseUrl}/api/archive/observation-readiness?${params.toString()}`;
 }
 
 function formatQueryError(error: unknown) {
@@ -3926,11 +3931,11 @@ function getForwardObservationReadyContextNote({
     : "mature full-universe run";
 
   if (diagnosticBlocker === "waiting_for_future_candles") {
-    return `Selected Scan is still waiting for future candles. Validation Source uses the most recent ${runDescription}.`;
+    return `Selected Run is still waiting for future candles. Validation Source uses the most recent ${runDescription}.`;
   }
 
   if (diagnosticBlocker === "stale_market_data") {
-    return `Selected Scan has stale market data coverage. Validation Source uses the most recent ${runDescription}.`;
+    return `Selected Run has stale market data coverage. Validation Source uses the most recent ${runDescription}.`;
   }
 
   return `Validation Source uses the most recent ${runDescription}.`;
@@ -3999,11 +4004,11 @@ function formatForwardObservationSelectionMode(
 ) {
   switch (value) {
     case "selected":
-      return "Selected Scan";
+      return "Selected Run";
     case "observable":
       return "Validation Source";
     case "not_ready":
-      return "Selected Scan not mature";
+      return "Selected Run not mature";
     case "unavailable":
       return "Unavailable";
   }
@@ -4075,14 +4080,14 @@ function formatObservationReadinessMessage(
   }
 
   if (diagnosticBlocker === "waiting_for_future_candles") {
-    return "Selected Scan is waiting for completed future candles.";
+    return "Selected Run is waiting for completed future candles.";
   }
 
   switch (blocker) {
     case "market_data_coverage":
       return "Market candle coverage is not far enough for this forward window.";
     case "time_maturity":
-      return "Selected Scan is too recent for this forward window.";
+      return "Selected Run is too recent for this forward window.";
     case "mixed":
       return "Validation is blocked by mixed time maturity and market candle coverage.";
     case "no_runs":

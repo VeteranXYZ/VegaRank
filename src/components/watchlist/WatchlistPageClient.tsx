@@ -24,6 +24,7 @@ import {
   StatusBadge,
   type StatusTone,
 } from "@/components/ui/workspace";
+import { getVegaRankApiBaseUrl } from "@/lib/runtime/vegaRankApi";
 import {
   MTF_SCREENER_TIMEFRAMES,
   buildMtfScreenerRowsFromResponse,
@@ -299,6 +300,11 @@ export function WatchlistPageClient({
         onResetDefault={resetDefault}
         onClear={clearWatchlist}
       />
+      <p className="mb-1 text-[11px] leading-4 text-[var(--muted)]">
+        Monitor selected symbols against the latest research snapshot. Use it to
+        keep active candidates visible without treating rankings as trading
+        advice.
+      </p>
 
       <div className="grid min-h-0 flex-1 gap-2 xl:grid-cols-[232px_minmax(0,1fr)] xl:overflow-hidden">
         <WatchlistControls
@@ -752,9 +758,9 @@ export function buildWatchlistMtfLatestScanUrl({
   tradeApiBaseUrl?: string;
 }) {
   const params = new URLSearchParams({ assetClass });
-  const baseUrl = tradeApiBaseUrl?.trim().replace(/\/+$/, "") ?? "";
+  const baseUrl = getVegaRankApiBaseUrl(tradeApiBaseUrl);
 
-  return `${baseUrl}/api/scan/mtf-latest?${params.toString()}`;
+  return `${baseUrl}/api/rankings/mtf-latest?${params.toString()}`;
 }
 
 export function WatchlistControls({

@@ -5,9 +5,26 @@ import { Header } from "@/components/layout/Header";
 import { QueryProvider } from "@/components/providers/QueryProvider";
 
 export const metadata: Metadata = {
-  title: "Crypto Technical Scanner",
+  title: {
+    default: "VegaRank",
+    template: "%s | VegaRank",
+  },
   description:
-    "A technical screening and research tool for Binance USDT spot markets.",
+    "Rank crypto setups by structure, confirmation, and risk context.",
+  openGraph: {
+    title: "VegaRank",
+    description:
+      "Rank crypto setups by structure, confirmation, and risk context.",
+    url: "https://vegarank.com",
+    siteName: "VegaRank",
+    type: "website",
+  },
+  twitter: {
+    card: "summary",
+    title: "VegaRank",
+    description:
+      "Rank crypto setups by structure, confirmation, and risk context.",
+  },
 };
 
 export default function RootLayout({

@@ -36,19 +36,19 @@ describe("HistoryPageClient API URLs", () => {
         timeframe: "4h",
         assetClass: "crypto",
         limit: 25,
-        tradeApiBaseUrl: "https://api.auere.com/",
+        tradeApiBaseUrl: "https://api.vegarank.com/",
       }),
     ).toBe(
-      "https://api.auere.com/api/history/snapshots?timeframe=4h&assetClass=crypto&limit=25",
+      "https://api.vegarank.com/api/archive/snapshots?timeframe=4h&assetClass=crypto&limit=25",
     );
     expect(
       buildHistoricalSnapshotUrl({
         runId,
         assetClass: "crypto",
-        tradeApiBaseUrl: "https://api.auere.com/",
+        tradeApiBaseUrl: "https://api.vegarank.com/",
       }),
     ).toBe(
-      `https://api.auere.com/api/history/snapshot?runId=${runId}&assetClass=crypto`,
+      `https://api.vegarank.com/api/archive/snapshot?runId=${runId}&assetClass=crypto`,
     );
     expect(
       buildHistoricalObservationReadinessUrl({
@@ -56,20 +56,20 @@ describe("HistoryPageClient API URLs", () => {
         runId,
         assetClass: "crypto",
         window: 3,
-        tradeApiBaseUrl: "https://api.auere.com/",
+        tradeApiBaseUrl: "https://api.vegarank.com/",
       }),
     ).toBe(
-      `https://api.auere.com/api/history/observation-readiness?timeframe=4h&assetClass=crypto&window=3&runId=${runId}`,
+      `https://api.vegarank.com/api/archive/observation-readiness?timeframe=4h&assetClass=crypto&window=3&runId=${runId}`,
     );
     expect(
       buildHistoricalSnapshotObservationsUrl({
         runId,
         assetClass: "crypto",
         window: 3,
-        tradeApiBaseUrl: "https://api.auere.com/",
+        tradeApiBaseUrl: "https://api.vegarank.com/",
       }),
     ).toBe(
-      `https://api.auere.com/api/history/snapshot-observations?runId=${runId}&assetClass=crypto&window=3`,
+      `https://api.vegarank.com/api/archive/snapshot-observations?runId=${runId}&assetClass=crypto&window=3`,
     );
   });
 });
@@ -193,19 +193,19 @@ describe("HistoryPageClient display formatting", () => {
     );
 
     expect(html).toContain("history-terminal");
-    expect(html).toContain("HISTORY");
+    expect(html).toContain("Research Archive");
     expect(html).toContain(">Timeframe<");
     expect(html).toContain(">1H<");
     expect(html).toContain(">4H<");
     expect(html).toContain(">1D<");
     expect(html).toContain(">1W<");
     expect(html).toContain('aria-pressed="true"');
-    expect(html).toContain("Selected Scan");
+    expect(html).toContain("Selected Run");
     expect(html).toContain("Validation");
     expect(html).toContain("Outcome Summary");
     expect(html).toContain("Loading Outcome Rows");
     expect(html).not.toContain("Load Outcome Rows");
-    expect(html).toContain("Original Scan Rows");
+    expect(html).toContain("Original Ranking Rows");
     expect(html).toContain("terminal-command-bar");
     expect(html).not.toContain(
       "mb-1 flex flex-wrap items-center gap-2 border border-[var(--border-medium)] bg-[var(--panel-muted)] px-2 py-1",
@@ -259,8 +259,8 @@ describe("HistoryPageClient display formatting", () => {
       }),
     );
 
-    expect(html).toContain("Original Scan Rows");
-    expect(html).toContain("Original scanner output from Selected Scan.");
+    expect(html).toContain("Original Ranking Rows");
+    expect(html).toContain("Original ranking output from Selected Run.");
     expect(html).toContain(
       "Research opens current symbol view, not historical replay.",
     );
@@ -485,7 +485,7 @@ describe("HistoryPageClient display formatting", () => {
     expect(html).toContain('data-testid="recent-runs-panel"');
     expect(html).toContain('data-testid="recent-runs-scroll-container"');
     expect(html).toContain("Recent Runs");
-    expect(html).toContain("Selected Scan");
+    expect(html).toContain("Selected Run");
     expect(html).toContain("xl:min-h-0");
     expect(html).toContain("xl:flex-col");
     expect(html).toContain("xl:overflow-y-auto");
@@ -646,7 +646,7 @@ describe("HistoryPageClient display formatting", () => {
 
     expect(uiState.status).toBe("observation_ready");
     expect(html).toContain("Validation ready");
-    expect(html).toContain("Selected Scan");
+    expect(html).toContain("Selected Run");
     expect(html).toContain("Validation Source");
     expect(html).toContain("selected");
     expect(html).toContain("mature-r");
@@ -723,7 +723,7 @@ describe("HistoryPageClient display formatting", () => {
       runId: rowsRunId ?? "",
       assetClass: "crypto",
       window: 3,
-      tradeApiBaseUrl: "https://api.auere.com",
+      tradeApiBaseUrl: "https://api.vegarank.com",
     });
 
     expect(rowsRunId).toBe("mature-ready");
@@ -1035,7 +1035,7 @@ describe("HistoryPageClient display formatting", () => {
     expect(selection.response?.metadata.completeCount).toBe(1);
   });
 
-  it("labels recommended observable runs without changing the Selected Scan", () => {
+  it("labels recommended observable runs without changing the Selected Run", () => {
     const selectedRun = makeObservationRun({
       runId: "11111111-1111-4111-8111-111111111111",
       finishedAt: "2026-06-02T15:05:15.000Z",
@@ -1106,7 +1106,7 @@ describe("HistoryPageClient display formatting", () => {
     expect(html).toContain("11111111");
     expect(html).toContain("22222222");
     expect(html).toContain("Window 3 candles");
-    expect(html).toContain("Selected Scan has stale market data coverage");
+    expect(html).toContain("Selected Run has stale market data coverage");
     expect(html).toContain("Return");
     expect(html).not.toContain("Validation Source unavailable");
   });
@@ -1159,7 +1159,7 @@ describe("HistoryPageClient display formatting", () => {
       readinessError: null,
     })).toBe(observationRun.runId);
     expect(html).toContain(
-      "Selected Scan is still waiting for future candles. Validation Source uses the most recent mature full-universe run.",
+      "Selected Run is still waiting for future candles. Validation Source uses the most recent mature full-universe run.",
     );
     expect(html).toContain("11111111");
     expect(html).toContain("22222222");
@@ -1241,8 +1241,8 @@ describe("HistoryPageClient display formatting", () => {
       readiness,
       readinessError: null,
     })).toBeNull();
-    expect(html).toContain("Selected Scan is not mature");
-    expect(html).toContain("The Selected Scan is waiting for completed future candles");
+    expect(html).toContain("Selected Run is not mature");
+    expect(html).toContain("The Selected Run is waiting for completed future candles");
     expect(html).toContain("Waiting for future candles");
     expect(html).toContain("Missing");
     expect(html).toContain("12 hours");

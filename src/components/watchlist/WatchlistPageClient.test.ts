@@ -36,9 +36,9 @@ describe("WatchlistPageClient", () => {
     expect(
       buildWatchlistMtfLatestScanUrl({
         assetClass: "crypto",
-        tradeApiBaseUrl: "https://api.auere.com/",
+        tradeApiBaseUrl: "https://api.vegarank.com/",
       }),
-    ).toBe("https://api.auere.com/api/scan/mtf-latest?assetClass=crypto");
+    ).toBe("https://api.vegarank.com/api/rankings/mtf-latest?assetClass=crypto");
   });
 
   it("renders default symbols and the watchlist table", () => {

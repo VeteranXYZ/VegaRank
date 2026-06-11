@@ -18,9 +18,9 @@ describe("marketContextUi", () => {
     expect(
       buildMarketContextUrl({
         assetClass: "crypto",
-        tradeApiBaseUrl: "https://api.auere.com/",
+        tradeApiBaseUrl: "https://api.vegarank.com/",
       }),
-    ).toBe("https://api.auere.com/api/market/context?assetClass=crypto");
+    ).toBe("https://api.vegarank.com/api/market/context?assetClass=crypto");
   });
 
   it("fetches the market context endpoint with assetClass crypto", async () => {
@@ -34,7 +34,7 @@ describe("marketContextUi", () => {
     await fetchMarketContext({ assetClass: "crypto", tradeApiBaseUrl: "" });
 
     expect(fetchMock).toHaveBeenCalledWith(
-      "/api/market/context?assetClass=crypto",
+      "https://api.vegarank.com/api/market/context?assetClass=crypto",
       { signal: undefined },
     );
   });

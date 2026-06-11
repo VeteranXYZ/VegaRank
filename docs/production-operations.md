@@ -1,16 +1,16 @@
 # Production Operations Runbook
 
-This runbook covers production deployment, scan scheduling, verification, and troubleshooting for the trade-scanner VPS and public frontend.
+This runbook covers production deployment, ranking job scheduling, verification, and troubleshooting for the VegaRank VPS and public frontend.
 
 ## 1. Production Architecture
 
 - The frontend is deployed by Cloudflare Pages from GitHub `main`.
-- The public frontend is `https://s.bitcoinmind.com`.
+- The public frontend is `https://vegarank.com`.
 - The public API is served by the VPS PM2 process `trade-api`.
-- The public API host is `https://api.auere.com`.
+- The public API host is `https://api.vegarank.com`.
 - Postgres stores market candles, `scan_runs`, and `scan_signals`.
-- Scanner production jobs write market candle data, scanner runs, and scanner signals into Postgres.
-- The frontend and API read latest stored data. A frontend deploy does not refresh scan data.
+- Ranking production jobs write market candle data, runs, and signal records into Postgres.
+- The frontend and API read latest stored data. A frontend deploy does not refresh ranking data.
 - Restarting PM2 affects only the `trade-api` API process, not the Cloudflare Pages frontend.
 - Production scripts are independent of PM2 unless API code changes also need a restart.
 
@@ -49,9 +49,9 @@ Validation:
 
 - Cloudflare Pages build should pass.
 - Check these public pages:
-  - `https://s.bitcoinmind.com/screener`
-  - `https://s.bitcoinmind.com/watchlist`
-  - `https://s.bitcoinmind.com/symbol/binance/BTCUSDT?timeframe=1h`
+  - `https://vegarank.com/screener`
+  - `https://vegarank.com/watchlist`
+  - `https://vegarank.com/symbol/binance/BTCUSDT?timeframe=1h`
 
 ## 4. Backend/API Deployment Workflow
 
@@ -165,15 +165,15 @@ Expected results:
 Quick API checks:
 
 ```bash
-curl -s 'https://api.auere.com/api/scan/mtf-latest?assetClass=crypto' | jq '{ok, count, signalCounts, missingCounts}'
+curl -s 'https://api.vegarank.com/api/rankings/mtf-latest?assetClass=crypto' | jq '{ok, count, signalCounts, missingCounts}'
 ```
 
 ```bash
-curl -s 'https://api.auere.com/api/market/context?assetClass=crypto' | jq '{ok, context, title: .summary.title}'
+curl -s 'https://api.vegarank.com/api/market/context?assetClass=crypto' | jq '{ok, context, title: .summary.title}'
 ```
 
 ```bash
-curl -s 'https://api.auere.com/api/symbol/research?exchange=binance&symbol=BTCUSDT&timeframe=1h' | jq '{ok, timeframe, group: .latest.signal.resultGroup, signalLabel: .latest.signal.signalLabel, behaviorAvailable: .behaviorDiagnostics.available}'
+curl -s 'https://api.vegarank.com/api/symbol/research?exchange=binance&symbol=BTCUSDT&timeframe=1h' | jq '{ok, timeframe, group: .latest.signal.resultGroup, signalLabel: .latest.signal.signalLabel, behaviorAvailable: .behaviorDiagnostics.available}'
 ```
 
 ## 8. Freshness Troubleshooting
@@ -183,7 +183,7 @@ Check latest runs for all production timeframes:
 ```bash
 for tf in 1h 4h 1d 1w; do
   echo "===== $tf ====="
-  curl -s "https://api.auere.com/api/scan/latest?timeframe=$tf&assetClass=crypto&limit=5" \
+  curl -s "https://api.vegarank.com/api/rankings/latest?timeframe=$tf&assetClass=crypto&limit=5" \
     | jq '{
       ok,
       timeframe,

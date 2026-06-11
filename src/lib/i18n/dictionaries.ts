@@ -49,9 +49,9 @@ type PrimaryStructureDisplayKey =
 export const dictionaries = {
   en: {
     nav: {
-      brand: "Crypto Technical Scanner",
-      scanner: "Scanner",
-      history: "History",
+      brand: "VegaRank",
+      scanner: "Rankings",
+      history: "Archive",
       btc: "BTCUSDT",
     },
     footer: {
@@ -350,11 +350,11 @@ export const dictionaries = {
       noData: "No data yet.",
       noEvaluations: "No evaluations available.",
       noSignalBuckets: "No signal buckets yet.",
-      loadingTitle: "Loading History",
-      loadingMessage: "Reading locally stored scan snapshots.",
-      errorTitle: "Unable To Load History",
+      loadingTitle: "Loading Archive",
+      loadingMessage: "Reading locally stored research snapshots.",
+      errorTitle: "Unable To Load Archive",
       emptyTitle: "No Snapshots Yet",
-      emptyMessage: "Run a scanner request to start collecting local scan history.",
+      emptyMessage: "Run a ranking request to start collecting local research archive data.",
     },
     symbol: {
       timeframe: "Timeframe",
@@ -771,9 +771,9 @@ export const dictionaries = {
   },
   zh: {
     nav: {
-      brand: "加密技术扫描器",
-      scanner: "扫描",
-      history: "历史",
+      brand: "VegaRank",
+      scanner: "排名",
+      history: "归档",
       btc: "BTCUSDT",
     },
     footer: {

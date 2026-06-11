@@ -115,7 +115,7 @@ export async function runProductionCoverageCheck({
 }) {
   const mtfBody = await getJsonObject({
     baseUrl,
-    path: "/api/scan/mtf-latest?assetClass=crypto",
+    path: "/api/rankings/mtf-latest?assetClass=crypto",
     report,
     fetchImpl,
     critical: true,
@@ -136,7 +136,7 @@ export async function runProductionCoverageCheck({
   for (const timeframe of timeframes) {
     const body = await getJsonObject({
       baseUrl,
-      path: `/api/scan/latest?timeframe=${timeframe}&assetClass=crypto&limit=100`,
+      path: `/api/rankings/latest?timeframe=${timeframe}&assetClass=crypto&limit=100`,
       report,
       fetchImpl,
       critical: true,
@@ -168,7 +168,7 @@ export async function runProductionCoverageCheck({
     if (latestRunRow.runId !== "not available") {
       const readinessBody = await getJsonObject({
         baseUrl,
-        path: `/api/history/observation-readiness?timeframe=${timeframe}&assetClass=crypto&window=3&runId=${latestRunRow.runId}`,
+        path: `/api/archive/observation-readiness?timeframe=${timeframe}&assetClass=crypto&window=3&runId=${latestRunRow.runId}`,
         report,
         fetchImpl,
         critical: false,
@@ -528,18 +528,18 @@ export function evaluateLatestRunSelection({
 
   if (!isRecord(body)) {
     report.fail("Latest Run Selection", [
-      `${timeframe} latest scan response is malformed.`,
+      `${timeframe} latest rankings response is malformed.`,
     ]);
     result = "fail";
   }
 
   if (payload.ok !== true) {
-    report.fail("Latest Run Selection", [`${timeframe} latest scan ok must be true.`]);
+    report.fail("Latest Run Selection", [`${timeframe} latest rankings ok must be true.`]);
     result = "fail";
   }
 
   if (!run) {
-    report.fail("Latest Run Selection", [`${timeframe} latest scan run is missing.`]);
+    report.fail("Latest Run Selection", [`${timeframe} latest rankings run is missing.`]);
     result = "fail";
   } else {
     if (run.status !== "success") {

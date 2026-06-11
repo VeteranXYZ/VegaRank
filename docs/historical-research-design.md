@@ -92,11 +92,11 @@ Relevant code:
 
 Production VPS API in `src/server/trade-api.ts`:
 
-- `/api/scan/latest`
+- `/api/rankings/latest`
   - Current latest single-timeframe stored scan.
   - Uses latest successful `scan_runs.id`.
   - Accepts timeframe, asset class, include flags, and a response limit.
-- `/api/scan/mtf-latest`
+- `/api/rankings/mtf-latest`
   - Current multi-timeframe joined screener source.
   - Joins latest selected runs across `1h`, `4h`, `1d`, and `1w`.
   - Returns rows, run metadata, signal counts, and missing counts.
@@ -112,16 +112,16 @@ Production VPS API in `src/server/trade-api.ts`:
   - Recent candles for a symbol/timeframe.
 - `/api/market-data/coverage`
   - Candle coverage by timeframe and asset class.
-- `/api/scan/runs`
+- `/api/rankings/runs`
   - Lists recent scan runs.
 
 Next app APIs:
 
-- `app/api/history/scans/route.ts`
-  - Currently returns `501`; persistent scan history is disabled in this deployment.
-- `app/api/history/evaluate/route.ts`
+- `app/api/archive/scans/route.ts`
+  - Currently returns `501`; the persistent research archive is disabled in this deployment.
+- `app/api/archive/evaluate/route.ts`
   - Runs local research evaluation through the local storage adapter.
-- `app/api/history/research-stats/route.ts`
+- `app/api/archive/research-stats/route.ts`
   - Returns local research storage stats.
 - `app/api/backtest/symbol/route.ts`
   - No-database per-symbol historical behavior review. It is lazy-loaded and not a production snapshot system.
@@ -129,7 +129,7 @@ Next app APIs:
 ### Current frontend flows
 
 - `src/components/screener/MultiTimeframeScreenerPageClient.tsx`
-  - Fetches `/api/scan/mtf-latest`.
+  - Fetches `/api/rankings/mtf-latest`.
   - Builds joined rows from latest selected timeframe runs.
   - Shows all joined symbols by default.
   - Filters, buckets, search, and sorting are client-side after the full joined row set is loaded.
@@ -141,10 +141,10 @@ Next app APIs:
 - `src/components/watchlist/WatchlistPageClient.tsx`
   - Fetches the same MTF latest data and filters it to user-selected symbols.
   - Uses local browser storage for the user's watchlist. Phase 12 should not add more localStorage.
-- `app/history/page.tsx`
+- `app/archive/page.tsx`
   - The public History page currently says persistence is disabled.
-- `src/components/history/HistoryPageClient.tsx`
-  - Older local history UI exists but is not currently used by `app/history/page.tsx`.
+- `src/components/archive/HistoryPageClient.tsx`
+  - Older local history UI exists but is not currently used by `app/archive/page.tsx`.
 
 ### Current evaluation-related code
 
@@ -210,14 +210,14 @@ Portfolio analytics tools:
 - Useful pattern: explicitly show missing observations and sample size.
 - Not appropriate now: portfolio optimization, allocation advice, or a strategy leaderboard.
 
-For trade-scanner, the practical pattern is a split between live scanner workbench and historical research report. Live scanner remains about current research triage. Historical Research is a separate read-only report layer.
+For VegaRank, the practical pattern is a split between live rankings and historical research reports. Live rankings remain about current research triage. The Research Archive is a separate read-only report layer.
 
 ## 5. Proposed Phase 12 Product Concepts
 
 ### Current Screener Export
 
 - User question: "What symbols and research context am I seeing right now?"
-- Data required: current in-memory Screener rows from `/api/scan/mtf-latest` after the client builds joined rows.
+- Data required: current in-memory Screener rows from `/api/rankings/mtf-latest` after the client builds joined rows.
 - Complexity: Low.
 - Safety risk: Low if framed as an export of visible research rows.
 - Recommended priority: Build first.
@@ -314,7 +314,7 @@ For trade-scanner, the practical pattern is a split between live scanner workben
 
 | Feature | User value | Data required | Can use existing data? | Needs new API? | Needs schema change? | Complexity | Risk | Recommendation |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| 12.1 Export current / filtered Screener result | High | Current joined Screener rows from `/api/scan/mtf-latest` and client filters | Yes | No for client-side CSV/text export | No | Low | Low | Build first |
+| 12.1 Export current / filtered Screener result | High | Current joined Screener rows from `/api/rankings/mtf-latest` and client filters | Yes | No for client-side CSV/text export | No | Low | Low | Build first |
 | 12.2 Historical snapshot viewer | High | `scan_runs`, `scan_signals`, `symbols` | Yes for single-timeframe snapshots; partial for exact MTF joined state | Yes | No initially | Medium | Medium | Build later |
 | 12.3 Timepoint outcome comparison | High | Selected snapshot signals and forward `market_candles` | Yes if candle coverage exists | Yes | No initially; maybe later for cached reports | Medium-high | High | Build later |
 | 12.4 Distribution / relative performance / drawdown context | Medium-high | Per-symbol forward returns, BTC/ETH candles, drawdown windows | Mostly yes | Yes | No initially; maybe later for materialized summaries | High | Medium-high | Build later |
@@ -330,7 +330,7 @@ For trade-scanner, the practical pattern is a split between live scanner workben
 
 ### 12.1 Export current / filtered Screener result
 
-- Existing data source: current `/api/scan/mtf-latest` response and client-built rows in `MultiTimeframeScreenerPageClient`.
+- Existing data source: current `/api/rankings/mtf-latest` response and client-built rows in `MultiTimeframeScreenerPageClient`.
 - Missing data: none for exporting what is currently visible or filtered.
 - Historical depth assumptions: not relevant.
 - Candle coverage assumptions: not relevant.
@@ -397,7 +397,7 @@ These are future proposals only. Do not implement in Phase 12.0.
 - Schema change: No.
 - Safety/copy boundaries: Export as "research rows", not recommendations.
 
-### `GET /api/history/snapshots`
+### `GET /api/archive/snapshots`
 
 - Purpose: List historical successful scan runs available for snapshot review.
 - Inputs: `timeframe`, `assetClass`, `from`, `to`, `limit`, `includeNonScanner`.
@@ -406,7 +406,7 @@ These are future proposals only. Do not implement in Phase 12.0.
 - Schema change: No.
 - Safety/copy boundaries: Label as "Historical snapshots", not performance.
 
-### `GET /api/history/snapshot`
+### `GET /api/archive/snapshot`
 
 - Purpose: Get a historical snapshot by run id or nearest run to a timepoint.
 - Inputs: `runId` or `timepoint`, `timeframe`, `assetClass`, `nearest=before|after|closest`.
@@ -415,7 +415,7 @@ These are future proposals only. Do not implement in Phase 12.0.
 - Schema change: No.
 - Safety/copy boundaries: Show "selected stored run" and time distance clearly.
 
-### `GET /api/history/mtf-snapshot`
+### `GET /api/archive/mtf-snapshot`
 
 - Purpose: Reconstruct an MTF snapshot near a timepoint by selecting nearest successful runs for `1h`, `4h`, `1d`, and `1w`.
 - Inputs: `timepoint`, `assetClass`, `nearest`, optional timeframe list.
@@ -424,7 +424,7 @@ These are future proposals only. Do not implement in Phase 12.0.
 - Schema change: No initially. A future `scan_run_groups` or `mtf_snapshots` table may be needed if exact run bundles must be preserved.
 - Safety/copy boundaries: State that MTF historical reconstruction uses nearest stored runs, not a live scan rerun.
 
-### `GET /api/history/timepoint-observations`
+### `GET /api/archive/timepoint-observations`
 
 - Purpose: Compute forward window observations for a selected snapshot.
 - Inputs: `runId` or `timepoint`, `timeframe`, `windows=1,3,5,10`, `assetClass`, optional filters.
@@ -433,7 +433,7 @@ These are future proposals only. Do not implement in Phase 12.0.
 - Schema change: No initially; later cache table may be helpful.
 - Safety/copy boundaries: Use "forward observation window", "historical observation", and "missing data".
 
-### `GET /api/history/relative-context`
+### `GET /api/archive/relative-context`
 
 - Purpose: Add BTC/ETH relative performance and market backdrop to a selected timepoint.
 - Inputs: `runId` or `timepoint`, `timeframe`, `benchmarks=BTCUSDT,ETHUSDT`, `windows`.
@@ -701,7 +701,7 @@ Tests needed:
 
 ## 13. Risks and Open Questions
 
-- Is existing production scan history complete enough for meaningful historical snapshots, or are early runs too sparse/manual?
+- Is the existing production research archive complete enough for meaningful historical snapshots, or are early runs too sparse/manual?
 - Is there a retention policy for Postgres `scan_runs`, `scan_signals`, and `market_candles`?
 - Can historical MTF joined state be reconstructed accurately enough by nearest per-timeframe run selection, or is a future run-group table needed?
 - Do current `scan_signals` preserve enough fields for all historical report needs, especially UI-friendly factor explanations and run context?

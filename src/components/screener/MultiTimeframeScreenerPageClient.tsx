@@ -25,6 +25,7 @@ import {
 import { formatDisplayDateTime } from "@/lib/utils/format";
 import { useAppLanguage } from "@/lib/i18n/AppLanguageProvider";
 import type { Language } from "@/lib/i18n/dictionaries";
+import { getVegaRankApiBaseUrl } from "@/lib/runtime/vegaRankApi";
 import {
   formatDateTime,
   formatGroupLabel,
@@ -74,7 +75,8 @@ type MtfSemanticTone = StatusTone | "repair";
 
 export const mtfScreenerProductionCopy = {
   title: "Multi-Timeframe Screener",
-  description: "Compare joined scanner signals across 1h, 4h, 1d, and 1w.",
+  description:
+    "Compare joined multi-timeframe research snapshots across symbols.",
 };
 
 export type MtfScreenerTableSortKey =
@@ -228,6 +230,11 @@ export function MultiTimeframeScreenerPageClient() {
         onExportVisible={() => exportRows("visible_rows")}
         onExportAll={() => exportRows("all_joined_rows")}
       />
+      <p className="mb-1 text-[11px] leading-4 text-[var(--muted)]">
+        Compare joined multi-timeframe research snapshots across symbols. Use the
+        screener to review structure, confirmation, and risk context across
+        timeframes.
+      </p>
 
       <MtfResearchBucketsPanel
         rows={rows}
@@ -251,7 +258,7 @@ export function MultiTimeframeScreenerPageClient() {
 
         <main className="order-1 min-h-0 min-w-0 xl:order-2 xl:flex xl:flex-col xl:overflow-hidden">
           {latestQuery.isLoading ? (
-            <MtfStatePanel message="Loading multi-timeframe latest scan data." />
+            <MtfStatePanel message="Loading multi-timeframe latest ranking data." />
           ) : latestQuery.isError ? (
             <MtfStatePanel message={getMtfErrorMessage(latestQuery.error)} />
           ) : rows.length === 0 ? (
@@ -541,7 +548,7 @@ async function fetchMtfLatestScans({
 
   if (!response.ok) {
     throw new Error(
-      `Failed to load multi-timeframe latest scan data (${response.status}).`,
+      `Failed to load multi-timeframe latest ranking data (${response.status}).`,
     );
   }
 
@@ -558,9 +565,9 @@ export function buildMtfLatestScanUrl({
   const params = new URLSearchParams({
     assetClass,
   });
-  const baseUrl = tradeApiBaseUrl?.trim().replace(/\/+$/, "") ?? "";
+  const baseUrl = getVegaRankApiBaseUrl(tradeApiBaseUrl);
 
-  return `${baseUrl}/api/scan/mtf-latest?${params.toString()}`;
+  return `${baseUrl}/api/rankings/mtf-latest?${params.toString()}`;
 }
 
 function downloadCsvFile({
@@ -631,7 +638,7 @@ export function MtfScreenerCommandBar({
           className="terminal-command-brand"
           title={`${title} · ${datasetLabel}`}
         >
-          <h1 className="terminal-command-title">MTF SCREENER</h1>
+          <h1 className="terminal-command-title">Multi-Timeframe Screener</h1>
           <span className="shrink-0 font-mono text-[10px] text-[var(--terminal-bar-muted)]">
             Crypto
           </span>

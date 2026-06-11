@@ -3,7 +3,7 @@ import {
   GET as getDataSync,
   POST as postDataSync,
 } from "../../app/api/data/sync/route";
-import { GET as getHistoryScans } from "../../app/api/history/scans/route";
+import { GET as getHistoryScans } from "../../app/api/archive/scans/route";
 
 vi.mock("@/lib/storage/marketData", () => {
   throw new Error("Local SQLite storage was imported");
@@ -33,12 +33,12 @@ describe("local persistence route guards", () => {
 
   it("blocks local history without importing filesystem storage", async () => {
     const response = await getHistoryScans(
-      new Request("http://localhost/api/history/scans"),
+      new Request("http://localhost/api/archive/scans"),
     );
     const body = await response.json();
 
     expect(response.status).toBe(501);
-    expect(body.error).toContain("Persistent scan history is not enabled");
+    expect(body.error).toContain("Persistent research archive is not enabled");
   });
 
   it("blocks Cloudflare data sync instead of using a remote database", async () => {

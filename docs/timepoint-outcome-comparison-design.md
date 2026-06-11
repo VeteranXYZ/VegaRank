@@ -2,7 +2,7 @@
 
 ## 1. Executive Summary
 
-Phase 12.3B should add a minimal, single-snapshot Forward Window Observation workflow to the existing `/history` page.
+Phase 12.3B should add a minimal, single-snapshot Forward Window Observation workflow to the existing `/archive` page.
 
 The safest first version is:
 
@@ -33,8 +33,8 @@ Current production data:
 
 Current API behavior:
 
-- `GET /api/history/snapshots` lists recent successful single-timeframe runs.
-- `GET /api/history/snapshot` validates `runId` as UUID, loads one successful run, then returns all stored rows for that run.
+- `GET /api/archive/snapshots` lists recent successful single-timeframe runs.
+- `GET /api/archive/snapshot` validates `runId` as UUID, loads one successful run, then returns all stored rows for that run.
 - Invalid `runId` values are rejected before opening Postgres.
 - Snapshot detail sets `metadata.limited = false` and returns the full stored row set.
 
@@ -147,14 +147,14 @@ Recommendation:
 
 Relevant files:
 
-- `src/components/history/HistoryPageClient.tsx`
-- `src/components/history/HistoryPageClient.test.tsx`
-- `src/components/history/HistoryDisabledPage.test.tsx`
-- `app/history/page.tsx`
+- `src/components/archive/HistoryPageClient.tsx`
+- `src/components/archive/HistoryPageClient.test.tsx`
+- `src/components/archive/HistoryDisabledPage.test.tsx`
+- `app/archive/page.tsx`
 
 Current behavior:
 
-- `/history` is live.
+- `/archive` is live.
 - It lists recent successful single-timeframe stored runs.
 - It shows one selected stored run.
 - It displays full stored snapshot rows.
@@ -164,7 +164,7 @@ Current behavior:
 
 Recommendation:
 
-- Add 12.3B under the selected stored run on `/history`.
+- Add 12.3B under the selected stored run on `/archive`.
 - Keep single-timeframe scope.
 - Keep full row visibility.
 - Do not add charts or a large new UI layer.
@@ -174,8 +174,8 @@ Recommendation:
 Relevant files:
 
 - `src/server/trade-api.test.ts`
-- `src/components/history/HistoryPageClient.test.tsx`
-- `src/components/history/HistoryDisabledPage.test.tsx`
+- `src/components/archive/HistoryPageClient.test.tsx`
+- `src/components/archive/HistoryDisabledPage.test.tsx`
 - `src/lib/storage/postgres/scannerResultsPg.test.ts`
 - `src/lib/storage/postgres/signalEvaluationPg.test.ts`
 - `src/lib/storage/postgres/symbolBehaviorPg.test.ts`
@@ -630,7 +630,7 @@ Recommendation:
 
 ### New helper recommendation
 
-Add a small future helper in 12.3B, likely near the Postgres scanner/history storage code:
+Add a small future helper in 12.3B, likely near the Postgres scanner/archive storage code:
 
 - `loadHistoricalSnapshotObservationsPg`
 - Input: `scanRunId`, `assetClass`, optional `timeframe`, `window`
@@ -644,13 +644,13 @@ Do not implement this in 12.3A.
 
 ### Proposed endpoint
 
-`GET /api/history/snapshot-observations`
+`GET /api/archive/snapshot-observations`
 
 This path fits the current API style:
 
-- Existing list: `/api/history/snapshots`
-- Existing detail: `/api/history/snapshot`
-- New observation detail: `/api/history/snapshot-observations`
+- Existing list: `/api/archive/snapshots`
+- Existing detail: `/api/archive/snapshot`
+- New observation detail: `/api/archive/snapshot-observations`
 
 ### Query params
 
@@ -764,7 +764,7 @@ Suggested invalid responses:
 
 Recommended location:
 
-- Add a compact "Forward Observation" section under the selected stored run on `/history`, before or above the snapshot table.
+- Add a compact "Forward Observation" section under the selected stored run on `/archive`, before or above the snapshot table.
 
 Suggested controls:
 
@@ -887,9 +887,9 @@ Risk areas:
 
 Exactly what to build:
 
-- One read-only endpoint: `GET /api/history/snapshot-observations`.
+- One read-only endpoint: `GET /api/archive/snapshot-observations`.
 - One Postgres helper that loads full-row forward observations for one selected run and one completed-candle window.
-- One compact `/history` UI section under the selected stored run.
+- One compact `/archive` UI section under the selected stored run.
 - One window selector for 1, 3, 5, and 10 completed candles.
 - One summary strip with row counts and missing-data counts.
 - One observation table that keeps all rows visible.
@@ -900,8 +900,8 @@ Likely files to change:
 - `src/server/trade-api.test.ts`
 - `src/lib/storage/postgres/scannerResultsPg.ts` or a new focused Postgres history observation helper file.
 - `src/lib/storage/postgres/scannerResultsPg.test.ts` or a new focused helper test file.
-- `src/components/history/HistoryPageClient.tsx`
-- `src/components/history/HistoryPageClient.test.tsx`
+- `src/components/archive/HistoryPageClient.tsx`
+- `src/components/archive/HistoryPageClient.test.tsx`
 
 Helper to add:
 

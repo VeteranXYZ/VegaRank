@@ -68,7 +68,7 @@ describe("loadSymbolBehaviorPg", () => {
       available: true,
       reason: "ok",
       message:
-        "Historical behavior is available from prior scanner signals with forward candles.",
+        "Historical behavior is available from prior ranking results with forward candles.",
     });
     expect(result.behavior).toMatchObject({
       sampleSize: 2,
@@ -143,7 +143,7 @@ describe("loadSymbolBehaviorPg", () => {
         available: false,
         reason: "no_prior_signals",
         message:
-          "Historical behavior is not available yet because no prior scanner signals were found for this symbol/timeframe.",
+          "Historical behavior is not available yet because no prior ranking results were found for this symbol/timeframe.",
       },
     });
   });

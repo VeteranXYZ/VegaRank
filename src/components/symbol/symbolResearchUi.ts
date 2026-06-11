@@ -718,7 +718,7 @@ export function buildSymbolResearchDiagnostics({
       ? "Newer secondary runs exist. Current classification uses selected full-universe run."
       : !hasHistory
         ? "No recent signal history available."
-        : "Current classification uses the selected scanner run.";
+        : "Current classification uses the selected ranking run.";
 
   return {
     rows: [
@@ -732,7 +732,7 @@ export function buildSymbolResearchDiagnostics({
         value: formatSymbolResearchDateTime(currentSelection?.selectedRunFinishedAt),
       },
       {
-        label: "Signal Scan Time",
+        label: "Ranking Time",
         value: formatSymbolResearchDateTime(currentSelection?.selectedSignalScanTime),
       },
       {
@@ -760,13 +760,13 @@ export function buildSymbolResearchUnavailableContent(
   );
   const title = hasEnhancedUnavailableData
     ? "Timeframe unavailable for this symbol"
-    : "No scanner signal available";
+    : "No ranking result available";
   const reason = formatSymbolResearchUnavailableReason(input.unavailableReason);
   const message =
     input.message?.trim() ||
     (isInsufficientHistory && candleCount !== null && requiredCandles !== null
-      ? `No ${timeframe} scanner signal for ${symbol}. The selected scan ran successfully, but ${symbol} has only ${candleCount} candles and the scanner currently requires ${requiredCandles}.`
-      : "No scanner signal is available for this symbol/timeframe from the selected latest run.");
+      ? `No ${timeframe} ranking result for ${symbol}. The selected ranking run completed, but ${symbol} has only ${candleCount} candles and VegaRank currently requires ${requiredCandles}.`
+      : "No ranking result is available for this symbol/timeframe from the selected latest run.");
   const details = [
     { label: "Symbol", value: symbol },
     { label: "Timeframe", value: timeframe },
@@ -788,7 +788,7 @@ export function buildSymbolResearchUnavailableContent(
       value: formatSymbolResearchUnavailableSelectedRun(input.selectedRun),
     },
     {
-      label: "Signals Created",
+      label: "Ranking Rows Created",
       value: formatNullableInteger(input.selectedRun?.signalsCreated),
     },
     {
@@ -804,11 +804,11 @@ export function buildSymbolResearchUnavailableContent(
     suggestions: isInsufficientHistory
       ? [
           `Try 4h or 1d for ${symbol}.`,
-          `Refresh after the next scanner run; ${timeframe} coverage updates as more ${toReadableTimeframeUnit(timeframe)} candles accrue.`,
+          `Refresh after the next ranking run; ${timeframe} coverage updates as more ${toReadableTimeframeUnit(timeframe)} candles accrue.`,
         ]
       : [
           "Try 4h or 1d for this symbol.",
-          "Refresh after the next scanner run if this timeframe should have coverage.",
+          "Refresh after the next ranking run if this timeframe should have coverage.",
         ],
     isInsufficientHistory,
   };
@@ -862,7 +862,7 @@ export function buildSymbolResearchTimeframeAvailability({
         timeframe,
         status: "planned",
         isSelected,
-        reason: "No production scanner run is available for this timeframe yet.",
+        reason: "No production ranking run is available for this timeframe yet.",
         dictionary,
       });
     }
@@ -943,7 +943,7 @@ export function buildSymbolResearchTimeframeNavigation({
         badgeLabel: "Planned",
         isSelected,
         isDisabled: true,
-        reason: "No production scanner run is available for this timeframe yet.",
+        reason: "No production ranking run is available for this timeframe yet.",
       };
     }
 

@@ -18,7 +18,7 @@ describe("SymbolBehaviorPanel", () => {
     );
 
     expect(html).toContain("Historical Behavior");
-    expect(html).toContain("How similar prior signals behaved");
+    expect(html).toContain("How similar prior ranking results behaved");
     expect(html).toContain("for this symbol and timeframe only");
     expect(html).toContain("Behavior Readout");
     expect(html).toContain("Constructive tendency");
@@ -35,7 +35,7 @@ describe("SymbolBehaviorPanel", () => {
     expect(html).not.toContain("Limited but usable sample");
     expect(html).toContain("Historical Follow-through Evaluation");
     expect(html).toContain("Upside follow-through observed");
-    expect(html).toContain("Same symbol / same timeframe / similar scanner context");
+    expect(html).toContain("Same symbol / same timeframe / similar ranking context");
     expect(html).toContain("11 completed forward observations");
     expect(html).toContain("63.6% upside follow-through");
     expect(html).toContain("Sample size");

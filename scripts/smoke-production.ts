@@ -1,4 +1,4 @@
-const defaultTradeApiBaseUrl = "https://api.auere.com";
+const defaultTradeApiBaseUrl = "https://api.vegarank.com";
 const mtfTimeframes = ["1h", "4h", "1d", "1w"] as const;
 const marketContextTimeframes = ["1w", "1d", "4h"] as const;
 
@@ -302,7 +302,7 @@ async function checkMtfLatest({
   context: SmokeContext;
   fetchImpl: FetchLike;
 }) {
-  const path = "/api/scan/mtf-latest?assetClass=crypto";
+  const path = "/api/rankings/mtf-latest?assetClass=crypto";
   const startedFailures = report.failures.length;
   const body = await loadJsonRecord({ baseUrl, path, report, fetchImpl });
 

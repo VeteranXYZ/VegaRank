@@ -34,7 +34,7 @@ export function buildSymbolResearchHref({
   });
   const normalizedAssetClass = assetClass?.trim();
   const normalizedLimit = normalizePositiveInteger(limit);
-  const normalizedFrom = from?.trim();
+  const normalizedFrom = normalizeSymbolResearchFrom(from);
 
   if (normalizedAssetClass) {
     params.set("assetClass", normalizedAssetClass);
@@ -102,6 +102,12 @@ function normalizeSymbolResearchInputSymbol(value: string) {
 
 function normalizeExchangePathSegment(value: string | null | undefined) {
   return value?.trim().toLowerCase() || "binance";
+}
+
+function normalizeSymbolResearchFrom(value: string | null | undefined) {
+  const normalized = value?.trim();
+
+  return normalized === "scanner" ? "rankings" : normalized;
 }
 
 function normalizePositiveInteger(value: number | string | null | undefined) {

@@ -19,7 +19,7 @@ describe("production coverage check", () => {
     const report = createCoverageReport();
 
     await runProductionCoverageCheck({
-      baseUrl: "https://api.auere.com",
+      baseUrl: "https://api.vegarank.com",
       report,
       now,
       fetchImpl: makeFetch({
@@ -316,7 +316,7 @@ describe("production coverage check", () => {
     const report = createCoverageReport();
 
     await runProductionCoverageCheck({
-      baseUrl: "https://api.auere.com",
+      baseUrl: "https://api.vegarank.com",
       report,
       now,
       fetchImpl: async () => ({
@@ -360,13 +360,13 @@ function makeFetch({
     const request = new URL(url);
     const search = request.searchParams;
     const body =
-      request.pathname === "/api/scan/mtf-latest"
+      request.pathname === "/api/rankings/mtf-latest"
         ? mtf
-        : request.pathname === "/api/scan/latest"
+        : request.pathname === "/api/rankings/latest"
           ? latestRuns[search.get("timeframe") ?? ""]
           : request.pathname === "/api/market-data/coverage"
             ? marketCoverage[search.get("timeframe") ?? ""]
-            : request.pathname === "/api/history/observation-readiness"
+            : request.pathname === "/api/archive/observation-readiness"
               ? readiness[search.get("timeframe") ?? ""]
           : null;
 

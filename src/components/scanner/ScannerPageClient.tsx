@@ -574,7 +574,7 @@ async function fetchScan(
 }
 
 async function fetchResearchEvaluation() {
-  const response = await fetch("/api/history/evaluate?horizon=24h&limit=500");
+  const response = await fetch("/api/archive/evaluate?horizon=24h&limit=500");
 
   if (!response.ok) {
     return null;
@@ -602,7 +602,7 @@ export async function fetchSingleTimeframeScan(
     params.set("maxSymbols", String(maxSymbols));
   }
 
-  const response = await fetch(`/api/scan?${params.toString()}`, {
+  const response = await fetch(`/api/rankings?${params.toString()}`, {
     signal: options.signal,
   });
 
@@ -642,7 +642,7 @@ export async function fetchBatchedSingleTimeframeScan(
       let batchResponse: Response;
 
       try {
-        batchResponse = await fetch(`/api/scan?${params.toString()}`, {
+        batchResponse = await fetch(`/api/rankings?${params.toString()}`, {
           signal: options.signal,
         });
       } catch (error) {
@@ -725,7 +725,7 @@ async function fetchMtfScan(
     params.set("maxSymbols", String(maxSymbols));
   }
 
-  const response = await fetch(`/api/scan/mtf?${params.toString()}`, {
+  const response = await fetch(`/api/rankings/mtf?${params.toString()}`, {
     signal: options.signal,
   });
 
@@ -765,7 +765,7 @@ export async function fetchBatchedMtfScan(
       let batchResponse: Response;
 
       try {
-        batchResponse = await fetch(`/api/scan/mtf?${params.toString()}`, {
+        batchResponse = await fetch(`/api/rankings/mtf?${params.toString()}`, {
           signal: options.signal,
         });
       } catch (error) {

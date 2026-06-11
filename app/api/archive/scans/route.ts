@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 
 const disabledMessage =
-  "Persistent scan history is not enabled in this deployment. This private scanner currently uses real-time Remote Binance scans only.";
+  "Persistent research archive is not enabled in this deployment. VegaRank currently uses real-time Remote Binance rankings only.";
 
 export const runtime = "nodejs";
 

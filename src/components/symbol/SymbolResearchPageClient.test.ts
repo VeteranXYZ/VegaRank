@@ -61,25 +61,25 @@ describe("symbol research API URL builder", () => {
   });
 
   it("uses NEXT_PUBLIC_TRADE_API_BASE_URL when present", () => {
-    vi.stubEnv("NEXT_PUBLIC_TRADE_API_BASE_URL", "https://api.auere.com");
+    vi.stubEnv("NEXT_PUBLIC_TRADE_API_BASE_URL", "https://api.vegarank.com");
 
     const url = buildSymbolResearchUrl({
       exchange: "binance",
       symbol: "SEIUSDT",
     });
 
-    expect(url.startsWith("https://api.auere.com")).toBe(true);
+    expect(url.startsWith("https://api.vegarank.com")).toBe(true);
     expect(url).toContain("/api/symbol/research?");
   });
 
-  it("falls back to same-origin symbol research API when the env var is missing", () => {
+  it("falls back to the VegaRank public API when the env var is missing", () => {
     expect(
       buildSymbolResearchUrl({
         exchange: "binance",
         symbol: "SEIUSDT",
       }),
     ).toBe(
-      "/api/symbol/research?exchange=binance&market=spot&symbol=SEIUSDT&timeframe=4h&historyLimit=30&candleLimit=120&includeCandles=true&assetClass=crypto",
+      "https://api.vegarank.com/api/symbol/research?exchange=binance&market=spot&symbol=SEIUSDT&timeframe=4h&historyLimit=30&candleLimit=120&includeCandles=true&assetClass=crypto",
     );
   });
 
@@ -88,12 +88,12 @@ describe("symbol research API URL builder", () => {
       exchange: "binance",
       market: "spot",
       symbol: "seiusdt",
-      tradeApiBaseUrl: "https://api.auere.com/",
+      tradeApiBaseUrl: "https://api.vegarank.com/",
     });
 
     expect(url).toContain("symbol=SEIUSDT");
     expect(url).toContain("timeframe=4h");
-    expect(url.startsWith("https://api.auere.com/api/symbol/research")).toBe(true);
+    expect(url.startsWith("https://api.vegarank.com/api/symbol/research")).toBe(true);
   });
 
   it("normalizes invalid frontend API timeframe requests to the default", () => {
@@ -101,21 +101,21 @@ describe("symbol research API URL builder", () => {
       exchange: "binance",
       symbol: "SEIUSDT",
       timeframe: "bad",
-      tradeApiBaseUrl: "https://api.auere.com",
+      tradeApiBaseUrl: "https://api.vegarank.com",
     });
 
     expect(url).toContain("timeframe=4h");
   });
 
   it("normalizes trailing slashes from the API base URL", () => {
-    expect(getTradeApiBaseUrl("https://api.auere.com///")).toBe(
-      "https://api.auere.com",
+    expect(getTradeApiBaseUrl("https://api.vegarank.com///")).toBe(
+      "https://api.vegarank.com",
     );
   });
 
   it("builds broad-market signal evaluation URLs without symbol filters", () => {
     const url = buildSignalEvaluationUrl({
-      tradeApiBaseUrl: "https://api.auere.com/",
+      tradeApiBaseUrl: "https://api.vegarank.com/",
       timeframe: "1h",
       assetClass: "crypto",
       group: "risk",
@@ -123,21 +123,25 @@ describe("symbol research API URL builder", () => {
     });
 
     expect(url).toBe(
-      "https://api.auere.com/api/signal/evaluation?exchange=binance&market=spot&timeframe=1h&assetClass=crypto&group=risk&signalLabel=breakdown_risk",
+      "https://api.vegarank.com/api/signal/evaluation?exchange=binance&market=spot&timeframe=1h&assetClass=crypto&group=risk&signalLabel=breakdown_risk",
     );
     expect(url).not.toContain("symbol=");
   });
 
   it("reports only the API origin for diagnostics", () => {
-    expect(getSymbolResearchApiOriginLabel("https://api.auere.com")).toBe(
-      "https://api.auere.com",
+    expect(getSymbolResearchApiOriginLabel("https://api.vegarank.com")).toBe(
+      "https://api.vegarank.com",
     );
-    expect(getSymbolResearchApiOriginLabel("https://api.auere.com/")).toBe(
-      "https://api.auere.com",
+    expect(getSymbolResearchApiOriginLabel("https://api.vegarank.com/")).toBe(
+      "https://api.vegarank.com",
     );
-    expect(getSymbolResearchApiOriginLabel(undefined)).toBe("same-origin");
-    expect(getSymbolResearchApiOriginLabel("")).toBe("same-origin");
-    expect(getSymbolResearchApiOriginLabel("/api")).toBe("same-origin");
+    expect(getSymbolResearchApiOriginLabel(undefined)).toBe(
+      "https://api.vegarank.com",
+    );
+    expect(getSymbolResearchApiOriginLabel("")).toBe("https://api.vegarank.com");
+    expect(getSymbolResearchApiOriginLabel("/api")).toBe(
+      "https://api.vegarank.com",
+    );
   });
 
   it("formats HTTP and API error details without needing the full URL", () => {
@@ -153,14 +157,14 @@ describe("symbol research API URL builder", () => {
         error: "NO_LATEST_SIGNAL",
       }),
     ).toBe(
-      "No scanner signal is available for this symbol/timeframe from the selected latest run.",
+      "No ranking result is available for this symbol/timeframe from the selected latest run.",
     );
     expect(
       formatSymbolResearchApiError(404, {
         ok: false,
         error: "SYMBOL_NOT_FOUND",
       }),
-    ).toBe("Symbol not found in scanner universe.");
+    ).toBe("Symbol not found in the VegaRank universe.");
     expect(
       formatSymbolResearchApiError(400, {
         ok: false,
@@ -207,12 +211,12 @@ describe("symbol research navigation helpers", () => {
     });
   });
 
-  it("builds scanner return hrefs from preserved query state", () => {
+  it("builds rankings return hrefs from preserved query state", () => {
     expect(
       buildScannerReturnHref(
         new URLSearchParams("from=scanner&timeframe=4h&assetClass=crypto&limit=100"),
       ),
-    ).toBe("/scanner?timeframe=4h&assetClass=crypto&limit=100");
+    ).toBe("/rankings?timeframe=4h&assetClass=crypto&limit=100");
     expect(
       buildScannerReturnHref(
         new URLSearchParams(
@@ -220,18 +224,18 @@ describe("symbol research navigation helpers", () => {
         ),
       ),
     ).toBe(
-      "/scanner?timeframe=1d&assetClass=stable&includeLowQuality=true&limit=200",
+      "/rankings?timeframe=1d&assetClass=stable&includeLowQuality=true&limit=200",
     );
-    expect(buildScannerReturnHref(new URLSearchParams())).toBe("/scanner");
+    expect(buildScannerReturnHref(new URLSearchParams())).toBe("/rankings");
   });
 
-  it("falls back to current symbol research context for scanner returns", () => {
+  it("falls back to current symbol research context for rankings returns", () => {
     expect(
       buildScannerReturnHref(new URLSearchParams(), {
         timeframe: "1w",
         assetClass: "crypto",
       }),
-    ).toBe("/scanner?timeframe=1w&assetClass=crypto");
+    ).toBe("/rankings?timeframe=1w&assetClass=crypto");
     expect(
       buildScannerReturnHref(
         new URLSearchParams("limit=200&includeLowQuality=true"),
@@ -241,14 +245,14 @@ describe("symbol research navigation helpers", () => {
         },
       ),
     ).toBe(
-      "/scanner?timeframe=1d&assetClass=stable&includeLowQuality=true&limit=200",
+      "/rankings?timeframe=1d&assetClass=stable&includeLowQuality=true&limit=200",
     );
   });
 
-  it("normalizes invalid scanner return timeframes to the selected fallback", () => {
+  it("normalizes invalid rankings return timeframes to the selected fallback", () => {
     expect(
       buildScannerReturnHref(new URLSearchParams("timeframe=bad&assetClass=crypto")),
-    ).toBe("/scanner?timeframe=4h&assetClass=crypto");
+    ).toBe("/rankings?timeframe=4h&assetClass=crypto");
   });
 
   it("does not preserve false low-quality query state", () => {
@@ -256,10 +260,10 @@ describe("symbol research navigation helpers", () => {
       buildScannerReturnHref(
         new URLSearchParams("timeframe=4h&includeLowQuality=false&limit=100"),
       ),
-    ).toBe("/scanner?timeframe=4h&limit=100");
+    ).toBe("/rankings?timeframe=4h&limit=100");
   });
 
-  it("builds timeframe switch hrefs while preserving scanner context", () => {
+  it("builds timeframe switch hrefs while preserving rankings context", () => {
     expect(
       buildSymbolResearchTimeframeHref({
         exchange: "binance",
@@ -270,7 +274,7 @@ describe("symbol research navigation helpers", () => {
         ),
       }),
     ).toBe(
-      "/symbol/binance/SEIUSDT?timeframe=1d&assetClass=crypto&includeLowQuality=true&limit=100&from=scanner",
+      "/symbol/binance/SEIUSDT?timeframe=1d&assetClass=crypto&includeLowQuality=true&limit=100&from=rankings",
     );
   });
 
@@ -285,7 +289,7 @@ describe("symbol research navigation helpers", () => {
         timeframe: "4h",
         searchParams: new URLSearchParams("assetClass=crypto&limit=100&from=scanner"),
       }),
-    ).toBe("/symbol/binance/ETHUSDT?timeframe=4h&assetClass=crypto&limit=100&from=scanner");
+    ).toBe("/symbol/binance/ETHUSDT?timeframe=4h&assetClass=crypto&limit=100&from=rankings");
   });
 });
 
@@ -361,7 +365,7 @@ describe("SymbolResearchPageClient unavailable state", () => {
         errorCode: "NO_LATEST_SIGNAL",
         unavailableReason: "insufficient_history",
         message:
-          "No 1w scanner signal for SEIUSDT. The latest full-universe 1w scan ran successfully, but SEIUSDT was skipped because it has only 145 weekly candles. The scanner currently requires 200 candles.",
+          "No 1w ranking result for SEIUSDT. The latest full-universe 1w ranking run completed, but SEIUSDT was skipped because it has only 145 weekly candles. VegaRank currently requires 200 candles.",
         timeframe: "1w",
         symbol: {
           exchange: "binance",
@@ -392,7 +396,7 @@ describe("SymbolResearchPageClient unavailable state", () => {
           available: false,
           reason: "no_latest_signal",
           message:
-            "Historical behavior is unavailable because no latest scanner signal exists for this symbol/timeframe.",
+            "Historical behavior is unavailable because no latest ranking result exists for this symbol/timeframe.",
         },
       },
     });
@@ -405,7 +409,7 @@ describe("SymbolResearchPageClient unavailable state", () => {
     );
 
     expect(html).toContain("Timeframe unavailable for this symbol");
-    expect(html).toContain("No 1w scanner signal for SEIUSDT");
+    expect(html).toContain("No 1w ranking result for SEIUSDT");
     expect(html).toContain("145 / 200 required");
     expect(html).toContain("1w full-universe run, success, scanned 192 / 413, skipped 221");
     expect(html).toContain("Timeframe Availability");
@@ -415,12 +419,12 @@ describe("SymbolResearchPageClient unavailable state", () => {
     expect(html).toContain("Open timeframe to check");
     expect(html).toContain("Try 4h or 1d for SEIUSDT.");
     expect(html).toContain(
-      "Refresh after the next scanner run; 1w coverage updates as more weekly candles accrue.",
+      "Refresh after the next ranking run; 1w coverage updates as more weekly candles accrue.",
     );
-    expect(html).toContain("Back to Scanner");
+    expect(html).toContain("Back to Rankings");
     expect(html).toContain("Refresh");
     expect(html).toContain(">Open</button>");
-    expect(html).toContain('href="/scanner?timeframe=1w&amp;assetClass=crypto');
+    expect(html).toContain('href="/rankings?timeframe=1w&amp;assetClass=crypto');
     expect(html).toContain('href="/symbol/binance/SEIUSDT?timeframe=4h');
     expect(html).toContain('href="/symbol/binance/SEIUSDT?timeframe=1d');
     expect(html).toContain('href="/symbol/binance/SEIUSDT?timeframe=1w');
@@ -511,7 +515,7 @@ describe("SymbolResearchPageClient success state", () => {
     expect(html).toContain("Across the broader market");
     expect(html).toContain("Historical Behavior");
     expect(html).toContain("Historical Follow-through Evaluation");
-    expect(html).toContain("How similar prior signals behaved");
+    expect(html).toContain("How similar prior ranking results behaved");
     expect(html).toContain("Sample size");
     expect(html).toContain("Forward horizon observations");
     expect(html).toContain("Current context");
@@ -953,7 +957,7 @@ function makeSuccessResponse({
       available: true,
       reason: "ok",
       message:
-        "Historical behavior is available from prior scanner signals with forward candles.",
+        "Historical behavior is available from prior ranking results with forward candles.",
     },
     candles: {
       timeframe: "4h",

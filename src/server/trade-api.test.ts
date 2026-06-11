@@ -12,6 +12,7 @@ import { handleTradeApiRequest } from "./trade-api";
 
 const getLatestScanRunMock = vi.hoisted(() => vi.fn());
 const listLatestScanSignalsForRunMock = vi.hoisted(() => vi.fn());
+const listScanRunsMock = vi.hoisted(() => vi.fn());
 const listHistoricalScanRunsMock = vi.hoisted(() => vi.fn());
 const getHistoricalScanRunMock = vi.hoisted(() => vi.fn());
 const getHistoricalSnapshotObservationsMock = vi.hoisted(() => vi.fn());
@@ -34,6 +35,7 @@ const pgScannerResultsStoreMock = vi.hoisted(() =>
     return {
       getLatestScanRun: getLatestScanRunMock,
       listLatestScanSignalsForRun: listLatestScanSignalsForRunMock,
+      listScanRuns: listScanRunsMock,
       listHistoricalScanRuns: listHistoricalScanRunsMock,
       getHistoricalScanRun: getHistoricalScanRunMock,
       getHistoricalSnapshotObservations: getHistoricalSnapshotObservationsMock,
@@ -121,7 +123,7 @@ describe("trade-api CORS", () => {
   });
 
   it("allows the production scanner origin on latest-scan GET requests", async () => {
-    const response = await requestTradeApi("/api/scan/latest?timeframe=4h", {
+    const response = await requestTradeApi("/api/rankings/latest?timeframe=4h", {
       headers: { Origin: "https://s.bitcoinmind.com" },
     });
 
@@ -138,7 +140,7 @@ describe("trade-api CORS", () => {
   });
 
   it("allows the local development origin on latest-scan GET requests", async () => {
-    const response = await requestTradeApi("/api/scan/latest?timeframe=4h", {
+    const response = await requestTradeApi("/api/rankings/latest?timeframe=4h", {
       headers: { Origin: "http://localhost:3000" },
     });
 
@@ -149,7 +151,7 @@ describe("trade-api CORS", () => {
   });
 
   it("does not set Access-Control-Allow-Origin for disallowed origins", async () => {
-    const response = await requestTradeApi("/api/scan/latest?timeframe=4h", {
+    const response = await requestTradeApi("/api/rankings/latest?timeframe=4h", {
       headers: { Origin: "https://example.com" },
     });
 
@@ -158,7 +160,7 @@ describe("trade-api CORS", () => {
   });
 
   it("returns preflight responses without hitting Postgres", async () => {
-    const response = await requestTradeApi("/api/scan/latest?timeframe=4h", {
+    const response = await requestTradeApi("/api/rankings/latest?timeframe=4h", {
       method: "OPTIONS",
       headers: {
         Origin: "https://s.bitcoinmind.com",
@@ -196,6 +198,101 @@ describe("trade-api CORS", () => {
       "https://s.bitcoinmind.com",
     );
     expect(pgSymbolResearchStoreMock).not.toHaveBeenCalled();
+  });
+});
+
+describe("trade-api route cutover", () => {
+  const historyRunId = "fcc05284-c7a0-4990-9bcb-5dd165d83c37";
+
+  beforeEach(() => {
+    resetScannerMocks();
+    resetSymbolResearchMocks();
+  });
+
+  it("serves VegaRank rankings and archive API routes", async () => {
+    getLatestScanRunMock.mockImplementation(({ timeframe }: { timeframe: string }) =>
+      Promise.resolve(
+        makeRun(`full-${timeframe}`, {
+          timeframe,
+          symbolsTotal: 413,
+          symbolsScanned: 409,
+          signalsCreated: 0,
+          params: { assetClass: "crypto", allSymbols: true },
+        }),
+      ),
+    );
+    listScanRunsMock.mockResolvedValue([
+      makeRun("list-run", {
+        symbolsTotal: 413,
+        symbolsScanned: 409,
+        signalsCreated: 0,
+      }),
+    ]);
+    listHistoricalScanRunsMock.mockResolvedValue([
+      makeRun(historyRunId, {
+        symbolsTotal: 413,
+        symbolsScanned: 409,
+        signalsCreated: 0,
+        params: { assetClass: "crypto", allSymbols: true },
+      }),
+    ]);
+    getHistoricalScanRunMock.mockResolvedValue(
+      makeRun(historyRunId, {
+        symbolsTotal: 413,
+        symbolsScanned: 409,
+        signalsCreated: 0,
+        params: { assetClass: "crypto", allSymbols: true },
+      }),
+    );
+    getHistoricalSnapshotObservationsMock.mockResolvedValue({
+      run: makeRun(historyRunId, {
+        symbolsTotal: 413,
+        symbolsScanned: 409,
+        signalsCreated: 0,
+        params: { assetClass: "crypto", allSymbols: true },
+      }),
+      rows: [],
+    });
+
+    const requiredRoutes = [
+      "/api/rankings/latest?timeframe=4h&assetClass=crypto&limit=100",
+      "/api/rankings/mtf-latest?assetClass=crypto",
+      "/api/rankings/runs?limit=1",
+      "/api/archive/snapshots?timeframe=4h&assetClass=crypto",
+      `/api/archive/snapshot?runId=${historyRunId}&assetClass=crypto`,
+      "/api/archive/observation-readiness?timeframe=4h&assetClass=crypto&window=3",
+      `/api/archive/snapshot-observations?runId=${historyRunId}&assetClass=crypto&window=3`,
+    ];
+
+    for (const path of requiredRoutes) {
+      const response = await requestTradeApi(path);
+      const body = JSON.parse(response.body);
+
+      expect(response.status, path).toBe(200);
+      expect(body.error, path).not.toBe("NOT_FOUND");
+      expect(response.headers.get("location"), path).toBeNull();
+    }
+  });
+
+  it("does not serve legacy scan or history API routes", async () => {
+    const legacyRoutes = [
+      "/api/scan/latest",
+      "/api/scan/mtf-latest",
+      "/api/scan/runs",
+      "/api/history/snapshots",
+      "/api/history/snapshot",
+      "/api/history/observation-readiness",
+      "/api/history/snapshot-observations",
+    ];
+
+    for (const path of legacyRoutes) {
+      const response = await requestTradeApi(path);
+      const body = JSON.parse(response.body);
+
+      expect(response.status, path).toBe(404);
+      expect(body.error, path).toBe("NOT_FOUND");
+      expect(response.headers.get("location"), path).toBeNull();
+    }
   });
 });
 
@@ -315,7 +412,7 @@ describe("trade-api latest scan run selection", () => {
     );
 
     const response = await requestTradeApi(
-      "/api/scan/latest?timeframe=4h&assetClass=crypto&limit=100",
+      "/api/rankings/latest?timeframe=4h&assetClass=crypto&limit=100",
     );
     const body = JSON.parse(response.body);
 
@@ -358,13 +455,13 @@ describe("trade-api latest scan run selection", () => {
     );
 
     const dailyResponse = await requestTradeApi(
-      "/api/scan/latest?timeframe=1d&assetClass=crypto&limit=100",
+      "/api/rankings/latest?timeframe=1d&assetClass=crypto&limit=100",
     );
     const weeklyResponse = await requestTradeApi(
-      "/api/scan/latest?timeframe=1w&assetClass=crypto&limit=100",
+      "/api/rankings/latest?timeframe=1w&assetClass=crypto&limit=100",
     );
     const hourlyResponse = await requestTradeApi(
-      "/api/scan/latest?timeframe=1h&assetClass=crypto&limit=100",
+      "/api/rankings/latest?timeframe=1h&assetClass=crypto&limit=100",
     );
     const dailyBody = JSON.parse(dailyResponse.body);
     const weeklyBody = JSON.parse(weeklyResponse.body);
@@ -425,7 +522,7 @@ describe("trade-api latest scan run selection", () => {
     );
 
     const response = await requestTradeApi(
-      "/api/scan/latest?timeframe=4h&assetClass=crypto&limit=100",
+      "/api/rankings/latest?timeframe=4h&assetClass=crypto&limit=100",
     );
     const body = JSON.parse(response.body);
 
@@ -449,7 +546,7 @@ describe("trade-api latest scan run selection", () => {
     );
 
     const stableResponse = await requestTradeApi(
-      "/api/scan/latest?timeframe=4h&assetClass=stable&limit=100",
+      "/api/rankings/latest?timeframe=4h&assetClass=stable&limit=100",
     );
     const stableBody = JSON.parse(stableResponse.body);
 
@@ -467,7 +564,7 @@ describe("trade-api latest scan run selection", () => {
     });
 
     await requestTradeApi(
-      "/api/scan/latest?timeframe=4h&assetClass=crypto&includeNonScanner=true&limit=100",
+      "/api/rankings/latest?timeframe=4h&assetClass=crypto&includeNonScanner=true&limit=100",
     );
 
     expect(getLatestScanRunMock).toHaveBeenLastCalledWith({
@@ -494,7 +591,7 @@ describe("trade-api latest scan run selection", () => {
     ]);
 
     const response = await requestTradeApi(
-      "/api/scan/latest?timeframe=4h&assetClass=crypto&limit=1",
+      "/api/rankings/latest?timeframe=4h&assetClass=crypto&limit=1",
     );
     const body = JSON.parse(response.body);
 
@@ -530,7 +627,7 @@ describe("trade-api historical snapshots", () => {
     ]);
 
     const response = await requestTradeApi(
-      "/api/history/snapshots?timeframe=4h&assetClass=crypto",
+      "/api/archive/snapshots?timeframe=4h&assetClass=crypto",
     );
     const body = JSON.parse(response.body);
 
@@ -592,7 +689,7 @@ describe("trade-api historical snapshots", () => {
     ]);
 
     const response = await requestTradeApi(
-      `/api/history/snapshot?runId=${historyRunId}&assetClass=crypto`,
+      `/api/archive/snapshot?runId=${historyRunId}&assetClass=crypto`,
     );
     const body = JSON.parse(response.body);
 
@@ -644,16 +741,16 @@ describe("trade-api historical snapshots", () => {
 
   it("rejects invalid historical snapshot filters before opening the store", async () => {
     const timeframeResponse = await requestTradeApi(
-      "/api/history/snapshots?timeframe=15m",
+      "/api/archive/snapshots?timeframe=15m",
     );
     const runResponse = await requestTradeApi(
-      "/api/history/snapshot?runId=../../secret",
+      "/api/archive/snapshot?runId=../../secret",
     );
     const negativeRunResponse = await requestTradeApi(
-      "/api/history/snapshot?runId=-1",
+      "/api/archive/snapshot?runId=-1",
     );
     const malformedRunResponse = await requestTradeApi(
-      "/api/history/snapshot?runId=abc",
+      "/api/archive/snapshot?runId=abc",
     );
 
     expect(timeframeResponse.status).toBe(400);
@@ -726,7 +823,7 @@ describe("trade-api historical snapshots", () => {
     });
 
     const response = await requestTradeApi(
-      `/api/history/snapshot-observations?runId=${historyRunId}&assetClass=crypto&window=3`,
+      `/api/archive/snapshot-observations?runId=${historyRunId}&assetClass=crypto&window=3`,
     );
     const body = JSON.parse(response.body);
 
@@ -815,7 +912,7 @@ describe("trade-api historical snapshots", () => {
     });
 
     const response = await requestTradeApi(
-      `/api/history/snapshot-observations?runId=${historyRunId}&assetClass=crypto&window=3`,
+      `/api/archive/snapshot-observations?runId=${historyRunId}&assetClass=crypto&window=3`,
     );
     const body = JSON.parse(response.body);
 
@@ -842,10 +939,10 @@ describe("trade-api historical snapshots", () => {
 
   it("rejects invalid historical observation inputs before opening the store", async () => {
     const invalidWindowResponse = await requestTradeApi(
-      `/api/history/snapshot-observations?runId=${historyRunId}&window=2`,
+      `/api/archive/snapshot-observations?runId=${historyRunId}&window=2`,
     );
     const malformedRunResponse = await requestTradeApi(
-      "/api/history/snapshot-observations?runId=abc&window=3",
+      "/api/archive/snapshot-observations?runId=abc&window=3",
     );
 
     expect(invalidWindowResponse.status).toBe(400);
@@ -864,7 +961,7 @@ describe("trade-api historical snapshots", () => {
     getHistoricalSnapshotObservationsMock.mockRejectedValue({ code: "22P02" });
 
     const response = await requestTradeApi(
-      `/api/history/snapshot-observations?runId=${historyRunId}&window=3`,
+      `/api/archive/snapshot-observations?runId=${historyRunId}&window=3`,
     );
     const body = JSON.parse(response.body);
 
@@ -945,7 +1042,7 @@ describe("trade-api historical snapshots", () => {
     );
 
     const response = await requestTradeApi(
-      `/api/history/observation-readiness?timeframe=4h&runId=${historyRunId}&assetClass=crypto&window=3`,
+      `/api/archive/observation-readiness?timeframe=4h&runId=${historyRunId}&assetClass=crypto&window=3`,
     );
     const body = JSON.parse(response.body);
 
@@ -1030,7 +1127,7 @@ describe("trade-api historical snapshots", () => {
     ]);
 
     const response = await requestTradeApi(
-      `/api/history/observation-readiness?timeframe=4h&runId=${historyRunId}&window=3`,
+      `/api/archive/observation-readiness?timeframe=4h&runId=${historyRunId}&window=3`,
     );
     const body = JSON.parse(response.body);
 
@@ -1079,7 +1176,7 @@ describe("trade-api historical snapshots", () => {
       ]);
 
       const response = await requestTradeApi(
-        `/api/history/observation-readiness?timeframe=4h&runId=${historyRunId}&window=3`,
+        `/api/archive/observation-readiness?timeframe=4h&runId=${historyRunId}&window=3`,
       );
       const body = JSON.parse(response.body);
 
@@ -1144,7 +1241,7 @@ describe("trade-api historical snapshots", () => {
     );
 
     const response = await requestTradeApi(
-      `/api/history/observation-readiness?timeframe=4h&runId=${historyRunId}&window=3`,
+      `/api/archive/observation-readiness?timeframe=4h&runId=${historyRunId}&window=3`,
     );
     const body = JSON.parse(response.body);
 
@@ -1162,13 +1259,13 @@ describe("trade-api historical snapshots", () => {
 
   it("rejects invalid observation readiness filters before opening the store", async () => {
     const invalidWindowResponse = await requestTradeApi(
-      `/api/history/observation-readiness?timeframe=4h&runId=${historyRunId}&window=2`,
+      `/api/archive/observation-readiness?timeframe=4h&runId=${historyRunId}&window=2`,
     );
     const malformedRunResponse = await requestTradeApi(
-      "/api/history/observation-readiness?timeframe=4h&runId=abc&window=3",
+      "/api/archive/observation-readiness?timeframe=4h&runId=abc&window=3",
     );
     const invalidTimeframeResponse = await requestTradeApi(
-      `/api/history/observation-readiness?timeframe=15m&runId=${historyRunId}&window=3`,
+      `/api/archive/observation-readiness?timeframe=15m&runId=${historyRunId}&window=3`,
     );
 
     expect(invalidWindowResponse.status).toBe(400);
@@ -1495,7 +1592,7 @@ describe("trade-api multi-timeframe latest screener", () => {
     );
 
     const response = await requestTradeApi(
-      "/api/scan/mtf-latest?assetClass=crypto",
+      "/api/rankings/mtf-latest?assetClass=crypto",
     );
     const body = JSON.parse(response.body);
     const btc = body.rows.find((row: { symbol: string }) => row.symbol === "BTCUSDT");
@@ -1687,7 +1784,7 @@ describe("trade-api symbol research", () => {
       available: true,
       reason: "ok",
       message:
-        "Historical behavior is available from prior scanner signals with forward candles.",
+        "Historical behavior is available from prior ranking results with forward candles.",
     });
     expect(getSymbolResearchLatestSignalPgMock).toHaveBeenCalledWith({
       exchange: "binance",
@@ -1963,7 +2060,7 @@ describe("trade-api symbol research", () => {
       available: false,
       reason: "no_latest_signal",
       message:
-        "Historical behavior is unavailable because no latest scanner signal exists for this symbol/timeframe.",
+        "Historical behavior is unavailable because no latest ranking result exists for this symbol/timeframe.",
     });
     expect(getSymbolSignalHistoryPgMock).not.toHaveBeenCalled();
     expect(getSymbolCandlesPgMock).not.toHaveBeenCalled();
@@ -2002,7 +2099,7 @@ describe("trade-api symbol research", () => {
       unavailableReason: "insufficient_history",
       timeframe: "1w",
       message:
-        "No 1w scanner signal for SEIUSDT. The latest full-universe 1w scan ran successfully and skipped 221 symbols, and SEIUSDT was skipped because it has only 145 weekly candles. The scanner currently requires 200 candles.",
+        "No 1w ranking result for SEIUSDT. The latest full-universe 1w ranking run completed and skipped 221 symbols, and SEIUSDT was skipped because it has only 145 weekly candles. VegaRank currently requires 200 candles.",
       selectedRun: {
         id: "full-1w",
         timeframe: "1w",
@@ -2032,7 +2129,7 @@ describe("trade-api symbol research", () => {
       available: false,
       reason: "no_latest_signal",
       message:
-        "Historical behavior is unavailable because no latest scanner signal exists for this symbol/timeframe.",
+        "Historical behavior is unavailable because no latest ranking result exists for this symbol/timeframe.",
     });
     expect(getSymbolSignalHistoryPgMock).not.toHaveBeenCalled();
     expect(getSymbolCandlesPgMock).not.toHaveBeenCalled();
@@ -2123,6 +2220,8 @@ function resetScannerMocks() {
   getLatestScanRunMock.mockResolvedValue(null);
   listLatestScanSignalsForRunMock.mockReset();
   listLatestScanSignalsForRunMock.mockResolvedValue([]);
+  listScanRunsMock.mockReset();
+  listScanRunsMock.mockResolvedValue([]);
   listHistoricalScanRunsMock.mockReset();
   listHistoricalScanRunsMock.mockResolvedValue([]);
   getHistoricalScanRunMock.mockReset();
@@ -2167,7 +2266,7 @@ function resetSymbolResearchMocks() {
       available: false,
       reason: "no_prior_signals",
       message:
-        "Historical behavior is not available yet because no prior scanner signals were found for this symbol/timeframe.",
+        "Historical behavior is not available yet because no prior ranking results were found for this symbol/timeframe.",
     },
   });
   closeSymbolResearchMock.mockReset();
@@ -2602,7 +2701,7 @@ function makeResearchBehavior() {
       available: true,
       reason: "ok",
       message:
-        "Historical behavior is available from prior scanner signals with forward candles.",
+        "Historical behavior is available from prior ranking results with forward candles.",
     },
   };
 }

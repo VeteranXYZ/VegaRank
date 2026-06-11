@@ -33,15 +33,15 @@ describe("MultiTimeframeScreenerTable", () => {
     expect(
       buildMtfLatestScanUrl({
         assetClass: "crypto",
-        tradeApiBaseUrl: "https://api.auere.com/",
+        tradeApiBaseUrl: "https://api.vegarank.com/",
       }),
-    ).toBe("https://api.auere.com/api/scan/mtf-latest?assetClass=crypto");
+    ).toBe("https://api.vegarank.com/api/rankings/mtf-latest?assetClass=crypto");
   });
 
   it("keeps production screener copy product-focused", () => {
     expect(mtfScreenerProductionCopy.title).toBe("Multi-Timeframe Screener");
     expect(mtfScreenerProductionCopy.description).toBe(
-      "Compare joined scanner signals across 1h, 4h, 1d, and 1w.",
+      "Compare joined multi-timeframe research snapshots across symbols.",
     );
     expect(mtfScreenerProductionCopy.description).not.toMatch(
       /frontend-only|visual check|mock|preview/i,
@@ -276,7 +276,7 @@ describe("MultiTimeframeScreenerTable", () => {
 
     expect(commandHtml).toContain("Multi-Timeframe Screener");
     expect(commandHtml).toContain("Screener");
-    expect(commandHtml).toContain("MTF SCREENER");
+    expect(commandHtml).toContain("Multi-Timeframe Screener");
     expect(commandHtml).toContain("Crypto");
     expect(commandHtml).toContain("research context");
     expect(commandHtml).not.toContain("MTF Joined");

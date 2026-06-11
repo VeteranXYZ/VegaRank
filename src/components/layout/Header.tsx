@@ -6,11 +6,10 @@ import { LanguageSwitch } from "@/components/common/LanguageSwitch";
 import { useLanguage } from "@/components/providers/LanguageProvider";
 
 const navItems = [
-  { href: "/scanner", labelKey: "scanner" },
+  { href: "/rankings", labelKey: "scanner" },
   { href: "/screener", label: "Screener" },
   { href: "/watchlist", label: "Watchlist" },
-  { href: "/history", labelKey: "history" },
-  { href: "/symbol/binance/BTCUSDT", labelKey: "btc" },
+  { href: "/archive", labelKey: "history" },
 ] as const;
 
 export function Header() {

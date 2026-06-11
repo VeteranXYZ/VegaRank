@@ -382,7 +382,7 @@ describe("symbol research UI helpers", () => {
       timeframe: "1w",
       unavailableReason: "insufficient_history",
       message:
-        "No 1w scanner signal for SEIUSDT. The latest full-universe 1w scan ran successfully, but SEIUSDT was skipped because it has only 145 candles. The scanner currently requires 200 candles.",
+        "No 1w ranking result for SEIUSDT. The latest full-universe 1w ranking run completed, but SEIUSDT was skipped because it has only 145 candles. VegaRank currently requires 200 candles.",
       selectedRun: {
         status: "success",
         timeframe: "1w",
@@ -402,7 +402,7 @@ describe("symbol research UI helpers", () => {
 
     expect(content.title).toBe("Timeframe unavailable for this symbol");
     expect(content.isInsufficientHistory).toBe(true);
-    expect(content.message).toContain("No 1w scanner signal for SEIUSDT");
+    expect(content.message).toContain("No 1w ranking result for SEIUSDT");
     expect(content.details).toEqual(
       expect.arrayContaining([
         { label: "Symbol", value: "SEIUSDT" },
@@ -413,12 +413,12 @@ describe("symbol research UI helpers", () => {
           label: "Selected Run",
           value: "1w full-universe run, success, scanned 192 / 413, skipped 221",
         },
-        { label: "Signals Created", value: "192" },
+        { label: "Ranking Rows Created", value: "192" },
       ]),
     );
     expect(content.suggestions).toEqual([
       "Try 4h or 1d for SEIUSDT.",
-      "Refresh after the next scanner run; 1w coverage updates as more weekly candles accrue.",
+      "Refresh after the next ranking run; 1w coverage updates as more weekly candles accrue.",
     ]);
   });
 
@@ -445,7 +445,7 @@ describe("symbol research UI helpers", () => {
     expect(content.title).toBe("Timeframe unavailable for this symbol");
     expect(content.isInsufficientHistory).toBe(false);
     expect(content.message).toBe(
-      "No scanner signal is available for this symbol/timeframe from the selected latest run.",
+      "No ranking result is available for this symbol/timeframe from the selected latest run.",
     );
   });
 

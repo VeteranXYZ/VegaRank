@@ -279,7 +279,7 @@ export async function GET(request: Request) {
           error instanceof Error ? error.message : "Remote MTF scanner request failed.",
         errorCode: "SCANNER_ROUTE_FAILED",
         details: {
-          route: "/api/scan/mtf",
+          route: "/api/rankings/mtf",
           source: source.valid ? source.value : undefined,
           preset,
           maxSymbols: maxSymbols.valid ? maxSymbols.value : undefined,

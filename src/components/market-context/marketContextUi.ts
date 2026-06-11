@@ -1,3 +1,5 @@
+import { getVegaRankApiBaseUrl } from "@/lib/runtime/vegaRankApi";
+
 export type MarketContextResponse = {
   ok: boolean;
   assetClass: string;
@@ -91,7 +93,7 @@ export function buildMarketContextUrl({
   tradeApiBaseUrl?: string;
 }) {
   const params = new URLSearchParams({ assetClass });
-  const baseUrl = tradeApiBaseUrl?.trim().replace(/\/+$/, "") ?? "";
+  const baseUrl = getVegaRankApiBaseUrl(tradeApiBaseUrl);
 
   return `${baseUrl}/api/market/context?${params.toString()}`;
 }

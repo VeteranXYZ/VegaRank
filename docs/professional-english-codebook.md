@@ -2,7 +2,7 @@
 
 ## Purpose
 
-The English scanner codebook defines the professional research language used to
+The English VegaRank research codebook defines the professional research language used to
 explain scanner codes. It gives users concise meaning for scanner results
 without exposing formulas, private thresholds, proprietary weights, or backend
 implementation details.
@@ -13,7 +13,7 @@ evidence or constraint it represents, and how it should affect manual review.
 
 ## Product Boundary
 
-trade-scanner is a professional crypto technical research system. It ranks
+VegaRank is a professional crypto technical research-ranking system. It ranks
 research candidates and explains technical evidence. It does not issue trading
 instructions, predict future prices, or provide investment advice.
 

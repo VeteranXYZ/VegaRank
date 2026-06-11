@@ -238,37 +238,37 @@ export async function handleTradeApiRequest(
       return;
     }
 
-    if (url.pathname === "/api/scan/latest") {
+    if (url.pathname === "/api/rankings/latest") {
       await handleLatestScan(response, url);
       return;
     }
 
-    if (url.pathname === "/api/scan/mtf-latest") {
+    if (url.pathname === "/api/rankings/mtf-latest") {
       await handleMtfLatestScan(response, url);
       return;
     }
 
-    if (url.pathname === "/api/history/snapshots") {
+    if (url.pathname === "/api/archive/snapshots") {
       await handleHistorySnapshots(response, url);
       return;
     }
 
-    if (url.pathname === "/api/history/snapshot") {
+    if (url.pathname === "/api/archive/snapshot") {
       await handleHistorySnapshot(response, url);
       return;
     }
 
-    if (url.pathname === "/api/history/observation-readiness") {
+    if (url.pathname === "/api/archive/observation-readiness") {
       await handleHistoryObservationReadiness(response, url);
       return;
     }
 
-    if (url.pathname === "/api/history/snapshot-observations") {
+    if (url.pathname === "/api/archive/snapshot-observations") {
       await handleHistorySnapshotObservations(response, url);
       return;
     }
 
-    if (url.pathname === "/api/scan/runs") {
+    if (url.pathname === "/api/rankings/runs") {
       await handleScanRuns(response, url);
       return;
     }
@@ -661,7 +661,7 @@ async function handleSymbolResearch(response: http.ServerResponse, url: URL) {
           available: false,
           reason: "no_latest_signal",
           message:
-            "Historical behavior is unavailable because no latest scanner signal exists for this symbol/timeframe.",
+            "Historical behavior is unavailable because no latest ranking result exists for this symbol/timeframe.",
         }),
       });
       return;
@@ -1901,22 +1901,22 @@ function getSymbolResearchUnavailableMessage({
 }) {
   if (unavailableReason === "insufficient_history") {
     const runDescription = selectedRun?.isLikelyFullUniverse
-      ? `The latest full-universe ${timeframe} scan ran successfully`
-      : `The selected ${timeframe} scan ran`;
+      ? `The latest full-universe ${timeframe} ranking run completed`
+      : `The selected ${timeframe} ranking run completed`;
     const skippedDescription =
       typeof selectedRun?.symbolsSkipped === "number" && selectedRun.symbolsSkipped > 0
         ? ` and skipped ${selectedRun.symbolsSkipped} symbols`
         : "";
     const candleLabel = getSymbolResearchCandleLabel(timeframe);
 
-    return `No ${timeframe} scanner signal for ${symbol}. ${runDescription}${skippedDescription}, and ${symbol} was skipped because it has only ${symbolCoverage.candleCount} ${candleLabel}. The scanner currently requires ${symbolCoverage.requiredCandles} candles.`;
+    return `No ${timeframe} ranking result for ${symbol}. ${runDescription}${skippedDescription}, and ${symbol} was skipped because it has only ${symbolCoverage.candleCount} ${candleLabel}. VegaRank currently requires ${symbolCoverage.requiredCandles} candles.`;
   }
 
   if (unavailableReason === "not_in_selected_run") {
-    return "No scanner signal is available for this symbol/timeframe from the selected latest run.";
+    return "No ranking result is available for this symbol/timeframe from the selected latest run.";
   }
 
-  return `No selected latest ${timeframe} scanner run is available yet.`;
+  return `No selected latest ${timeframe} ranking run is available yet.`;
 }
 
 function getSymbolResearchCandleLabel(timeframe: string) {

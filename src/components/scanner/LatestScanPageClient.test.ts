@@ -26,7 +26,7 @@ describe("latest scan API URL builder", () => {
   });
 
   it("uses NEXT_PUBLIC_TRADE_API_BASE_URL when present", () => {
-    vi.stubEnv("NEXT_PUBLIC_TRADE_API_BASE_URL", "https://api.auere.com");
+    vi.stubEnv("NEXT_PUBLIC_TRADE_API_BASE_URL", "https://api.vegarank.com");
 
     const url = buildLatestScanUrl({
       timeframe: "4h",
@@ -35,12 +35,12 @@ describe("latest scan API URL builder", () => {
     });
 
     expect(url).toBe(
-      "https://api.auere.com/api/scan/latest?timeframe=4h&assetClass=crypto&limit=100",
+      "https://api.vegarank.com/api/rankings/latest?timeframe=4h&assetClass=crypto&limit=100",
     );
-    expect(url.startsWith("https://api.auere.com")).toBe(true);
+    expect(url.startsWith("https://api.vegarank.com")).toBe(true);
   });
 
-  it("falls back to same-origin latest-scan API when the env var is missing", () => {
+  it("falls back to the VegaRank public API when the env var is missing", () => {
     delete process.env.NEXT_PUBLIC_TRADE_API_BASE_URL;
 
     const url = buildLatestScanUrl({
@@ -49,22 +49,24 @@ describe("latest scan API URL builder", () => {
       limit: 100,
     });
 
-    expect(url).toBe("/api/scan/latest?timeframe=4h&assetClass=crypto&limit=100");
+    expect(url).toBe(
+      "https://api.vegarank.com/api/rankings/latest?timeframe=4h&assetClass=crypto&limit=100",
+    );
   });
 
   it("defaults the latest-scan limit to 100", () => {
     const url = buildLatestScanUrl({
       timeframe: "4h",
       assetClass: "crypto",
-      tradeApiBaseUrl: "https://api.auere.com",
+      tradeApiBaseUrl: "https://api.vegarank.com",
     });
 
     expect(url).toContain("limit=100");
   });
 });
 
-describe("scanner symbol research links", () => {
-  it("builds a deterministic symbol detail href with scanner context", () => {
+describe("rankings symbol research links", () => {
+  it("builds a deterministic symbol detail href with rankings context", () => {
     expect(
       buildSymbolResearchHref({
         exchange: "binance",
@@ -73,15 +75,15 @@ describe("scanner symbol research links", () => {
         assetClass: "crypto",
         includeLowQuality: true,
         limit: 100,
-        from: "scanner",
+        from: "rankings",
       }),
     ).toBe(
-      "/symbol/binance/SEIUSDT?timeframe=4h&assetClass=crypto&includeLowQuality=true&limit=100&from=scanner",
+      "/symbol/binance/SEIUSDT?timeframe=4h&assetClass=crypto&includeLowQuality=true&limit=100&from=rankings",
     );
   });
 
   it.each(["1d", "1w"] as const)(
-    "preserves the active %s scanner timeframe in symbol detail hrefs",
+    "preserves the active %s rankings timeframe in symbol detail hrefs",
     (timeframe) => {
       expect(
         buildSymbolResearchHref({
@@ -91,15 +93,15 @@ describe("scanner symbol research links", () => {
           assetClass: "crypto",
           includeLowQuality: false,
           limit: 200,
-          from: "scanner",
+          from: "rankings",
         }),
       ).toBe(
-        `/symbol/binance/SEIUSDT?timeframe=${timeframe}&assetClass=crypto&limit=200&from=scanner`,
+        `/symbol/binance/SEIUSDT?timeframe=${timeframe}&assetClass=crypto&limit=200&from=rankings`,
       );
     },
   );
 
-  it("preserves only true low-quality scanner context in symbol detail hrefs", () => {
+  it("preserves only true low-quality rankings context in symbol detail hrefs", () => {
     expect(
       buildSymbolResearchHref({
         exchange: "binance",
@@ -108,10 +110,10 @@ describe("scanner symbol research links", () => {
         assetClass: "crypto",
         includeLowQuality: "true",
         limit: "500",
-        from: "scanner",
+        from: "rankings",
       }),
     ).toBe(
-      "/symbol/binance/SEIUSDT?timeframe=1w&assetClass=crypto&includeLowQuality=true&limit=500&from=scanner",
+      "/symbol/binance/SEIUSDT?timeframe=1w&assetClass=crypto&includeLowQuality=true&limit=500&from=rankings",
     );
   });
 
@@ -146,12 +148,12 @@ describe("scanner symbol research links", () => {
         limit: 0,
         from: "scanner",
       }),
-    ).toBe("/symbol/binance/BTC%2FUSDT?timeframe=4h&assetClass=crypto&from=scanner");
+    ).toBe("/symbol/binance/BTC%2FUSDT?timeframe=4h&assetClass=crypto&from=rankings");
   });
 });
 
-describe("latest scan summary helpers", () => {
-  it("summarizes the full latest scan run in practical wording", () => {
+describe("latest rankings summary helpers", () => {
+  it("summarizes the full latest ranking run in practical wording", () => {
     expect(
       buildLatestRunSummaryText({
         symbolsTotal: 413,
@@ -163,11 +165,11 @@ describe("latest scan summary helpers", () => {
         lowQualityExcluded: 12,
       }),
     ).toBe(
-      "Full universe size: 413 · Scanned: 409 · Signals created: 409 · Skipped: 4 · Filtered signals shown: 100 of 409 · Low-quality excluded: 12",
+      "Full universe size: 413 · Reviewed: 409 · Ranking rows created: 409 · Skipped: 4 · Filtered ranking rows shown: 100 of 409 · Low-quality excluded: 12",
     );
   });
 
-  it("warns when a crypto latest scan is too small to look like a full universe", () => {
+  it("warns when a crypto latest ranking run is too small to look like a full universe", () => {
     expect(
       shouldShowIncompleteCryptoUniverseWarning({
         assetClass: "crypto",
@@ -188,7 +190,7 @@ describe("latest scan summary helpers", () => {
     ).toBe(false);
   });
 
-  it("explains when API limit hides part of the filtered signal set", () => {
+  it("explains when API limit hides part of the filtered ranking set", () => {
     expect(
       buildLimitedViewWarning({
         count: 100,
@@ -196,7 +198,7 @@ describe("latest scan summary helpers", () => {
         totalSignals: 364,
       }),
     ).toBe(
-      "Limited view: showing the first 100 returned results from 364 filtered signals",
+      "Limited view: showing the first 100 returned ranking rows from 364 filtered rows",
     );
     expect(
       buildLimitedViewWarning({
@@ -215,7 +217,7 @@ describe("LatestScanPageClient layout", () => {
     expect(html).toContain("terminal-command-title");
     expect(html).toContain("Run Summary");
     expect(html).toContain("Group Counts");
-    expect(html).toContain("Latest Scan Rows");
+    expect(html).toContain("Latest Ranking Rows");
     expect(html).toContain("Export CSV");
     expect(html).toContain('aria-label="Refresh"');
     expect(html).toContain('data-sort-key="symbol"');
@@ -232,7 +234,7 @@ describe("LatestScanPageClient layout", () => {
     expect(html).not.toContain("Copy symbols");
     expect(html).not.toContain(">Candle Time<");
     expect(html).not.toContain("Interpretation Key");
-    expect(html).not.toContain("Latest Scan Summary");
+    expect(html).not.toContain("Latest Ranking Summary");
     expect(html).not.toContain("Full Universe Size");
     expect(html).not.toContain("<details");
     expect(html).not.toMatch(/AM|PM|Jun 05/);

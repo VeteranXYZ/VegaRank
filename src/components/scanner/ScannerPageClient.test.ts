@@ -289,7 +289,7 @@ describe("scanner batched fetch helpers", () => {
     await fetchSingleTimeframeScan(initialScannerFilters, {});
 
     const url = String(fetchMock.mock.calls[0][0]);
-    expect(url).toContain("/api/scan?");
+    expect(url).toContain("/api/rankings?");
     expect(url).toContain("maxSymbols=100");
     expect(url).not.toContain("batchMode=true");
   });

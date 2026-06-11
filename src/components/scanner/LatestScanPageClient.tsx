@@ -27,6 +27,7 @@ import {
 import { formatDisplayDateTime } from "@/lib/utils/format";
 import { useAppLanguage } from "@/lib/i18n/AppLanguageProvider";
 import type { Language } from "@/lib/i18n/dictionaries";
+import { getVegaRankApiBaseUrl } from "@/lib/runtime/vegaRankApi";
 import { explainCode, explainCodes } from "@/lib/scanner-codebook/explainCode";
 import { groupCodeByResultGroup } from "@/lib/scanner-codebook/codeRegistry";
 import type { PublicStoredScannerSignal } from "@/lib/scanner-codebook/serializeStoredSignal";
@@ -314,6 +315,11 @@ export function LatestScanPageClient({
         }}
         onExportCsv={downloadVisibleCsv}
       />
+      <p className="mb-1 text-[11px] leading-4 text-[var(--muted)]">
+        Review the latest ranked research results across the current market
+        universe. Rankings reflect technical structure, confirmation strength,
+        evidence quality, and risk context.
+      </p>
 
       <div className="grid min-h-0 flex-1 gap-2 xl:grid-cols-[208px_minmax(0,1fr)] xl:overflow-hidden 2xl:grid-cols-[216px_minmax(0,1fr)]">
         <LatestScanControls
@@ -341,18 +347,18 @@ export function LatestScanPageClient({
 
           {hasUnavailableData ? (
             <StatePanel
-              title="Scanner unavailable"
-              message="API unavailable · latest scan not loaded. Try Refresh or check API."
+              title="Rankings unavailable"
+              message="API unavailable · latest rankings not loaded. Try Refresh or check API."
             />
           ) : isLoading ? (
             <StatePanel
-              title="Loading latest scan"
-              message="Fetching latest scan results."
+              title="Loading latest rankings"
+              message="Fetching latest ranking results."
             />
           ) : !data?.run || returnedItems === 0 ? (
             <StatePanel
-              title="No latest scan results"
-              message="No signals matched the current latest-scan filters."
+              title="No latest rankings"
+              message="No results matched the current ranking filters."
             />
           ) : (
             <LatestScanResultsTable
@@ -408,9 +414,9 @@ function LatestScanCommandBar({
     <header className="terminal-command-bar mb-1">
       <div className="terminal-command-row text-[var(--terminal-bar-muted)]">
         <div className="terminal-command-brand">
-          <h1 className="terminal-command-title">SCANNER</h1>
+          <h1 className="terminal-command-title">Market Rankings</h1>
           <span className="shrink-0 font-mono text-[10px] text-[var(--terminal-bar-muted)]">
-            latest output
+            latest rankings
           </span>
         </div>
         <div className="terminal-command-main">
@@ -623,7 +629,7 @@ function LatestScanSummaryPanel({
         <div className="flex min-w-0 flex-wrap items-center gap-1.5">
           <span className="terminal-command-label">Run Summary</span>
           <CompactMetric label="Universe" value={formatInteger(run?.symbolsTotal)} />
-          <CompactMetric label="Scanned" value={formatInteger(run?.symbolsScanned)} />
+          <CompactMetric label="Reviewed" value={formatInteger(run?.symbolsScanned)} />
           <CompactMetric
             label="Signals"
             value={formatInteger(run?.signalsCreated ?? totalSignals)}
@@ -651,7 +657,7 @@ function LatestScanSummaryPanel({
       </div>
       {showUniverseWarning ? (
         <p className="mt-1 inline-flex border border-[var(--warning-border)] bg-[var(--warning-bg)] px-1.5 py-0.5 text-[10px] font-semibold uppercase text-[var(--warning)]">
-          Scan universe incomplete: {formatInteger(run?.symbolsTotal)} crypto symbols.
+          Ranking universe incomplete: {formatInteger(run?.symbolsTotal)} crypto symbols.
         </p>
       ) : null}
     </section>
@@ -751,7 +757,7 @@ function LatestScanResultsTable({
         <div className="min-w-0 shrink-0">
           <div className="flex flex-wrap items-center gap-1.5">
             <h2 className="terminal-panel-title">
-              Latest Scan Rows
+              Latest Ranking Rows
             </h2>
             <StatusBadge tone="accent" className="text-[10px]">
               {formatInteger(rows.length)} rows
@@ -927,7 +933,7 @@ function LatestScanRow({
             assetClass,
             includeLowQuality,
             limit,
-            from: "scanner",
+            from: "rankings",
           })}
         >
           {item.symbol}
@@ -1067,7 +1073,7 @@ function LatestScanDetails({
       <DetailBlock title="Versions">
         <TextList
           values={[
-            `Scanner: ${item.scannerVersion}`,
+            `Engine: ${item.scannerVersion}`,
             `Code schema: ${item.codeSchemaVersion}`,
             `Dictionary: ${item.dictionaryVersion}`,
           ]}
@@ -1397,7 +1403,7 @@ async function fetchLatestScan({
 
   if (!response.ok) {
     throw new Error(
-      await getLatestScanErrorMessage(response, "Failed to load latest scan results."),
+      await getLatestScanErrorMessage(response, "Failed to load latest ranking results."),
     );
   }
 
@@ -1421,7 +1427,7 @@ export function buildLatestScanUrl({
     params.set("includeLowQuality", "true");
   }
 
-  return `${getTradeApiBaseUrl(tradeApiBaseUrl)}/api/scan/latest?${params.toString()}`;
+  return `${getVegaRankApiBaseUrl(tradeApiBaseUrl)}/api/rankings/latest?${params.toString()}`;
 }
 
 export function buildSymbolResearchPath({
@@ -1452,7 +1458,7 @@ export function buildSymbolResearchHref({
   });
   const normalizedAssetClass = assetClass?.trim();
   const normalizedLimit = normalizePositiveInteger(limit);
-  const normalizedFrom = from?.trim();
+  const normalizedFrom = normalizeLatestRankingFrom(from);
 
   if (normalizedAssetClass) {
     params.set("assetClass", normalizedAssetClass);
@@ -1486,10 +1492,10 @@ export function buildLatestRunSummaryText({
 }: LatestRunSummaryTextInput) {
   return [
     `Full universe size: ${formatInteger(symbolsTotal)}`,
-    `Scanned: ${formatInteger(symbolsScanned)}`,
-    `Signals created: ${formatInteger(signalsCreated)}`,
+    `Reviewed: ${formatInteger(symbolsScanned)}`,
+    `Ranking rows created: ${formatInteger(signalsCreated)}`,
     `Skipped: ${formatInteger(symbolsSkipped)}`,
-    `Filtered signals shown: ${formatInteger(returnedItems)} of ${formatInteger(totalSignals)}`,
+    `Filtered ranking rows shown: ${formatInteger(returnedItems)} of ${formatInteger(totalSignals)}`,
     `Low-quality excluded: ${formatInteger(lowQualityExcluded)}`,
   ].join(" · ");
 }
@@ -1515,9 +1521,9 @@ export function buildLimitedViewWarning({
 
   return `Limited view: showing the first ${formatInteger(
     normalizedReturnedItems,
-  )} returned results from ${formatInteger(
+  )} returned ranking rows from ${formatInteger(
     normalizedTotalSignals,
-  )} filtered signals`;
+  )} filtered rows`;
 }
 
 export function shouldShowIncompleteCryptoUniverseWarning({
@@ -1535,12 +1541,6 @@ export function shouldShowIncompleteCryptoUniverseWarning({
     normalizedSymbolsTotal > 0 &&
     normalizedSymbolsTotal < 300
   );
-}
-
-export function getTradeApiBaseUrl(
-  value = process.env.NEXT_PUBLIC_TRADE_API_BASE_URL,
-) {
-  return value?.trim().replace(/\/+$/, "") ?? "";
 }
 
 function getLatestScanInitialFilters(searchParams: LatestScanQueryStateInput) {
@@ -1601,6 +1601,12 @@ function normalizeLatestScanLimit(value: string | null): LatestScanLimit {
 
 function normalizeExchangePathSegment(value: string | null | undefined) {
   return value?.trim().toLowerCase() || "binance";
+}
+
+function normalizeLatestRankingFrom(value: string | null | undefined) {
+  const normalized = value?.trim();
+
+  return normalized === "scanner" ? "rankings" : normalized;
 }
 
 function normalizePositiveInteger(value: number | string | null | undefined) {

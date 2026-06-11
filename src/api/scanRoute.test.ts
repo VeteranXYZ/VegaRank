@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { GET } from "../../app/api/scan/route";
+import { GET } from "../../app/api/rankings/route";
 import { clearMemoryCache } from "@/lib/cache/memory";
 import { scannerCodeVersions } from "@/lib/scanner-codebook/codeRegistry";
 
@@ -41,7 +41,7 @@ describe("scan API remote market universe", () => {
 
   it("keeps source=remote independent from local SQLite storage", async () => {
     const response = await GET(
-      new Request("http://localhost/api/scan?source=remote&timeframe=4h"),
+      new Request("http://localhost/api/rankings?source=remote&timeframe=4h"),
     );
     const body = await response.json();
 
@@ -65,7 +65,7 @@ describe("scan API remote market universe", () => {
 
   it("limits remote ALL live scans to the configured top symbol count", async () => {
     vi.stubEnv("SCANNER_MAX_LIVE_SYMBOLS", "75");
-    await GET(new Request("http://localhost/api/scan?timeframe=4h"));
+    await GET(new Request("http://localhost/api/rankings?timeframe=4h"));
 
     expect(getEligibleUsdtMarketsMock).toHaveBeenCalledWith(
       expect.objectContaining({ maxSymbols: 75 }),
@@ -74,7 +74,7 @@ describe("scan API remote market universe", () => {
 
   it("applies maxSymbols only when explicitly provided", async () => {
     const response = await GET(
-      new Request("http://localhost/api/scan?timeframe=4h&maxSymbols=20"),
+      new Request("http://localhost/api/rankings?timeframe=4h&maxSymbols=20"),
     );
 
     expect(response.status).toBe(200);
@@ -85,7 +85,7 @@ describe("scan API remote market universe", () => {
 
   it("marks maxSymbols=all as truncated for Cloudflare live scan safety", async () => {
     const response = await GET(
-      new Request("http://localhost/api/scan?timeframe=4h&maxSymbols=all"),
+      new Request("http://localhost/api/rankings?timeframe=4h&maxSymbols=all"),
     );
     const body = await response.json();
 
@@ -100,7 +100,7 @@ describe("scan API remote market universe", () => {
   it("passes minQuoteVolume into the remote universe filter", async () => {
     await GET(
       new Request(
-        "http://localhost/api/scan?timeframe=4h&minQuoteVolume=10000000",
+        "http://localhost/api/rankings?timeframe=4h&minQuoteVolume=10000000",
       ),
     );
 
@@ -111,7 +111,7 @@ describe("scan API remote market universe", () => {
 
   it("blocks source=local when local SQLite is disabled", async () => {
     const response = await GET(
-      new Request("http://localhost/api/scan?source=local&timeframe=4h"),
+      new Request("http://localhost/api/rankings?source=local&timeframe=4h"),
     );
     const body = await response.json();
 
@@ -121,7 +121,7 @@ describe("scan API remote market universe", () => {
 
   it("returns a controlled response for feature-gated cached source", async () => {
     const response = await GET(
-      new Request("http://localhost/api/scan?source=cached&timeframe=4h"),
+      new Request("http://localhost/api/rankings?source=cached&timeframe=4h"),
     );
     const body = await response.json();
 
@@ -136,7 +136,7 @@ describe("scan API remote market universe", () => {
     async (timeframe) => {
       const response = await GET(
         new Request(
-          `http://localhost/api/scan?source=remote&timeframe=${timeframe}`,
+          `http://localhost/api/rankings?source=remote&timeframe=${timeframe}`,
         ),
       );
       const body = await response.json();
@@ -151,7 +151,7 @@ describe("scan API remote market universe", () => {
     async (timeframe) => {
       const response = await GET(
         new Request(
-          `http://localhost/api/scan?source=remote&timeframe=${timeframe}`,
+          `http://localhost/api/rankings?source=remote&timeframe=${timeframe}`,
         ),
       );
       const body = await response.json();
@@ -162,7 +162,7 @@ describe("scan API remote market universe", () => {
   );
 
   it("defaults to 4h and includes cache metadata", async () => {
-    const response = await GET(new Request("http://localhost/api/scan?source=remote"));
+    const response = await GET(new Request("http://localhost/api/rankings?source=remote"));
     const body = await response.json();
 
     expect(response.status).toBe(200);
@@ -205,7 +205,7 @@ describe("scan API remote market universe", () => {
       throw new Error("Indicator calculation failed");
     });
 
-    const response = await GET(new Request("http://localhost/api/scan?timeframe=4h"));
+    const response = await GET(new Request("http://localhost/api/rankings?timeframe=4h"));
     const body = await response.json();
 
     expect(response.status).toBe(200);
@@ -262,7 +262,7 @@ describe("scan API remote market universe", () => {
 
     const response = await GET(
       new Request(
-        "http://localhost/api/scan?timeframe=4h&batchMode=true&batchSize=20&cursor=20",
+        "http://localhost/api/rankings?timeframe=4h&batchMode=true&batchSize=20&cursor=20",
       ),
     );
     const body = await response.json();
@@ -304,7 +304,7 @@ describe("scan API remote market universe", () => {
     );
 
     const response = await GET(
-      new Request("http://localhost/api/scan?timeframe=4h&batchMode=true"),
+      new Request("http://localhost/api/rankings?timeframe=4h&batchMode=true"),
     );
     const body = await response.json();
 
@@ -334,7 +334,7 @@ describe("scan API remote market universe", () => {
 
     const response = await GET(
       new Request(
-        "http://localhost/api/scan?timeframe=4h&batchMode=true&batchSize=99",
+        "http://localhost/api/rankings?timeframe=4h&batchMode=true&batchSize=99",
       ),
     );
     const body = await response.json();
@@ -359,7 +359,7 @@ describe("scan API remote market universe", () => {
     });
 
     const response = await GET(
-      new Request("http://localhost/api/scan?timeframe=4h&batchMode=true"),
+      new Request("http://localhost/api/rankings?timeframe=4h&batchMode=true"),
     );
     const body = await response.json();
 

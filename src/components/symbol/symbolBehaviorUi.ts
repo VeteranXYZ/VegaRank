@@ -466,7 +466,7 @@ export function buildHistoricalFollowThroughEvaluation({
   sampleQuality?: BehaviorSampleQualityReadout | null;
 }): HistoricalFollowThroughEvaluation {
   const title = "Historical Follow-through Evaluation";
-  const evaluationScope = "Same symbol / same timeframe / similar scanner context";
+  const evaluationScope = "Same symbol / same timeframe / similar ranking context";
 
   if (!behavior || diagnostics?.available === false) {
     return {

@@ -1,19 +1,19 @@
-# Crypto Technical Scanner
+# VegaRank
 
-Crypto Technical Scanner is a web-based medium-to-large timeframe technical screening and research tool for Binance USDT spot markets.
+VegaRank is a professional crypto technical research-ranking system for Binance USDT spot markets.
 
-It ranks markets by technical structure, volatility compression, confirmation strength, and risk context. It is not a trading bot and does not place trades.
+It ranks research candidates by technical structure, volatility compression, confirmation strength, evidence quality, and risk context. It is research-only and is not trading advice.
 
 ## What It Does
 
-- Scans Binance USDT spot markets by 24h quote volume.
+- Reviews Binance USDT spot markets by 24h quote volume.
 - Focuses on larger market moves with supported timeframes `4h`, `1h`, `1d`, `1w`, and `1M`.
 - Uses `4h` + `1d` as the core multi-timeframe workflow, with `1h` available for explicitly run production follow-up scans.
 - Calculates technical indicators from public candle data.
 - Classifies each market into a neutral market phase.
 - Produces opportunity, confirmation, risk, and rank scores.
 - Explains why a symbol ranked, what would confirm the setup, and what would invalidate it.
-- Displays a scanner table and a symbol detail chart.
+- Displays market rankings and a symbol detail chart.
 
 ## What It Does Not Do
 
@@ -30,8 +30,8 @@ Implemented MVP phases:
 - Phase 1: Next.js App Router scaffold, TypeScript, Tailwind CSS, routes, components, and base types.
 - Phase 2: Binance public data layer for markets and candles.
 - Phase 3: Indicator calculation layer.
-- Phase 4: Scanner scoring and `/api/scan`.
-- Phase 5: Scanner UI with filters, table, selection, refresh, and request states.
+- Phase 4: Ranking scoring and `/api/rankings`.
+- Phase 5: Rankings UI with filters, table, selection, refresh, and request states.
 - Phase 6: Symbol detail page with candlestick chart and overlays.
 - Phase 7: In-memory cache, TTLs, response metadata, concurrency limits, and partial scan errors.
 - Phase 8: README, known limitations, and final validation.
@@ -53,7 +53,7 @@ use `"latest"` ranges for Phase 1 stabilization work.
 Open:
 
 - `http://127.0.0.1:3000/`
-- `http://127.0.0.1:3000/scanner`
+- `http://127.0.0.1:3000/rankings`
 - `http://127.0.0.1:3000/symbol/binance/BTCUSDT`
 
 ## Development Commands
@@ -74,11 +74,11 @@ The build script uses `next build --webpack` because the current local environme
 
 This app is prepared for Cloudflare Workers deployment via OpenNext for Cloudflare.
 
-Production mode on Cloudflare supports the remote Binance scanner:
+Production mode on Cloudflare supports remote Binance rankings:
 
 ```txt
-/api/scan?source=remote
-/api/scan/mtf?source=remote
+/api/rankings?source=remote
+/api/rankings/mtf?source=remote
 ```
 
 Remote Binance remains the default scanner source for Cloudflare. Cached latest-scan
@@ -103,34 +103,32 @@ npm run deploy:cloudflare
 
 ### Cloudflare Pages Production Environment
 
-Cloudflare Pages Production must define the public trade API base URL at build
-time so the `/scanner` frontend calls the public API host instead of the Pages
-same-origin fallback:
+Cloudflare Pages Production should define the public VegaRank API base URL at
+build time so the `/rankings` frontend calls the public API host:
 
 ```txt
-NEXT_PUBLIC_TRADE_API_BASE_URL=https://api.auere.com
+NEXT_PUBLIC_TRADE_API_BASE_URL=https://api.vegarank.com
 ```
 
-With this value present, the latest scan request is built as
-`https://api.auere.com/api/scan/latest?...`. The same-origin
-`/api/scan/latest` URL is only a local development fallback when the public
-environment variable is missing.
+With this value present, the latest rankings request is built as
+`https://api.vegarank.com/api/rankings/latest?...`. If the environment variable
+is missing, the frontend defaults to `https://api.vegarank.com`.
 
 ### Public Trade API CORS Verification
 
-After deploying or restarting `https://api.auere.com`, verify that the public
-scanner origin receives CORS headers:
+After deploying or restarting `https://api.vegarank.com`, verify that the public
+VegaRank origin receives CORS headers:
 
 ```bash
 curl -i \
-  -H 'Origin: https://s.bitcoinmind.com' \
-  'https://api.auere.com/api/scan/latest?timeframe=4h&assetClass=crypto&limit=100'
+  -H 'Origin: https://vegarank.com' \
+  'https://api.vegarank.com/api/rankings/latest?timeframe=4h&assetClass=crypto&limit=100'
 ```
 
 Expected response headers include:
 
 ```txt
-Access-Control-Allow-Origin: https://s.bitcoinmind.com
+Access-Control-Allow-Origin: https://vegarank.com
 Access-Control-Allow-Methods: GET, OPTIONS
 Access-Control-Allow-Headers: Content-Type
 ```
@@ -139,21 +137,21 @@ Verify the preflight path does not require a database lookup:
 
 ```bash
 curl -i -X OPTIONS \
-  -H 'Origin: https://s.bitcoinmind.com' \
+  -H 'Origin: https://vegarank.com' \
   -H 'Access-Control-Request-Method: GET' \
-  'https://api.auere.com/api/scan/latest?timeframe=4h&assetClass=crypto&limit=100'
+  'https://api.vegarank.com/api/rankings/latest?timeframe=4h&assetClass=crypto&limit=100'
 ```
 
 Expected: `HTTP 204` and
-`Access-Control-Allow-Origin: https://s.bitcoinmind.com`. After API deploy,
-open `https://s.bitcoinmind.com/scanner`; the latest scan table should render
+`Access-Control-Allow-Origin: https://vegarank.com`. After API deploy,
+open `https://vegarank.com/rankings`; the latest scan table should render
 without a browser CORS error.
 
 Verify that the latest public crypto scan is selecting a full scanner universe
 run rather than a small manual/test run:
 
 ```bash
-curl 'https://api.auere.com/api/scan/latest?timeframe=4h&assetClass=crypto&limit=100' \
+curl 'https://api.vegarank.com/api/rankings/latest?timeframe=4h&assetClass=crypto&limit=100' \
   | jq '{ok, symbolsTotal: .run.symbolsTotal, scanned: .run.symbolsScanned, signalsCreated: .run.signalsCreated, latestRunSelection: .summary.latestRunSelection}'
 ```
 
@@ -167,15 +165,15 @@ D1 is not configured in `wrangler.jsonc` for Phase 1. The old migration workflow
 
 Cloudflare Workers Free can hit the external subrequest limit if one invocation scans hundreds of symbols. As a temporary Phase 1 solution, the Scanner UI processes full-market scans through sequential frontend batches:
 
-- API form: `/api/scan?source=remote&timeframe=4h&batchMode=true&batchSize=20&cursor=0`
-- MTF API form: `/api/scan/mtf?source=remote&preset=short&batchMode=true&batchSize=8&cursor=0`
+- API form: `/api/rankings?source=remote&timeframe=4h&batchMode=true&batchSize=20&cursor=0`
+- MTF API form: `/api/rankings/mtf?source=remote&preset=short&batchMode=true&batchSize=8&cursor=0`
 - Single-timeframe default batch size: `20`
 - Single-timeframe maximum API batch size: `25`
 - MTF default batch size: `8`
 - MTF maximum API batch size: `10`
 - The frontend requests one batch at a time, merges results, deduplicates by symbol/timeframe, then sorts by `rankScore`.
 
-MTF batches are smaller because each symbol needs candles for multiple timeframes. Numeric `maxSymbols` requests such as `maxSymbols=100` still use the normal single-call scan path. The `/scanner` UI defaults to `maxSymbols=100`; manual `ALL` live scans are capped by `SCANNER_MAX_LIVE_SYMBOLS` (default `100`) for Cloudflare stability. Workers Paid or a VPS background scanner may remove the need for this batching later. D1, KV, R2, Queues, and Durable Objects are not required for this phase.
+MTF batches are smaller because each symbol needs candles for multiple timeframes. Numeric `maxSymbols` requests such as `maxSymbols=100` still use the normal single-call scan path. The `/rankings` UI defaults to `maxSymbols=100`; manual `ALL` live scans are capped by `SCANNER_MAX_LIVE_SYMBOLS` (default `100`) for Cloudflare stability. Workers Paid or a VPS background scanner may remove the need for this batching later. D1, KV, R2, Queues, and Durable Objects are not required for this phase.
 
 ### Historical Behavior Review
 
@@ -318,12 +316,12 @@ Market phases:
 ```txt
 GET /api/markets?limit=100
 GET /api/candles?source=remote&symbol=BTCUSDT&timeframe=4h&limit=300
-GET /api/scan?source=remote&timeframe=4h
-GET /api/scan?source=remote&timeframe=4h&maxSymbols=200&minQuoteVolume=10000000
-GET /api/scan?source=remote&timeframe=4h&maxSymbols=all
-GET /api/scan?source=remote&timeframe=4h&batchMode=true&batchSize=20&cursor=0
-GET /api/scan/mtf?source=remote&preset=short
-GET /api/scan/mtf?source=remote&preset=short&batchMode=true&batchSize=8&cursor=0
+GET /api/rankings?source=remote&timeframe=4h
+GET /api/rankings?source=remote&timeframe=4h&maxSymbols=200&minQuoteVolume=10000000
+GET /api/rankings?source=remote&timeframe=4h&maxSymbols=all
+GET /api/rankings?source=remote&timeframe=4h&batchMode=true&batchSize=20&cursor=0
+GET /api/rankings/mtf?source=remote&preset=short
+GET /api/rankings/mtf?source=remote&preset=short&batchMode=true&batchSize=8&cursor=0
 ```
 
 Responses include:
@@ -352,7 +350,7 @@ Batch responses also include `batchMode`, `cursor`, `nextCursor`, `hasMore`, `ba
 
 ## Scanner Workbench
 
-The `/scanner` page is a desktop-first compact technical workbench:
+The `/rankings` page is a desktop-first compact technical workbench:
 
 - Dense three-column layout: filters, results table, and selected-symbol inspector.
 - Compact status bar shows source, mode, timeframe, scan progress, cache state, duration, and next refresh.
@@ -436,14 +434,14 @@ Command behavior:
 - `research:inspect` prints recent signals with scores, labels, risk types, and
   any saved evaluation status.
 
-Forward evaluation runs through `/api/history/evaluate?horizon=24h&limit=500`. It
+Forward evaluation runs through `/api/archive/evaluate?horizon=24h&limit=500`. It
 only evaluates candles that already exist in local synced market data. If there are
 no completed horizons yet, the scanner Research / Evaluation panel shows
 `Not enough evaluated data yet.` An `insufficient_data` outcome means the signal is
 stored, but the local candle database does not yet contain enough later candles for
 that horizon. It is not a failure and it is not a forecast.
 
-The status API `/api/history/research-stats` returns the same basic storage summary
+The status API `/api/archive/research-stats` returns the same basic storage summary
 for the UI and local checks without exposing secrets.
 
 ### PostgreSQL Latest Scan Results
@@ -493,7 +491,7 @@ pnpm scanner:run:pg -- --timeframe 1d --all-symbols --asset-class crypto --limit
 3. Verify latest 1d results:
 
 ```bash
-curl 'https://api.auere.com/api/scan/latest?timeframe=1d&assetClass=crypto&limit=100' \
+curl 'https://api.vegarank.com/api/rankings/latest?timeframe=1d&assetClass=crypto&limit=100' \
   | jq '{ok, count, run: {timeframe: .run.timeframe, symbolsTotal: .run.symbolsTotal, symbolsScanned: .run.symbolsScanned, signalsCreated: .run.signalsCreated}, latestRunSelection: .summary.latestRunSelection, totalByGroup: .summary.totalByGroup}'
 ```
 
@@ -512,17 +510,17 @@ pnpm scanner:run:pg -- --timeframe 1w --all-symbols --asset-class crypto --limit
 6. Verify latest 1w results:
 
 ```bash
-curl 'https://api.auere.com/api/scan/latest?timeframe=1w&assetClass=crypto&limit=100' \
+curl 'https://api.vegarank.com/api/rankings/latest?timeframe=1w&assetClass=crypto&limit=100' \
   | jq '{ok, count, run: {timeframe: .run.timeframe, symbolsTotal: .run.symbolsTotal, symbolsScanned: .run.symbolsScanned, signalsCreated: .run.signalsCreated}, latestRunSelection: .summary.latestRunSelection, totalByGroup: .summary.totalByGroup}'
 ```
 
 7. Verify Symbol Research for both timeframes:
 
 ```bash
-curl 'https://api.auere.com/api/symbol/research?exchange=binance&symbol=SEIUSDT&timeframe=1d' \
+curl 'https://api.vegarank.com/api/symbol/research?exchange=binance&symbol=SEIUSDT&timeframe=1d' \
   | jq '{ok, timeframe, latest: {scanTime: .latest.signal.scanTime, resultGroup: .latest.signal.resultGroup, isSelectedCurrentRun: .latest.signal.isSelectedCurrentRun, sourceRunIsLikelyFullUniverse: .latest.signal.sourceRunIsLikelyFullUniverse}, candles: {count: .candles.count, rowsCount: (.candles.rows | length)}, historyCount: (.history | length)}'
 
-curl 'https://api.auere.com/api/symbol/research?exchange=binance&symbol=SEIUSDT&timeframe=1w' \
+curl 'https://api.vegarank.com/api/symbol/research?exchange=binance&symbol=SEIUSDT&timeframe=1w' \
   | jq '{ok, timeframe, latest: {scanTime: .latest.signal.scanTime, resultGroup: .latest.signal.resultGroup, isSelectedCurrentRun: .latest.signal.isSelectedCurrentRun, sourceRunIsLikelyFullUniverse: .latest.signal.sourceRunIsLikelyFullUniverse}, candles: {count: .candles.count, rowsCount: (.candles.rows | length)}, historyCount: (.history | length)}'
 ```
 
@@ -541,10 +539,10 @@ pnpm scanner:run:pg -- --timeframe 1h --all-symbols --asset-class crypto --limit
 10. Verify latest 1h results and Symbol Research:
 
 ```bash
-curl 'https://api.auere.com/api/scan/latest?timeframe=1h&assetClass=crypto&limit=100' \
+curl 'https://api.vegarank.com/api/rankings/latest?timeframe=1h&assetClass=crypto&limit=100' \
   | jq '{ok, timeframe, count, run: {timeframe: .run.timeframe, symbolsTotal: .run.symbolsTotal, symbolsScanned: .run.symbolsScanned, signalsCreated: .run.signalsCreated}, latestRunSelection: .summary.latestRunSelection, totalByGroup: .summary.totalByGroup}'
 
-curl 'https://api.auere.com/api/symbol/research?exchange=binance&symbol=BTCUSDT&timeframe=1h' \
+curl 'https://api.vegarank.com/api/symbol/research?exchange=binance&symbol=BTCUSDT&timeframe=1h' \
   | jq '{ok, timeframe, latest: {scanTime: .latest.signal.scanTime, resultGroup: .latest.signal.resultGroup, isSelectedCurrentRun: .latest.signal.isSelectedCurrentRun, sourceRunIsLikelyFullUniverse: .latest.signal.sourceRunIsLikelyFullUniverse}, behaviorAvailable: .behaviorDiagnostics.available, behaviorReason: .behaviorDiagnostics.reason}'
 ```
 
@@ -621,7 +619,7 @@ tail -f .data/logs/production-4h.log
 Production API verification:
 
 ```bash
-curl 'https://api.auere.com/api/scan/latest?timeframe=4h&assetClass=crypto&limit=5' \
+curl 'https://api.vegarank.com/api/rankings/latest?timeframe=4h&assetClass=crypto&limit=5' \
   | jq '{ok, timeframe, count, run: {id: .run.id, status: .run.status, symbolsTotal: .run.symbolsTotal, symbolsScanned: .run.symbolsScanned, signalsCreated: .run.signalsCreated}, latestRunSelection: .summary.latestRunSelection}'
 
 pnpm smoke:production
@@ -673,7 +671,7 @@ guarantee.
 
 The Oracle VPS first stage is a local Node.js workflow for background market data
 sync, local scanner runs, signal persistence, forward evaluation, and latest-scan
-JSON export. It is intentionally separate from Cloudflare. Cloudflare `/scanner`
+JSON export. It is intentionally separate from Cloudflare. Cloudflare `/rankings`
 continues to default to `source=remote`; cached latest JSON is disabled by default
 and should only be enabled after a real cache reader is wired.
 

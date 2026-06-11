@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { GET } from "../../app/api/scan/mtf/route";
+import { GET } from "../../app/api/rankings/mtf/route";
 import { clearMemoryCache } from "@/lib/cache/memory";
 
 const getEligibleUsdtMarketsMock = vi.hoisted(() => vi.fn());
@@ -36,7 +36,7 @@ describe("MTF scan API timeframe defaults", () => {
 
   it("defaults to the 4h + 1d core scan", async () => {
     const response = await GET(
-      new Request("http://localhost/api/scan/mtf?source=remote"),
+      new Request("http://localhost/api/rankings/mtf?source=remote"),
     );
     const body = await response.json();
 
@@ -66,7 +66,7 @@ describe("MTF scan API timeframe defaults", () => {
 
   it("returns a controlled response for feature-gated cached source", async () => {
     const response = await GET(
-      new Request("http://localhost/api/scan/mtf?source=cached&preset=short"),
+      new Request("http://localhost/api/rankings/mtf?source=cached&preset=short"),
     );
     const body = await response.json();
 
@@ -95,7 +95,7 @@ describe("MTF scan API timeframe defaults", () => {
 
     const response = await GET(
       new Request(
-        "http://localhost/api/scan/mtf?source=remote&preset=short&batchMode=true&batchSize=8&cursor=8",
+        "http://localhost/api/rankings/mtf?source=remote&preset=short&batchMode=true&batchSize=8&cursor=8",
       ),
     );
     const body = await response.json();
@@ -145,7 +145,7 @@ describe("MTF scan API timeframe defaults", () => {
     );
 
     const response = await GET(
-      new Request("http://localhost/api/scan/mtf?source=remote&batchMode=true"),
+      new Request("http://localhost/api/rankings/mtf?source=remote&batchMode=true"),
     );
     const body = await response.json();
 
@@ -175,7 +175,7 @@ describe("MTF scan API timeframe defaults", () => {
 
     const response = await GET(
       new Request(
-        "http://localhost/api/scan/mtf?source=remote&batchMode=true&batchSize=99",
+        "http://localhost/api/rankings/mtf?source=remote&batchMode=true&batchSize=99",
       ),
     );
     const body = await response.json();
@@ -200,7 +200,7 @@ describe("MTF scan API timeframe defaults", () => {
     });
 
     const response = await GET(
-      new Request("http://localhost/api/scan/mtf?source=remote&batchMode=true"),
+      new Request("http://localhost/api/rankings/mtf?source=remote&batchMode=true"),
     );
     const body = await response.json();
 

@@ -260,7 +260,7 @@ export async function GET(request: Request) {
         message: error instanceof Error ? error.message : "Remote scanner request failed.",
         errorCode: "SCANNER_ROUTE_FAILED",
         details: {
-          route: "/api/scan",
+          route: "/api/rankings",
           source: source.valid ? source.value : undefined,
           timeframe,
           maxSymbols: maxSymbols.valid ? maxSymbols.value : undefined,
