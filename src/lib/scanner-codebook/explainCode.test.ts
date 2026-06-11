@@ -38,9 +38,9 @@ describe("scanner codebook", () => {
   it("explains active codes in Chinese", () => {
     expect(explainCode("GR_201", "zh")).toEqual({
       label: "建设性观察",
-      short: "结构偏建设性，但置信度或确认条件仍有限。",
+      short: "结构正在改善，但确认仍有限。",
     });
-    expect(explainCode("AC_501", "zh").label).toBe("研究观察");
+    expect(explainCode("AC_501", "zh").label).toBe("加入研究观察");
   });
 
   it("falls back safely for unknown codes", () => {

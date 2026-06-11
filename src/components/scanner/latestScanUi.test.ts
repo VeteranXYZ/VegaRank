@@ -284,8 +284,8 @@ describe("latest scan UI helpers", () => {
     expect(renderedText).toContain("研究观察");
     expect(renderedText).toContain("观察");
     expect(renderedText).toContain("过热");
-    expect(renderedText).toContain("筑底");
-    expect(renderedText).toContain("历史数据不足");
+    expect(renderedText).toContain("基底构建");
+    expect(renderedText).toContain("历史样本不足");
     expect(renderedText).not.toMatch(forbiddenEnglishResultText);
   });
 
