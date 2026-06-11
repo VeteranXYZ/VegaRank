@@ -9,14 +9,14 @@ import {
   scannerCodeVersions,
   signalCodeByLabel,
   setupCodeByAliasOrStructure,
-} from "@/lib/scanner-codebook/codeRegistry";
+} from "@/lib/vegarank-codebook/codeRegistry";
 import { MarketContextPanel } from "@/components/market-context/MarketContextPanel";
 import {
   WatchlistPageClient,
   WatchlistSummaryCards,
   WatchlistResearchSummaryPanel,
   WatchlistTable,
-  buildWatchlistMtfLatestScanUrl,
+  buildWatchlistMtfLatestRankingsUrl,
 } from "./WatchlistPageClient";
 import {
   DEFAULT_WATCHLIST_SYMBOLS,
@@ -27,14 +27,14 @@ import {
 import {
   buildMtfScreenerRowsFromResponse,
   buildMtfScreenerRows,
-  type MtfLatestScanResponse,
+  type MtfLatestRankingsResponse,
 } from "@/components/screener/multiTimeframeScreenerUi";
 import { buildWatchlistVisualCheckData } from "./watchlistPreviewData";
 
 describe("WatchlistPageClient", () => {
   it("uses the full multi-timeframe latest API endpoint", () => {
     expect(
-      buildWatchlistMtfLatestScanUrl({
+      buildWatchlistMtfLatestRankingsUrl({
         assetClass: "crypto",
         tradeApiBaseUrl: "https://api.vegarank.com/",
       }),
@@ -430,8 +430,8 @@ function extractAsideHtml(html: string) {
 
 function makeResponse(
   timeframe: "1h" | "4h" | "1d" | "1w",
-  items: MtfLatestScanResponse["items"],
-): MtfLatestScanResponse {
+  items: MtfLatestRankingsResponse["items"],
+): MtfLatestRankingsResponse {
   return {
     ok: true,
     timeframe,
@@ -444,7 +444,7 @@ function makeResponse(
 }
 
 function makeItem(
-  overrides: Partial<MtfLatestScanResponse["items"][number]> & {
+  overrides: Partial<MtfLatestRankingsResponse["items"][number]> & {
     symbol: string;
     timeframe: "1h" | "4h" | "1d" | "1w";
     group?: "eligible" | "watch" | "risk" | "overheated" | "neutral" | null;
@@ -455,7 +455,7 @@ function makeItem(
     primaryStructure?: keyof typeof setupCodeByAliasOrStructure;
     detectedRiskTypes?: Array<keyof typeof riskCodeByType>;
   },
-): MtfLatestScanResponse["items"][number] {
+): MtfLatestRankingsResponse["items"][number] {
   const resultGroup = overrides.resultGroup ?? overrides.group ?? "neutral";
   const riskCodes = (overrides.detectedRiskTypes ?? []).map(
     (risk) => riskCodeByType[risk] ?? "RK_201",

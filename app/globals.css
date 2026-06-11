@@ -113,11 +113,11 @@
 }
 
 body:has(.screener-terminal),
-body:has(.scanner-terminal),
+body:has(.rankings-terminal),
 body:has(.symbol-terminal),
 body:has(.watchlist-terminal),
-body:has(.history-terminal),
-.history-terminal {
+body:has(.archive-terminal),
+.archive-terminal {
   color-scheme: dark;
   --app-background: #080d12;
   --page-background: #080d12;
@@ -248,47 +248,47 @@ body {
 
 html:has(.screener-terminal),
 body:has(.screener-terminal),
-html:has(.scanner-terminal),
-body:has(.scanner-terminal),
+html:has(.rankings-terminal),
+body:has(.rankings-terminal),
 html:has(.symbol-terminal),
 body:has(.symbol-terminal),
 html:has(.watchlist-terminal),
 body:has(.watchlist-terminal),
-html:has(.history-terminal),
-body:has(.history-terminal) {
+html:has(.archive-terminal),
+body:has(.archive-terminal) {
   overflow-x: clip;
 }
 
 @media (min-width: 1280px) {
   html:has(.screener-terminal),
   body:has(.screener-terminal),
-  html:has(.scanner-terminal),
-  body:has(.scanner-terminal),
+  html:has(.rankings-terminal),
+  body:has(.rankings-terminal),
   html:has(.symbol-terminal),
   body:has(.symbol-terminal),
   html:has(.watchlist-terminal),
   body:has(.watchlist-terminal),
-  html:has(.history-terminal),
-  body:has(.history-terminal) {
+  html:has(.archive-terminal),
+  body:has(.archive-terminal) {
     height: 100%;
     overflow: hidden;
   }
 
   body:has(.screener-terminal) > main,
-  body:has(.scanner-terminal) > main,
+  body:has(.rankings-terminal) > main,
   body:has(.symbol-terminal) > main,
   body:has(.watchlist-terminal) > main,
-  body:has(.history-terminal) > main {
+  body:has(.archive-terminal) > main {
     min-height: 0;
     height: calc(100dvh - var(--app-header-height));
     overflow: hidden;
   }
 
   body:has(.screener-terminal) footer,
-  body:has(.scanner-terminal) footer,
+  body:has(.rankings-terminal) footer,
   body:has(.symbol-terminal) footer,
   body:has(.watchlist-terminal) footer,
-  body:has(.history-terminal) footer {
+  body:has(.archive-terminal) footer {
     display: none;
   }
 }

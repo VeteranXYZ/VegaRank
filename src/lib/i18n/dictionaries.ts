@@ -1,4 +1,4 @@
-import type { MtfPreset } from "@/lib/shared/scannerConfig";
+import type { MtfPreset } from "@/lib/shared/rankingConfig";
 import type {
   ActionBias,
   DetectedRiskType,
@@ -11,7 +11,7 @@ import type {
   ScannerReviewKey,
   ScannerSignalLabel,
   ScannerSignalState,
-} from "@/lib/shared/scannerTypes";
+} from "@/lib/shared/rankingTypes";
 import type { Timeframe } from "@/lib/shared/timeframes";
 
 export type Language = "en" | "zh";
@@ -77,7 +77,7 @@ export const dictionaries = {
       notAvailable: "n/a",
     },
     scanner: {
-      title: "Market Scanner",
+      title: "Market Rankings",
       subtitle:
         "Discover candidates by signal quality, risk, and timeframe alignment. Designed for medium-to-large timeframe market selection. Minimum timeframe: 4H.",
       filters: "Filters",
@@ -96,18 +96,18 @@ export const dictionaries = {
       showAll: "All",
       maxSymbols: "Max Symbols Scanned",
       maxSymbolsHelp:
-        "Caps the eligible scan universe, not the number of rows displayed. Use All Eligible for full-market selection.",
+        "Caps the eligible ranking universe, not the number of rows displayed. Use All Eligible for full-market selection.",
       minQuoteVolumeHelp:
         "Optional liquidity filter based on Binance 24h quote volume. Leave 0 to keep the full eligible market.",
       displayLimitHelp:
-        "Controls visible table rows only. Full-market scans still process all eligible symbols.",
+        "Controls visible table rows only. Full-market ranking runs still process all eligible symbols.",
       helpLabel: "?",
       notes: "Notes ?",
       allEligible: "All Eligible",
       minQuoteVolume: "Min Quote Volume",
-      results: "Scanner Results",
+      results: "Ranking Results",
       resultsCompact: "results",
-      waiting: "Waiting for scan data",
+      waiting: "Waiting for ranking data",
       scanned: "scanned",
       source: "Source",
       localSource: "local",
@@ -127,7 +127,7 @@ export const dictionaries = {
       nextRefresh: "Next refresh estimate",
       nextCompact: "Next",
       cappedWarning:
-        "Scanner reached the safety cap. Narrow filters or set a lower max symbols value for a smaller run.",
+        "Ranking run reached the safety cap. Narrow filters or set a lower max symbols value for a smaller run.",
       insufficientHistory: "Insufficient history",
       fetchFailed: "Fetch failed",
       indicatorFailed: "Indicator failed",
@@ -135,20 +135,20 @@ export const dictionaries = {
       excludedStableOrLeveraged: "Stable / leveraged excluded",
       subrequestLimitExceeded: "Subrequest limit",
       cachePolicyNote:
-        "This scanner is optimized for medium-to-large timeframe selection. Results may be cached for stability and lower request cost.",
+        "VegaRank is optimized for medium-to-large timeframe selection. Results may be cached for stability and lower request cost.",
       cloudflareBatchNote:
-        "Full-market scans are processed in small batches on Cloudflare Free.",
-      scanningBatch: "Scanning batch",
-      scanningMtfBatch: "Scanning MTF batch",
-      loadingTitle: "Loading Scan",
-      loadingMessage: "Fetching public Binance market data and calculating scanner results.",
-      errorTitle: "Scan Error",
+        "Full-market ranking runs are processed in small batches on Cloudflare Free.",
+      scanningBatch: "Ranking batch",
+      scanningMtfBatch: "Ranking MTF batch",
+      loadingTitle: "Loading Rankings",
+      loadingMessage: "Fetching public Binance market data and calculating ranking results.",
+      errorTitle: "Ranking Error",
       noMatchesTitle: "No Matches",
-      noMatchesMessage: "Adjust filters to widen the current scanner result set.",
-      partialErrors: "symbol scan failed; partial results are shown.",
+      noMatchesMessage: "Adjust filters to widen the current ranking result set.",
+      partialErrors: "symbol ranking failed; partial results are shown.",
       selectedSymbol: "Selected Symbol",
       selectedEmpty:
-        "Select a scanner row to review its structure, risks, confirmation conditions, and invalidation context.",
+        "Select a ranking row to review its structure, risks, confirmation conditions, and invalidation context.",
       macd: "MACD",
       macdImproving: "Improving",
       macdBullishCross: "Bullish cross",
@@ -318,8 +318,8 @@ export const dictionaries = {
       },
     },
     history: {
-      title: "Scan History",
-      subtitle: "Review stored scan snapshots and forward signal performance.",
+      title: "Research Archive",
+      subtitle: "Review stored research snapshots and forward observation context.",
       research: "Research",
       snapshots: "Snapshots",
       results: "Results",
@@ -377,7 +377,7 @@ export const dictionaries = {
       scoreWeights:
         "Rank score = opportunity 40% + confirmation 40% - risk 30% - phase/risk penalties.",
       volumeContext:
-        "Volume mainly affects confirmation and risk context. It is not a standalone trade signal.",
+        "Volume mainly affects confirmation and risk context. It is not a standalone decision signal.",
       opportunityHelp:
         "Setup score rewards compression, pullback location, normal momentum, and quiet volume before confirmation.",
       confirmationHelp:
@@ -445,7 +445,7 @@ export const dictionaries = {
       TREND_CONTINUATION: "Trend structure remains constructive with manageable risk.",
       HIGH_RISK: "Risk conditions dominate this setup.",
       WEAK: "Price and momentum are below key trend levels.",
-      NEUTRAL: "No clear edge from the current scanner rules.",
+      NEUTRAL: "No clear edge from the current ranking rules.",
     } satisfies Record<ScannerSignalState, string>,
     signalLabel: {
       confirmed: "Confirmed",
@@ -597,7 +597,7 @@ export const dictionaries = {
       "review.reason.neutralGroup":
         "Neutral group indicates no clear setup edge.",
       "review.reason.insufficientHistory":
-        "Historical data is insufficient for a full scanner read.",
+        "Historical data is insufficient for a full VegaRank read.",
       "review.reason.detectedRisks":
         "Detected risks: {risks}. Treat as manual review, not a clean candidate.",
       "review.reason.rankBelowZero":

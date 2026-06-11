@@ -29,8 +29,8 @@ import { getVegaRankApiBaseUrl } from "@/lib/runtime/vegaRankApi";
 import {
   formatDateTime,
   formatGroupLabel,
-} from "@/components/scanner/latestScanUi";
-import { explainCode } from "@/lib/scanner-codebook/explainCode";
+} from "@/components/rankings/latestRankingsUi";
+import { explainCode } from "@/lib/vegarank-codebook/explainCode";
 import {
   buildMarketContextPanelView,
   fetchMarketContext,
@@ -67,7 +67,7 @@ import {
   type MtfScreenerSnapshot,
   type MtfScreenerTimeframe,
 } from "./multiTimeframeScreenerUi";
-import type { ScannerDisplayDictionary } from "@/components/scanner/latestScanUi";
+import type { ScannerDisplayDictionary } from "@/components/rankings/latestRankingsUi";
 
 const assetClass = "crypto";
 
@@ -99,7 +99,7 @@ export function MultiTimeframeScreenerPageClient() {
     useState<DataSortState<MtfScreenerTableSortKey> | null>(null);
   const latestQuery = useQuery({
     queryKey: ["mtf-latest-screener", assetClass],
-    queryFn: ({ signal }) => fetchMtfLatestScans({ signal }),
+    queryFn: ({ signal }) => fetchMtfLatestRankings({ signal }),
     staleTime: 60_000,
   });
   const marketContextQuery = useQuery({
@@ -539,12 +539,12 @@ function MtfScreenerIndicatorToolbar() {
   );
 }
 
-async function fetchMtfLatestScans({
+async function fetchMtfLatestRankings({
   signal,
 }: {
   signal?: AbortSignal;
 }): Promise<MtfLatestScreenerResponse> {
-  const response = await fetch(buildMtfLatestScanUrl({ assetClass }), { signal });
+  const response = await fetch(buildMtfLatestRankingsUrl({ assetClass }), { signal });
 
   if (!response.ok) {
     throw new Error(
@@ -555,7 +555,7 @@ async function fetchMtfLatestScans({
   return (await response.json()) as MtfLatestScreenerResponse;
 }
 
-export function buildMtfLatestScanUrl({
+export function buildMtfLatestRankingsUrl({
   assetClass,
   tradeApiBaseUrl = process.env.NEXT_PUBLIC_TRADE_API_BASE_URL,
 }: {

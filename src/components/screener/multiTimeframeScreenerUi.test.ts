@@ -6,7 +6,7 @@ import {
   scannerCodeVersions,
   signalCodeByLabel,
   setupCodeByAliasOrStructure,
-} from "@/lib/scanner-codebook/codeRegistry";
+} from "@/lib/vegarank-codebook/codeRegistry";
 import {
   buildMtfScreenerRows,
   buildMtfScreenerRowsFromResponse,
@@ -33,14 +33,14 @@ import {
   mtfResearchBuckets,
   mtfScreenerPresetIds,
   sortMtfScreenerRows,
-  type MtfLatestScanItem,
-  type MtfLatestScanResponse,
+  type MtfLatestRankingItem,
+  type MtfLatestRankingsResponse,
   type MtfScreenerRow,
   type MtfScreenerTimeframe,
 } from "./multiTimeframeScreenerUi";
 
 describe("multi-timeframe screener helpers", () => {
-  it("joins latest scan rows by symbol across timeframes", () => {
+  it("joins latest rankings rows by symbol across timeframes", () => {
     const rows = buildMtfScreenerRows({
       "1h": makeResponse("1h", [
         makeItem({ symbol: "BTCUSDT", timeframe: "1h", resultGroup: "eligible", rankScore: 91 }),
@@ -570,8 +570,8 @@ describe("multi-timeframe screener helpers", () => {
 
 function makeResponse(
   timeframe: MtfScreenerTimeframe,
-  items: MtfLatestScanItem[],
-): MtfLatestScanResponse {
+  items: MtfLatestRankingItem[],
+): MtfLatestRankingsResponse {
   return {
     ok: true,
     timeframe,
@@ -700,10 +700,10 @@ function getBucketCount(
 }
 
 function makeItem(
-  overrides: Partial<MtfLatestScanItem> & {
+  overrides: Partial<MtfLatestRankingItem> & {
     symbol: string;
     timeframe: MtfScreenerTimeframe;
-    group?: MtfLatestScanItem["groupCode"] | "eligible" | "watch" | "risk" | "overheated" | "neutral" | null;
+    group?: MtfLatestRankingItem["groupCode"] | "eligible" | "watch" | "risk" | "overheated" | "neutral" | null;
     resultGroup?: "eligible" | "watch" | "risk" | "overheated" | "neutral" | null;
     rankScore?: number | null;
     signalLabel?: keyof typeof signalCodeByLabel;
@@ -711,7 +711,7 @@ function makeItem(
     primaryStructure?: keyof typeof setupCodeByAliasOrStructure;
     detectedRiskTypes?: Array<keyof typeof riskCodeByType>;
   },
-): MtfLatestScanItem {
+): MtfLatestRankingItem {
   const resultGroup = overrides.resultGroup ?? normalizeFixtureGroup(overrides.group) ?? "neutral";
   const riskCodes = (overrides.detectedRiskTypes ?? []).map(
     (risk) => riskCodeByType[risk] ?? "RK_201",

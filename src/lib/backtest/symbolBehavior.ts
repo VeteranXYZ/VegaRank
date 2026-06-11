@@ -1,11 +1,11 @@
 import type { Candle, Timeframe } from "@/lib/exchanges/types";
-import { scanCandles, getClosedCandles } from "@/lib/scanner/scanCandles";
+import { scanCandles, getClosedCandles } from "@/lib/ranking-engine/scanCandles";
 import type {
   MarketPhase,
   ScannerExplanation,
   ScannerSignalState,
   ScanResult,
-} from "@/lib/shared/scannerTypes";
+} from "@/lib/shared/rankingTypes";
 
 export type BacktestMatchMode = "broad" | "standard" | "similar";
 export type SampleQuality = "none" | "low" | "medium" | "good";

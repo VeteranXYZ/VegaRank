@@ -11,9 +11,9 @@ import {
   getVegaRankApiBaseUrl,
   getVegaRankApiOriginLabel,
 } from "@/lib/runtime/vegaRankApi";
-import { explainCode, explainCodes } from "@/lib/scanner-codebook/explainCode";
-import { resultGroupByGroupCode } from "@/lib/scanner-codebook/codeRegistry";
-import type { PublicStoredScannerSignal } from "@/lib/scanner-codebook/serializeStoredSignal";
+import { explainCode, explainCodes } from "@/lib/vegarank-codebook/explainCode";
+import { resultGroupByGroupCode } from "@/lib/vegarank-codebook/codeRegistry";
+import type { PublicStoredScannerSignal } from "@/lib/vegarank-codebook/serializeStoredSignal";
 import { SymbolBehaviorPanel } from "./SymbolBehaviorPanel";
 import { SymbolResearchChart } from "./SymbolResearchChart";
 import { SymbolSignalTimeline } from "./SymbolSignalTimeline";
@@ -84,7 +84,7 @@ import {
 } from "./symbolResearchUi";
 import { dictionaries } from "@/lib/i18n/dictionaries";
 import { formatScannerReviewValue } from "@/lib/i18n/formatScannerObservation";
-import type { ScannerReviewText } from "@/lib/shared/scannerTypes";
+import type { ScannerReviewText } from "@/lib/shared/rankingTypes";
 
 type BuildSymbolResearchUrlParams = {
   exchange: string;
@@ -2338,7 +2338,7 @@ function getSymbolResearchPrimaryReason({
   }
 
   if (group === "insufficient_history") {
-    return "Not enough completed scanner history for this timeframe.";
+    return "Not enough completed ranking history for this timeframe.";
   }
 
   return interpretation.statusNote || decisionSummary.currentStance;

@@ -2,9 +2,9 @@ import type {
   MultiTimeframeScanSummary,
   ScanResult,
   ScannerSignalState,
-} from "./scannerTypes";
-export type { MtfPreset } from "./scannerConfig";
-export { mtfPresetLabels, mtfPresetTimeframes } from "./scannerConfig";
+} from "./rankingTypes";
+export type { MtfPreset } from "./rankingConfig";
+export { mtfPresetLabels, mtfPresetTimeframes } from "./rankingConfig";
 
 export type MultiTimeframeSummary = Omit<
   MultiTimeframeScanSummary,

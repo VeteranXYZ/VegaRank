@@ -6,14 +6,14 @@ import {
   isSymbolAssetClassFilter,
   type SymbolAssetClassFilter,
 } from "@/lib/market-data/symbolClassification";
-import { scanCandles } from "@/lib/scanner/scanCandles";
-import type { ScanResult } from "@/lib/scanner/types";
+import { scanCandles } from "@/lib/ranking-engine/scanCandles";
+import type { ScanResult } from "@/lib/ranking-engine/types";
 import { PgMarketDataStore } from "@/lib/storage/postgres/marketDataPg";
 import {
-  PgScannerResultsStore,
+  PgRankingResultsStore,
   type InsertScanSignalInput,
-} from "@/lib/storage/postgres/scannerResultsPg";
-import { calculateUniversePercentiles } from "@/lib/scanner/scoring";
+} from "@/lib/storage/postgres/rankingResultsPg";
+import { calculateUniversePercentiles } from "@/lib/ranking-engine/scoring";
 
 type ScannerRunOptions = {
   symbols: string[];
@@ -56,7 +56,7 @@ async function main() {
   }
 
   const marketData = new PgMarketDataStore();
-  const scannerResults = new PgScannerResultsStore();
+  const scannerResults = new PgRankingResultsStore();
   const scanRunId = randomUUID();
   let runCreated = false;
   let symbolsScanned = 0;

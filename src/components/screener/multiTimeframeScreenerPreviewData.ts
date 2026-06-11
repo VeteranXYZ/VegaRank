@@ -1,7 +1,7 @@
 import {
   MTF_SCREENER_TIMEFRAMES,
-  type MtfLatestScanItem,
-  type MtfLatestScanRun,
+  type MtfLatestRankingItem,
+  type MtfLatestRankingsRun,
   type MtfLatestScreenerResponse,
   type MtfScreenerTimeframe,
 } from "./multiTimeframeScreenerUi";
@@ -12,7 +12,7 @@ import {
   scannerCodeVersions,
   signalCodeByLabel,
   setupCodeByAliasOrStructure,
-} from "@/lib/scanner-codebook/codeRegistry";
+} from "@/lib/vegarank-codebook/codeRegistry";
 
 type PreviewGroup = "eligible" | "watch" | "neutral" | "overheated" | "risk";
 
@@ -259,8 +259,8 @@ function clonePreviewRisks(risks: PreviewSymbol["risks"]) {
 
 function buildPreviewTimeframes(
   symbol: PreviewSymbol,
-): Record<MtfScreenerTimeframe, MtfLatestScanItem | null> {
-  const timeframes = {} as Record<MtfScreenerTimeframe, MtfLatestScanItem | null>;
+): Record<MtfScreenerTimeframe, MtfLatestRankingItem | null> {
+  const timeframes = {} as Record<MtfScreenerTimeframe, MtfLatestRankingItem | null>;
 
   for (const timeframe of MTF_SCREENER_TIMEFRAMES) {
     const group = symbol.groups[timeframe];
@@ -294,7 +294,7 @@ function buildPreviewItem({
   rankScore: number | null;
   signalLabel: string;
   detectedRiskTypes: string[];
-}): MtfLatestScanItem {
+}): MtfLatestRankingItem {
   const riskCodes = detectedRiskTypes.map(
     (risk) => riskCodeByType[risk as keyof typeof riskCodeByType] ?? "RK_201",
   );
@@ -377,7 +377,7 @@ function buildTimeframeCounts(
 
 function buildTimeframeRuns(
   signalCounts: Record<MtfScreenerTimeframe, number>,
-): Record<MtfScreenerTimeframe, MtfLatestScanRun> {
+): Record<MtfScreenerTimeframe, MtfLatestRankingsRun> {
   return Object.fromEntries(
     MTF_SCREENER_TIMEFRAMES.map((timeframe) => [
       timeframe,
@@ -394,7 +394,7 @@ function buildTimeframeRuns(
         isLikelyFullUniverse: true,
       },
     ]),
-  ) as Record<MtfScreenerTimeframe, MtfLatestScanRun>;
+  ) as Record<MtfScreenerTimeframe, MtfLatestRankingsRun>;
 }
 
 function getPreviewSignalLabel(group: PreviewGroup) {
@@ -445,7 +445,7 @@ function getPreviewSetup(group: PreviewGroup) {
 function getPreviewStatusNote(group: PreviewGroup) {
   switch (group) {
     case "eligible":
-      return "Constructive scanner read";
+      return "Constructive VegaRank read";
     case "watch":
       return "Needs confirmation";
     case "overheated":

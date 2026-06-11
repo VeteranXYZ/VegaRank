@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { LatestScanPageClient } from "@/components/scanner/LatestScanPageClient";
-import { buildLatestScanPreviewResponse } from "@/components/scanner/latestScanPreviewData";
+import { LatestRankingsPageClient } from "@/components/rankings/LatestRankingsPageClient";
+import { buildLatestRankingsPreviewResponse } from "@/components/rankings/latestRankingsPreviewData";
 
 export const metadata: Metadata = {
   title: "Rankings Visual Check",
@@ -14,5 +14,5 @@ export default function RankingsVisualCheckRoute() {
     notFound();
   }
 
-  return <LatestScanPageClient visualCheckData={buildLatestScanPreviewResponse()} />;
+  return <LatestRankingsPageClient visualCheckData={buildLatestRankingsPreviewResponse()} />;
 }

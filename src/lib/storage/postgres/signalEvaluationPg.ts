@@ -1,11 +1,11 @@
 import type { Pool } from "pg";
 import type { SymbolAssetClassFilter } from "@/lib/market-data/symbolClassification";
 import {
-  classifyScanResultGroup,
-  type ScanResultGroup,
-} from "@/lib/scanner/scanResultGroups";
+  classifyRankingResultGroup,
+  type RankingResultGroup,
+} from "@/lib/ranking-engine/rankingResultGroups";
 import { createPostgresPool } from "./pool";
-import { currentScanSignalCodeContractCondition } from "./scannerResultsPg";
+import { currentScanSignalCodeContractCondition } from "./rankingResultsPg";
 
 export const SIGNAL_EVALUATION_DEFAULT_HORIZONS = [1, 3, 5, 10] as const;
 export const SIGNAL_EVALUATION_DEFAULT_LIMIT = 5000;
@@ -124,7 +124,7 @@ type ForwardCandle = {
 
 type AnalyzedEvaluationSignal = {
   id: string;
-  resultGroup: ScanResultGroup;
+  resultGroup: RankingResultGroup;
   signalLabel: string | null;
   primaryStructure: string | null;
   expectedDirection: SignalEvaluationExpectedDirection;
@@ -424,7 +424,7 @@ function analyzeEvaluationRow(
 }
 
 function getSignalResultGroup(row: SignalEvaluationRow) {
-  return classifyScanResultGroup({
+  return classifyRankingResultGroup({
     groupCode: row.group_code,
     signalLabel: row.signal_label,
     actionBias: row.action_bias,
@@ -632,7 +632,7 @@ function getExpectedDirection({
   group,
   signalLabel,
 }: {
-  group?: ScanResultGroup | SignalEvaluationGroup | null;
+  group?: RankingResultGroup | SignalEvaluationGroup | null;
   signalLabel?: string | null;
 }): SignalEvaluationExpectedDirection {
   const normalizedLabel = signalLabel?.trim().toLowerCase() ?? "";

@@ -3,14 +3,14 @@ import path from "node:path";
 import { MarketDataStore } from "../src/lib/storage/marketData";
 import { getScannerStorageAdapter } from "../src/lib/storage/storageAdapter";
 import { getResearchStats } from "../src/lib/storage/researchStats";
-import { SCORING_VERSION } from "../src/lib/scanner/scoring";
-import { scanLocalMarket } from "../src/lib/scanner/scanLocalMarket";
+import { SCORING_VERSION } from "../src/lib/ranking-engine/scoring";
+import { scanLocalMarket } from "../src/lib/ranking-engine/scanLocalMarket";
 import { TIMEFRAMES, type Timeframe } from "../src/lib/exchanges/types";
 import {
   normalizeSymbols,
   resolveCryptoUniverse,
 } from "../src/lib/market-data/cryptoUniverse";
-import type { ScanResult } from "../src/lib/scanner/types";
+import type { ScanResult } from "../src/lib/ranking-engine/types";
 import { parseJsonArray, type ScanSignalRecord } from "../src/lib/storage/scanSignalModel";
 
 type ScannerCommand = "run" | "export-latest";

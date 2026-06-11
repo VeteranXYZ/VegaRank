@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { HistoryPageClient } from "@/components/history/HistoryPageClient";
-import { buildHistoryVisualCheckData } from "@/components/history/historyPreviewData";
+import { ArchivePageClient } from "@/components/archive/ArchivePageClient";
+import { buildArchiveVisualCheckData } from "@/components/archive/archivePreviewData";
 
 export const metadata: Metadata = {
   title: "Archive Visual Check",
@@ -14,5 +14,5 @@ export default function ArchiveVisualCheckRoute() {
     notFound();
   }
 
-  return <HistoryPageClient visualCheckData={buildHistoryVisualCheckData()} />;
+  return <ArchivePageClient visualCheckData={buildArchiveVisualCheckData()} />;
 }

@@ -13,7 +13,7 @@ describe("scanner UI copy", () => {
 
   it("states that volume is context, not a standalone signal", () => {
     expect(dictionaries.en.strategy.volumeContext).toContain(
-      "not a standalone trade signal",
+      "not a standalone decision signal",
     );
     expect(dictionaries.zh.strategy.volumeContext).toContain("不是独立交易信号");
   });

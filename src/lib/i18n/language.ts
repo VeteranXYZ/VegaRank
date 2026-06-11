@@ -1,7 +1,8 @@
 export type AppLanguage = "en" | "zh";
 
 export const DEFAULT_APP_LANGUAGE: AppLanguage = "en";
-export const APP_LANGUAGE_STORAGE_KEY = "trade-scanner.language";
+export const APP_LANGUAGE_STORAGE_KEY = "vegarank.language";
+export const LEGACY_APP_LANGUAGE_STORAGE_KEY = "trade-scanner.language";
 
 export function isSupportedAppLanguage(value: unknown): value is AppLanguage {
   return value === "en" || value === "zh";
@@ -15,7 +16,18 @@ export function readSavedAppLanguage(): AppLanguage {
   try {
     const saved = window.localStorage.getItem(APP_LANGUAGE_STORAGE_KEY);
 
-    return isSupportedAppLanguage(saved) ? saved : DEFAULT_APP_LANGUAGE;
+    if (isSupportedAppLanguage(saved)) {
+      return saved;
+    }
+
+    const legacySaved = window.localStorage.getItem(LEGACY_APP_LANGUAGE_STORAGE_KEY);
+
+    if (isSupportedAppLanguage(legacySaved)) {
+      window.localStorage.setItem(APP_LANGUAGE_STORAGE_KEY, legacySaved);
+      return legacySaved;
+    }
+
+    return DEFAULT_APP_LANGUAGE;
   } catch {
     return DEFAULT_APP_LANGUAGE;
   }

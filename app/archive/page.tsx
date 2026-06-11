@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { HistoryPageClient } from "@/components/history/HistoryPageClient";
+import { ArchivePageClient } from "@/components/archive/ArchivePageClient";
 
 export const metadata: Metadata = {
   title: "Research Archive",
@@ -7,6 +7,6 @@ export const metadata: Metadata = {
     "Browse stored runs and snapshots to review how setups evolved.",
 };
 
-export default function HistoryPage() {
-  return <HistoryPageClient />;
+export default function ArchivePage() {
+  return <ArchivePageClient />;
 }

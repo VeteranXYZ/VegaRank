@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { GET } from "../../app/api/rankings/route";
 import { clearMemoryCache } from "@/lib/cache/memory";
-import { scannerCodeVersions } from "@/lib/scanner-codebook/codeRegistry";
+import { scannerCodeVersions } from "@/lib/vegarank-codebook/codeRegistry";
 
 const getEligibleUsdtMarketsMock = vi.hoisted(() => vi.fn());
 const scanMarketMock = vi.hoisted(() => vi.fn());
@@ -10,7 +10,7 @@ vi.mock("@/lib/exchanges/binance", () => ({
   getEligibleUsdtMarkets: getEligibleUsdtMarketsMock,
 }));
 
-vi.mock("@/lib/scanner/scanMarket", () => ({
+vi.mock("@/lib/ranking-engine/scanMarket", () => ({
   scanMarket: scanMarketMock,
 }));
 

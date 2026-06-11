@@ -5,7 +5,7 @@ import {
   formatPrimaryStructure,
   formatSignalLabel,
   normalizeGroupKey,
-} from "@/components/scanner/latestScanUi";
+} from "@/components/rankings/latestRankingsUi";
 
 export type BehaviorDisplayDictionary = (typeof dictionaries)[keyof typeof dictionaries];
 

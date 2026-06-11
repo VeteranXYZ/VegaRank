@@ -3,7 +3,7 @@
 ## Purpose
 
 The English VegaRank research codebook defines the professional research language used to
-explain scanner codes. It gives users concise meaning for scanner results
+explain VegaRank codes. It gives users concise meaning for ranking results
 without exposing formulas, private thresholds, proprietary weights, or backend
 implementation details.
 
@@ -22,7 +22,7 @@ Codebook language must keep this boundary clear:
 - Use research, review, monitor, wait, reduce priority, and exclude.
 - Do not use execution commands or outcome promises.
 - Do not imply that a higher rank is a trading instruction.
-- Do not present scanner output as investment advice.
+- Do not present ranking output as investment advice.
 
 ## Research-Only Language Rules
 
@@ -120,7 +120,7 @@ instructions.
 
 ## Domain-Specific Terminology
 
-Research priority means ranking within the scanner research queue. Avoid
+Research priority means ranking within the VegaRank research queue. Avoid
 "trade priority".
 
 Setup quality means the technical structure appears more or less constructive.
@@ -209,7 +209,7 @@ Overheated or chase risk:
 reward-risk, so research priority should be reduced."
 
 Low confidence:
-"The scanner has limited reliable evidence for this row. Treat the result
+"VegaRank has limited reliable evidence for this row. Treat the result
 cautiously until more history or confirmation is available."
 
 Liquidity constrained:
@@ -272,12 +272,12 @@ Phase 20 coverage audit:
 ## Relationship to Quant Scoring Engine v1
 
 Quant Scoring Engine v1 is deterministic and code-attributed. It classifies
-scanner evidence into group, action, setup, phase, reason, signal, risk, and
+VegaRank evidence into group, action, setup, phase, reason, signal, risk, and
 quality codes.
 
 The English codebook explains the meaning of those codes in research language.
 It does not change scoring formulas, score weights, code values, API shape,
-storage schema, scanner versions, or production behavior.
+storage schema, version fields such as `scannerVersion`, or production behavior.
 
 ## Relationship to Later Chinese Terminology Phase
 

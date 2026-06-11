@@ -43,7 +43,7 @@ import {
   scannerCodeVersions,
   setupCodeByAliasOrStructure,
   signalCodeByLabel,
-} from "@/lib/scanner-codebook/codeRegistry";
+} from "@/lib/vegarank-codebook/codeRegistry";
 import { buildSymbolResearchVisualCheckData } from "./symbolResearchPreviewData";
 
 const ORIGINAL_ENV = { ...process.env };
@@ -214,7 +214,7 @@ describe("symbol research navigation helpers", () => {
   it("builds rankings return hrefs from preserved query state", () => {
     expect(
       buildScannerReturnHref(
-        new URLSearchParams("from=scanner&timeframe=4h&assetClass=crypto&limit=100"),
+        new URLSearchParams("from=rankings&timeframe=4h&assetClass=crypto&limit=100"),
       ),
     ).toBe("/rankings?timeframe=4h&assetClass=crypto&limit=100");
     expect(
@@ -270,7 +270,7 @@ describe("symbol research navigation helpers", () => {
         symbol: "seiusdt",
         timeframe: "1d",
         searchParams: new URLSearchParams(
-          "timeframe=4h&assetClass=crypto&includeLowQuality=true&limit=100&from=scanner",
+          "timeframe=4h&assetClass=crypto&includeLowQuality=true&limit=100&from=rankings",
         ),
       }),
     ).toBe(
@@ -287,7 +287,7 @@ describe("symbol research navigation helpers", () => {
         exchange: "binance",
         symbol: "  ethusdt ",
         timeframe: "4h",
-        searchParams: new URLSearchParams("assetClass=crypto&limit=100&from=scanner"),
+        searchParams: new URLSearchParams("assetClass=crypto&limit=100&from=rankings"),
       }),
     ).toBe("/symbol/binance/ETHUSDT?timeframe=4h&assetClass=crypto&limit=100&from=rankings");
   });
@@ -348,7 +348,7 @@ describe("SymbolResearchPageClient unavailable state", () => {
     pushMock.mockReset();
     searchParamsMock.mockReset();
     searchParamsMock.mockReturnValue(
-      new URLSearchParams("timeframe=1w&assetClass=crypto&from=scanner"),
+      new URLSearchParams("timeframe=1w&assetClass=crypto&from=rankings"),
     );
     useQueryMock.mockReset();
   });
@@ -441,7 +441,7 @@ describe("SymbolResearchPageClient success state", () => {
     pushMock.mockReset();
     searchParamsMock.mockReset();
     searchParamsMock.mockReturnValue(
-      new URLSearchParams("timeframe=4h&assetClass=crypto&from=scanner"),
+      new URLSearchParams("timeframe=4h&assetClass=crypto&from=rankings"),
     );
     useQueryMock.mockReset();
   });

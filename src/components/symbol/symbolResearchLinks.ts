@@ -105,9 +105,7 @@ function normalizeExchangePathSegment(value: string | null | undefined) {
 }
 
 function normalizeSymbolResearchFrom(value: string | null | undefined) {
-  const normalized = value?.trim();
-
-  return normalized === "scanner" ? "rankings" : normalized;
+  return value?.trim();
 }
 
 function normalizePositiveInteger(value: number | string | null | undefined) {

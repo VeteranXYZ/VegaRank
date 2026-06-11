@@ -1,6 +1,6 @@
 import { getCloudflareContext } from "@opennextjs/cloudflare";
 import type { Timeframe } from "@/lib/exchanges/types";
-import type { MtfPreset } from "@/lib/scanner/multiTimeframe";
+import type { MtfPreset } from "@/lib/ranking-engine/multiTimeframe";
 import {
   summarizeScanSnapshots,
   toStoredSnapshot,

@@ -1,7 +1,7 @@
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import type { ScanResult } from "@/lib/scanner/types";
-import { scannerCodeVersions } from "@/lib/scanner-codebook/codeRegistry";
+import type { ScanResult } from "@/lib/ranking-engine/types";
+import { scannerCodeVersions } from "@/lib/vegarank-codebook/codeRegistry";
 import { cleanupTestTempDir, createTestTempDir } from "@/lib/test/testTempDir";
 import type { SignalForwardEvaluation } from "./scanEvaluation";
 import { getResearchStats } from "./researchStats";

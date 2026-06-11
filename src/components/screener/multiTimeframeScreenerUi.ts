@@ -1,14 +1,14 @@
 import {
   formatScore,
-  type LatestScanGroupKey,
+  type LatestRankingsGroupKey,
   normalizeGroupKey,
-} from "@/components/scanner/latestScanUi";
+} from "@/components/rankings/latestRankingsUi";
 import { shortResearchDisclaimer } from "@/components/researchCopy";
 import { buildSymbolResearchHref } from "@/components/symbol/symbolResearchLinks";
 import type { Language } from "@/lib/i18n/dictionaries";
-import { explainCode, explainCodes } from "@/lib/scanner-codebook/explainCode";
-import { resultGroupByGroupCode } from "@/lib/scanner-codebook/codeRegistry";
-import type { PublicStoredScannerSignal } from "@/lib/scanner-codebook/serializeStoredSignal";
+import { explainCode, explainCodes } from "@/lib/vegarank-codebook/explainCode";
+import { resultGroupByGroupCode } from "@/lib/vegarank-codebook/codeRegistry";
+import type { PublicStoredScannerSignal } from "@/lib/vegarank-codebook/serializeStoredSignal";
 
 export const MTF_SCREENER_TIMEFRAMES = ["1h", "4h", "1d", "1w"] as const;
 export type MtfScreenerTimeframe = (typeof MTF_SCREENER_TIMEFRAMES)[number];
@@ -60,7 +60,7 @@ export type MtfScreenerFilters = {
   exclude1wRisk: boolean;
 };
 
-export type MtfLatestScanRun = {
+export type MtfLatestRankingsRun = {
   id: string;
   timeframe: string;
   status: string;
@@ -73,21 +73,21 @@ export type MtfLatestScanRun = {
   isLikelyFullUniverse?: boolean | null;
 };
 
-export type MtfLatestScanSummary = {
+export type MtfLatestRankingsSummary = {
   totalSignals?: number | null;
   returnedItems?: number | null;
   lowQualityExcluded?: number | null;
 };
 
-export type MtfLatestScanItem = PublicStoredScannerSignal;
+export type MtfLatestRankingItem = PublicStoredScannerSignal;
 
-export type MtfLatestScanResponse = {
+export type MtfLatestRankingsResponse = {
   ok: boolean;
   timeframe: string;
   assetClass: string;
-  run: MtfLatestScanRun | null;
-  summary: MtfLatestScanSummary | null;
-  items: MtfLatestScanItem[];
+  run: MtfLatestRankingsRun | null;
+  summary: MtfLatestRankingsSummary | null;
+  items: MtfLatestRankingItem[];
   count: number;
 };
 
@@ -96,23 +96,23 @@ export type MtfLatestScreenerApiRow = {
   exchange?: string | null;
   market?: string | null;
   assetClass?: string | null;
-  timeframes: Record<MtfScreenerTimeframe, MtfLatestScanItem | null>;
+  timeframes: Record<MtfScreenerTimeframe, MtfLatestRankingItem | null>;
 };
 
 export type MtfLatestScreenerResponse = {
   ok: boolean;
   assetClass: string;
   timeframes: readonly MtfScreenerTimeframe[];
-  runs: Record<MtfScreenerTimeframe, MtfLatestScanRun | null>;
+  runs: Record<MtfScreenerTimeframe, MtfLatestRankingsRun | null>;
   signalCounts: Record<MtfScreenerTimeframe, number>;
   missingCounts: Record<MtfScreenerTimeframe, number>;
   count: number;
   rows: MtfLatestScreenerApiRow[];
 };
 
-export type MtfScreenerSnapshot = MtfLatestScanItem & {
+export type MtfScreenerSnapshot = MtfLatestRankingItem & {
   timeframe: MtfScreenerTimeframe;
-  resultGroup: LatestScanGroupKey;
+  resultGroup: LatestRankingsGroupKey;
 };
 
 export type MtfScreenerRow = {
@@ -129,7 +129,7 @@ export type MtfScreenerCsvOptions = {
   exportType: MtfScreenerExportType;
   exportedAt: string;
   assetClass?: string;
-  runs?: Partial<Record<MtfScreenerTimeframe, MtfLatestScanRun | null>>;
+  runs?: Partial<Record<MtfScreenerTimeframe, MtfLatestRankingsRun | null>>;
 };
 
 export type MtfScreenerPreset = {
@@ -228,7 +228,7 @@ export const defaultMtfScreenerSort: MtfScreenerSortState = {
 };
 
 export function buildMtfScreenerRows(
-  latestByTimeframe: Partial<Record<MtfScreenerTimeframe, MtfLatestScanResponse>>,
+  latestByTimeframe: Partial<Record<MtfScreenerTimeframe, MtfLatestRankingsResponse>>,
 ) {
   const rowsBySymbol = new Map<string, MtfScreenerRow>();
 
@@ -683,7 +683,7 @@ function getMtfPrimarySignalSnapshot(row: MtfScreenerRow) {
   );
 }
 
-export function getMtfRunFinishedAt(response: MtfLatestScanResponse | undefined) {
+export function getMtfRunFinishedAt(response: MtfLatestRankingsResponse | undefined) {
   return response?.run?.finishedAt ?? response?.run?.startedAt ?? null;
 }
 
@@ -790,14 +790,14 @@ export function getMtfScreenerExportFilename({
 function hasMtfGroup(
   row: MtfScreenerRow,
   timeframe: MtfScreenerTimeframe,
-  groups: LatestScanGroupKey[],
+  groups: LatestRankingsGroupKey[],
 ) {
   const group = row.snapshots[timeframe]?.resultGroup;
 
   return group ? groups.includes(group) : false;
 }
 
-function getMtfGroupFromCode(code: MtfLatestScanItem["groupCode"]) {
+function getMtfGroupFromCode(code: MtfLatestRankingItem["groupCode"]) {
   return normalizeGroupKey(
     Object.prototype.hasOwnProperty.call(resultGroupByGroupCode, code)
       ? resultGroupByGroupCode[code as keyof typeof resultGroupByGroupCode]

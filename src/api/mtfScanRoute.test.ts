@@ -9,7 +9,7 @@ vi.mock("@/lib/exchanges/binance", () => ({
   getEligibleUsdtMarkets: getEligibleUsdtMarketsMock,
 }));
 
-vi.mock("@/lib/scanner/scanMarketMtf", () => ({
+vi.mock("@/lib/ranking-engine/scanMarketMtf", () => ({
   scanMarketMultiTimeframe: scanMarketMultiTimeframeMock,
 }));
 

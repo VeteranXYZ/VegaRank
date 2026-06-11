@@ -56,7 +56,7 @@ describe("symbol research UI helpers", () => {
     expect(labels.join(" ")).not.toMatch(/\b(buy|sell|entry|long|short)\b/i);
   });
 
-  it("formats Chinese scanner result labels for research surfaces", () => {
+  it("formats Chinese ranking result labels for research surfaces", () => {
     const dictionary = dictionaries.zh;
 
     expect(formatSymbolResearchAction("Manual review", dictionary)).toBe("人工复核");

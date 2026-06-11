@@ -16,7 +16,7 @@ import {
   scannerCodeVersions,
   setupCodeByAliasOrStructure,
   signalCodeByLabel,
-} from "@/lib/scanner-codebook/codeRegistry";
+} from "@/lib/vegarank-codebook/codeRegistry";
 
 const scanFinishedAt = "2026-06-04T16:00:00.000Z";
 const scanStartedAt = "2026-06-04T15:58:00.000Z";

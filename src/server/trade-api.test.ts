@@ -7,11 +7,11 @@ import {
   scannerCodeVersions,
   setupCodeByAliasOrStructure,
   signalCodeByLabel,
-} from "@/lib/scanner-codebook/codeRegistry";
+} from "@/lib/vegarank-codebook/codeRegistry";
 import { handleTradeApiRequest } from "./trade-api";
 
-const getLatestScanRunMock = vi.hoisted(() => vi.fn());
-const listLatestScanSignalsForRunMock = vi.hoisted(() => vi.fn());
+const getLatestRankingRunMock = vi.hoisted(() => vi.fn());
+const listLatestRankingSignalsForRunMock = vi.hoisted(() => vi.fn());
 const listScanRunsMock = vi.hoisted(() => vi.fn());
 const listHistoricalScanRunsMock = vi.hoisted(() => vi.fn());
 const getHistoricalScanRunMock = vi.hoisted(() => vi.fn());
@@ -31,10 +31,10 @@ const closeSymbolResearchMock = vi.hoisted(() => vi.fn());
 const getSignalEvaluationPgMock = vi.hoisted(() => vi.fn());
 const closeSignalEvaluationMock = vi.hoisted(() => vi.fn());
 const pgScannerResultsStoreMock = vi.hoisted(() =>
-  vi.fn(function PgScannerResultsStore() {
+  vi.fn(function PgRankingResultsStore() {
     return {
-      getLatestScanRun: getLatestScanRunMock,
-      listLatestScanSignalsForRun: listLatestScanSignalsForRunMock,
+      getLatestRankingRun: getLatestRankingRunMock,
+      listLatestRankingSignalsForRun: listLatestRankingSignalsForRunMock,
       listScanRuns: listScanRunsMock,
       listHistoricalScanRuns: listHistoricalScanRunsMock,
       getHistoricalScanRun: getHistoricalScanRunMock,
@@ -69,10 +69,10 @@ const pgSignalEvaluationStoreMock = vi.hoisted(() =>
   }),
 );
 
-vi.mock("@/lib/storage/postgres/scannerResultsPg", () => ({
+vi.mock("@/lib/storage/postgres/rankingResultsPg", () => ({
   HISTORICAL_SNAPSHOT_OBSERVATION_WINDOWS: [1, 3, 5, 10],
   LATEST_SCAN_FULL_UNIVERSE_MIN_SYMBOLS: 300,
-  PgScannerResultsStore: pgScannerResultsStoreMock,
+  PgRankingResultsStore: pgScannerResultsStoreMock,
   normalizeHistoricalSnapshotObservationWindow: (value: number) =>
     [1, 3, 5, 10].includes(value) ? value : null,
   isLikelyFullUniverseRun: ({
@@ -122,7 +122,7 @@ describe("trade-api CORS", () => {
     resetSymbolResearchMocks();
   });
 
-  it("allows the production scanner origin on latest-scan GET requests", async () => {
+  it("allows the production scanner origin on latest-rankings GET requests", async () => {
     const response = await requestTradeApi("/api/rankings/latest?timeframe=4h", {
       headers: { Origin: "https://s.bitcoinmind.com" },
     });
@@ -139,7 +139,7 @@ describe("trade-api CORS", () => {
     );
   });
 
-  it("allows the local development origin on latest-scan GET requests", async () => {
+  it("allows the local development origin on latest-rankings GET requests", async () => {
     const response = await requestTradeApi("/api/rankings/latest?timeframe=4h", {
       headers: { Origin: "http://localhost:3000" },
     });
@@ -210,7 +210,7 @@ describe("trade-api route cutover", () => {
   });
 
   it("serves VegaRank rankings and archive API routes", async () => {
-    getLatestScanRunMock.mockImplementation(({ timeframe }: { timeframe: string }) =>
+    getLatestRankingRunMock.mockImplementation(({ timeframe }: { timeframe: string }) =>
       Promise.resolve(
         makeRun(`full-${timeframe}`, {
           timeframe,
@@ -283,6 +283,9 @@ describe("trade-api route cutover", () => {
       "/api/history/snapshot",
       "/api/history/observation-readiness",
       "/api/history/snapshot-observations",
+      "/api/history/evaluate",
+      "/api/history/research-stats",
+      "/api/history/scans",
     ];
 
     for (const path of legacyRoutes) {
@@ -395,14 +398,14 @@ describe("trade-api signal evaluation", () => {
   });
 });
 
-describe("trade-api latest scan run selection", () => {
+describe("trade-api latest rankings run selection", () => {
   beforeEach(() => {
     resetScannerMocks();
     resetSymbolResearchMocks();
   });
 
-  it("requests full-universe selection for default crypto scanner latest scans", async () => {
-    getLatestScanRunMock.mockResolvedValue(
+  it("requests full-universe selection for default crypto latest rankings", async () => {
+    getLatestRankingRunMock.mockResolvedValue(
       makeRun("full-run", {
         symbolsTotal: 413,
         symbolsScanned: 409,
@@ -418,13 +421,13 @@ describe("trade-api latest scan run selection", () => {
 
     expect(response.status).toBe(200);
     expect(body.run.id).toBe("full-run");
-    expect(getLatestScanRunMock).toHaveBeenCalledWith({
+    expect(getLatestRankingRunMock).toHaveBeenCalledWith({
       timeframe: "4h",
       assetClass: "crypto",
       preferFullUniverse: true,
       minExpectedSymbols: 300,
     });
-    expect(listLatestScanSignalsForRunMock).toHaveBeenCalledWith({
+    expect(listLatestRankingSignalsForRunMock).toHaveBeenCalledWith({
       scanRunId: "full-run",
       timeframe: "4h",
       assetClass: "crypto",
@@ -440,8 +443,8 @@ describe("trade-api latest scan run selection", () => {
     });
   });
 
-  it("passes hourly, daily, and weekly timeframes through latest scan metadata", async () => {
-    getLatestScanRunMock.mockImplementation(({ timeframe }: { timeframe: string }) =>
+  it("passes hourly, daily, and weekly timeframes through latest rankings metadata", async () => {
+    getLatestRankingRunMock.mockImplementation(({ timeframe }: { timeframe: string }) =>
       Promise.resolve(
         makeRun(`full-${timeframe}`, {
           timeframe,
@@ -492,19 +495,19 @@ describe("trade-api latest scan run selection", () => {
       isLikelyFullUniverse: true,
       fallbackUsed: false,
     });
-    expect(getLatestScanRunMock).toHaveBeenNthCalledWith(1, {
+    expect(getLatestRankingRunMock).toHaveBeenNthCalledWith(1, {
       timeframe: "1d",
       assetClass: "crypto",
       preferFullUniverse: true,
       minExpectedSymbols: 300,
     });
-    expect(getLatestScanRunMock).toHaveBeenNthCalledWith(2, {
+    expect(getLatestRankingRunMock).toHaveBeenNthCalledWith(2, {
       timeframe: "1w",
       assetClass: "crypto",
       preferFullUniverse: true,
       minExpectedSymbols: 300,
     });
-    expect(getLatestScanRunMock).toHaveBeenNthCalledWith(3, {
+    expect(getLatestRankingRunMock).toHaveBeenNthCalledWith(3, {
       timeframe: "1h",
       assetClass: "crypto",
       preferFullUniverse: true,
@@ -513,7 +516,7 @@ describe("trade-api latest scan run selection", () => {
   });
 
   it("marks fallback metadata when only a limited crypto run is returned", async () => {
-    getLatestScanRunMock.mockResolvedValue(
+    getLatestRankingRunMock.mockResolvedValue(
       makeRun("limited-run", {
         symbolsTotal: 100,
         symbolsScanned: 96,
@@ -537,7 +540,7 @@ describe("trade-api latest scan run selection", () => {
   });
 
   it("does not force crypto full-universe selection for non-crypto or includeNonScanner requests", async () => {
-    getLatestScanRunMock.mockResolvedValue(
+    getLatestRankingRunMock.mockResolvedValue(
       makeRun("small-stable-run", {
         symbolsTotal: 4,
         symbolsScanned: 4,
@@ -551,7 +554,7 @@ describe("trade-api latest scan run selection", () => {
     const stableBody = JSON.parse(stableResponse.body);
 
     expect(stableResponse.status).toBe(200);
-    expect(getLatestScanRunMock).toHaveBeenLastCalledWith({
+    expect(getLatestRankingRunMock).toHaveBeenLastCalledWith({
       timeframe: "4h",
       assetClass: "stable",
       preferFullUniverse: false,
@@ -567,7 +570,7 @@ describe("trade-api latest scan run selection", () => {
       "/api/rankings/latest?timeframe=4h&assetClass=crypto&includeNonScanner=true&limit=100",
     );
 
-    expect(getLatestScanRunMock).toHaveBeenLastCalledWith({
+    expect(getLatestRankingRunMock).toHaveBeenLastCalledWith({
       timeframe: "4h",
       assetClass: "crypto",
       preferFullUniverse: false,
@@ -575,8 +578,8 @@ describe("trade-api latest scan run selection", () => {
     });
   });
 
-  it("keeps latest scan responses limited for scanner UI visibility", async () => {
-    getLatestScanRunMock.mockResolvedValue(
+  it("keeps latest rankings responses limited for rankings UI visibility", async () => {
+    getLatestRankingRunMock.mockResolvedValue(
       makeRun("full-run", {
         symbolsTotal: 413,
         symbolsScanned: 409,
@@ -584,7 +587,7 @@ describe("trade-api latest scan run selection", () => {
         params: { assetClass: "crypto", allSymbols: true },
       }),
     );
-    listLatestScanSignalsForRunMock.mockResolvedValue([
+    listLatestRankingSignalsForRunMock.mockResolvedValue([
       makeResearchSignal({ id: "signal-btc", symbol: "BTCUSDT", rankScore: 92 }),
       makeResearchSignal({ id: "signal-eth", symbol: "ETHUSDT", rankScore: 88 }),
       makeResearchSignal({ id: "signal-sei", symbol: "SEIUSDT", rankScore: 84 }),
@@ -669,7 +672,7 @@ describe("trade-api historical snapshots", () => {
         params: { assetClass: "crypto", allSymbols: true },
       }),
     );
-    listLatestScanSignalsForRunMock.mockResolvedValue([
+    listLatestRankingSignalsForRunMock.mockResolvedValue([
       makeResearchSignal({
         id: "risk-signal",
         scanRunId: historyRunId,
@@ -729,7 +732,7 @@ describe("trade-api historical snapshots", () => {
       timeframe: undefined,
       assetClass: "crypto",
     });
-    expect(listLatestScanSignalsForRunMock).toHaveBeenCalledWith({
+    expect(listLatestRankingSignalsForRunMock).toHaveBeenCalledWith({
       scanRunId: historyRunId,
       timeframe: "4h",
       assetClass: "crypto",
@@ -1291,7 +1294,7 @@ describe("trade-api market context", () => {
   });
 
   it("returns read-only market context from selected BTC and ETH latest runs", async () => {
-    getLatestScanRunMock.mockImplementation(({ timeframe }: { timeframe: string }) =>
+    getLatestRankingRunMock.mockImplementation(({ timeframe }: { timeframe: string }) =>
       Promise.resolve(
         makeRun(`full-${timeframe}`, {
           timeframe,
@@ -1302,7 +1305,7 @@ describe("trade-api market context", () => {
         }),
       ),
     );
-    listLatestScanSignalsForRunMock.mockImplementation(
+    listLatestRankingSignalsForRunMock.mockImplementation(
       ({ timeframe }: { timeframe: string }) => {
         const signalsByTimeframe: Record<
           string,
@@ -1402,19 +1405,19 @@ describe("trade-api market context", () => {
       confirmationAsset: "ETHUSDT",
       researchOnly: true,
     });
-    expect(getLatestScanRunMock).toHaveBeenNthCalledWith(1, {
+    expect(getLatestRankingRunMock).toHaveBeenNthCalledWith(1, {
       timeframe: "1w",
       assetClass: "crypto",
       preferFullUniverse: true,
       minExpectedSymbols: 300,
     });
-    expect(getLatestScanRunMock).toHaveBeenNthCalledWith(3, {
+    expect(getLatestRankingRunMock).toHaveBeenNthCalledWith(3, {
       timeframe: "4h",
       assetClass: "crypto",
       preferFullUniverse: true,
       minExpectedSymbols: 300,
     });
-    expect(listLatestScanSignalsForRunMock).toHaveBeenCalledWith({
+    expect(listLatestRankingSignalsForRunMock).toHaveBeenCalledWith({
       scanRunId: "full-1d",
       timeframe: "1d",
       assetClass: "crypto",
@@ -1437,7 +1440,7 @@ describe("trade-api market context", () => {
   });
 
   it("marks missing runs and missing symbols as unavailable proxy states", async () => {
-    getLatestScanRunMock.mockImplementation(({ timeframe }: { timeframe: string }) =>
+    getLatestRankingRunMock.mockImplementation(({ timeframe }: { timeframe: string }) =>
       Promise.resolve(
         timeframe === "1w"
           ? null
@@ -1450,7 +1453,7 @@ describe("trade-api market context", () => {
             }),
       ),
     );
-    listLatestScanSignalsForRunMock.mockImplementation(
+    listLatestRankingSignalsForRunMock.mockImplementation(
       ({ timeframe }: { timeframe: string }) => {
         if (timeframe === "1d") {
           return Promise.resolve([
@@ -1506,7 +1509,7 @@ describe("trade-api market context", () => {
     expect(body.summary.warnings).toContain(
       "Some proxy timeframe data is unavailable.",
     );
-    expect(listLatestScanSignalsForRunMock).not.toHaveBeenCalledWith(
+    expect(listLatestRankingSignalsForRunMock).not.toHaveBeenCalledWith(
       expect.objectContaining({ timeframe: "1w" }),
     );
   });
@@ -1519,7 +1522,7 @@ describe("trade-api multi-timeframe latest screener", () => {
   });
 
   it("returns full selected-run signals joined by symbol across screener timeframes", async () => {
-    getLatestScanRunMock.mockImplementation(({ timeframe }: { timeframe: string }) =>
+    getLatestRankingRunMock.mockImplementation(({ timeframe }: { timeframe: string }) =>
       Promise.resolve(
         timeframe === "1w"
           ? null
@@ -1532,7 +1535,7 @@ describe("trade-api multi-timeframe latest screener", () => {
             }),
       ),
     );
-    listLatestScanSignalsForRunMock.mockImplementation(
+    listLatestRankingSignalsForRunMock.mockImplementation(
       ({ timeframe }: { timeframe: string }) => {
         const signalsByTimeframe: Record<
           string,
@@ -1640,22 +1643,22 @@ describe("trade-api multi-timeframe latest screener", () => {
     expect(eth.timeframes["1h"]).toBeNull();
     expect(eth.timeframes["4h"]).toMatchObject({ id: "4h-eth" });
     expectPublicScannerCodeContract(eth.timeframes["4h"]);
-    expect(getLatestScanRunMock).toHaveBeenNthCalledWith(1, {
+    expect(getLatestRankingRunMock).toHaveBeenNthCalledWith(1, {
       timeframe: "1h",
       assetClass: "crypto",
       preferFullUniverse: true,
       minExpectedSymbols: 300,
     });
-    expect(getLatestScanRunMock).toHaveBeenNthCalledWith(4, {
+    expect(getLatestRankingRunMock).toHaveBeenNthCalledWith(4, {
       timeframe: "1w",
       assetClass: "crypto",
       preferFullUniverse: true,
       minExpectedSymbols: 300,
     });
-    expect(listLatestScanSignalsForRunMock).not.toHaveBeenCalledWith(
+    expect(listLatestRankingSignalsForRunMock).not.toHaveBeenCalledWith(
       expect.objectContaining({ timeframe: "1w" }),
     );
-    expect(listLatestScanSignalsForRunMock).toHaveBeenCalledWith({
+    expect(listLatestRankingSignalsForRunMock).toHaveBeenCalledWith({
       scanRunId: "full-1h",
       timeframe: "1h",
       assetClass: "crypto",
@@ -2216,10 +2219,10 @@ function formatHeaderValue(value: number | string | string[]) {
 }
 
 function resetScannerMocks() {
-  getLatestScanRunMock.mockReset();
-  getLatestScanRunMock.mockResolvedValue(null);
-  listLatestScanSignalsForRunMock.mockReset();
-  listLatestScanSignalsForRunMock.mockResolvedValue([]);
+  getLatestRankingRunMock.mockReset();
+  getLatestRankingRunMock.mockResolvedValue(null);
+  listLatestRankingSignalsForRunMock.mockReset();
+  listLatestRankingSignalsForRunMock.mockResolvedValue([]);
   listScanRunsMock.mockReset();
   listScanRunsMock.mockResolvedValue([]);
   listHistoricalScanRunsMock.mockReset();

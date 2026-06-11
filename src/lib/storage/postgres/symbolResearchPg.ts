@@ -4,14 +4,14 @@ import {
   type SymbolAssetClass,
   type SymbolAssetClassFilter,
 } from "@/lib/market-data/symbolClassification";
-import { getStoredSignalCodeFields } from "@/lib/scanner-codebook/serializeStoredSignal";
+import { getStoredSignalCodeFields } from "@/lib/vegarank-codebook/serializeStoredSignal";
 import {
   currentScanSignalCodeContractCondition,
   LATEST_SCAN_FULL_UNIVERSE_MIN_SYMBOLS,
-  PgScannerResultsStore,
-  type LatestScanSignalRecord,
+  PgRankingResultsStore,
+  type LatestRankingSignalRecord,
   type ScanRunRecord,
-} from "./scannerResultsPg";
+} from "./rankingResultsPg";
 import {
   loadSymbolBehaviorPg,
   type LoadSymbolBehaviorPgInput,
@@ -38,7 +38,7 @@ export type SymbolResearchSymbolRecord = {
   updatedAt: string;
 };
 
-export type SymbolResearchSignalRecord = LatestScanSignalRecord & {
+export type SymbolResearchSignalRecord = LatestRankingSignalRecord & {
   scanRunStartedAt: string | null;
   scanRunFinishedAt: string | null;
   scanRunSymbolsTotal: number | null;
@@ -211,9 +211,9 @@ export class PgSymbolResearchStore {
       return { symbol: null, scanRun: null, signal: null };
     }
 
-    const scannerStore = new PgScannerResultsStore(this.pool);
+    const scannerStore = new PgRankingResultsStore(this.pool);
     const preferFullUniverse = assetClass === "crypto" && !includeNonScanner;
-    const scanRun = await scannerStore.getLatestScanRun({
+    const scanRun = await scannerStore.getLatestRankingRun({
       timeframe,
       assetClass,
       preferFullUniverse,
@@ -626,9 +626,9 @@ function toSymbolResearchSymbolRecord(row: SymbolRow): SymbolResearchSymbolRecor
 function toSymbolResearchSignalRecord(
   row: ScanSignalRow,
 ): SymbolResearchSignalRecord {
-  // These scan_signals physical column names are legacy. Current scanner rows
-  // store semi-anonymous scanner codes in them; public responses must still pass
-  // through the scanner-code serializer before leaving the server.
+  // Legacy physical schema name; VegaRank public API uses rankings/archive
+  // terminology. Public responses must still pass through the code serializer
+  // before leaving the server.
   const codeFields = getStoredSignalCodeFields({
     signalLabel: row.signal_label,
     actionBias: row.action_bias,

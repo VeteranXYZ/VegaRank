@@ -1,11 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { Candle } from "@/lib/exchanges/types";
 import { reviewHistoricalBehavior } from "./symbolBehavior";
-import type { ScanResult } from "@/lib/shared/scannerTypes";
+import type { ScanResult } from "@/lib/shared/rankingTypes";
 
 const scanCandlesMock = vi.hoisted(() => vi.fn());
 
-vi.mock("@/lib/scanner/scanCandles", () => ({
+vi.mock("@/lib/ranking-engine/scanCandles", () => ({
   scanCandles: scanCandlesMock,
   getClosedCandles: (candles: Candle[], now = Date.now()) => {
     const latest = candles.at(-1);

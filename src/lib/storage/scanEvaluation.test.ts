@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Candle } from "@/lib/exchanges/types";
-import type { ScanEvaluationNote } from "@/lib/shared/scannerTypes";
+import type { ScanEvaluationNote } from "@/lib/shared/rankingTypes";
 import {
   evaluateSignalForward,
   getSignalPerformanceByLabel,

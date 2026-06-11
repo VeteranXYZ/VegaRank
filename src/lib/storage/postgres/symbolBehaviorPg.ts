@@ -1,11 +1,11 @@
 import type { Pool } from "pg";
 import type { SymbolAssetClassFilter } from "@/lib/market-data/symbolClassification";
 import {
-  classifyScanResultGroup,
-  type ScanResultGroup,
-} from "@/lib/scanner/scanResultGroups";
+  classifyRankingResultGroup,
+  type RankingResultGroup,
+} from "@/lib/ranking-engine/rankingResultGroups";
 import { createPostgresPool } from "./pool";
-import { currentScanSignalCodeContractCondition } from "./scannerResultsPg";
+import { currentScanSignalCodeContractCondition } from "./rankingResultsPg";
 
 export const SYMBOL_BEHAVIOR_HORIZONS = [1, 3, 5] as const;
 export const SYMBOL_BEHAVIOR_DEFAULT_LIMIT = 80;
@@ -137,7 +137,7 @@ type HorizonOutcome = {
 };
 
 type AnalyzedBehaviorOutcome = {
-  resultGroup: ScanResultGroup;
+  resultGroup: RankingResultGroup;
   signalLabel: string | null;
   scanTime: string;
   rankScore: number | null;
@@ -337,7 +337,7 @@ async function loadSymbolBehaviorRowsPg(
 }
 
 function analyzeBehaviorRow(row: SymbolBehaviorSignalRow): AnalyzedBehaviorOutcome {
-  const resultGroup = classifyScanResultGroup({
+  const resultGroup = classifyRankingResultGroup({
     groupCode: row.group_code,
     signalLabel: row.signal_label,
     actionBias: row.action_bias,
@@ -375,7 +375,7 @@ function compareBehaviorOutcomeByScanTimeDesc(
 function buildResultGroupStats(
   outcomes: AnalyzedBehaviorOutcome[],
 ): SymbolBehaviorResultGroupStats[] {
-  const byResultGroup = new Map<ScanResultGroup, AnalyzedBehaviorOutcome[]>();
+  const byResultGroup = new Map<RankingResultGroup, AnalyzedBehaviorOutcome[]>();
 
   for (const outcome of outcomes) {
     byResultGroup.set(outcome.resultGroup, [
@@ -449,7 +449,7 @@ function buildCurrentContext({
   currentSignal,
 }: LoadSymbolBehaviorPgInput): SymbolBehaviorCurrentContext {
   const resultGroup = currentSignal
-    ? classifyScanResultGroup({
+    ? classifyRankingResultGroup({
         groupCode: currentSignal.groupCode,
         signalLabel: currentSignal.signalLabel,
         actionBias: currentSignal.actionBias,

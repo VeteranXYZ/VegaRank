@@ -2,12 +2,12 @@
 
 ## Purpose
 
-The scanner is a research-ranking system. It should rank technical research
-candidates across a universe, explain scanner evidence through stable codes,
+VegaRank is a research-ranking system. It should rank technical research
+candidates across a universe, explain ranking evidence through stable codes,
 and avoid implying trade execution or investment advice.
 
 Quant Scoring Engine v1 should be deterministic, explainable, and attributable
-to scanner codes. It should use existing indicator inputs first and expose a
+to research codes. It should use existing indicator inputs first and expose a
 compact metrics schema that can later be validated and calibrated offline.
 
 ## External Quant Research Principles
@@ -96,7 +96,7 @@ behavior by regime.
 
 ## Absolute Scores vs Universe Ranking
 
-The scanner should distinguish symbol-level setup quality from cross-sectional
+The ranking engine should distinguish symbol-level setup quality from cross-sectional
 research priority.
 
 - `absoluteSetupScore`: how technically constructive the symbol looks by
@@ -105,7 +105,7 @@ research priority.
 - `rankScore`: final research priority after risk, quality, confidence, and
   cross-sectional context.
 
-Because the scanner evaluates hundreds of assets, cross-sectional ranking is
+Because VegaRank evaluates hundreds of assets, cross-sectional ranking is
 central. A technically acceptable setup may still rank poorly if many other
 symbols have stronger risk-adjusted evidence in the same scan.
 
@@ -114,7 +114,7 @@ symbols have stronger risk-adjusted evidence in the same scan.
 Confidence is not the same as setup quality.
 
 - `setupQualityScore`: how constructive the technical setup appears.
-- `confidenceScore`: how reliable the scanner evidence is.
+- `confidenceScore`: how reliable the ranking evidence is.
 - `riskAdjustedScore`: setup quality after risk and quality penalties.
 - `rankScore`: final research priority.
 
@@ -133,7 +133,7 @@ ranked as if they were equally reliable.
 Internal formulas, thresholds, and private weights may be documented in
 developer docs.
 
-Public API responses should expose scanner codes, scores, and compact metrics,
+Public API responses should expose research codes, scores, and compact metrics,
 but not long prose explaining private formulas. Dictionary explanations should
 describe user-facing meaning without revealing exact thresholds, private
 weights, or proprietary formulas.
@@ -142,7 +142,7 @@ The public contract should remain semi-anonymous:
 
 - group/action/setup/risk/reason/signal/quality codes
 - metrics
-- scanner/code/dictionary versions
+- ranking/code/dictionary version fields
 
 It should not expose backend prose, raw private indicator votes, or readable
 legacy classifier enums.
@@ -228,5 +228,5 @@ Do not add black-box predictions.
 
 The metrics schema should still be stable enough for future offline validation
 to tune weights or support a lightweight calibration model later. Any future
-model-calibrated layer should remain subordinate to the public scanner code
+model-calibrated layer should remain subordinate to the public code
 contract and should be validated before production use.

@@ -8,11 +8,11 @@ import {
   scannerCodeVersions,
   signalCodeByLabel,
   setupCodeByAliasOrStructure,
-} from "@/lib/scanner-codebook/codeRegistry";
+} from "@/lib/vegarank-codebook/codeRegistry";
 import { MarketContextPanel } from "@/components/market-context/MarketContextPanel";
 import { sortDataRows } from "@/components/table/dataTableSorting";
 import {
-  buildMtfLatestScanUrl,
+  buildMtfLatestRankingsUrl,
   getMtfScreenerTableSortValue,
   MtfScreenerCommandBar,
   MtfScreenerDetailRail,
@@ -24,14 +24,14 @@ import {
 import { MtfScreenerVisualCheckPage } from "./MtfScreenerVisualCheckPage";
 import {
   buildMtfScreenerRows,
-  type MtfLatestScanResponse,
+  type MtfLatestRankingsResponse,
   type MtfLatestScreenerResponse,
 } from "./multiTimeframeScreenerUi";
 
 describe("MultiTimeframeScreenerTable", () => {
   it("uses the full multi-timeframe latest API endpoint", () => {
     expect(
-      buildMtfLatestScanUrl({
+      buildMtfLatestRankingsUrl({
         assetClass: "crypto",
         tradeApiBaseUrl: "https://api.vegarank.com/",
       }),
@@ -114,7 +114,7 @@ describe("MultiTimeframeScreenerTable", () => {
             signalLabel: "confirmed",
           }),
         ],
-      } satisfies MtfLatestScanResponse,
+      } satisfies MtfLatestRankingsResponse,
     });
     const html = renderToStaticMarkup(
       createElement(MtfScreenerTable, { rows }),
@@ -486,8 +486,8 @@ function expectMarkupOrder(html: string, labels: string[]) {
 
 function makeResponse(
   timeframe: "1h" | "4h" | "1d" | "1w",
-  items: MtfLatestScanResponse["items"],
-): MtfLatestScanResponse {
+  items: MtfLatestRankingsResponse["items"],
+): MtfLatestRankingsResponse {
   return {
     ok: true,
     timeframe,
@@ -543,7 +543,7 @@ function makeRun(timeframe: "1h" | "4h" | "1d" | "1w") {
 }
 
 function makeItem(
-  overrides: Partial<MtfLatestScanResponse["items"][number]> & {
+  overrides: Partial<MtfLatestRankingsResponse["items"][number]> & {
     symbol: string;
     timeframe: "1h" | "4h" | "1d" | "1w";
     group?: "eligible" | "watch" | "risk" | "overheated" | "neutral" | null;
@@ -554,7 +554,7 @@ function makeItem(
     primaryStructure?: keyof typeof setupCodeByAliasOrStructure;
     detectedRiskTypes?: Array<keyof typeof riskCodeByType>;
   },
-): MtfLatestScanResponse["items"][number] {
+): MtfLatestRankingsResponse["items"][number] {
   const resultGroup = overrides.resultGroup ?? overrides.group ?? "neutral";
   const riskCodes = (overrides.detectedRiskTypes ?? []).map(
     (risk) => riskCodeByType[risk] ?? "RK_201",

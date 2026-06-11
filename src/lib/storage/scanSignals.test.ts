@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { toScanSignalRecords, toScanSnapshotRecord } from "./scanSignalModel";
-import type { ScanResult } from "@/lib/scanner/types";
-import { scannerCodeVersions } from "@/lib/scanner-codebook/codeRegistry";
+import type { ScanResult } from "@/lib/ranking-engine/types";
+import { scannerCodeVersions } from "@/lib/vegarank-codebook/codeRegistry";
 
 describe("scan signal persistence model", () => {
   it("serializes scores, labels, structures, risk types, and raw metrics", () => {

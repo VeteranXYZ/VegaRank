@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { PgSymbolResearchStore } from "./symbolResearchPg";
 
 describe("PgSymbolResearchStore", () => {
-  it("uses latest scan run selection before loading the latest symbol signal", async () => {
+  it("uses latest ranking run selection before loading the latest symbol signal", async () => {
     const queries: string[] = [];
     const paramsList: unknown[][] = [];
     const store = new PgSymbolResearchStore(

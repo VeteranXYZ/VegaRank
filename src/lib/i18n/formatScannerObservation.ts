@@ -4,7 +4,7 @@ import type {
   ScannerObservation,
   ScannerReviewText,
   ScannerTextParamValue,
-} from "@/lib/shared/scannerTypes";
+} from "@/lib/shared/rankingTypes";
 
 type Dictionary = (typeof dictionaries)[keyof typeof dictionaries];
 

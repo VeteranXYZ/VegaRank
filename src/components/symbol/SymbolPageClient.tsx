@@ -5,17 +5,17 @@ import { useState } from "react";
 import { CandleChart } from "@/components/chart/CandleChart";
 import { IndicatorLegend } from "@/components/chart/IndicatorLegend";
 import { useLanguage } from "@/components/providers/LanguageProvider";
-import { PhaseBadge } from "@/components/scanner/PhaseBadge";
-import { ReasonList } from "@/components/scanner/ReasonList";
-import { RiskBadge } from "@/components/scanner/RiskBadge";
-import { ScoreBadge } from "@/components/scanner/ScoreBadge";
-import { SignalBadge } from "@/components/scanner/SignalBadge";
-import { StrategyReadPanel } from "@/components/scanner/StrategyReadPanel";
+import { PhaseBadge } from "@/components/rankings/PhaseBadge";
+import { ReasonList } from "@/components/rankings/ReasonList";
+import { RiskBadge } from "@/components/rankings/RiskBadge";
+import { ScoreBadge } from "@/components/rankings/ScoreBadge";
+import { SignalBadge } from "@/components/rankings/SignalBadge";
+import { StrategyReadPanel } from "@/components/rankings/StrategyReadPanel";
 import {
   summarizeMultiTimeframe,
   type MultiTimeframeSummary,
 } from "@/lib/shared/multiTimeframe";
-import type { ScanResult } from "@/lib/shared/scannerTypes";
+import type { ScanResult } from "@/lib/shared/rankingTypes";
 import {
   TIMEFRAMES,
   type Candle,

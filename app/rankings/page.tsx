@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
-import { LatestScanPageClient } from "@/components/scanner/LatestScanPageClient";
+import { LatestRankingsPageClient } from "@/components/rankings/LatestRankingsPageClient";
 
-type ScannerPageProps = {
+type RankingsPageProps = {
   searchParams?: Promise<Record<string, string | string[] | undefined>>;
 };
 
@@ -11,6 +11,6 @@ export const metadata: Metadata = {
     "Latest rankings by technical structure, confirmation strength, and risk context.",
 };
 
-export default async function ScannerPage({ searchParams }: ScannerPageProps) {
-  return <LatestScanPageClient initialQueryState={await searchParams} />;
+export default async function RankingsPage({ searchParams }: RankingsPageProps) {
+  return <LatestRankingsPageClient initialQueryState={await searchParams} />;
 }

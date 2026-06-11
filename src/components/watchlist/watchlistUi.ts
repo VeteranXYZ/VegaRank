@@ -5,10 +5,11 @@ import {
   type MtfScreenerRow,
   type MtfScreenerTimeframe,
 } from "@/components/screener/multiTimeframeScreenerUi";
-import { formatGroupLabel, formatScore } from "@/components/scanner/latestScanUi";
+import { formatGroupLabel, formatScore } from "@/components/rankings/latestRankingsUi";
 import { buildSymbolResearchHref } from "@/components/symbol/symbolResearchLinks";
 
-export const WATCHLIST_STORAGE_KEY = "trade-scanner.watchlist.symbols";
+export const WATCHLIST_STORAGE_KEY = "vegarank.watchlist.symbols";
+export const LEGACY_WATCHLIST_STORAGE_KEY = "trade-scanner.watchlist.symbols";
 export const DEFAULT_WATCHLIST_SYMBOLS = [
   "BTCUSDT",
   "ETHUSDT",
@@ -253,6 +254,15 @@ export function loadWatchlistSymbols(
 
   try {
     rawValue = storage.getItem(WATCHLIST_STORAGE_KEY);
+
+    if (rawValue === null || rawValue.trim() === "") {
+      const legacyRawValue = storage.getItem(LEGACY_WATCHLIST_STORAGE_KEY);
+
+      if (legacyRawValue !== null && legacyRawValue.trim() !== "") {
+        rawValue = legacyRawValue;
+        storage.setItem(WATCHLIST_STORAGE_KEY, legacyRawValue);
+      }
+    }
   } catch {
     return [...defaultSymbols];
   }

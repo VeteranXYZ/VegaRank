@@ -1,16 +1,16 @@
 import { appendFile, mkdir, readFile } from "node:fs/promises";
 import path from "node:path";
 import { calculateIndicatorSnapshot } from "@/lib/indicators";
-import { scanCandles } from "@/lib/scanner/scanCandles";
+import { scanCandles } from "@/lib/ranking-engine/scanCandles";
 import type {
   ActionBias,
   DetectedRiskType,
   MarketPhase,
   ScannerSignalLabel,
   ScannerSignalState,
-} from "@/lib/scanner/types";
+} from "@/lib/ranking-engine/types";
 import type { Candle, Timeframe } from "@/lib/exchanges/types";
-import type { ScanEvaluationNote } from "@/lib/shared/scannerTypes";
+import type { ScanEvaluationNote } from "@/lib/shared/rankingTypes";
 import { parseJsonArray, type ScanSignalRecord } from "./scanSignalModel";
 import type { StoredScanResult, StoredScanSnapshot } from "./scanSnapshotModel";
 

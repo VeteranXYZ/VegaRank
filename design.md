@@ -1,16 +1,16 @@
-# Trade Scanner Design System
+# VegaRank Design System
 
 ## Product UI Principle
 
-Trade Scanner is a desktop-first professional research terminal. The interface is dense but readable, and it supports structured observation over prediction. UI copy and layout must make the product feel like a research workspace, not an execution platform or financial-advice product.
+VegaRank is a desktop-first professional research terminal. The interface is dense but readable, and it supports structured observation over prediction. UI copy and layout must make the product feel like a research workspace, not an execution platform or financial-advice product.
 
-The app should prioritize evidence, context, scanner state, and follow-up checks. It should avoid hype, profit framing, and trading-call language.
+The app should prioritize evidence, context, ranking state, and follow-up checks. It should avoid hype, profit framing, and trading-call language.
 
 ## Layout System
 
 The app shell uses a compact global header above page-specific workspaces. Terminal pages should preserve key context near the top while allowing the main workspace to scroll normally.
 
-The five terminal pages, Scanner, Screener, Watchlist, History, and Symbol Research, use a fixed-height workspace on desktop. The browser page itself should not scroll on these pages; only bounded workspace elements scroll. The global header remains above the workspace, and page-specific command/context bars stay inside the fixed workspace.
+The five terminal pages, Rankings, Screener, Watchlist, Archive, and Symbol Research, use a fixed-height workspace on desktop. The browser page itself should not scroll on these pages; only bounded workspace elements scroll. The global header remains above the workspace, and page-specific command/context bars stay inside the fixed workspace.
 
 Use compact command/context bars for pages where users compare data while scrolling inside bounded panes. These bars must include only the information needed to preserve orientation: current symbol or result set, exchange, timeframe, asset class, quality, latest timestamp, current state, and the primary reason or rank summary.
 
@@ -86,11 +86,11 @@ The Screener is table-first. Keep full result visibility by default, with a comp
 
 Avoid pagination-first layouts, oversized summary cards, or empty marketing sections. Preserve dense comparison workflows.
 
-## Scanner Rules
+## Rankings Rules
 
-Scanner is the latest single-timeframe scan output viewer. Keep it close to raw scanner output, with a compact terminal summary, concise left controls, semantic group counts, and one dense result table. It must not become Screener, Watchlist, Symbol Research, History, an AI summary, or a backtest page.
+Rankings is the latest single-timeframe ranking output viewer. Keep it close to raw ranking output, with a compact terminal summary, concise left controls, semantic group counts, and one dense result table. It must not become Screener, Watchlist, Symbol Research, Archive, an AI summary, or a backtest page.
 
-Scanner summary and group counts should be compact terminal strips, not metric-card grids. Eligible, watch, overheated, risk, neutral, and insufficient-history rows should share the same table; the state remains visible through chips in the Signal column. Manual sorting belongs in table headers for Symbol, Rank, Signal, Action, Setup Type, Quality, and Price. Left-rail controls should change data scope or provide workflow utilities such as copy, export, and navigation, not duplicate row grouping as separate lists.
+Rankings summary and group counts should be compact terminal strips, not metric-card grids. Eligible, watch, overheated, risk, neutral, and insufficient-history rows should share the same table; the state remains visible through chips in the Signal column. Manual sorting belongs in table headers for Symbol, Rank, Signal, Action, Setup Type, Quality, and Price. Left-rail controls should change data scope or provide workflow utilities such as copy, export, and navigation, not duplicate row grouping as separate lists.
 
 ## Watchlist Rules
 
@@ -106,9 +106,9 @@ Research and Remove are system actions, not market states. Research uses blue sy
 
 Follow strict Watchlist color semantics: green means healthy, eligible, or completed; red means risk, breakdown, or invalid; yellow means warning, hot, data gap, or needs attention; gray means neutral, missing, unavailable, or not returned; blue means system action, link, selected state, or active sort. The left rail is supporting control space; the selected-symbol table remains the main object. Watchlist is desktop-first, while mobile only needs basic no-broken-layout behavior.
 
-## History Rules
+## Archive Rules
 
-History is a historical validation terminal, not a light report page. Use the dark terminal system, compact command/status context, and a controlled Recent Runs rail. Outcome Rows are the primary workspace; Outcome Summary, Selected Scan, and Validation Source context should stay compact. Original Scan Rows are secondary and should be collapsed, visually reduced, and loaded on demand rather than fetched on the initial page load. Details, raw metadata, maturity logic, and diagnostics stay collapsed. Avoid light report cards, workflow prose, and repeated caveats.
+Archive is a historical validation terminal, not a light report page. Use the dark terminal system, compact command/status context, and a controlled Recent Runs rail. Outcome Rows are the primary workspace; Outcome Summary, Selected Run, and Validation Source context should stay compact. Original Ranking Rows are secondary and should be collapsed, visually reduced, and loaded on demand rather than fetched on the initial page load. Details, raw metadata, maturity logic, and diagnostics stay collapsed. Avoid light report cards, workflow prose, and repeated caveats.
 
 ## Copy Rules
 

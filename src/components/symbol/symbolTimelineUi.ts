@@ -1,8 +1,8 @@
 import { formatDisplayDateTime } from "@/lib/utils/format";
 import type { Language } from "@/lib/i18n/dictionaries";
-import { resultGroupByGroupCode } from "@/lib/scanner-codebook/codeRegistry";
-import { explainCode, explainCodes } from "@/lib/scanner-codebook/explainCode";
-import type { PublicStoredScannerSignal } from "@/lib/scanner-codebook/serializeStoredSignal";
+import { resultGroupByGroupCode } from "@/lib/vegarank-codebook/codeRegistry";
+import { explainCode, explainCodes } from "@/lib/vegarank-codebook/explainCode";
+import type { PublicStoredScannerSignal } from "@/lib/vegarank-codebook/serializeStoredSignal";
 import { formatSymbolResearchRunContext } from "./symbolResearchUi";
 
 export type RawSymbolTimelineSignal = Partial<PublicStoredScannerSignal> & {
@@ -43,12 +43,12 @@ export type CompactSignalHistoryResult = {
 };
 
 const groupDescriptions: Record<string, string> = {
-  eligible: "Meets current scanner review criteria.",
+  eligible: "Meets current VegaRank review criteria.",
   watch: "Worth monitoring, but confirmation is still limited.",
   overheated: "Extended conditions require extra caution.",
   risk: "Risk context is elevated or structure has weakened.",
-  neutral: "No clear scanner classification is available.",
-  insufficient_history: "The scanner needs more candles for a fuller read.",
+  neutral: "No clear VegaRank classification is available.",
+  insufficient_history: "VegaRank needs more candles for a fuller read.",
 };
 
 export function normalizeSignalHistory(

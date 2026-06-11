@@ -6,7 +6,7 @@ import { getEligibleUsdtMarkets } from "@/lib/exchanges/binance";
 import {
   mtfPresetTimeframes,
   type MtfPreset,
-} from "@/lib/scanner/multiTimeframe";
+} from "@/lib/ranking-engine/multiTimeframe";
 import {
   isLocalPersistenceDisabled,
   localPersistenceUnavailableMessage,
@@ -16,14 +16,14 @@ import {
   toPublicScanErrorSample,
   type ScanErrorSample,
   type ScanFailureSummary,
-} from "@/lib/scanner/diagnostics";
-import { scanMarketMultiTimeframe } from "@/lib/scanner/scanMarketMtf";
-import { calculateUniversePercentiles, SCORING_VERSION } from "@/lib/scanner/scoring";
-import type { ScanResult } from "@/lib/scanner/types";
+} from "@/lib/ranking-engine/diagnostics";
+import { scanMarketMultiTimeframe } from "@/lib/ranking-engine/scanMarketMtf";
+import { calculateUniversePercentiles, SCORING_VERSION } from "@/lib/ranking-engine/scoring";
+import type { ScanResult } from "@/lib/ranking-engine/types";
 import {
   serializeScanResultToCodeContract,
   type ScannerCodeContractResult,
-} from "@/lib/scanner-codebook/serializeScanResult";
+} from "@/lib/vegarank-codebook/serializeScanResult";
 import { getScannerStorageAdapter } from "@/lib/storage/storageAdapter";
 
 export const runtime = "nodejs";
@@ -276,7 +276,7 @@ export async function GET(request: Request) {
       {
         error: "Failed to scan Binance markets across timeframes.",
         message:
-          error instanceof Error ? error.message : "Remote MTF scanner request failed.",
+          error instanceof Error ? error.message : "Remote MTF ranking request failed.",
         errorCode: "SCANNER_ROUTE_FAILED",
         details: {
           route: "/api/rankings/mtf",
@@ -396,7 +396,7 @@ async function scanMtfMarkets(
   }
 
   const [{ scanLocalMarketMultiTimeframe }, store] = await Promise.all([
-    import("@/lib/scanner/scanLocalMarket"),
+    import("@/lib/ranking-engine/scanLocalMarket"),
     createMarketDataStore(),
   ]);
 
@@ -568,9 +568,9 @@ function parseSource(value: string | null) {
 function cachedSourceUnavailableResponse() {
   return NextResponse.json(
     {
-      error: "Cached scanner source is not available.",
+      error: "Cached ranking source is not available.",
       message:
-        "source=cached is feature-gated and no latest-scan JSON reader is configured in this deployment yet.",
+        "source=cached is feature-gated and no latest-rankings JSON reader is configured in this deployment yet.",
       errorCode: "CACHED_SOURCE_UNAVAILABLE",
       source: "cached",
       mode: "mtf",

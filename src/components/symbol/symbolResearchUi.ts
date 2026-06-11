@@ -9,8 +9,8 @@ import {
   formatPrimaryStructure,
   formatUnknownScannerResultValue,
   normalizeGroupKey,
-} from "@/components/scanner/latestScanUi";
-import type { ScannerReviewText } from "@/lib/shared/scannerTypes";
+} from "@/components/rankings/latestRankingsUi";
+import type { ScannerReviewText } from "@/lib/shared/rankingTypes";
 
 export type SymbolResearchDisplayDictionary =
   (typeof dictionaries)[keyof typeof dictionaries];
@@ -686,7 +686,7 @@ export function buildSymbolResearchSummary(
         ...getFactorBullets(signal.factors, ["risk", "bearish", "bullish", "neutral"]),
         ...getRiskTypeBullets(signal.detectedRiskTypes, dictionary),
       ]).slice(0, 4),
-      "Current grouping reflects the selected scanner classification.",
+      "Current grouping reflects the selected VegaRank classification.",
     ),
     nextConfirmation: withResearchFallback(
       uniqueResearchBullets(collectResearchText(signal.nextConfirmation)).slice(0, 3),
@@ -953,7 +953,7 @@ export function buildSymbolResearchTimeframeNavigation({
       badgeLabel: isSelected ? "Selected" : "Supported",
       isSelected,
       isDisabled: false,
-      reason: "Production scanner supports this timeframe.",
+      reason: "Production rankings support this timeframe.",
     };
   });
 }

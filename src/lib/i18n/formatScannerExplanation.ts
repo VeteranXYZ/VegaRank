@@ -1,5 +1,5 @@
 import type { dictionaries } from "@/lib/i18n/dictionaries";
-import type { ScannerExplanation } from "@/lib/shared/scannerTypes";
+import type { ScannerExplanation } from "@/lib/shared/rankingTypes";
 
 type Dictionary = (typeof dictionaries)[keyof typeof dictionaries];
 

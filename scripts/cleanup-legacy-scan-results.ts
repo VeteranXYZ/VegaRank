@@ -1,8 +1,8 @@
-import { PgScannerResultsStore } from "@/lib/storage/postgres/scannerResultsPg";
+import { PgRankingResultsStore } from "@/lib/storage/postgres/rankingResultsPg";
 
 async function main() {
   const execute = process.argv.includes("--execute");
-  const store = new PgScannerResultsStore();
+  const store = new PgRankingResultsStore();
 
   try {
     const legacyCount = await store.countLegacyScanResults();

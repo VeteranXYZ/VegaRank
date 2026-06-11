@@ -313,7 +313,7 @@ function getMarketContextPanelNote(data: MarketContextResponse) {
   }
 
   if (data.context.combinedContext === "bull_trend_continuation") {
-    return "This is research context only and does not convert scanner results into instructions.";
+    return "This is research context only and does not convert ranking results into instructions.";
   }
 
   if (data.context.combinedContext === "mixed_transition") {

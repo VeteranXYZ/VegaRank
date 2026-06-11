@@ -21,10 +21,10 @@ This is historical observation, not prediction. It is not a strategy backtester,
 Relevant files:
 
 - `migrations/002_scan_results_pg.sql`
-- `src/lib/storage/postgres/scannerResultsPg.ts`
+- `src/lib/storage/postgres/rankingResultsPg.ts`
 - `src/server/trade-api.ts`
 - `src/server/trade-api.test.ts`
-- `src/lib/storage/postgres/scannerResultsPg.test.ts`
+- `src/lib/storage/postgres/rankingResultsPg.test.ts`
 
 Current production data:
 
@@ -49,7 +49,7 @@ Recommendation:
 Relevant files:
 
 - `migrations/002_scan_results_pg.sql`
-- `src/lib/storage/postgres/scannerResultsPg.ts`
+- `src/lib/storage/postgres/rankingResultsPg.ts`
 - `src/server/trade-api.ts`
 
 Useful fields for 12.3B:
@@ -147,8 +147,8 @@ Recommendation:
 
 Relevant files:
 
-- `src/components/archive/HistoryPageClient.tsx`
-- `src/components/archive/HistoryPageClient.test.tsx`
+- `src/components/archive/ArchivePageClient.tsx`
+- `src/components/archive/ArchivePageClient.test.tsx`
 - `src/components/archive/HistoryDisabledPage.test.tsx`
 - `app/archive/page.tsx`
 
@@ -174,9 +174,9 @@ Recommendation:
 Relevant files:
 
 - `src/server/trade-api.test.ts`
-- `src/components/archive/HistoryPageClient.test.tsx`
+- `src/components/archive/ArchivePageClient.test.tsx`
 - `src/components/archive/HistoryDisabledPage.test.tsx`
-- `src/lib/storage/postgres/scannerResultsPg.test.ts`
+- `src/lib/storage/postgres/rankingResultsPg.test.ts`
 - `src/lib/storage/postgres/signalEvaluationPg.test.ts`
 - `src/lib/storage/postgres/symbolBehaviorPg.test.ts`
 
@@ -898,10 +898,10 @@ Likely files to change:
 
 - `src/server/trade-api.ts`
 - `src/server/trade-api.test.ts`
-- `src/lib/storage/postgres/scannerResultsPg.ts` or a new focused Postgres history observation helper file.
-- `src/lib/storage/postgres/scannerResultsPg.test.ts` or a new focused helper test file.
-- `src/components/archive/HistoryPageClient.tsx`
-- `src/components/archive/HistoryPageClient.test.tsx`
+- `src/lib/storage/postgres/rankingResultsPg.ts` or a new focused Postgres history observation helper file.
+- `src/lib/storage/postgres/rankingResultsPg.test.ts` or a new focused helper test file.
+- `src/components/archive/ArchivePageClient.tsx`
+- `src/components/archive/ArchivePageClient.test.tsx`
 
 Helper to add:
 

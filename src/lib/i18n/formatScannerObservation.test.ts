@@ -9,7 +9,7 @@ import type {
   ScanEvaluationNoteKey,
   ScannerObservation,
   ScannerReviewKey,
-} from "@/lib/shared/scannerTypes";
+} from "@/lib/shared/rankingTypes";
 
 describe("formatScannerObservation", () => {
   it("renders scanner observations in English", () => {
@@ -38,7 +38,7 @@ describe("formatScannerObservation", () => {
     ).toBe("价格需要重新收复 MA50。");
   });
 
-  it("keeps scanner result display labels concise and consistent", () => {
+  it("keeps ranking result display labels concise and consistent", () => {
     expect(dictionaries.en.signalLabel.overheated).toBe("Overheated");
     expect(dictionaries.en.actionBias.watch_only).toBe("Watch");
     expect(dictionaries.en.primaryStructure.trend_breakdown).toBe(

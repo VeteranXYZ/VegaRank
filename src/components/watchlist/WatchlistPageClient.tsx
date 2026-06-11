@@ -9,7 +9,7 @@ import {
   type MarketContextPanelState,
 } from "@/components/market-context/marketContextUi";
 import { shortResearchDisclaimer } from "@/components/researchCopy";
-import { formatDateTime } from "@/components/scanner/latestScanUi";
+import { formatDateTime } from "@/components/rankings/latestRankingsUi";
 import {
   DataTable,
   DataTableCell,
@@ -95,7 +95,7 @@ export function WatchlistPageClient({
     useState<WatchlistSortState>(defaultWatchlistSort);
   const latestQuery = useQuery({
     queryKey: ["mtf-latest-watchlist", assetClass],
-    queryFn: ({ signal }) => fetchWatchlistMtfLatestScans({ signal }),
+    queryFn: ({ signal }) => fetchWatchlistMtfLatestRankings({ signal }),
     enabled: !isVisualCheck,
     refetchOnWindowFocus: false,
     retry: false,
@@ -732,12 +732,12 @@ export function WatchlistResearchSummaryPanel({
   );
 }
 
-async function fetchWatchlistMtfLatestScans({
+async function fetchWatchlistMtfLatestRankings({
   signal,
 }: {
   signal?: AbortSignal;
 }): Promise<MtfLatestScreenerResponse> {
-  const response = await fetch(buildWatchlistMtfLatestScanUrl({ assetClass }), {
+  const response = await fetch(buildWatchlistMtfLatestRankingsUrl({ assetClass }), {
     signal,
   });
 
@@ -750,7 +750,7 @@ async function fetchWatchlistMtfLatestScans({
   return (await response.json()) as MtfLatestScreenerResponse;
 }
 
-export function buildWatchlistMtfLatestScanUrl({
+export function buildWatchlistMtfLatestRankingsUrl({
   assetClass,
   tradeApiBaseUrl = process.env.NEXT_PUBLIC_TRADE_API_BASE_URL,
 }: {

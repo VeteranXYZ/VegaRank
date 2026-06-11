@@ -3,7 +3,7 @@ import {
   getRecentScanSnapshotsFromD1,
   persistScanSnapshotToD1,
 } from "./d1ScanSnapshots";
-import type { ScanResult } from "@/lib/scanner/types";
+import type { ScanResult } from "@/lib/ranking-engine/types";
 
 const state = vi.hoisted(() => ({
   rows: [] as Array<Record<string, unknown>>,
@@ -101,7 +101,7 @@ function makeResult(): ScanResult {
     signal: {
       state: "NEUTRAL",
       label: "Neutral",
-      summary: "No clear edge from the current scanner rules.",
+      summary: "No clear edge from the current ranking rules.",
     },
     opportunityScore: 50,
     confirmationScore: 30,

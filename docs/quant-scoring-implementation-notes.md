@@ -2,24 +2,25 @@
 
 ## Status
 
-Phase 19 replaces the legacy scanner scoring path with a deterministic,
+Phase 19 replaces the legacy ranking/scoring path with a deterministic,
 code-attributed Quant Scoring Engine v1 implemented in
-`src/lib/scanner/quantScoring.ts`.
+`src/lib/ranking-engine/quantScoring.ts`.
 
 The supported scoring model identifiers are:
 
 - `scoringModelVersion`: `quant-factor-v1`
 - `scoringCalibrationVersion`: `deterministic-baseline-1`
-- scanner protocol version: `19.0.0`
+- ranking engine protocol version: `19.0.0` stored in the current
+  `scannerVersion` contract field
 
-This is a clean-break scanner contract. Old scan rows are not migrated and are
+This is a clean-break code contract. Old scan rows are not migrated and are
 not considered current if they do not contain a matching embedded
-`raw_metrics.codeContract` object with the current scanner, code schema, and
+`raw_metrics.codeContract` object with the current ranking engine, code schema, and
 scoring model versions.
 
 ## Public Contract
 
-Scanner API output remains the semi-anonymous scanner code contract:
+VegaRank API output remains the semi-anonymous code contract:
 
 - `groupCode`
 - `actionCode`
@@ -34,8 +35,8 @@ Scanner API output remains the semi-anonymous scanner code contract:
 - `codeSchemaVersion`
 - `dictionaryVersion`
 
-The public scanner serializers intentionally do not expose readable legacy
-scanner fields such as signal labels, action bias enums, primary structure
+The public serializers intentionally do not expose readable legacy ranking
+fields such as signal labels, action bias enums, primary structure
 enums, backend prose observations, raw metrics blobs, review prose, factors, or
 confirmation/invalidation text.
 
@@ -49,7 +50,7 @@ learning, deep learning, probabilistic prediction, or black-box inference.
 
 The scoring flow is:
 
-1. Normalize existing scanner inputs into a compact derived metric set.
+1. Normalize existing ranking inputs into a compact derived metric set.
 2. Convert indicator evidence into factor-family scores.
 3. Combine factor-family scores once into `absoluteSetupScore`.
 4. Apply risk and data-quality penalties to produce `riskAdjustedScore`.
@@ -134,14 +135,14 @@ not readable legacy classifications.
 
 The v1 implementation does not fake unavailable metrics.
 
-- `atrExtension` is currently `null` because the active scanner pipeline does
+- `atrExtension` is currently `null` because the active ranking pipeline does
   not provide a stable ATR extension value into scoring.
 - `distanceFromBase` is populated only when a defensible moving-average base
   proxy is available.
 - `universePercentile` is `null` until the result is processed in a scan context
   and then is filled by `calculateUniversePercentiles`.
 - `mtfAgreementScore` is neutral `50` for single-timeframe scoring and is
-  recomputed by the MTF scanner when multiple timeframe rows are available.
+  recomputed by the MTF ranking path when multiple timeframe rows are available.
 
 Future phases can add richer indicator ingestion, but v1 should keep missing
 evidence explicit.
@@ -168,14 +169,14 @@ Group logic is score-first and no longer preserves legacy classifications:
 Actions remain research workflow actions only, including watch, wait, monitor,
 manual review, avoid chasing, reduce priority, exclude, add to research watch,
 and high-priority review semantics. Execution-style language is not part of the
-scanner contract.
+code contract.
 
 ## Storage Strategy
 
 Postgres persistence embeds the authoritative code contract in
 `scan_signals.raw_metrics.codeContract`. Existing physical columns keep their
 legacy names for short-term schema stability, but newly written values are
-scanner codes rather than readable enums.
+research codes rather than readable enums.
 
 Current-row queries require:
 
@@ -212,4 +213,4 @@ should evaluate:
 
 The deterministic metrics schema is designed so offline validation can tune
 weights or support a lightweight calibration model later without changing the
-public scanner code contract.
+public code contract.

@@ -81,9 +81,9 @@ Production mode on Cloudflare supports remote Binance rankings:
 /api/rankings/mtf?source=remote
 ```
 
-Remote Binance remains the default scanner source for Cloudflare. Cached latest-scan
+Remote Binance remains the default ranking source for Cloudflare. Cached latest-rankings
 JSON is feature-gated and disabled by default until a production cache reader is
-implemented. The app is a private real-time scanner and research tool, not a trading
+implemented. The app is a private real-time ranking and research tool, not a trading
 bot. Cloudflare Workers should run with:
 
 ```txt
@@ -144,10 +144,10 @@ curl -i -X OPTIONS \
 
 Expected: `HTTP 204` and
 `Access-Control-Allow-Origin: https://vegarank.com`. After API deploy,
-open `https://vegarank.com/rankings`; the latest scan table should render
+open `https://vegarank.com/rankings`; the latest rankings table should render
 without a browser CORS error.
 
-Verify that the latest public crypto scan is selecting a full scanner universe
+Verify that the latest public crypto ranking run is selecting a full ranking universe
 run rather than a small manual/test run:
 
 ```bash
@@ -156,14 +156,14 @@ curl 'https://api.vegarank.com/api/rankings/latest?timeframe=4h&assetClass=crypt
 ```
 
 Expected `symbolsTotal`, `scanned`, and `signalsCreated` should generally be at
-least `300` for the crypto all-symbol scan. `latestRunSelection.fallbackUsed`
+least `300` for the crypto all-symbol ranking run. `latestRunSelection.fallbackUsed`
 should be `false` when a full universe run is available.
 
 D1 is not configured in `wrangler.jsonc` for Phase 1. The old migration workflow is intentionally removed.
 
 ### Cloudflare Free Batching
 
-Cloudflare Workers Free can hit the external subrequest limit if one invocation scans hundreds of symbols. As a temporary Phase 1 solution, the Scanner UI processes full-market scans through sequential frontend batches:
+Cloudflare Workers Free can hit the external subrequest limit if one invocation ranks hundreds of symbols. As a temporary Phase 1 solution, the Rankings UI processes full-market ranking runs through sequential frontend batches:
 
 - API form: `/api/rankings?source=remote&timeframe=4h&batchMode=true&batchSize=20&cursor=0`
 - MTF API form: `/api/rankings/mtf?source=remote&preset=short&batchMode=true&batchSize=8&cursor=0`
@@ -173,7 +173,7 @@ Cloudflare Workers Free can hit the external subrequest limit if one invocation 
 - MTF maximum API batch size: `10`
 - The frontend requests one batch at a time, merges results, deduplicates by symbol/timeframe, then sorts by `rankScore`.
 
-MTF batches are smaller because each symbol needs candles for multiple timeframes. Numeric `maxSymbols` requests such as `maxSymbols=100` still use the normal single-call scan path. The `/rankings` UI defaults to `maxSymbols=100`; manual `ALL` live scans are capped by `SCANNER_MAX_LIVE_SYMBOLS` (default `100`) for Cloudflare stability. Workers Paid or a VPS background scanner may remove the need for this batching later. D1, KV, R2, Queues, and Durable Objects are not required for this phase.
+MTF batches are smaller because each symbol needs candles for multiple timeframes. Numeric `maxSymbols` requests such as `maxSymbols=100` still use the normal single-call ranking path. The `/rankings` UI defaults to `maxSymbols=100`; manual `ALL` live ranking runs are capped by `SCANNER_MAX_LIVE_SYMBOLS` (default `100`) for Cloudflare stability. Workers Paid or a VPS background ranking job may remove the need for this batching later. D1, KV, R2, Queues, and Durable Objects are not required for this phase.
 
 ### Historical Behavior Review
 
@@ -191,9 +191,9 @@ This feature answers how the same symbol behaved after similar historical techni
 
 ## Timeframes
 
-The scanner is designed for medium-to-large timeframe coin selection, not intraday scalping.
+VegaRank is designed for medium-to-large timeframe coin selection, not intraday scalping.
 
-Supported public scanner timeframes:
+Supported public ranking timeframes:
 
 - `4h`
 - `1h`
@@ -201,13 +201,13 @@ Supported public scanner timeframes:
 - `1w`
 - `1M`
 
-Unsupported lower timeframes intentionally return `400` from public scanner/candle APIs:
+Unsupported lower timeframes intentionally return `400` from public ranking/candle APIs:
 
 - `15m`
 - `5m`
 - `1m`
 
-The core workflow is to scan eligible Binance USDT pairs on `4h`, confirm structure with `1d`, and optionally inspect `1h`, `1w`, and `1M`. The `1h` path is supported when explicitly backfilled and scanned; it is not automatically scheduled by this runbook.
+The core workflow is to rank eligible Binance USDT pairs on `4h`, confirm structure with `1d`, and optionally inspect `1h`, `1w`, and `1M`. The `1h` path is supported when explicitly backfilled and ranked; it is not automatically scheduled by this runbook.
 
 ## Data Source
 
@@ -230,7 +230,7 @@ Market filtering:
 - Excludes leveraged token suffixes such as `UP`, `DOWN`, `BULL`, `BEAR`, `3L`, `3S`, `5L`, and `5S`, with explicit exceptions for legitimate symbols where needed.
 - Sorts by 24h quote volume.
 
-Scanner calculations use only fully closed candles. If Binance returns a currently forming latest candle, the scanner removes it before calculating indicators, scores, and rankings. Chart views may still request recent candles for display.
+Ranking calculations use only fully closed candles. If Binance returns a currently forming latest candle, the ranking engine removes it before calculating indicators, scores, and rankings. Chart views may still request recent candles for display.
 
 ## Architecture
 
@@ -239,7 +239,7 @@ UI
   -> Next.js API routes
   -> Exchange adapter
   -> Indicator layer
-  -> Scanner layer
+  -> Ranking engine
   -> Explanation output
 ```
 
@@ -247,9 +247,9 @@ Important boundaries:
 
 - Exchange access lives in `src/lib/exchanges`.
 - Indicator calculations live in `src/lib/indicators`.
-- Scanner phase, scoring, warnings, and explanations live in `src/lib/scanner`.
+- Ranking phase, scoring, warnings, and explanations live in `src/lib/ranking-engine`.
 - Chart rendering lives in `src/components/chart`.
-- UI state and tables live in `src/components/scanner` and `src/components/symbol`.
+- UI state and tables live in `src/components/rankings` and `src/components/symbol`.
 
 ## Indicators
 
@@ -280,7 +280,7 @@ Short candle arrays return `null` for unavailable indicators instead of throwing
 
 ## Scoring
 
-Each scan result includes:
+Each ranking result includes:
 
 - `opportunityScore`
 - `confirmationScore`
@@ -297,7 +297,7 @@ rankScore =
   phase/risk penalties
 ```
 
-All component scores remain visible in the UI. Structure remains the base layer, while volume mainly adjusts confirmation and risk. Compression remains visible as a reason, but weak structures are capped so breakdowns or prices below both MA50 and MA200 are not ranked as high-opportunity solely because volatility or volume is compressed. The scanner remains a research/filtering tool, not a trading signal or execution system.
+All component scores remain visible in the UI. Structure remains the base layer, while volume mainly adjusts confirmation and risk. Compression remains visible as a reason, but weak structures are capped so breakdowns or prices below both MA50 and MA200 are not ranked as high-opportunity solely because volatility or volume is compressed. VegaRank remains a research/filtering tool, not a trading signal or execution system.
 
 Market phases:
 
@@ -339,24 +339,24 @@ Responses include:
 - `lastClosedCandleTime`
 - `failureSummary`
 
-The scan route defaults to remote Binance with a live-scan safety limit. Passing
+The ranking route defaults to remote Binance with a live-ranking safety limit. Passing
 `maxSymbols=all` means "all within the current live safety cap" on Cloudflare-like
 runtime paths, not an unbounded all-market background job. The UI defaults to
-scanning the top 100 eligible symbols and displaying 50 rows. The single-timeframe
-scan route uses `p-limit` with concurrency `3`; MTF uses concurrency `2`. If one
+ranking the top 100 eligible symbols and displaying 50 rows. The single-timeframe
+ranking route uses `p-limit` with concurrency `3`; MTF uses concurrency `2`. If one
 symbol fails, the route returns partial results and a small sampled `errors` array.
 
 Batch responses also include `batchMode`, `cursor`, `nextCursor`, `hasMore`, `batchSize`, `batchIndex`, `totalBatches`, `totalEligibleCount`, and `scannedInBatch`.
 
-## Scanner Workbench
+## Rankings Workbench
 
 The `/rankings` page is a desktop-first compact technical workbench:
 
 - Dense three-column layout: filters, results table, and selected-symbol inspector.
-- Compact status bar shows source, mode, timeframe, scan progress, cache state, duration, and next refresh.
+- Compact status bar shows source, mode, timeframe, ranking progress, cache state, duration, and next refresh.
 - The table is the primary surface for comparing symbols; it uses compact rows, sticky headers, O/C/R score cells, warning counts, MACD status, and inline MA indicators.
 - The right inspector keeps detailed reasoning, warnings, volume context, next confirmation, invalidation, and data quality for the selected row.
-- Full-market scans can process all eligible symbols while the default visible row count remains 50.
+- Full-market ranking runs can process all eligible symbols while the default visible row count remains 50.
 
 ## Cache
 
@@ -371,17 +371,17 @@ TTL values:
 - 1d candles: 6 hours
 - 1w candles: 24 hours
 - 1M candles: 72 hours
-- 4h scan: 60 minutes
-- 1h scan: 30 minutes
-- 1d scan: 6 hours
-- 1w scan: 24 hours
-- 1M scan: 72 hours
+- 4h ranking: 60 minutes
+- 1h ranking: 30 minutes
+- 1d ranking: 6 hours
+- 1w ranking: 24 hours
+- 1M ranking: 72 hours
 
 This cache resets when the server process restarts.
 
 ## Signal Research Storage
 
-Local Node.js runs can record scanner output for research. The default mode is
+Local Node.js runs can record ranking output for research. The default mode is
 SQLite-first structured storage at `.data/scanner-research.sqlite`, with JSONL kept
 as a fallback and migration source. This is research infrastructure only: it does
 not place trades, does not connect to private exchange endpoints, and does not use
@@ -391,7 +391,7 @@ Configure storage with:
 
 - `SCANNER_RESEARCH_STORAGE=sqlite` for local structured storage.
 - `SCANNER_RESEARCH_STORAGE=jsonl` for legacy JSONL files.
-- `SCANNER_RESEARCH_STORAGE=disabled` to keep live scanner results but skip research writes.
+- `SCANNER_RESEARCH_STORAGE=disabled` to keep live ranking results but skip research writes.
 
 Legacy JSONL files are `.data/scan-signal-snapshots.jsonl`,
 `.data/scan-signals.jsonl`, and `.data/signal-forward-evaluations.jsonl`.
@@ -424,19 +424,19 @@ Command behavior:
   and uses record ids plus `signal_id + horizon` uniqueness to avoid duplicate
   forward evaluations.
 - `research:evaluate` checks pending signals for a completed future horizon. It
-  supports `--horizon=1h|4h|24h|3d|7d`, `--limit=100`, and supported scanner
+  supports `--horizon=1h|4h|24h|3d|7d`, `--limit=100`, and supported ranking
   `--timeframe=4h|1h|1d|1w|1M`.
 - `research:prune` is dry-run by default. Add `--execute` to delete old rows using
   the provided retention windows.
 - `research:stats` prints storage mode, database path in local development, record
   counts, scoring version distribution, label/action/risk/timeframe counts, pending
-  evaluations, insufficient data count, and latest scan/evaluation times.
+  evaluations, insufficient data count, and latest ranking/evaluation times.
 - `research:inspect` prints recent signals with scores, labels, risk types, and
   any saved evaluation status.
 
 Forward evaluation runs through `/api/archive/evaluate?horizon=24h&limit=500`. It
 only evaluates candles that already exist in local synced market data. If there are
-no completed horizons yet, the scanner Research / Evaluation panel shows
+no completed horizons yet, the Research Archive evaluation panel shows
 `Not enough evaluated data yet.` An `insufficient_data` outcome means the signal is
 stored, but the local candle database does not yet contain enough later candles for
 that horizon. It is not a failure and it is not a forecast.
@@ -444,9 +444,9 @@ that horizon. It is not a failure and it is not a forecast.
 The status API `/api/archive/research-stats` returns the same basic storage summary
 for the UI and local checks without exposing secrets.
 
-### PostgreSQL Latest Scan Results
+### PostgreSQL Latest Ranking Results
 
-PostgreSQL scanner results must be read by latest successful `scan_runs.id`, not by
+PostgreSQL ranking results must be read by latest successful `scan_runs.id`, not by
 `max(scan_time)`. A single scan run inserts many `scan_signals` rows, and each row
 can have a slightly different `scan_time`.
 
@@ -469,7 +469,7 @@ The current PostgreSQL run counters are `symbols_total`, `symbols_scanned`,
 
 ### Multi-timeframe Production Update
 
-Use the PostgreSQL-backed backfill and scanner commands for production
+Use the PostgreSQL-backed backfill and ranking job commands for production
 multi-timeframe coverage. The `--limit` flag on `market:backfill:pg` is the
 Binance page size; `1d` backfills target `1000` stored candles by default and
 `1w` backfills target `500` weekly candles or as much history as Binance has.
@@ -482,7 +482,7 @@ target for this phase.
 pnpm market:backfill:pg -- --timeframe 1d --all-symbols --asset-class crypto --limit 500 --confirm-large-sync
 ```
 
-2. Run the 1d scanner:
+2. Run the 1d ranking job:
 
 ```bash
 pnpm scanner:run:pg -- --timeframe 1d --all-symbols --asset-class crypto --limit 500 --confirm-large-sync
@@ -501,7 +501,7 @@ curl 'https://api.vegarank.com/api/rankings/latest?timeframe=1d&assetClass=crypt
 pnpm market:backfill:pg -- --timeframe 1w --all-symbols --asset-class crypto --limit 500 --confirm-large-sync
 ```
 
-5. Run the 1w scanner:
+5. Run the 1w ranking job:
 
 ```bash
 pnpm scanner:run:pg -- --timeframe 1w --all-symbols --asset-class crypto --limit 500 --confirm-large-sync
@@ -530,7 +530,7 @@ curl 'https://api.vegarank.com/api/symbol/research?exchange=binance&symbol=SEIUS
 pnpm market:backfill:pg -- --timeframe 1h --all-symbols --asset-class crypto --target-count 5000 --limit 1000 --confirm-large-sync
 ```
 
-9. Run the 1h scanner after backfill completes:
+9. Run the 1h ranking job after backfill completes:
 
 ```bash
 pnpm scanner:run:pg -- --timeframe 1h --all-symbols --asset-class crypto --limit 1000 --confirm-large-sync
@@ -567,7 +567,7 @@ The repo-tracked `scripts/production/run-*-production.sh` scripts are intended
 for BaoTa / BT Panel to call after each timeframe's candle close. They create
 `.data/logs` and `.data/locks`, use independent timeframe-specific lock files to
 prevent overlapping runs, clean stale locks, then run the PostgreSQL market
-backfill before the scanner.
+backfill before the ranking job.
 
 Tracked runner commands:
 
@@ -636,7 +636,7 @@ Operational notes:
 ### VPS Evaluation Scheduling
 
 Do not deploy these examples directly from this repository state; they are reference
-commands for a future Oracle VPS or PostgreSQL-backed deployment. Keep the scanner
+commands for a future Oracle VPS or PostgreSQL-backed deployment. Keep the ranking
 job that records new signals separate from the evaluation job that validates
 already-recorded signals.
 
@@ -670,7 +670,7 @@ guarantee.
 ## Oracle VPS First Stage Runbook
 
 The Oracle VPS first stage is a local Node.js workflow for background market data
-sync, local scanner runs, signal persistence, forward evaluation, and latest-scan
+sync, local ranking runs, signal persistence, forward evaluation, and latest-rankings
 JSON export. It is intentionally separate from Cloudflare. Cloudflare `/rankings`
 continues to default to `source=remote`; cached latest JSON is disabled by default
 and should only be enabled after a real cache reader is wired.
@@ -746,15 +746,15 @@ Example VPS separation:
 40 */4 * * * cd /path/to/project && npm run scanner:export-latest
 ```
 
-The sync job, scanner job, evaluation job, and export job should remain separate.
-Cloudflare should not perform heavy all-market scans; the VPS background workflow is
+The sync job, ranking job, evaluation job, and export job should remain separate.
+Cloudflare should not perform heavy all-market ranking runs; the VPS background workflow is
 where larger local datasets should be accumulated.
 
 ## Known Limitations
 
 - The cache is in-memory and not shared across server instances.
 - Scoring rules are MVP heuristics and should be tuned with observation.
-- The scanner only supports Binance Spot USDT markets.
+- VegaRank currently supports Binance Spot USDT markets.
 - Symbol Research depends on PostgreSQL scan coverage for the requested
   timeframe; `4h`, `1h`, `1d`, and `1w` are the production coverage targets.
 - Signal research storage is local SQLite/JSONL research infrastructure, not trading advice or portfolio/PnL simulation.
@@ -783,7 +783,7 @@ v3:
 v4:
 
 - User accounts.
-- Saved scanner templates.
+- Saved ranking templates.
 - Custom scoring weights.
 - Signal performance analytics.
 

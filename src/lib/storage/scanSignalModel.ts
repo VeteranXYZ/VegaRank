@@ -1,5 +1,5 @@
-import { SCORING_VERSION } from "@/lib/scanner/scoring";
-import type { ScanResult } from "@/lib/scanner/types";
+import { SCORING_VERSION } from "@/lib/ranking-engine/scoring";
+import type { ScanResult } from "@/lib/ranking-engine/types";
 import type { Timeframe } from "@/lib/shared/timeframes";
 import { safeJsonParse, safeJsonStringify } from "./json";
 

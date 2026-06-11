@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import type { Candle } from "@/lib/exchanges/types";
-import { scanCandles } from "@/lib/scanner/scanCandles";
+import { scanCandles } from "@/lib/ranking-engine/scanCandles";
 import { selectSignalCandleOpenTimeMs } from "../../scripts/scanner-run-pg";
 
 describe("scanner-run-pg signal anchors", () => {

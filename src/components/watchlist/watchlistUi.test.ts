@@ -6,9 +6,10 @@ import {
   scannerCodeVersions,
   signalCodeByLabel,
   setupCodeByAliasOrStructure,
-} from "@/lib/scanner-codebook/codeRegistry";
+} from "@/lib/vegarank-codebook/codeRegistry";
 import {
   DEFAULT_WATCHLIST_SYMBOLS,
+  LEGACY_WATCHLIST_STORAGE_KEY,
   WATCHLIST_STORAGE_KEY,
   addWatchlistSymbol,
   addWatchlistSymbolToStorage,
@@ -33,7 +34,7 @@ import {
 } from "./watchlistUi";
 import {
   buildMtfScreenerRows,
-  type MtfLatestScanResponse,
+  type MtfLatestRankingsResponse,
 } from "@/components/screener/multiTimeframeScreenerUi";
 
 describe("watchlist symbol parsing", () => {
@@ -72,6 +73,20 @@ describe("watchlist localStorage helpers", () => {
       JSON.stringify(["BTCUSDT", "ETHUSDT"]),
     );
     expect(loadWatchlistSymbols(storage)).toEqual(["BTCUSDT", "ETHUSDT"]);
+  });
+
+  it("migrates the legacy Trade Scanner watchlist key", () => {
+    const storage = makeStorage(null);
+
+    storage.setItem(
+      LEGACY_WATCHLIST_STORAGE_KEY,
+      JSON.stringify(["SOLUSDT", "ETHUSDT"]),
+    );
+
+    expect(loadWatchlistSymbols(storage)).toEqual(["SOLUSDT", "ETHUSDT"]);
+    expect(storage.getItem(WATCHLIST_STORAGE_KEY)).toBe(
+      JSON.stringify(["SOLUSDT", "ETHUSDT"]),
+    );
   });
 
   it("preserves an intentionally cleared watchlist", () => {
@@ -448,14 +463,16 @@ describe("watchlist research summary", () => {
 });
 
 function makeStorage(initialValue: string | null): WatchlistStorage {
-  let value = initialValue;
+  const values = new Map<string, string>();
+
+  if (initialValue !== null) {
+    values.set(WATCHLIST_STORAGE_KEY, initialValue);
+  }
 
   return {
-    getItem: (key: string) => (key === WATCHLIST_STORAGE_KEY ? value : null),
+    getItem: (key: string) => values.get(key) ?? null,
     setItem: (key: string, nextValue: string) => {
-      if (key === WATCHLIST_STORAGE_KEY) {
-        value = nextValue;
-      }
+      values.set(key, nextValue);
     },
   };
 }
@@ -473,8 +490,8 @@ function makeThrowingStorage(): WatchlistStorage {
 
 function makeResponse(
   timeframe: "1h" | "4h" | "1d" | "1w",
-  items: MtfLatestScanResponse["items"],
-): MtfLatestScanResponse {
+  items: MtfLatestRankingsResponse["items"],
+): MtfLatestRankingsResponse {
   return {
     ok: true,
     timeframe,
@@ -487,7 +504,7 @@ function makeResponse(
 }
 
 function makeItem(
-  overrides: Partial<MtfLatestScanResponse["items"][number]> & {
+  overrides: Partial<MtfLatestRankingsResponse["items"][number]> & {
     symbol: string;
     timeframe: "1h" | "4h" | "1d" | "1w";
     group?: "eligible" | "watch" | "risk" | "overheated" | "neutral" | null;
@@ -498,7 +515,7 @@ function makeItem(
     primaryStructure?: keyof typeof setupCodeByAliasOrStructure;
     detectedRiskTypes?: Array<keyof typeof riskCodeByType>;
   },
-): MtfLatestScanResponse["items"][number] {
+): MtfLatestRankingsResponse["items"][number] {
   const resultGroup = overrides.resultGroup ?? overrides.group ?? "neutral";
   const riskCodes = (overrides.detectedRiskTypes ?? []).map(
     (risk) => riskCodeByType[risk] ?? "RK_201",

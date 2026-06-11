@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { ScanResult } from "@/lib/scanner/types";
+import type { ScanResult } from "@/lib/ranking-engine/types";
 import { createDisabledStorageAdapter } from "./storageAdapter";
 import { runResearchEvaluationJob } from "./researchEvaluationJob";
 import { ScanSignalSqliteStore } from "./sqlite/scanSignalSqlite";

@@ -13,14 +13,14 @@ import {
   toPublicScanErrorSample,
   type ScanErrorSample,
   type ScanFailureSummary,
-} from "@/lib/scanner/diagnostics";
-import { scanMarket } from "@/lib/scanner/scanMarket";
-import { calculateUniversePercentiles, SCORING_VERSION } from "@/lib/scanner/scoring";
-import type { ScanResult } from "@/lib/scanner/types";
+} from "@/lib/ranking-engine/diagnostics";
+import { scanMarket } from "@/lib/ranking-engine/scanMarket";
+import { calculateUniversePercentiles, SCORING_VERSION } from "@/lib/ranking-engine/scoring";
+import type { ScanResult } from "@/lib/ranking-engine/types";
 import {
   serializeScanResultToCodeContract,
   type ScannerCodeContractResult,
-} from "@/lib/scanner-codebook/serializeScanResult";
+} from "@/lib/vegarank-codebook/serializeScanResult";
 import { getScannerStorageAdapter } from "@/lib/storage/storageAdapter";
 
 export const runtime = "nodejs";
@@ -257,7 +257,7 @@ export async function GET(request: Request) {
     return NextResponse.json(
       {
         error: "Failed to scan Binance markets.",
-        message: error instanceof Error ? error.message : "Remote scanner request failed.",
+        message: error instanceof Error ? error.message : "Remote ranking request failed.",
         errorCode: "SCANNER_ROUTE_FAILED",
         details: {
           route: "/api/rankings",
@@ -381,7 +381,7 @@ async function scanMarkets({
   }
 
   const [{ scanLocalMarket }, store] = await Promise.all([
-    import("@/lib/scanner/scanLocalMarket"),
+    import("@/lib/ranking-engine/scanLocalMarket"),
     createMarketDataStore(),
   ]);
 
@@ -548,9 +548,9 @@ function parseSource(value: string | null) {
 function cachedSourceUnavailableResponse() {
   return NextResponse.json(
     {
-      error: "Cached scanner source is not available.",
+      error: "Cached ranking source is not available.",
       message:
-        "source=cached is feature-gated and no latest-scan JSON reader is configured in this deployment yet.",
+        "source=cached is feature-gated and no latest-rankings JSON reader is configured in this deployment yet.",
       errorCode: "CACHED_SOURCE_UNAVAILABLE",
       source: "cached",
       results: [],

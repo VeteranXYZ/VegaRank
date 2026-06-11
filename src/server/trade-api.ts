@@ -18,30 +18,30 @@ import {
   type MarketContextRunContext,
   type MarketContextTimeframe,
 } from "@/lib/market-context/marketContext";
-import { buildLatestScanResponse } from "@/lib/scanner/latestScanResponse";
+import { buildLatestRankingsResponse } from "@/lib/ranking-engine/latestRankingsResponse";
 import {
-  classifyScanResultGroup,
-  compareScanResultGroupItems,
-  getScanResultReview,
-  type ScanResultGroup,
-} from "@/lib/scanner/scanResultGroups";
+  classifyRankingResultGroup,
+  compareRankingResultGroupItems,
+  getRankingResultReview,
+  type RankingResultGroup,
+} from "@/lib/ranking-engine/rankingResultGroups";
 import {
   serializeStoredSignalToCodeContract,
   type PublicStoredScannerSignal,
-} from "@/lib/scanner-codebook/serializeStoredSignal";
+} from "@/lib/vegarank-codebook/serializeStoredSignal";
 import { PgMarketDataStore } from "@/lib/storage/postgres/marketDataPg";
 import {
   HISTORICAL_SNAPSHOT_OBSERVATION_WINDOWS,
   LATEST_SCAN_FULL_UNIVERSE_MIN_SYMBOLS,
-  PgScannerResultsStore,
+  PgRankingResultsStore,
   isLikelyFullUniverseRun,
   normalizeHistoricalSnapshotObservationWindow,
   type HistoricalObservationMarketCandleCoverage,
   type HistoricalSnapshotObservationRecord,
   type HistoricalSnapshotObservationWindow,
-  type LatestScanSignalRecord,
+  type LatestRankingSignalRecord,
   type ScanRunRecord,
-} from "@/lib/storage/postgres/scannerResultsPg";
+} from "@/lib/storage/postgres/rankingResultsPg";
 import {
   PgSymbolResearchStore,
   type SymbolResearchCandleCoverageRecord,
@@ -239,12 +239,12 @@ export async function handleTradeApiRequest(
     }
 
     if (url.pathname === "/api/rankings/latest") {
-      await handleLatestScan(response, url);
+      await handleLatestRankings(response, url);
       return;
     }
 
     if (url.pathname === "/api/rankings/mtf-latest") {
-      await handleMtfLatestScan(response, url);
+      await handleMtfLatestRankings(response, url);
       return;
     }
 
@@ -1097,7 +1097,7 @@ async function handleMarketContext(response: http.ServerResponse, url: URL) {
     return;
   }
 
-  const store = new PgScannerResultsStore();
+  const store = new PgRankingResultsStore();
   const preferFullUniverse = shouldPreferFullUniverseLatestRun({
     assetClass: assetClass.value,
     includeNonScanner: false,
@@ -1106,7 +1106,7 @@ async function handleMarketContext(response: http.ServerResponse, url: URL) {
   try {
     const timeframeResults = await Promise.all(
       MARKET_CONTEXT_TIMEFRAMES.map(async (timeframe) => {
-        const run = await store.getLatestScanRun({
+        const run = await store.getLatestRankingRun({
           timeframe,
           assetClass: assetClass.value,
           preferFullUniverse,
@@ -1121,7 +1121,7 @@ async function handleMarketContext(response: http.ServerResponse, url: URL) {
           };
         }
 
-        const signals = await store.listLatestScanSignalsForRun({
+        const signals = await store.listLatestRankingSignalsForRun({
           scanRunId: run.id,
           timeframe,
           assetClass: assetClass.value,
@@ -1188,7 +1188,7 @@ async function handleMarketContext(response: http.ServerResponse, url: URL) {
   }
 }
 
-async function handleLatestScan(response: http.ServerResponse, url: URL) {
+async function handleLatestRankings(response: http.ServerResponse, url: URL) {
   const timeframe = url.searchParams.get("timeframe")?.trim() ?? "4h";
   const assetClass = parseAssetClassParam(url.searchParams.get("assetClass"));
   const includeLowQuality = parseBooleanParam(url.searchParams.get("includeLowQuality"));
@@ -1227,14 +1227,14 @@ async function handleLatestScan(response: http.ServerResponse, url: URL) {
     return;
   }
 
-  const store = new PgScannerResultsStore();
+  const store = new PgRankingResultsStore();
   const preferFullUniverse = shouldPreferFullUniverseLatestRun({
     assetClass: assetClass.value,
     includeNonScanner,
   });
 
   try {
-    const run = await store.getLatestScanRun({
+    const run = await store.getLatestRankingRun({
       timeframe,
       assetClass: assetClass.value,
       preferFullUniverse,
@@ -1258,7 +1258,7 @@ async function handleLatestScan(response: http.ServerResponse, url: URL) {
       return;
     }
 
-    const signals = await store.listLatestScanSignalsForRun({
+    const signals = await store.listLatestRankingSignalsForRun({
       scanRunId: run.id,
       timeframe,
       assetClass: assetClass.value,
@@ -1266,7 +1266,7 @@ async function handleLatestScan(response: http.ServerResponse, url: URL) {
       includeMarketContext,
       includeCoverage: false,
     });
-    const latestScan = buildLatestScanResponse({
+    const latestRankings = buildLatestRankingsResponse({
       run,
       signals,
       limit: limit.value,
@@ -1279,9 +1279,9 @@ async function handleLatestScan(response: http.ServerResponse, url: URL) {
     });
 
     sendJson(response, 200, {
-      ...latestScan,
+      ...latestRankings,
       summary: {
-        ...latestScan.summary,
+        ...latestRankings.summary,
         latestRunSelection,
       },
       service: serviceName,
@@ -1291,7 +1291,7 @@ async function handleLatestScan(response: http.ServerResponse, url: URL) {
       includeLowQuality,
       includeNonScanner,
       includeMarketContext,
-      count: latestScan.items.length,
+      count: latestRankings.items.length,
     });
   } catch (error) {
     sendJson(response, 503, {
@@ -1303,7 +1303,7 @@ async function handleLatestScan(response: http.ServerResponse, url: URL) {
   }
 }
 
-async function handleMtfLatestScan(response: http.ServerResponse, url: URL) {
+async function handleMtfLatestRankings(response: http.ServerResponse, url: URL) {
   const assetClass = parseAssetClassParam(url.searchParams.get("assetClass"));
   const includeNonScanner = parseBooleanParam(url.searchParams.get("includeNonScanner"));
   const includeMarketContext = parseBooleanParam(
@@ -1319,7 +1319,7 @@ async function handleMtfLatestScan(response: http.ServerResponse, url: URL) {
     return;
   }
 
-  const store = new PgScannerResultsStore();
+  const store = new PgRankingResultsStore();
   const preferFullUniverse = shouldPreferFullUniverseLatestRun({
     assetClass: assetClass.value,
     includeNonScanner,
@@ -1328,7 +1328,7 @@ async function handleMtfLatestScan(response: http.ServerResponse, url: URL) {
   try {
     const timeframeResults = await Promise.all(
       MTF_LATEST_TIMEFRAMES.map(async (timeframe) => {
-        const run = await store.getLatestScanRun({
+        const run = await store.getLatestRankingRun({
           timeframe,
           assetClass: assetClass.value,
           preferFullUniverse,
@@ -1343,7 +1343,7 @@ async function handleMtfLatestScan(response: http.ServerResponse, url: URL) {
           };
         }
 
-        const signals = await store.listLatestScanSignalsForRun({
+        const signals = await store.listLatestRankingSignalsForRun({
           scanRunId: run.id,
           timeframe,
           assetClass: assetClass.value,
@@ -1454,7 +1454,7 @@ function buildLatestRunSelectionMetadata({
   assetClass,
   preferredFullUniverse,
 }: {
-  run: Awaited<ReturnType<PgScannerResultsStore["getLatestScanRun"]>>;
+  run: Awaited<ReturnType<PgRankingResultsStore["getLatestRankingRun"]>>;
   assetClass: SymbolAssetClassFilter;
   preferredFullUniverse: boolean;
 }) {
@@ -1512,7 +1512,7 @@ function buildMtfLatestRunMetadata({
 }
 
 function buildMtfLatestSignalItem(
-  signal: LatestScanSignalRecord,
+  signal: LatestRankingSignalRecord,
   timeframe: MtfLatestTimeframe,
 ) {
   const quality = getSymbolQuality(signal.symbol, {
@@ -1566,7 +1566,7 @@ function buildAvailableMarketContextProxy({
   timeframe,
   runContext,
 }: {
-  signal: LatestScanSignalRecord;
+  signal: LatestRankingSignalRecord;
   timeframe: MarketContextTimeframe;
   runContext: MarketContextRunContext;
 }): AvailableMarketContextProxy {
@@ -1606,11 +1606,11 @@ function createMtfTimeframeMap<T>(value: T): MtfLatestTimeframeMap<T> {
 }
 
 type EnrichedSymbolResearchSignal = SymbolResearchSignalRecord & {
-  resultGroup: ScanResultGroup;
+  resultGroup: RankingResultGroup;
   sourceRunIsLikelyFullUniverse: boolean | null;
   isSelectedCurrentRun: boolean;
   isNewerThanSelectedCurrentRun: boolean;
-} & ReturnType<typeof getScanResultReview>;
+} & ReturnType<typeof getRankingResultReview>;
 
 type PublicSymbolResearchSignal = PublicStoredScannerSignal & {
   scanRunStartedAt: string | null;
@@ -1633,8 +1633,8 @@ function enrichSymbolResearchSignal(
     assetClass?: SymbolAssetClassFilter;
   } = {},
 ): EnrichedSymbolResearchSignal {
-  const resultGroup = classifyScanResultGroup(signal);
-  const review = getScanResultReview({ ...signal, resultGroup });
+  const resultGroup = classifyRankingResultGroup(signal);
+  const review = getRankingResultReview({ ...signal, resultGroup });
   const isSamePrimaryTimeframe =
     currentSignal?.timeframe !== undefined && signal.timeframe === currentSignal.timeframe;
   const isSelectedCurrentRun =
@@ -1681,7 +1681,7 @@ function buildSymbolResearchCurrentSelectionMetadata({
   assetClass,
   preferredFullUniverse,
 }: {
-  run: Awaited<ReturnType<PgScannerResultsStore["getLatestScanRun"]>>;
+  run: Awaited<ReturnType<PgRankingResultsStore["getLatestRankingRun"]>>;
   signal: SymbolResearchSignalRecord | null;
   assetClass: SymbolAssetClassFilter;
   preferredFullUniverse: boolean;
@@ -1837,7 +1837,7 @@ function buildSymbolResearchUnavailableSelectedRun({
   assetClass,
   preferredFullUniverse,
 }: {
-  run: Awaited<ReturnType<PgScannerResultsStore["getLatestScanRun"]>>;
+  run: Awaited<ReturnType<PgRankingResultsStore["getLatestRankingRun"]>>;
   assetClass: SymbolAssetClassFilter;
   preferredFullUniverse: boolean;
 }) {
@@ -1869,7 +1869,7 @@ function getSymbolResearchUnavailableReason({
   scanRun,
   coverage,
 }: {
-  scanRun: Awaited<ReturnType<PgScannerResultsStore["getLatestScanRun"]>>;
+  scanRun: Awaited<ReturnType<PgRankingResultsStore["getLatestRankingRun"]>>;
   coverage: SymbolResearchCandleCoverageRecord;
 }): SymbolResearchUnavailableReason {
   if (!scanRun) {
@@ -2059,7 +2059,7 @@ async function handleScanRuns(response: http.ServerResponse, url: URL) {
     return;
   }
 
-  const store = new PgScannerResultsStore();
+  const store = new PgRankingResultsStore();
 
   try {
     const runs = await store.listScanRuns({ limit: limit.value });
@@ -2115,7 +2115,7 @@ async function handleHistorySnapshots(response: http.ServerResponse, url: URL) {
     return;
   }
 
-  const store = new PgScannerResultsStore();
+  const store = new PgRankingResultsStore();
 
   try {
     const runs = await store.listHistoricalScanRuns({
@@ -2192,7 +2192,7 @@ async function handleHistorySnapshot(response: http.ServerResponse, url: URL) {
     return;
   }
 
-  const store = new PgScannerResultsStore();
+  const store = new PgRankingResultsStore();
 
   try {
     const run = await store.getHistoricalScanRun({
@@ -2211,7 +2211,7 @@ async function handleHistorySnapshot(response: http.ServerResponse, url: URL) {
       return;
     }
 
-    const signals = await store.listLatestScanSignalsForRun({
+    const signals = await store.listLatestRankingSignalsForRun({
       scanRunId: run.id,
       timeframe: run.timeframe,
       assetClass: assetClass.value,
@@ -2220,7 +2220,7 @@ async function handleHistorySnapshot(response: http.ServerResponse, url: URL) {
       includeCoverage: false,
     });
     const rows = signals
-      .sort(compareScanResultGroupItems)
+      .sort(compareRankingResultGroupItems)
       .map(buildHistoricalSnapshotRow);
     const scannerVersion = firstNonEmpty(rows.map((row) => row.scannerVersion));
     const scoringVersion = firstNonEmpty(rows.map((row) => row.scoringVersion));
@@ -2318,7 +2318,7 @@ async function handleHistoryObservationReadiness(
     return;
   }
 
-  const store = new PgScannerResultsStore();
+  const store = new PgRankingResultsStore();
 
   try {
     const [runs, coverage] = await Promise.all([
@@ -2489,7 +2489,7 @@ async function handleHistorySnapshotObservations(
     return;
   }
 
-  const store = new PgScannerResultsStore();
+  const store = new PgRankingResultsStore();
 
   try {
     const observations = await store.getHistoricalSnapshotObservations({
@@ -2511,7 +2511,7 @@ async function handleHistorySnapshotObservations(
 
     const rows = observations.rows
       .map(buildHistoricalSnapshotObservationRow)
-      .sort(compareScanResultGroupItems);
+      .sort(compareRankingResultGroupItems);
     const counts = buildHistoricalSnapshotObservationCounts(rows);
     const summary = buildHistoricalSnapshotObservationSummary({
       run: observations.run,
@@ -2649,7 +2649,7 @@ async function findRecommendedHistoryObservationRun({
   window,
   coverage,
 }: {
-  store: PgScannerResultsStore;
+  store: PgRankingResultsStore;
   runs: ScanRunRecord[];
   assetClass: SymbolAssetClassFilter;
   window: HistoricalSnapshotObservationWindow;
@@ -2689,7 +2689,7 @@ async function buildHistoryObservationRunAssessment({
   window,
   coverage,
 }: {
-  store: PgScannerResultsStore;
+  store: PgRankingResultsStore;
   run: ScanRunRecord;
   assetClass: SymbolAssetClassFilter;
   window: HistoricalSnapshotObservationWindow;
@@ -3133,7 +3133,7 @@ function getHistoryObservationTimeframeMs(timeframe: string) {
   }
 }
 
-function buildHistoricalSnapshotRow(signal: LatestScanSignalRecord) {
+function buildHistoricalSnapshotRow(signal: LatestRankingSignalRecord) {
   const publicSignal = serializeStoredSignalToCodeContract(signal);
 
   return {

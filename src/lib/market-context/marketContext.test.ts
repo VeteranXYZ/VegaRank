@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { ScanResultGroup } from "@/lib/scanner/scanResultGroups";
+import type { RankingResultGroup } from "@/lib/ranking-engine/rankingResultGroups";
 import {
   actionCodeByBias,
   groupCodeByResultGroup,
@@ -7,7 +7,7 @@ import {
   scannerCodeVersions,
   signalCodeByLabel,
   setupCodeByPrimaryStructure,
-} from "@/lib/scanner-codebook/codeRegistry";
+} from "@/lib/vegarank-codebook/codeRegistry";
 import {
   buildMarketContextResponse,
   createUnavailableMarketContextProxy,
@@ -367,7 +367,7 @@ function signal({
   detectedRiskTypes = [],
 }: {
   timeframe: MarketContextTimeframe;
-  group: ScanResultGroup;
+  group: RankingResultGroup;
   rankScore: number | null;
   signalLabel?: string | null;
   actionBias?: string | null;

@@ -37,7 +37,7 @@ Production query/storage code:
   - Upserts Binance symbols and candles.
   - Lists candles by symbol and timeframe.
   - Reports candle coverage and sync jobs.
-- `src/lib/storage/postgres/scannerResultsPg.ts`
+- `src/lib/storage/postgres/rankingResultsPg.ts`
   - Creates and finishes `scan_runs`.
   - Inserts `scan_signals`.
   - Selects the latest successful run by `scan_runs.id`, ordered by `finished_at desc nulls last, started_at desc`.
@@ -142,8 +142,8 @@ Next app APIs:
   - Fetches the same MTF latest data and filters it to user-selected symbols.
   - Uses local browser storage for the user's watchlist. Phase 12 should not add more localStorage.
 - `app/archive/page.tsx`
-  - The public History page currently says persistence is disabled.
-- `src/components/archive/HistoryPageClient.tsx`
+  - The public Research Archive page currently says persistence is disabled.
+- `src/components/archive/ArchivePageClient.tsx`
   - Older local history UI exists but is not currently used by `app/archive/page.tsx`.
 
 ### Current evaluation-related code

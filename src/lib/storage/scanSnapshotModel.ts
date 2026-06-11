@@ -1,12 +1,12 @@
 import { TIMEFRAMES, type Timeframe } from "@/lib/exchanges/types";
-import type { MtfPreset } from "@/lib/scanner/multiTimeframe";
+import type { MtfPreset } from "@/lib/ranking-engine/multiTimeframe";
 import type {
   MarketPhase,
   MultiTimeframeAlignment,
   ScanResult,
   ScannerObservation,
   ScannerSignalState,
-} from "@/lib/scanner/types";
+} from "@/lib/ranking-engine/types";
 
 export type ScanSnapshotMode = "single" | "mtf";
 

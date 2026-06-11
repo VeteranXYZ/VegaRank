@@ -9,7 +9,7 @@ import {
   isLocalPersistenceDisabled,
   localPersistenceUnavailableMessage,
 } from "@/lib/runtime/localPersistence";
-import { scanCandles } from "@/lib/scanner/scanCandles";
+import { scanCandles } from "@/lib/ranking-engine/scanCandles";
 
 const DEFAULT_CANDLE_LIMIT = 300;
 const MAX_CANDLE_LIMIT = 1000;

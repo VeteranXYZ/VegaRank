@@ -1,5 +1,5 @@
-import type { ScanResultGroup } from "@/lib/scanner/scanResultGroups";
-import type { ActiveScannerCode } from "@/lib/scanner-codebook/codeRegistry";
+import type { RankingResultGroup } from "@/lib/ranking-engine/rankingResultGroups";
+import type { ActiveScannerCode } from "@/lib/vegarank-codebook/codeRegistry";
 
 export const MARKET_CONTEXT_SYMBOLS = ["BTCUSDT", "ETHUSDT"] as const;
 export const MARKET_CONTEXT_TIMEFRAMES = ["1w", "1d", "4h"] as const;
@@ -733,7 +733,7 @@ function hasMajorDetectedRisk(proxy: AvailableMarketContextProxy) {
   return proxy.riskCodes.some((riskCode) => MAJOR_RISK_CODES.has(riskCode));
 }
 
-function getProxyGroup(proxy: AvailableMarketContextProxy): ScanResultGroup {
+function getProxyGroup(proxy: AvailableMarketContextProxy): RankingResultGroup {
   switch (proxy.groupCode) {
     case "GR_601":
     case "GR_501":

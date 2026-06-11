@@ -4,6 +4,7 @@ import { formatScanEvaluationNote, formatScannerObservation } from "./formatScan
 import {
   APP_LANGUAGE_STORAGE_KEY,
   DEFAULT_APP_LANGUAGE,
+  LEGACY_APP_LANGUAGE_STORAGE_KEY,
   getInitialAppLanguage,
   isSupportedAppLanguage,
   readSavedAppLanguage,
@@ -42,6 +43,16 @@ describe("app language helpers", () => {
     expect(readSavedAppLanguage()).toBe("zh");
     expect(isSupportedAppLanguage("zh")).toBe(true);
     expect(isSupportedAppLanguage("fr")).toBe(false);
+  });
+
+  it("migrates the legacy Trade Scanner language key", () => {
+    const storage = makeStorage();
+
+    storage.setItem(LEGACY_APP_LANGUAGE_STORAGE_KEY, "zh");
+    vi.stubGlobal("window", { localStorage: storage });
+
+    expect(readSavedAppLanguage()).toBe("zh");
+    expect(storage.getItem(APP_LANGUAGE_STORAGE_KEY)).toBe("zh");
   });
 
   it("renders scanner text from the selected saved language", () => {
