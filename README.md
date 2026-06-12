@@ -581,7 +581,7 @@ Tracked runner commands:
 Manual one-off run from the VPS project directory:
 
 ```bash
-cd /home/ubuntu/apps/trade-scanner
+cd /home/ubuntu/apps/vegarank
 mkdir -p .data/logs .data/locks
 pnpm production:4h
 ```
@@ -590,23 +590,23 @@ Suggested BaoTa scheduled task commands:
 
 ```bash
 # 1h: hourly, slightly after the hour
-cd /home/ubuntu/apps/trade-scanner && pnpm production:1h >> .data/logs/production-1h.log 2>&1
+cd /home/ubuntu/apps/vegarank && pnpm production:1h >> .data/logs/production-1h.log 2>&1
 
 # 4h: every 4 hours, after candle close
-cd /home/ubuntu/apps/trade-scanner && pnpm production:4h >> .data/logs/production-4h.log 2>&1
+cd /home/ubuntu/apps/vegarank && pnpm production:4h >> .data/logs/production-4h.log 2>&1
 
 # 1d: daily after UTC daily candle close
-cd /home/ubuntu/apps/trade-scanner && pnpm production:1d >> .data/logs/production-1d.log 2>&1
+cd /home/ubuntu/apps/vegarank && pnpm production:1d >> .data/logs/production-1d.log 2>&1
 
 # 1w: weekly after UTC weekly candle close
-cd /home/ubuntu/apps/trade-scanner && pnpm production:1w >> .data/logs/production-1w.log 2>&1
+cd /home/ubuntu/apps/vegarank && pnpm production:1w >> .data/logs/production-1w.log 2>&1
 ```
 
 If BaoTa requires absolute script paths instead of package commands, call the
 matching wrapper directly, for example:
 
 ```bash
-cd /home/ubuntu/apps/trade-scanner && /home/ubuntu/apps/trade-scanner/scripts/production/run-1h-production.sh >> /home/ubuntu/apps/trade-scanner/.data/logs/run-1h-production.log 2>&1
+cd /home/ubuntu/apps/vegarank && /home/ubuntu/apps/vegarank/scripts/production/run-1h-production.sh >> /home/ubuntu/apps/vegarank/.data/logs/run-1h-production.log 2>&1
 ```
 
 Log checks:

@@ -94,7 +94,7 @@ describe("production scripts", () => {
     }
 
     expect(readme).toContain(
-      "cd /home/ubuntu/apps/trade-scanner && /home/ubuntu/apps/trade-scanner/scripts/production/run-1h-production.sh >> /home/ubuntu/apps/trade-scanner/.data/logs/run-1h-production.log 2>&1",
+      "cd /home/ubuntu/apps/vegarank && /home/ubuntu/apps/vegarank/scripts/production/run-1h-production.sh >> /home/ubuntu/apps/vegarank/.data/logs/run-1h-production.log 2>&1",
     );
   });
 

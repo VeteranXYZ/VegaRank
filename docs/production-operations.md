@@ -19,7 +19,7 @@ This runbook covers production deployment, ranking job scheduling, verification,
 Use this workflow when the VPS repo needs the latest files from GitHub `main`.
 
 ```bash
-cd ~/apps/trade-scanner
+cd ~/apps/vegarank
 git status
 git log --oneline -5
 ```
@@ -60,7 +60,7 @@ If `src/server/trade-api.ts` or API runtime code changes, pull the latest repo o
 If only docs, frontend files, tests, or scanner scripts changed, PM2 restart is not needed unless those changes affect API runtime behavior.
 
 ```bash
-cd ~/apps/trade-scanner
+cd ~/apps/vegarank
 git status
 git pull origin main
 pnpm install --frozen-lockfile
@@ -105,25 +105,25 @@ Do not install these from this runbook automatically. Copy them into BaoTa or an
 1h:
 
 ```bash
-cd ~/apps/trade-scanner && pnpm production:1h >> .data/logs/production-1h.log 2>&1
+cd ~/apps/vegarank && pnpm production:1h >> .data/logs/production-1h.log 2>&1
 ```
 
 4h:
 
 ```bash
-cd ~/apps/trade-scanner && pnpm production:4h >> .data/logs/production-4h.log 2>&1
+cd ~/apps/vegarank && pnpm production:4h >> .data/logs/production-4h.log 2>&1
 ```
 
 1d:
 
 ```bash
-cd ~/apps/trade-scanner && pnpm production:1d >> .data/logs/production-1d.log 2>&1
+cd ~/apps/vegarank && pnpm production:1d >> .data/logs/production-1d.log 2>&1
 ```
 
 1w:
 
 ```bash
-cd ~/apps/trade-scanner && pnpm production:1w >> .data/logs/production-1w.log 2>&1
+cd ~/apps/vegarank && pnpm production:1w >> .data/logs/production-1w.log 2>&1
 ```
 
 Recommended schedule:
