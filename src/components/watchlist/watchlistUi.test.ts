@@ -215,11 +215,13 @@ describe("watchlist row handling", () => {
       "/symbol/binance/BTCUSDT?timeframe=4h&assetClass=crypto&from=watchlist",
     );
     expect(getWatchlistResearchTimeframe(onlyDaily)).toBe("1d");
-    expect(getWatchlistResearchTimeframe(missing)).toBeNull();
-    expect(buildWatchlistResearchHref({ row: missing })).toBeNull();
+    expect(getWatchlistResearchTimeframe(missing)).toBe("4h");
+    expect(buildWatchlistResearchHref({ row: missing })).toBe(
+      "/symbol/binance/SOLUSDT?timeframe=4h&assetClass=crypto&from=watchlist",
+    );
   });
 
-  it("filters by search, missing rows, higher timeframe risk, and short-term watch", () => {
+  it("filters by search, research group, risk context, and missing snapshots", () => {
     const rows = buildWatchlistRows(
       ["AAA", "BBB", "CCC", "DDD"],
       buildMtfScreenerRows({
@@ -228,6 +230,7 @@ describe("watchlist row handling", () => {
             symbol: "AAAUSDT",
             timeframe: "1h",
             resultGroup: "eligible",
+            rankScore: 60,
           }),
           makeItem({ symbol: "BBBUSDT", timeframe: "1h", resultGroup: "watch" }),
           makeItem({ symbol: "CCCUSDT", timeframe: "1h", resultGroup: "risk" }),
@@ -247,33 +250,49 @@ describe("watchlist row handling", () => {
     expect(
       filterWatchlistRows(rows, {
         ...defaultWatchlistFilters,
-        hideMissing: true,
+        researchGroup: "missing",
       }).map((row) => row.symbol),
-    ).toEqual(["AAAUSDT", "BBBUSDT", "CCCUSDT"]);
+    ).toEqual(["DDDUSDT"]);
     expect(
       filterWatchlistRows(rows, {
         ...defaultWatchlistFilters,
-        exclude1dRisk: true,
+        researchGroup: "eligible",
       }).map((row) => row.symbol),
-    ).toEqual(["AAAUSDT", "CCCUSDT", "DDDUSDT"]);
+    ).toEqual(["AAAUSDT"]);
     expect(
       filterWatchlistRows(rows, {
         ...defaultWatchlistFilters,
-        onlyShortTermWatch: true,
+        riskContext: "withRisk",
       }).map((row) => row.symbol),
-    ).toEqual(["AAAUSDT", "BBBUSDT"]);
+    ).toEqual(["BBBUSDT", "CCCUSDT"]);
+    expect(
+      filterWatchlistRows(rows, {
+        ...defaultWatchlistFilters,
+        riskContext: "withoutRisk",
+      }).map((row) => row.symbol),
+    ).toEqual(["AAAUSDT"]);
   });
 
-  it("sorts by symbol, rank, higher-timeframe safety, and best short-term rank", () => {
+  it("sorts by symbol, latest rank score, research group, and updated time", () => {
     const rows = buildWatchlistRows(
       ["CCC", "AAA", "BBB", "DDD"],
       buildMtfScreenerRows({
         "1h": makeResponse("1h", [
           makeItem({ symbol: "AAAUSDT", timeframe: "1h", rankScore: 20 }),
-          makeItem({ symbol: "BBBUSDT", timeframe: "1h", rankScore: 90 }),
+          makeItem({
+            symbol: "BBBUSDT",
+            timeframe: "1h",
+            resultGroup: "watch",
+            rankScore: 90,
+          }),
         ]),
         "4h": makeResponse("4h", [
-          makeItem({ symbol: "CCCUSDT", timeframe: "4h", rankScore: 70 }),
+          makeItem({
+            symbol: "CCCUSDT",
+            timeframe: "4h",
+            resultGroup: "eligible",
+            rankScore: 70,
+          }),
         ]),
         "1d": makeResponse("1d", [
           makeItem({ symbol: "AAAUSDT", timeframe: "1d", resultGroup: "risk" }),
@@ -293,22 +312,22 @@ describe("watchlist row handling", () => {
       ),
     ).toEqual(["AAAUSDT", "BBBUSDT", "CCCUSDT", "DDDUSDT"]);
     expect(
-      sortWatchlistRows(rows, { field: "1h_rank", direction: "desc" }).map(
+      sortWatchlistRows(rows, { field: "rank_score", direction: "desc" }).map(
         (row) => row.symbol,
       ),
-    ).toEqual(["BBBUSDT", "AAAUSDT", "CCCUSDT", "DDDUSDT"]);
+    ).toEqual(["BBBUSDT", "CCCUSDT", "AAAUSDT", "DDDUSDT"]);
     expect(
       sortWatchlistRows(rows, {
-        field: "higher_timeframe_safety",
+        field: "research_group",
         direction: "desc",
       }).map((row) => row.symbol),
     ).toEqual(["CCCUSDT", "BBBUSDT", "AAAUSDT", "DDDUSDT"]);
     expect(
       sortWatchlistRows(rows, {
-        field: "best_short_term_rank",
+        field: "updated",
         direction: "desc",
       }).map((row) => row.symbol),
-    ).toEqual(["BBBUSDT", "CCCUSDT", "AAAUSDT", "DDDUSDT"]);
+    ).toEqual(["CCCUSDT", "AAAUSDT", "BBBUSDT", "DDDUSDT"]);
   });
 });
 
@@ -443,7 +462,7 @@ describe("watchlist research summary", () => {
       },
       {
         symbol: "MISSINGUSDT",
-        timeframe: null,
+        timeframe: "4h",
         reason: "No latest research snapshot available.",
         rankScore: null,
       },

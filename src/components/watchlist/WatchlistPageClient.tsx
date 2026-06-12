@@ -33,13 +33,8 @@ import { getVegaRankApiBaseUrl } from "@/lib/runtime/vegaRankApi";
 import {
   MTF_SCREENER_TIMEFRAMES,
   buildMtfScreenerRowsFromResponse,
-  formatMtfGroup,
-  formatMtfRank,
   getMtfHigherTimeframeHealth,
-  getMtfRiskNotesSummary,
   type MtfLatestScreenerResponse,
-  type MtfScreenerSnapshot,
-  type MtfScreenerTimeframe,
 } from "@/components/screener/multiTimeframeScreenerUi";
 import {
   DEFAULT_WATCHLIST_SYMBOLS,
@@ -52,14 +47,24 @@ import {
   defaultWatchlistSort,
   filterWatchlistRows,
   formatWatchlistInput,
+  getWatchlistActionLabel,
+  getWatchlistConfidenceLabel,
+  getWatchlistLatestSnapshotLabel,
+  getWatchlistRankScoreLabel,
+  getWatchlistResearchGroupLabel,
   getWatchlistResearchTimeframe,
+  getWatchlistRiskContextLabel,
   getWatchlistSummary,
+  getWatchlistUpdatedAt,
   importWatchlistSymbols,
+  isHighPriorityWatchlistRow,
   loadWatchlistSymbols,
   parseWatchlistSymbols,
   removeWatchlistSymbol,
   saveWatchlistSymbols,
   sortWatchlistRows,
+  watchlistResearchGroupOptions,
+  watchlistRiskContextOptions,
   watchlistPresets,
   watchlistSortOptions,
   type WatchlistFilters,
@@ -297,12 +302,15 @@ export function WatchlistPageClient({
     void latestQuery.refetch();
     void marketContextQuery.refetch();
   };
+  const clearFilters = () => {
+    setFilters(defaultWatchlistFilters);
+    setSortState(defaultWatchlistSort);
+  };
 
   return (
     <PageShell className="watchlist-terminal max-w-none xl:h-full xl:min-h-0 xl:overflow-hidden">
       <WatchlistCommandBar
         summary={summary}
-        researchSummary={researchSummary}
         sourceData={latestData}
         isLoading={latestIsLoading}
         isError={latestIsError}
@@ -315,12 +323,18 @@ export function WatchlistPageClient({
         onResetDefault={resetDefault}
         onClear={clearWatchlist}
       />
-      <p className="mb-1 text-[11px] leading-4 text-[var(--muted)]">
-        Local Watchlist stores selected symbols in this browser and displays
-        each row against the latest available research snapshot.
-      </p>
+      <section className="terminal-panel-muted mb-2 px-2 py-1.5 text-[11px] leading-4 text-[var(--muted)]">
+        <span className="font-semibold text-[var(--foreground)]">
+          Saved locally in this browser.
+        </span>{" "}
+        Selected symbols are monitored against the latest available research snapshot.
+      </section>
 
-      <div className="grid min-h-0 flex-1 gap-2 xl:grid-cols-[232px_minmax(0,1fr)] xl:overflow-hidden">
+      <main className="min-w-0 space-y-2 xl:flex xl:min-h-0 xl:flex-col xl:overflow-hidden">
+        <WatchlistSummaryCards
+          summary={summary}
+          researchSummary={researchSummary}
+        />
         <WatchlistControls
           draftInput={draftInput}
           importInput={importInput}
@@ -334,14 +348,14 @@ export function WatchlistPageClient({
           onImport={importSymbols}
           onCopyExport={copyExportText}
           onFilterChange={updateFilter}
-          className="order-2 xl:order-1"
+          sortState={sortState}
+          onSortStateChange={setSortState}
+          onClearFilters={clearFilters}
+          onRefresh={refreshData}
+          isRefreshing={latestIsFetching || marketContextIsFetching}
+          isVisualCheck={isVisualCheck}
         />
 
-        <main className="order-1 min-w-0 space-y-2 xl:order-2 xl:flex xl:min-h-0 xl:flex-col xl:overflow-hidden">
-          <WatchlistSummaryCards
-            summary={summary}
-            researchSummary={researchSummary}
-          />
           {!latestIsError ? (
             <WatchlistSourcePanel
               data={latestData}
@@ -398,15 +412,13 @@ export function WatchlistPageClient({
           <footer className="terminal-panel px-3 py-1.5 text-[11px] text-[var(--muted)]">
             {shortResearchDisclaimer}
           </footer>
-        </main>
-      </div>
+      </main>
     </PageShell>
   );
 }
 
 function WatchlistCommandBar({
   summary,
-  researchSummary,
   sourceData,
   isLoading,
   isError,
@@ -420,7 +432,6 @@ function WatchlistCommandBar({
   onClear,
 }: {
   summary: WatchlistSummary;
-  researchSummary: WatchlistResearchSummary;
   sourceData?: MtfLatestScreenerResponse;
   isLoading: boolean;
   isError: boolean;
@@ -439,11 +450,10 @@ function WatchlistCommandBar({
     ? `${isVisualCheck ? "visual check " : ""}${sourceData.assetClass} ${sourceData.timeframes.join(" ")}`
     : `${assetClass} ${MTF_SCREENER_TIMEFRAMES.join(" ")}`;
   const commandStats = [
-    ["Selected", summary.totalSelectedSymbols, "accent"],
-    ["Found", summary.foundSymbols, "neutral"],
-    ["Missing", summary.missingSymbols, "missing"],
-    ["Higher Timeframe Risk", summary.higherTimeframeRiskSymbols, "risk"],
-    ["Broad Risk", researchSummary.counts.broadRiskSymbols, "risk"],
+    ["Selected Symbols", summary.totalSelectedSymbols, "accent"],
+    ["High Priority", summary.highPrioritySymbols, "warning"],
+    ["Risk Context", summary.riskContextSymbols, "risk"],
+    ["Missing Snapshot", summary.missingSymbols, "missing"],
   ] as const satisfies ReadonlyArray<readonly [string, number, StatusTone]>;
 
   return (
@@ -454,7 +464,7 @@ function WatchlistCommandBar({
         </div>
         <div className="terminal-command-main">
           <StatusBadge tone={statusTone}>{statusLabel}</StatusBadge>
-          <span className="terminal-command-chip">Saved in this browser</span>
+          <span className="terminal-command-chip">Saved locally in this browser</span>
           <span className="terminal-command-chip">Latest Snapshot</span>
           <span className="terminal-command-chip">{contextLabel.toUpperCase()}</span>
           <span className="terminal-command-chip">
@@ -521,7 +531,7 @@ export function WatchlistTable({
 }) {
   if (rows.length === 0) {
     return (
-      <WatchlistStatePanel message="No local watchlist symbols yet." />
+      <WatchlistEmptyState />
     );
   }
 
@@ -530,7 +540,7 @@ export function WatchlistTable({
       <div className="terminal-panel-header">
         <div className="flex min-w-0 flex-wrap items-center gap-2">
           <h2 className="terminal-panel-title">
-            Latest Snapshot
+            Latest Snapshot Monitor
           </h2>
           <StatusBadge tone="neutral" className="text-[10px]">
             Selected Symbols
@@ -549,7 +559,7 @@ export function WatchlistTable({
         </span>
       </div>
       <DataTableScroll className="xl:min-h-0 xl:flex-1 xl:overflow-auto">
-        <DataTable minWidth="min-w-[990px]" className="table-fixed">
+        <DataTable minWidth="min-w-[1120px]" className="table-fixed">
           <thead className="bg-[var(--table-header)] text-[10px] uppercase text-[var(--muted)]">
             <tr>
               <DataTableHeaderCell<WatchlistSortField>
@@ -561,36 +571,62 @@ export function WatchlistTable({
               >
                 Symbol
               </DataTableHeaderCell>
-              {MTF_SCREENER_TIMEFRAMES.map((timeframe) => (
-                <DataTableHeaderCell<WatchlistSortField>
-                  key={timeframe}
-                  sortKey={`${timeframe}_rank` as WatchlistSortField}
-                  sortState={sortState}
-                  onSortChange={onSortChange}
-                  defaultDirection="desc"
-                  align="center"
-                  className="sticky top-0 z-20 w-[86px] border-l border-[var(--table-group)] bg-[var(--table-header-strong)]"
-                >
-                  {timeframe}
-                </DataTableHeaderCell>
-              ))}
               <DataTableHeaderCell<WatchlistSortField>
-                sortKey="higher_timeframe_safety"
-                sortState={sortState}
-                onSortChange={onSortChange}
-                defaultDirection="asc"
-                className="sticky top-0 z-20 w-[140px] border-l border-[var(--table-group)] bg-[var(--table-header)]"
-              >
-                Latest Group
-              </DataTableHeaderCell>
-              <DataTableHeaderCell<WatchlistSortField>
-                sortKey="best_short_term_rank"
+                sortKey="latest_snapshot"
                 sortState={sortState}
                 onSortChange={onSortChange}
                 defaultDirection="desc"
-                className="sticky top-0 z-20 w-[210px] bg-[var(--table-header)]"
+                className="sticky top-0 z-20 w-[140px] border-l border-[var(--table-group)] bg-[var(--table-header-strong)]"
+              >
+                Latest Snapshot
+              </DataTableHeaderCell>
+              <DataTableHeaderCell<WatchlistSortField>
+                sortKey="research_group"
+                sortState={sortState}
+                onSortChange={onSortChange}
+                defaultDirection="desc"
+                className="sticky top-0 z-20 w-[136px] bg-[var(--table-header)]"
+              >
+                Research Group
+              </DataTableHeaderCell>
+              <DataTableHeaderCell
+                className="sticky top-0 z-20 w-[140px] bg-[var(--table-header)]"
+              >
+                Action
+              </DataTableHeaderCell>
+              <DataTableHeaderCell
+                className="sticky top-0 z-20 w-[220px] bg-[var(--table-header)]"
               >
                 Risk Context
+              </DataTableHeaderCell>
+              <DataTableHeaderCell<WatchlistSortField>
+                sortKey="rank_score"
+                sortState={sortState}
+                onSortChange={onSortChange}
+                defaultDirection="desc"
+                align="right"
+                className="sticky top-0 z-20 w-[104px] bg-[var(--table-header)]"
+              >
+                Rank Score
+              </DataTableHeaderCell>
+              <DataTableHeaderCell<WatchlistSortField>
+                sortKey="confidence"
+                sortState={sortState}
+                onSortChange={onSortChange}
+                defaultDirection="desc"
+                align="right"
+                className="sticky top-0 z-20 w-[104px] bg-[var(--table-header)]"
+              >
+                Confidence
+              </DataTableHeaderCell>
+              <DataTableHeaderCell<WatchlistSortField>
+                sortKey="updated"
+                sortState={sortState}
+                onSortChange={onSortChange}
+                defaultDirection="desc"
+                className="sticky top-0 z-20 w-[156px] bg-[var(--table-header)]"
+              >
+                Updated
               </DataTableHeaderCell>
               <DataTableHeaderCell
                 align="center"
@@ -620,6 +656,11 @@ export function WatchlistTable({
                     <span className="min-w-0 truncate font-mono text-[12px] font-semibold text-[var(--foreground)]">
                       {row.symbol}
                     </span>
+                    {isHighPriorityWatchlistRow(row) ? (
+                      <StatusBadge tone="warning" className="text-[9px]">
+                        High Priority
+                      </StatusBadge>
+                    ) : null}
                   </div>
                   <div className="mt-0.5 truncate text-[9px] uppercase text-[var(--muted)]">
                     {row.mtfRow
@@ -627,26 +668,36 @@ export function WatchlistTable({
                       : "Missing Snapshot"}
                   </div>
                 </DataTableCell>
-                {MTF_SCREENER_TIMEFRAMES.map((timeframe) => (
-                  <DataTableCell
-                    key={`${row.symbol}-${timeframe}`}
-                    align="center"
-                    className="border-l border-[var(--table-group)]"
-                  >
-                    <WatchlistTimeframeCell row={row} timeframe={timeframe} />
-                  </DataTableCell>
-                ))}
+                <DataTableCell className="border-l border-[var(--table-group)]">
+                  <WatchlistLatestSnapshotCell row={row} />
+                </DataTableCell>
                 <DataTableCell
                   className="border-l border-[var(--table-group)]"
                 >
-                  <WatchlistPrimaryCell row={row} />
+                  <WatchlistResearchGroupCell row={row} />
                 </DataTableCell>
                 <DataTableCell>
-                  {row.mtfRow ? (
-                    <RiskNotesCell row={row} />
-                  ) : (
-                    "No latest research snapshot available"
-                  )}
+                  <span className="block truncate" title={getWatchlistActionLabel(row)}>
+                    {getWatchlistActionLabel(row)}
+                  </span>
+                </DataTableCell>
+                <DataTableCell>
+                  <RiskNotesCell row={row} />
+                </DataTableCell>
+                <DataTableCell align="right">
+                  <span className="font-mono tabular-nums">
+                    {getWatchlistRankScoreLabel(row)}
+                  </span>
+                </DataTableCell>
+                <DataTableCell align="right">
+                  <span className="font-mono tabular-nums">
+                    {getWatchlistConfidenceLabel(row)}
+                  </span>
+                </DataTableCell>
+                <DataTableCell>
+                  <span className="text-[11px] text-[var(--muted)]">
+                    {formatDateTime(getWatchlistUpdatedAt(row))}
+                  </span>
                 </DataTableCell>
                 <DataTableCell align="center">
                   <ResearchLink row={row} context={navigationContext} />
@@ -673,26 +724,18 @@ export function WatchlistTable({
 
 export function WatchlistSummaryCards({
   summary,
-  researchSummary,
+  researchSummary: _researchSummary,
 }: {
   summary: WatchlistSummary;
   researchSummary?: WatchlistResearchSummary;
 }) {
   const cards = [
-    ["Selected", summary.totalSelectedSymbols, "accent"],
-    ["Active Candidates", summary.foundSymbols, "accent"],
-    ["Found", summary.foundSymbols, "neutral"],
-    ["Missing", summary.missingSymbols, "missing"],
-    ["Higher Timeframe Risk", summary.higherTimeframeRiskSymbols, "risk"],
-    ["Watch", summary.shortTermWatchSymbols, "warning"],
-    ...(researchSummary
-      ? ([
-          ["Broad Risk", researchSummary.counts.broadRiskSymbols, "risk"],
-          ["Repair", researchSummary.counts.repairInsideRiskSymbols, "warning"],
-          ["Data Gaps", researchSummary.counts.missingImportantDataSymbols, "warning"],
-        ] as const)
-      : []),
-  ] as const satisfies ReadonlyArray<readonly [string, number, StatusTone]>;
+    ["Selected Symbols", String(summary.totalSelectedSymbols), "accent"],
+    ["High Priority", String(summary.highPrioritySymbols), "warning"],
+    ["Risk Context", String(summary.riskContextSymbols), "risk"],
+    ["Missing Snapshot", String(summary.missingSymbols), "missing"],
+    ["Latest Snapshot", formatDateTime(summary.latestSnapshotAt), "neutral"],
+  ] as const satisfies ReadonlyArray<readonly [string, string, StatusTone]>;
 
   return (
     <section className="terminal-panel flex min-w-0 items-center gap-1.5 overflow-x-auto px-2 py-1 [scrollbar-gutter:stable] xl:shrink-0">
@@ -806,7 +849,12 @@ export function WatchlistControls({
   onImport,
   onCopyExport,
   onFilterChange,
-  className = "",
+  sortState,
+  onSortStateChange,
+  onClearFilters,
+  onRefresh,
+  isRefreshing,
+  isVisualCheck,
 }: {
   draftInput: string;
   importInput: string;
@@ -823,48 +871,17 @@ export function WatchlistControls({
     key: Key,
     value: WatchlistFilters[Key],
   ) => void;
-  className?: string;
+  sortState: WatchlistSortState;
+  onSortStateChange: (value: WatchlistSortState) => void;
+  onClearFilters: () => void;
+  onRefresh: () => void;
+  isRefreshing: boolean;
+  isVisualCheck: boolean;
 }) {
   return (
-    <aside className={`terminal-rail p-1.5 xl:min-h-0 xl:overflow-hidden ${className}`}>
-      <section className="space-y-1">
-        <h2 className={railSectionLabelClass}>
-          Symbols
-        </h2>
-        <label className="block">
-          <textarea
-            value={draftInput}
-            onChange={(event) => onDraftInputChange(event.target.value)}
-            className={`${controlClass} h-[76px] resize-none py-1.5 leading-4`}
-            placeholder="BTC, ETH, SOL"
-          />
-        </label>
-      </section>
-
-      <section className="mt-2 space-y-1">
-        <h2 className={railSectionLabelClass}>
-          Presets
-        </h2>
-        <div className="grid grid-cols-2 gap-1">
-          {watchlistPresets.map((preset) => (
-            <button
-              key={preset.id}
-              type="button"
-              onClick={() => onPreset(preset.id)}
-              className="terminal-mini-action is-left min-h-6 justify-start px-1.5 py-0.5 text-[10px] leading-4 text-[var(--foreground)]"
-              title={preset.symbols.join(", ")}
-            >
-              {preset.label}
-            </button>
-          ))}
-        </div>
-      </section>
-
-      <section className="mt-2 space-y-1">
-        <h2 className={railSectionLabelClass}>
-          Filters
-        </h2>
-        <label className="block">
+    <section className="terminal-panel px-2 py-1.5 xl:shrink-0">
+      <div className="flex flex-wrap items-end gap-2">
+        <label className="min-w-[150px] flex-1 md:max-w-[220px]">
           <span className={railFieldLabelClass}>
             Search Symbol
           </span>
@@ -878,59 +895,129 @@ export function WatchlistControls({
             placeholder="BTC"
           />
         </label>
-        <label className={railCheckboxLabelClass}>
-          <input
-            type="checkbox"
-            checked={filters.hideMissing}
-            onChange={() => onFilterChange("hideMissing", !filters.hideMissing)}
-            className={railCheckboxClass}
-          />
-          Show Found Only
-        </label>
-        <label className={railCheckboxLabelClass}>
-          <input
-            type="checkbox"
-            checked={filters.exclude1dRisk}
-            onChange={() =>
-              onFilterChange("exclude1dRisk", !filters.exclude1dRisk)
-            }
-            className={railCheckboxClass}
-          />
-          Exclude 1d risk context
-        </label>
-        <label className={railCheckboxLabelClass}>
-          <input
-            type="checkbox"
-            checked={filters.exclude1wRisk}
-            onChange={() =>
-              onFilterChange("exclude1wRisk", !filters.exclude1wRisk)
-            }
-            className={railCheckboxClass}
-          />
-          Exclude 1w risk context
-        </label>
-        <label className={railCheckboxLabelClass}>
-          <input
-            type="checkbox"
-            checked={filters.onlyShortTermWatch}
-            onChange={() =>
+        <label className="min-w-[150px]">
+          <span className={railFieldLabelClass}>
+            Research Group
+          </span>
+          <select
+            value={filters.researchGroup}
+            onChange={(event) =>
               onFilterChange(
-                "onlyShortTermWatch",
-                !filters.onlyShortTermWatch,
+                "researchGroup",
+                event.target.value as WatchlistFilters["researchGroup"],
               )
             }
-            className={railCheckboxClass}
-          />
-          Show High Priority
+            className={controlClass}
+          >
+            {watchlistResearchGroupOptions.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
         </label>
-      </section>
+        <label className="min-w-[150px]">
+          <span className={railFieldLabelClass}>
+            Risk Context
+          </span>
+          <select
+            value={filters.riskContext}
+            onChange={(event) =>
+              onFilterChange(
+                "riskContext",
+                event.target.value as WatchlistFilters["riskContext"],
+              )
+            }
+            className={controlClass}
+          >
+            {watchlistRiskContextOptions.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="min-w-[150px]">
+          <span className={railFieldLabelClass}>
+            Sort By
+          </span>
+          <select
+            value={`${sortState.field}:${sortState.direction}`}
+            onChange={(event) => {
+              const [field, direction] = event.target.value.split(":");
 
-      <details className={railDetailsClass}>
+              onSortStateChange({
+                field: field as WatchlistSortField,
+                direction: direction as WatchlistSortState["direction"],
+              });
+            }}
+            className={controlClass}
+          >
+            {watchlistSortOptions.map((option) => (
+              <option
+                key={`${option.field}-desc`}
+                value={`${option.field}:desc`}
+              >
+                {option.label} desc
+              </option>
+            ))}
+            {watchlistSortOptions.map((option) => (
+              <option key={`${option.field}-asc`} value={`${option.field}:asc`}>
+                {option.label} asc
+              </option>
+            ))}
+          </select>
+        </label>
+        <button
+          type="button"
+          onClick={onClearFilters}
+          className="terminal-mini-action h-6 px-2 text-[10px]"
+        >
+          Clear Filters
+        </button>
+        <RefreshIconButton
+          onClick={onRefresh}
+          disabled={isRefreshing || isVisualCheck}
+          isRefreshing={isRefreshing}
+          label={isVisualCheck ? "Visual Check Data" : "Refresh Watchlist"}
+        />
+      </div>
+
+      <details className={`${railDetailsClass} mt-2`}>
         <summary className={railSummaryClass}>
-          <span>Import / Export Watchlist</span>
+          <span>Selected Symbols</span>
         </summary>
-        <div className="space-y-1.5 border-t border-[var(--border)] p-1.5">
-          <div>
+        <div className="grid gap-2 border-t border-[var(--border)] p-1.5 lg:grid-cols-[minmax(0,1fr)_220px_minmax(0,1fr)]">
+          <section className="space-y-1">
+            <h2 className={railSectionLabelClass}>
+              Symbols
+            </h2>
+            <textarea
+              value={draftInput}
+              onChange={(event) => onDraftInputChange(event.target.value)}
+              className={`${controlClass} h-[76px] resize-none py-1.5 leading-4`}
+              placeholder="BTC, ETH, SOL"
+            />
+          </section>
+          <section className="space-y-1">
+            <h2 className={railSectionLabelClass}>
+              Presets
+            </h2>
+            <div className="grid grid-cols-2 gap-1">
+              {watchlistPresets.map((preset) => (
+                <button
+                  key={preset.id}
+                  type="button"
+                  onClick={() => onPreset(preset.id)}
+                  className="terminal-mini-action is-left min-h-6 justify-start px-1.5 py-0.5 text-[10px] leading-4 text-[var(--foreground)]"
+                  title={preset.symbols.join(", ")}
+                >
+                  {preset.label}
+                </button>
+              ))}
+            </div>
+          </section>
+          <section className="space-y-1.5">
             <div className="mb-0.5 flex items-center justify-between gap-2">
               <span className={railFieldLabelClass}>Paste Symbols</span>
               <button type="button" onClick={onImport} className={railMiniButtonClass}>
@@ -943,13 +1030,11 @@ export function WatchlistControls({
               className={`${controlClass} h-12 resize-none py-1.5 leading-4`}
               placeholder="BTC, ETH, SEI"
             />
-          </div>
-          {importStatus ? (
-            <p className="text-[11px] leading-4 text-[var(--muted)]">
-              {importStatus}
-            </p>
-          ) : null}
-          <div>
+            {importStatus ? (
+              <p className="text-[11px] leading-4 text-[var(--muted)]">
+                {importStatus}
+              </p>
+            ) : null}
             <div className="mb-0.5 flex items-center justify-between gap-2">
               <span className={railFieldLabelClass}>Selected Symbols</span>
               <button
@@ -966,15 +1051,15 @@ export function WatchlistControls({
               className={`${controlClass} h-9 resize-none py-1.5 leading-4`}
               placeholder="No valid symbols to copy"
             />
-          </div>
-          {exportStatus ? (
-            <p className="text-[11px] leading-4 text-[var(--muted)]">
-              {exportStatus}
-            </p>
-          ) : null}
+            {exportStatus ? (
+              <p className="text-[11px] leading-4 text-[var(--muted)]">
+                {exportStatus}
+              </p>
+            ) : null}
+          </section>
         </div>
       </details>
-    </aside>
+    </section>
   );
 }
 
@@ -1106,7 +1191,7 @@ function WatchlistStatusNotice({
     return (
       <CompactNotice
         tone="missing"
-        message="Local Watchlist is empty. Add symbols, use a preset, or import a list to begin research."
+        message="No watchlist symbols yet. Add symbols from Market Rankings or Symbol Research to monitor them against the latest snapshot."
       />
     );
   }
@@ -1175,84 +1260,70 @@ function WatchlistStatePanel({ message }: { message: string }) {
   );
 }
 
-function WatchlistTimeframeCell({
-  row,
-  timeframe,
-}: {
-  row: WatchlistRow;
-  timeframe: MtfScreenerTimeframe;
-}) {
-  if (!row.mtfRow) {
-    return (
-      <DataTableChip tone="missing" title="No latest research snapshot available.">
-        No Snapshot
-      </DataTableChip>
-    );
-  }
+function WatchlistEmptyState() {
+  return (
+    <section className="terminal-state-panel px-3 py-5 text-center text-xs text-[var(--muted)]">
+      <h2 className="text-sm font-semibold text-[var(--foreground)]">
+        No watchlist symbols yet.
+      </h2>
+      <p className="mx-auto mt-1 max-w-[520px] leading-5">
+        Add symbols from Market Rankings or Symbol Research to monitor them
+        against the latest snapshot.
+      </p>
+      <p className="mt-1 text-[11px]">Saved locally in this browser.</p>
+      <div className="mt-3 flex flex-wrap justify-center gap-2">
+        <Link href="/rankings" className="terminal-mini-action is-accent h-6 px-2">
+          Open Rankings
+        </Link>
+        <Link href="/screener" className="terminal-mini-action h-6 px-2">
+          Open Screener
+        </Link>
+      </div>
+    </section>
+  );
+}
 
-  const snapshot = row.mtfRow.snapshots[timeframe];
-
-  if (!snapshot) {
-    return (
-      <DataTableChip tone="missing" title="No latest research snapshot available.">
-        N/A
-      </DataTableChip>
-    );
-  }
-
-  const tone = getWatchlistGroupTone(snapshot.resultGroup);
-
+function WatchlistLatestSnapshotCell({ row }: { row: WatchlistRow }) {
   return (
     <DataTableChip
-      tone={tone}
-      className="justify-center gap-1"
-      title={`${timeframe} ${formatWatchlistGroup(snapshot)} rank score ${formatMtfRank(snapshot)}`}
+      tone={row.mtfRow ? "neutral" : "missing"}
+      className="justify-center"
+      title={
+        row.mtfRow
+          ? getWatchlistLatestSnapshotLabel(row)
+          : "No latest research snapshot available."
+      }
     >
-      <span className="truncate">{formatWatchlistGroup(snapshot)}</span>
-      <span className="font-mono tabular-nums">{formatMtfRank(snapshot)}</span>
+      <span className="truncate">{getWatchlistLatestSnapshotLabel(row)}</span>
     </DataTableChip>
   );
 }
 
-function WatchlistPrimaryCell({ row }: { row: WatchlistRow }) {
-  const primary = getWatchlistPrimaryState(row);
+function WatchlistResearchGroupCell({ row }: { row: WatchlistRow }) {
+  const groupLabel = getWatchlistResearchGroupLabel(row);
 
   return (
     <DataTableChip
-      tone={primary.tone}
+      tone={getResearchGroupTone(groupLabel)}
       className="justify-center"
-      title={primary.title}
+      title={groupLabel === "N/A" ? "No latest research snapshot available." : groupLabel}
     >
-      <span className="truncate">{primary.label}</span>
+      <span className="truncate">{groupLabel}</span>
     </DataTableChip>
   );
 }
 
 function RiskNotesCell({ row }: { row: WatchlistRow }) {
-  if (!row.mtfRow) {
-    return <span>No latest research snapshot available</span>;
-  }
-
-  const summary = getMtfRiskNotesSummary(row.mtfRow, 2);
-  const visibleNotes = summary.visibleNotes.map(formatWatchlistAttentionNote);
-
-  if (summary.notes.length === 0) {
-    return <span className="text-[var(--muted-2)]">No notes</span>;
-  }
+  const label = getWatchlistRiskContextLabel(row);
 
   return (
     <div
       className="flex min-w-0 items-center gap-1 leading-4"
-      title={summary.notes.join("; ")}
+      title={label}
     >
       <span className="min-w-0 truncate text-[var(--muted)]">
-        {visibleNotes.join("; ")}
+        {label}
       </span>
-      {summary.hiddenCount > 0 ? (
-        <span className="shrink-0 rounded-[3px] border border-[var(--border)] bg-[var(--panel)] px-1 text-[10px] font-semibold text-[var(--muted)]">
-          +{summary.hiddenCount}
-        </span>
-      ) : null}
     </div>
   );
 }
@@ -1342,25 +1413,6 @@ function getWatchlistPrimaryState(row: WatchlistRow): {
   }
 }
 
-function formatWatchlistAttentionNote(note: string) {
-  const compact = note
-    .replace(/:\s*Risk group\b/gi, " risk")
-    .replace(/:\s*Overheated\b/gi, " hot")
-    .replace(/:\s*/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
-
-  return compact.length > 34 ? `${compact.slice(0, 31).trim()}...` : compact;
-}
-
-function formatWatchlistGroup(snapshot: MtfScreenerSnapshot | undefined) {
-  if (!snapshot) {
-    return "N/A";
-  }
-
-  return snapshot.resultGroup === "overheated" ? "Hot" : formatMtfGroup(snapshot);
-}
-
 function getWatchlistGroupTone(group: string | null | undefined): ChipTone {
   if (group === "eligible") {
     return "eligible";
@@ -1379,6 +1431,22 @@ function getWatchlistGroupTone(group: string | null | undefined): ChipTone {
   }
 
   return "neutral";
+}
+
+function getResearchGroupTone(groupLabel: string): ChipTone {
+  switch (groupLabel) {
+    case "Eligible":
+      return "eligible";
+    case "Watch":
+    case "Hot":
+      return "warning";
+    case "Risk":
+      return "risk";
+    case "N/A":
+      return "missing";
+    default:
+      return "neutral";
+  }
 }
 
 function getWatchlistRowDotClass(row: WatchlistRow) {
@@ -1430,11 +1498,11 @@ function getWatchlistStatusTone({
     return "missing";
   }
 
-  if (summary.higherTimeframeRiskSymbols > 0) {
+  if (summary.riskContextSymbols > 0) {
     return "risk";
   }
 
-  if (summary.shortTermWatchSymbols > 0) {
+  if (summary.highPrioritySymbols > 0) {
     return "warning";
   }
 
@@ -1562,6 +1630,7 @@ function getWatchlistInitialUrlState(
     symbolSearch: getNavigationQueryValue(queryState, "q")?.trim() ?? "",
   };
 
+  applyWatchlistGroupContext(filters, getNavigationQueryValue(queryState, "group"));
   applyWatchlistRiskContext(filters, getNavigationQueryValue(queryState, "risk"));
 
   return {
@@ -1581,37 +1650,34 @@ function buildWatchlistNavigationContext({
 }): ResearchNavigationContext {
   return {
     q: filters.symbolSearch.trim() || null,
+    group: filters.researchGroup === "any" ? null : filters.researchGroup,
     risk: encodeWatchlistRiskContext(filters),
     sort: `${sortState.field}:${sortState.direction}`,
   };
 }
 
 function encodeWatchlistRiskContext(filters: WatchlistFilters) {
-  const entries = [
-    filters.hideMissing ? "foundOnly" : null,
-    filters.exclude1dRisk ? "exclude1d" : null,
-    filters.exclude1wRisk ? "exclude1w" : null,
-    filters.onlyShortTermWatch ? "shortTermWatch" : null,
-  ].filter(Boolean);
+  return filters.riskContext === "any" ? null : filters.riskContext;
+}
 
-  return entries.length > 0 ? entries.join(",") : null;
+function applyWatchlistGroupContext(
+  filters: WatchlistFilters,
+  value: string | null,
+) {
+  if (
+    watchlistResearchGroupOptions.some((option) => option.value === value)
+  ) {
+    filters.researchGroup = value as WatchlistFilters["researchGroup"];
+  }
 }
 
 function applyWatchlistRiskContext(
   filters: WatchlistFilters,
   value: string | null,
 ) {
-  const tokens = new Set(
-    value
-      ?.split(",")
-      .map((token) => token.trim().toLowerCase())
-      .filter(Boolean) ?? [],
-  );
-
-  filters.hideMissing = tokens.has("foundonly");
-  filters.exclude1dRisk = tokens.has("exclude1d");
-  filters.exclude1wRisk = tokens.has("exclude1w");
-  filters.onlyShortTermWatch = tokens.has("shorttermwatch");
+  if (watchlistRiskContextOptions.some((option) => option.value === value)) {
+    filters.riskContext = value as WatchlistFilters["riskContext"];
+  }
 }
 
 function parseWatchlistSortState(value: string | null): WatchlistSortState | null {

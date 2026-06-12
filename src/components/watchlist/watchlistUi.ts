@@ -3,13 +3,16 @@ import {
   getMtfHigherTimeframeHealth,
   getMtfRiskNoteItems,
   type MtfScreenerRow,
+  type MtfScreenerSnapshot,
   type MtfScreenerTimeframe,
 } from "@/components/screener/multiTimeframeScreenerUi";
 import { formatGroupLabel, formatScore } from "@/components/rankings/latestRankingsUi";
 import {
   buildSymbolResearchHref,
+  DEFAULT_SYMBOL_RESEARCH_TIMEFRAME,
   type ResearchNavigationContext,
 } from "@/lib/navigation/researchNavigation";
+import { explainCode, explainCodes } from "@/lib/vegarank-codebook/explainCode";
 
 export const WATCHLIST_STORAGE_KEY = "vegarank.watchlist.symbols";
 export const LEGACY_WATCHLIST_STORAGE_KEY = "trade-scanner.watchlist.symbols";
@@ -99,12 +102,11 @@ export type WatchlistPresetId = (typeof watchlistPresets)[number]["id"];
 
 export const watchlistSortOptions = [
   { field: "symbol", label: "Symbol" },
-  { field: "1h_rank", label: "1h Rank Score" },
-  { field: "4h_rank", label: "4h Rank Score" },
-  { field: "1d_rank", label: "1d Rank Score" },
-  { field: "1w_rank", label: "1w Rank Score" },
-  { field: "higher_timeframe_safety", label: "Higher-Timeframe Context" },
-  { field: "best_short_term_rank", label: "Short-Term Rank Score" },
+  { field: "latest_snapshot", label: "Latest Snapshot" },
+  { field: "research_group", label: "Research Group" },
+  { field: "rank_score", label: "Rank Score" },
+  { field: "confidence", label: "Confidence" },
+  { field: "updated", label: "Updated" },
 ] as const;
 
 export type WatchlistSortField =
@@ -117,11 +119,33 @@ export type WatchlistSortState = {
 
 export type WatchlistFilters = {
   symbolSearch: string;
-  hideMissing: boolean;
-  exclude1dRisk: boolean;
-  exclude1wRisk: boolean;
-  onlyShortTermWatch: boolean;
+  researchGroup: WatchlistResearchGroupFilter;
+  riskContext: WatchlistRiskContextFilter;
 };
+
+export const watchlistResearchGroupOptions = [
+  { value: "any", label: "Any Research Group" },
+  { value: "eligible", label: "Eligible" },
+  { value: "watch", label: "Watch" },
+  { value: "risk", label: "Risk" },
+  { value: "overheated", label: "Hot" },
+  { value: "neutral", label: "Neutral" },
+  { value: "insufficient_history", label: "Insufficient History" },
+  { value: "missing", label: "Missing Snapshot" },
+] as const;
+
+export type WatchlistResearchGroupFilter =
+  (typeof watchlistResearchGroupOptions)[number]["value"];
+
+export const watchlistRiskContextOptions = [
+  { value: "any", label: "Any Risk Context" },
+  { value: "withRisk", label: "Has Risk Context" },
+  { value: "withoutRisk", label: "No Risk Context" },
+  { value: "missing", label: "Missing Snapshot" },
+] as const;
+
+export type WatchlistRiskContextFilter =
+  (typeof watchlistRiskContextOptions)[number]["value"];
 
 export type WatchlistRow = {
   symbol: string;
@@ -131,10 +155,11 @@ export type WatchlistRow = {
 
 export type WatchlistSummary = {
   totalSelectedSymbols: number;
-  foundSymbols: number;
+  highPrioritySymbols: number;
+  riskContextSymbols: number;
   missingSymbols: number;
-  higherTimeframeRiskSymbols: number;
-  shortTermWatchSymbols: number;
+  latestSnapshotAt: string | null;
+  foundSymbols: number;
 };
 
 export type WatchlistResearchCondition =
@@ -184,10 +209,8 @@ export type WatchlistStorage = Pick<Storage, "getItem" | "setItem">;
 
 export const defaultWatchlistFilters: WatchlistFilters = {
   symbolSearch: "",
-  hideMissing: false,
-  exclude1dRisk: false,
-  exclude1wRisk: false,
-  onlyShortTermWatch: false,
+  researchGroup: "any",
+  riskContext: "any",
 };
 
 export const defaultWatchlistSort: WatchlistSortState = {
@@ -388,10 +411,11 @@ export function getWatchlistSummary(
 ): WatchlistSummary {
   return {
     totalSelectedSymbols: rows.length,
-    foundSymbols: rows.filter((row) => row.mtfRow).length,
+    highPrioritySymbols: rows.filter(isHighPriorityWatchlistRow).length,
+    riskContextSymbols: rows.filter(hasVisibleRiskContext).length,
     missingSymbols: rows.filter((row) => !row.mtfRow).length,
-    higherTimeframeRiskSymbols: rows.filter(hasHigherTimeframeRisk).length,
-    shortTermWatchSymbols: rows.filter(hasShortTermWatchState).length,
+    latestSnapshotAt: getLatestSnapshotTimestamp(rows),
+    foundSymbols: rows.filter((row) => row.mtfRow).length,
   };
 }
 
@@ -455,23 +479,14 @@ export function filterWatchlistRows(
       return false;
     }
 
-    if (filters.hideMissing && !row.mtfRow) {
+    if (
+      filters.researchGroup !== "any" &&
+      getWatchlistResearchGroupValue(row) !== filters.researchGroup
+    ) {
       return false;
     }
 
-    if (filters.exclude1dRisk && hasTimeframeRisk(row, "1d")) {
-      return false;
-    }
-
-    if (filters.exclude1wRisk && hasTimeframeRisk(row, "1w")) {
-      return false;
-    }
-
-    if (filters.onlyShortTermWatch && !hasShortTermWatchState(row)) {
-      return false;
-    }
-
-    return true;
+    return doesWatchlistRiskContextMatch(row, filters.riskContext);
   });
 }
 
@@ -484,7 +499,7 @@ export function sortWatchlistRows(
 
 export function getWatchlistResearchTimeframe(row: WatchlistRow) {
   if (!row.mtfRow) {
-    return null;
+    return DEFAULT_SYMBOL_RESEARCH_TIMEFRAME;
   }
 
   if (row.mtfRow.snapshots["4h"]) {
@@ -510,18 +525,95 @@ export function buildWatchlistResearchHref({
   assetClass?: string;
   context?: ResearchNavigationContext;
 }) {
-  if (!row.mtfRow || !timeframe) {
+  if (!timeframe) {
     return null;
   }
 
   return buildSymbolResearchHref({
     ...context,
-    exchange: row.mtfRow.exchange,
+    exchange: row.mtfRow?.exchange ?? "binance",
     symbol: row.symbol,
     timeframe,
-    assetClass,
+    assetClass: context?.assetClass ?? row.mtfRow?.snapshots[timeframe]?.assetClass ?? assetClass,
     from: "watchlist",
   });
+}
+
+export function getWatchlistLatestSnapshot(row: WatchlistRow) {
+  if (!row.mtfRow) {
+    return null;
+  }
+
+  return MTF_SCREENER_TIMEFRAMES.map((timeframe) => row.mtfRow?.snapshots[timeframe])
+    .filter((snapshot): snapshot is MtfScreenerSnapshot => Boolean(snapshot))
+    .sort(compareLatestSnapshots)[0] ?? null;
+}
+
+export function getWatchlistLatestSnapshotLabel(row: WatchlistRow) {
+  const snapshot = getWatchlistLatestSnapshot(row);
+
+  return snapshot ? `${snapshot.timeframe} Latest Snapshot` : "Missing Snapshot";
+}
+
+export function getWatchlistResearchGroupLabel(row: WatchlistRow) {
+  const snapshot = getWatchlistLatestSnapshot(row);
+
+  return snapshot ? formatWatchlistGroupLabel(snapshot.resultGroup) : "N/A";
+}
+
+export function getWatchlistActionLabel(row: WatchlistRow) {
+  const snapshot = getWatchlistLatestSnapshot(row);
+
+  return snapshot ? explainCode(snapshot.actionCode).label : "N/A";
+}
+
+export function getWatchlistRiskContextLabel(row: WatchlistRow) {
+  if (!row.mtfRow) {
+    return "No latest research snapshot available.";
+  }
+
+  const latestSnapshot = getWatchlistLatestSnapshot(row);
+  const riskLabels = explainCodes(
+    MTF_SCREENER_TIMEFRAMES.flatMap(
+      (timeframe) => row.mtfRow?.snapshots[timeframe]?.riskCodes ?? [],
+    ),
+  ).map((risk) => risk.label);
+  const riskGroupLabels = MTF_SCREENER_TIMEFRAMES.flatMap((timeframe) =>
+    hasTimeframeRisk(row, timeframe) ? [`${timeframe} Risk`] : [],
+  );
+  const labels = uniqueStrings([...riskGroupLabels, ...riskLabels]);
+
+  if (labels.length > 0) {
+    return labels.slice(0, 2).join("; ");
+  }
+
+  return latestSnapshot ? "No visible risk context." : "N/A";
+}
+
+export function getWatchlistRankScoreLabel(row: WatchlistRow) {
+  return formatScore(getWatchlistLatestRankScore(row));
+}
+
+export function getWatchlistConfidenceLabel(row: WatchlistRow) {
+  const confidenceScore = getWatchlistLatestSnapshot(row)?.metrics.confidenceScore;
+
+  return typeof confidenceScore === "number" && Number.isFinite(confidenceScore)
+    ? formatScore(confidenceScore)
+    : "N/A";
+}
+
+export function getWatchlistUpdatedAt(row: WatchlistRow) {
+  const snapshot = getWatchlistLatestSnapshot(row);
+
+  return snapshot?.scanTime ?? snapshot?.candleOpenTime ?? null;
+}
+
+export function isHighPriorityWatchlistRow(row: WatchlistRow) {
+  return hasShortTermWatchState(row);
+}
+
+export function hasVisibleRiskContext(row: WatchlistRow) {
+  return row.mtfRow ? hasRiskReviewReason(row) : false;
 }
 
 export function hasHigherTimeframeRisk(row: WatchlistRow) {
@@ -950,26 +1042,131 @@ function getWatchlistSortDelta(
 }
 
 function getWatchlistSortValue(row: WatchlistRow, field: WatchlistSortField) {
-  if (!row.mtfRow) {
-    return null;
-  }
-
   switch (field) {
-    case "1h_rank":
-      return getWatchlistRank(row, "1h");
-    case "4h_rank":
-      return getWatchlistRank(row, "4h");
-    case "1d_rank":
-      return getWatchlistRank(row, "1d");
-    case "1w_rank":
-      return getWatchlistRank(row, "1w");
-    case "higher_timeframe_safety":
-      return getMtfHigherTimeframeHealth(row.mtfRow).sortRank;
-    case "best_short_term_rank":
-      return getBestShortTermRank(row);
+    case "latest_snapshot":
+      return getLatestSnapshotSortRank(row);
+    case "research_group":
+      return getResearchGroupSortRank(row);
+    case "rank_score":
+      return getWatchlistLatestRankScore(row);
+    case "confidence":
+      return getWatchlistLatestConfidenceScore(row);
+    case "updated":
+      return getUpdatedSortValue(row);
     case "symbol":
       return null;
   }
+}
+
+function doesWatchlistRiskContextMatch(
+  row: WatchlistRow,
+  filter: WatchlistRiskContextFilter,
+) {
+  switch (filter) {
+    case "any":
+      return true;
+    case "withRisk":
+      return hasVisibleRiskContext(row);
+    case "withoutRisk":
+      return Boolean(row.mtfRow) && !hasVisibleRiskContext(row);
+    case "missing":
+      return !row.mtfRow;
+  }
+}
+
+function getLatestSnapshotTimestamp(rows: readonly WatchlistRow[]) {
+  return rows
+    .map(getWatchlistUpdatedAt)
+    .filter((value): value is string => Boolean(value))
+    .sort((left, right) => Date.parse(right) - Date.parse(left))[0] ?? null;
+}
+
+function compareLatestSnapshots(
+  left: MtfScreenerSnapshot,
+  right: MtfScreenerSnapshot,
+) {
+  const timeDelta = getSnapshotTimestampMs(right) - getSnapshotTimestampMs(left);
+
+  if (timeDelta !== 0) {
+    return timeDelta;
+  }
+
+  return getTimeframePreference(left.timeframe) - getTimeframePreference(right.timeframe);
+}
+
+function getSnapshotTimestampMs(snapshot: MtfScreenerSnapshot) {
+  const value = Date.parse(snapshot.scanTime ?? snapshot.candleOpenTime ?? "");
+
+  return Number.isFinite(value) ? value : 0;
+}
+
+function getTimeframePreference(timeframe: MtfScreenerTimeframe) {
+  const order: Record<MtfScreenerTimeframe, number> = {
+    "4h": 0,
+    "1h": 1,
+    "1d": 2,
+    "1w": 3,
+  };
+
+  return order[timeframe];
+}
+
+function getWatchlistResearchGroupValue(
+  row: WatchlistRow,
+): WatchlistResearchGroupFilter {
+  return getWatchlistLatestSnapshot(row)?.resultGroup ?? "missing";
+}
+
+function formatWatchlistGroupLabel(group: MtfScreenerSnapshot["resultGroup"]) {
+  return group === "overheated" ? "Hot" : formatGroupLabel(group);
+}
+
+function getWatchlistLatestRankScore(row: WatchlistRow) {
+  const rankScore = getWatchlistLatestSnapshot(row)?.metrics.rankScore;
+
+  return typeof rankScore === "number" && Number.isFinite(rankScore)
+    ? rankScore
+    : null;
+}
+
+function getWatchlistLatestConfidenceScore(row: WatchlistRow) {
+  const confidenceScore = getWatchlistLatestSnapshot(row)?.metrics.confidenceScore;
+
+  return typeof confidenceScore === "number" && Number.isFinite(confidenceScore)
+    ? confidenceScore
+    : null;
+}
+
+function getLatestSnapshotSortRank(row: WatchlistRow) {
+  return row.mtfRow ? 1 : null;
+}
+
+function getResearchGroupSortRank(row: WatchlistRow) {
+  const group = getWatchlistResearchGroupValue(row);
+  const order: Record<WatchlistResearchGroupFilter, number> = {
+    eligible: 5,
+    watch: 4,
+    risk: 3,
+    overheated: 2,
+    neutral: 1,
+    insufficient_history: 1,
+    missing: 0,
+    any: 0,
+  };
+
+  return order[group];
+}
+
+function getUpdatedSortValue(row: WatchlistRow) {
+  const updatedAt = getWatchlistUpdatedAt(row);
+
+  if (!updatedAt) {
+    return null;
+  }
+
+  const parsed = Date.parse(updatedAt);
+
+  return Number.isFinite(parsed) ? parsed : null;
 }
 
 function compareNullableNumbers(

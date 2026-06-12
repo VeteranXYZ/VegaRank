@@ -70,23 +70,23 @@ describe("WatchlistPageClient", () => {
       ),
     );
 
-    expect(html).toContain("Selected");
-    expect(html).toContain("Found");
-    expect(html).toContain("Missing");
-    expect(html).toContain("Active Candidates");
+    expect(html).toContain("Selected Symbols");
+    expect(html).toContain("High Priority");
+    expect(html).toContain("Risk Context");
+    expect(html).toContain("Missing Snapshot");
     expect(html).toContain("Research Watch");
     expect(html).toContain("Watch / Repair");
     expect(html).toContain("Risk First");
     expect(html).toContain("Data Gaps");
     expect(html).not.toContain("Best Research Candidates");
-    expect(html).toContain("Latest Snapshot");
-    expect(html).toContain("Selected Symbols");
+    expect(html).toContain("Latest Snapshot Monitor");
     expect(html).toContain("BTCUSDT");
     expect(html).toContain("SEIUSDT");
     expect(html).toContain("Current Research State");
-    expect(html).toContain("4h");
     expect(html).toContain("72.5");
     expect(html).toContain("Missing Snapshot");
+    expect(html).toContain("Rank Score");
+    expect(html).toContain("Confidence");
   });
 
   it("renders missing timeframes and selected research links", () => {
@@ -122,6 +122,22 @@ describe("WatchlistPageClient", () => {
     expect(html).toContain(
       'href="/symbol/binance/SEIUSDT?timeframe=1h&amp;assetClass=crypto&amp;from=watchlist"',
     );
+  });
+
+  it("renders empty watchlist guidance with local browser boundary", () => {
+    const html = renderToStaticMarkup(
+      createElement(WatchlistTable, { rows: [] }),
+    );
+
+    expect(html).toContain("No watchlist symbols yet.");
+    expect(html).toContain(
+      "Add symbols from Market Rankings or Symbol Research to monitor them against the latest snapshot.",
+    );
+    expect(html).toContain("Saved locally in this browser.");
+    expect(html).toContain('href="/rankings"');
+    expect(html).toContain("Open Rankings");
+    expect(html).toContain('href="/screener"');
+    expect(html).toContain("Open Screener");
   });
 
   it("renders all table rows by default without show-more behavior", () => {
@@ -232,22 +248,17 @@ describe("WatchlistPageClient", () => {
       }),
     );
 
-    expect(html.match(/<button/g)).toHaveLength(7);
-    expect(html.match(/data-sort-key=/g)).toHaveLength(7);
+    expect(html.match(/<button/g)).toHaveLength(6);
+    expect(html.match(/data-sort-key=/g)).toHaveLength(6);
     expect(html).toContain('aria-sort="ascending"');
     expect(html).toContain('data-sort-key="symbol"');
-    expect(html).toContain('data-sort-key="1h_rank"');
-    expect(html).toContain('data-sort-key="4h_rank"');
-    expect(html).toContain('data-sort-key="1d_rank"');
-    expect(html).toContain('data-sort-key="1w_rank"');
-    expect(html).toContain('data-sort-key="higher_timeframe_safety"');
-    expect(html).toContain('data-sort-key="best_short_term_rank"');
+    expect(html).toContain('data-sort-key="latest_snapshot"');
+    expect(html).toContain('data-sort-key="research_group"');
+    expect(html).toContain('data-sort-key="rank_score"');
+    expect(html).toContain('data-sort-key="confidence"');
+    expect(html).toContain('data-sort-key="updated"');
     expect(html).toContain("Symbol");
     expect(html).toContain("↑");
-    expect(html).toContain("1h");
-    expect(html).toContain("4h");
-    expect(html).toContain("1d");
-    expect(html).toContain("1w");
     expect(html).toContain("Current Research State");
     expect(html).toContain("Risk Context");
     expect(html).not.toContain('data-sort-key="research"');
@@ -273,26 +284,27 @@ describe("WatchlistPageClient", () => {
       }),
     );
 
-    expect(html.match(/data-sort-key=/g)).toHaveLength(7);
+    expect(html.match(/data-sort-key=/g)).toHaveLength(6);
     expect(html).toContain("Research");
     expect(html).toContain("Remove");
     expect(html).not.toContain('data-sort-key="research"');
     expect(html).not.toContain('data-sort-key="remove"');
   });
 
-  it("keeps the rail compact with collapsed import-export and no sort controls", () => {
+  it("keeps controls compact with collapsed selected-symbol tools", () => {
     const html = renderWatchlistVisualPage();
-    const railHtml = extractAsideHtml(html);
-    const detailsTag = railHtml.match(/<details[^>]*>/)?.[0] ?? "";
+    const controlsHtml = extractControlsHtml(html);
+    const detailsTag = controlsHtml.match(/<details[^>]*>/)?.[0] ?? "";
 
-    expect(railHtml).toContain("Symbols");
-    expect(railHtml).toContain("Filters");
-    expect(railHtml).toContain("Import / Export Watchlist");
-    expect(railHtml).toContain("Paste Symbols");
-    expect(railHtml).toContain("Copy Watchlist");
+    expect(controlsHtml).toContain("Search Symbol");
+    expect(controlsHtml).toContain("Research Group");
+    expect(controlsHtml).toContain("Risk Context");
+    expect(controlsHtml).toContain("Sort By");
+    expect(controlsHtml).toContain("Clear Filters");
+    expect(controlsHtml).toContain("Selected Symbols");
+    expect(html).toContain("Paste Symbols");
+    expect(html).toContain("Copy Watchlist");
     expect(detailsTag).not.toMatch(/\sopen(?:=|\s|>)/);
-    expect(railHtml).not.toContain("Sort");
-    expect(railHtml).not.toContain("sort controls");
     expect(html).not.toContain("Show more");
     expect(html).not.toContain("Show More");
     expect(html).not.toMatch(/[\u3400-\u9fff]/);
@@ -347,20 +359,48 @@ describe("WatchlistPageClient", () => {
     expect(html).toContain("border-[var(--missing-border)]");
   });
 
+  it("keeps Open Research and Remove available for missing snapshot rows", () => {
+    const rows = buildWatchlistRows(["MISSING"], []);
+    const html = renderToStaticMarkup(
+      createElement(WatchlistTable, {
+        rows,
+        onRemoveSymbol: () => undefined,
+      }),
+    );
+
+    expect(html).toContain("Missing Snapshot");
+    expect(html).toContain("No latest research snapshot available.");
+    expect(html).toContain(">N/A<");
+    expect(html).toContain(
+      'href="/symbol/binance/MISSINGUSDT?timeframe=4h&amp;assetClass=crypto&amp;from=watchlist"',
+    );
+    expect(html).toContain(">Remove from Watchlist</button>");
+  });
+
+  it("does not render portfolio, trade, alert, or cloud sync language", () => {
+    const html = renderWatchlistVisualPage().toLowerCase();
+
+    expect(html).not.toContain("portfolio");
+    expect(html).not.toContain("position");
+    expect(html).not.toContain("trade signal");
+    expect(html).not.toContain("trading signal");
+    expect(html).not.toContain("alert");
+    expect(html).not.toContain("cloud sync");
+  });
+
   it("renders a compact terminal command bar for visual-check watchlist", () => {
     const html = renderWatchlistVisualPage();
 
     expect(html).toContain("terminal-command-bar");
     expect(html).toContain("terminal-command-title");
     expect(html).toContain("Local Watchlist");
-    expect(html).toContain("Saved in this browser");
+    expect(html).toContain("Saved locally in this browser");
     expect(html).toContain("Latest Snapshot");
     expect(html).toContain("Visible");
-    expect(html).toContain("Selected");
-    expect(html).toContain("Found");
-    expect(html).toContain("Missing");
-    expect(html).toContain("Higher Timeframe Risk");
-    expect(html).toContain("Broad Risk");
+    expect(html).toContain("Selected Symbols");
+    expect(html).toContain("High Priority");
+    expect(html).toContain("Risk Context");
+    expect(html).toContain("Missing Snapshot");
     expect(html).toContain('aria-label="Visual Check Data"');
     expect(html).not.toContain("Watchlist Multi-Timeframe");
     expect(html).not.toContain("<dl");
@@ -430,8 +470,8 @@ function renderWatchlistVisualPage() {
   );
 }
 
-function extractAsideHtml(html: string) {
-  return html.match(/<aside[\s\S]*?<\/aside>/)?.[0] ?? "";
+function extractControlsHtml(html: string) {
+  return html.match(/<section class="terminal-panel px-2 py-1.5[\s\S]*?<\/section>/)?.[0] ?? "";
 }
 
 function makeResponse(
