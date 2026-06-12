@@ -85,7 +85,7 @@ const workflowItems = [
     page: "Symbol Research",
     href: "/symbol/binance/BTCUSDT",
     copy: "Inspect setup quality, evidence reliability, risk context, and archive context for one symbol.",
-    action: "Open BTCUSDT Research",
+    action: "Open Symbol",
     tone: "summary",
   },
   {
@@ -141,7 +141,7 @@ export default async function HomePage() {
   const latestSnapshot = await getLatestResearchSnapshot();
 
   return (
-    <PageShell className="gap-3 overflow-x-hidden">
+    <PageShell className="home-terminal max-w-none gap-3 overflow-x-hidden">
       <div className="grid gap-3 xl:grid-cols-[minmax(0,1.25fr)_minmax(420px,0.75fr)]">
         <PageHeader
           className="mb-0"
@@ -284,7 +284,7 @@ function ResearchWorkflow() {
         {workflowItems.map((item) => (
           <article
             key={item.href}
-            className="flex min-h-44 min-w-0 flex-col justify-between border border-[var(--border)] bg-[var(--panel-muted)] px-3 py-2"
+            className="terminal-panel-muted flex min-h-44 min-w-0 flex-col justify-between px-3 py-2"
           >
             <div className="min-w-0">
               <div className="flex items-center justify-between gap-2">

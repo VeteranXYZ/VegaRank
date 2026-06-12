@@ -79,6 +79,7 @@ describe("public navigation surface", () => {
     expect(html).toContain("Multi-Timeframe Screener");
     expect(html).toContain('href="/symbol/binance/BTCUSDT"');
     expect(html).toContain("Symbol Research");
+    expect(html).toContain("Open Symbol");
     expect(html).toContain('href="/watchlist"');
     expect(html).toContain("Local Watchlist");
     expect(html).toContain('href="/archive"');
@@ -90,6 +91,7 @@ describe("public navigation surface", () => {
     expect(html).not.toContain('href="/history"');
     expect(html).not.toContain("Find the best trades");
     expect(html).not.toContain("Most profitable setups");
+    expect(html).not.toContain("Open BTCUSDT Research");
   });
 
   it("keeps the home workspace usable when latest snapshot status is unavailable", async () => {

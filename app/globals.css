@@ -117,6 +117,8 @@ body:has(.rankings-terminal),
 body:has(.symbol-terminal),
 body:has(.watchlist-terminal),
 body:has(.archive-terminal),
+.home-terminal,
+body:has(.home-terminal),
 .archive-terminal {
   color-scheme: dark;
   --app-background: #080d12;
@@ -255,7 +257,9 @@ body:has(.symbol-terminal),
 html:has(.watchlist-terminal),
 body:has(.watchlist-terminal),
 html:has(.archive-terminal),
-body:has(.archive-terminal) {
+body:has(.archive-terminal),
+html:has(.home-terminal),
+body:has(.home-terminal) {
   overflow-x: clip;
 }
 
