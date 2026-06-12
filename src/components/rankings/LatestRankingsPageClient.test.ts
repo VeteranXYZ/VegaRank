@@ -165,7 +165,7 @@ describe("latest rankings summary helpers", () => {
         lowQualityExcluded: 12,
       }),
     ).toBe(
-      "Full universe size: 413 · Reviewed: 409 · Ranking rows created: 409 · Skipped: 4 · Filtered ranking rows shown: 100 of 409 · Low-quality excluded: 12",
+      "Full universe size: 413 · Reviewed: 409 · Snapshot rows created: 409 · Skipped: 4 · Filtered ranking rows shown: 100 of 409 · Low-quality excluded: 12",
     );
   });
 
@@ -229,7 +229,7 @@ describe("LatestRankingsPageClient layout", () => {
     expect(html).toContain('data-sort-key="price"');
     expect(html).toContain("Universe");
     expect(html).toContain("Low-quality");
-    expect(html).toContain("Finished");
+    expect(html).toContain("Latest Snapshot");
     expect(html).toContain("Candle");
     expect(html).toContain("from=rankings");
     expect(html).toContain("sort=rank%3Adesc");

@@ -1,4 +1,10 @@
 import { formatDisplayDateTime } from "@/lib/utils/format";
+import {
+  firstFiniteResearchMetric,
+  formatResearchMetric,
+  formatResearchMetricLabel,
+  researchStateNotAvailableLabel,
+} from "@/lib/research-state/formatResearchState";
 import { dictionaries } from "@/lib/i18n/dictionaries";
 import {
   formatScannerReviewText,
@@ -45,6 +51,14 @@ const groupHints = {
 } satisfies Record<LatestRankingsGroupKey, string>;
 
 type LatestRankingsScoreInput = {
+  rankScore?: number | null;
+  riskAdjustedScore?: number | null;
+  setupQualityScore?: number | null;
+  confidenceScore?: number | null;
+  universePercentile?: number | null;
+  riskPenalty?: number | null;
+  qualityPenalty?: number | null;
+  finalSignalScore?: number | null;
   opportunityScore: number | null;
   confirmationScore: number | null;
   riskScore: number | null;
@@ -52,6 +66,7 @@ type LatestRankingsScoreInput = {
   momentumScore: number | null;
   volumeScore: number | null;
   structureScore: number | null;
+  volatilityScore?: number | null;
 };
 
 type LatestRankingsGroupSummaryInput = Partial<
@@ -77,16 +92,12 @@ const qualityLabels: Record<string, string> = {
 };
 
 export function formatScore(value: number | null | undefined, decimals = 1) {
-  if (value === null || value === undefined || !Number.isFinite(value)) {
-    return "-";
-  }
-
-  return value.toFixed(decimals);
+  return formatResearchMetric(value, decimals);
 }
 
 export function formatPrice(value: number | null | undefined) {
   if (value === null || value === undefined || !Number.isFinite(value)) {
-    return "-";
+    return researchStateNotAvailableLabel;
   }
 
   if (value >= 1000) {
@@ -447,13 +458,60 @@ export function formatQualityTier(value: string | null | undefined) {
 
 export function getLatestRankingsScoreRows(item: LatestRankingsScoreInput) {
   return [
-    { label: "Setup Quality", value: formatScore(item.opportunityScore) },
-    { label: "Confirmation", value: formatScore(item.confirmationScore) },
-    { label: "Risk", value: formatScore(item.riskScore) },
-    { label: "Trend", value: formatScore(item.trendScore) },
-    { label: "Momentum", value: formatScore(item.momentumScore) },
-    { label: "Liquidity", value: formatScore(item.volumeScore) },
-    { label: "Structure", value: formatScore(item.structureScore) },
+    {
+      label: formatResearchMetricLabel("rankScore"),
+      value: formatScore(item.rankScore),
+    },
+    {
+      label: formatResearchMetricLabel("riskAdjustedScore"),
+      value: formatScore(
+        firstFiniteResearchMetric(item.riskAdjustedScore, item.finalSignalScore),
+      ),
+    },
+    {
+      label: formatResearchMetricLabel("setupQualityScore"),
+      value: formatScore(
+        firstFiniteResearchMetric(item.setupQualityScore, item.opportunityScore),
+      ),
+    },
+    {
+      label: formatResearchMetricLabel("confidenceScore"),
+      value: formatScore(
+        firstFiniteResearchMetric(item.confidenceScore, item.confirmationScore),
+      ),
+    },
+    {
+      label: formatResearchMetricLabel("trendScore"),
+      value: formatScore(item.trendScore),
+    },
+    {
+      label: formatResearchMetricLabel("momentumScore"),
+      value: formatScore(item.momentumScore),
+    },
+    {
+      label: formatResearchMetricLabel("structureScore"),
+      value: formatScore(item.structureScore),
+    },
+    {
+      label: formatResearchMetricLabel("volatilityScore"),
+      value: formatScore(item.volatilityScore),
+    },
+    {
+      label: formatResearchMetricLabel("volumeScore"),
+      value: formatScore(item.volumeScore),
+    },
+    {
+      label: formatResearchMetricLabel("riskPenalty"),
+      value: formatScore(firstFiniteResearchMetric(item.riskPenalty, item.riskScore)),
+    },
+    {
+      label: formatResearchMetricLabel("qualityPenalty"),
+      value: formatScore(item.qualityPenalty),
+    },
+    {
+      label: formatResearchMetricLabel("universePercentile"),
+      value: formatScore(item.universePercentile),
+    },
   ];
 }
 

@@ -598,7 +598,7 @@ function getResearchConditionText(conditionLabel: WatchlistResearchCondition) {
     case "Mixed / selective":
       return "The watchlist is mixed; use symbol research for selective manual review.";
     case "Insufficient data":
-      return "Not enough selected symbols have latest multi-timeframe data to summarize.";
+      return "Not enough selected symbols have latest research snapshot data to summarize.";
   }
 }
 
@@ -706,7 +706,7 @@ function buildHighestRiskReason(row: WatchlistRow) {
 
 function buildMissingDataReason(row: WatchlistRow) {
   if (!row.mtfRow) {
-    return "Not found in latest multi-timeframe snapshot.";
+    return "No latest research snapshot available.";
   }
 
   const missing = (["1d", "1w"] as const).filter(
@@ -721,7 +721,7 @@ function getHigherTimeframeContext(row: WatchlistRow) {
     const snapshot = row.mtfRow?.snapshots[timeframe];
 
     if (!snapshot) {
-      return `${timeframe} not returned`;
+      return `${timeframe} missing snapshot`;
     }
 
     if (snapshot.resultGroup === "risk") {
@@ -768,7 +768,7 @@ function getTimeframeGroupLabel(
 ) {
   const group = row.mtfRow?.snapshots[timeframe]?.resultGroup;
 
-  return group ? formatGroupLabel(group) : "Not returned";
+  return group ? formatGroupLabel(group) : "N/A";
 }
 
 function isCleanerCandidate(row: WatchlistRow) {

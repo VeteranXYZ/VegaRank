@@ -79,14 +79,14 @@ describe("WatchlistPageClient", () => {
     expect(html).toContain("Risk First");
     expect(html).toContain("Data Gaps");
     expect(html).not.toContain("Best Research Candidates");
-    expect(html).toContain("Watchlist Results");
+    expect(html).toContain("Latest Snapshot");
     expect(html).toContain("Selected Symbols");
     expect(html).toContain("BTCUSDT");
     expect(html).toContain("SEIUSDT");
-    expect(html).toContain("Research Group + Rank Score");
+    expect(html).toContain("Current Research State");
     expect(html).toContain("4h");
     expect(html).toContain("72.5");
-    expect(html).toContain("Not found");
+    expect(html).toContain("Missing Snapshot");
   });
 
   it("renders missing timeframes and selected research links", () => {
@@ -115,7 +115,7 @@ describe("WatchlistPageClient", () => {
       createElement(WatchlistTable, { rows }),
     );
 
-    expect(html).toContain("Not returned");
+    expect(html).toContain("N/A");
     expect(html).toContain("Open Research");
     expect(html).toContain("timeframe=1h");
     expect(html).toContain("timeframe=1d");
@@ -189,7 +189,7 @@ describe("WatchlistPageClient", () => {
     expect(html).toContain("Market context unavailable");
     expect(html).toContain("BTCUSDT");
     expect(html).toContain("ETHUSDT");
-    expect(html).toContain("Watchlist Results");
+    expect(html).toContain("Latest Snapshot");
     expect(html).toContain("Selected Symbols");
   });
 
@@ -248,7 +248,7 @@ describe("WatchlistPageClient", () => {
     expect(html).toContain("4h");
     expect(html).toContain("1d");
     expect(html).toContain("1w");
-    expect(html).toContain("Research Group + Rank Score");
+    expect(html).toContain("Current Research State");
     expect(html).toContain("Risk Context");
     expect(html).not.toContain('data-sort-key="research"');
     expect(html).not.toContain('data-sort-key="remove"');
@@ -339,7 +339,7 @@ describe("WatchlistPageClient", () => {
     expect(html).toContain("Neutral");
     expect(html).toContain("Hot");
     expect(html).toContain("Missing");
-    expect(html).toContain("Not returned");
+    expect(html).toContain("N/A");
     expect(html).toContain("border-[var(--eligible-border)]");
     expect(html).toContain("border-[var(--risk-border)]");
     expect(html).toContain("border-[var(--warning-border)]");
@@ -352,7 +352,8 @@ describe("WatchlistPageClient", () => {
 
     expect(html).toContain("terminal-command-bar");
     expect(html).toContain("terminal-command-title");
-    expect(html).toContain("Watchlist");
+    expect(html).toContain("Local Watchlist");
+    expect(html).toContain("Saved in this browser");
     expect(html).toContain("Latest Snapshot");
     expect(html).toContain("Visible");
     expect(html).toContain("Selected");
@@ -398,8 +399,8 @@ describe("WatchlistPageClient", () => {
     expect(html).toContain("Hot");
     expect(html).toContain("Risk");
     expect(html).toContain("Watch");
-    expect(html).toContain("Not found");
-    expect(html).toContain("Not returned");
+    expect(html).toContain("Missing Snapshot");
+    expect(html).toContain("N/A");
     expect(html).toContain("Open Research");
     expect(html).not.toContain("Show More");
     expect(html).not.toContain("show more");

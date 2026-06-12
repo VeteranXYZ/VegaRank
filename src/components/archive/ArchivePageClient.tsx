@@ -11,6 +11,11 @@ import {
   normalizeGroupKey,
   type ScannerDisplayDictionary,
 } from "@/components/rankings/latestRankingsUi";
+import {
+  firstFiniteResearchMetric,
+  formatResearchMetricLabel,
+  researchMissingStateCopy,
+} from "@/lib/research-state/formatResearchState";
 import { dictionaries } from "@/lib/i18n/dictionaries";
 import { formatScannerReviewValue } from "@/lib/i18n/formatScannerObservation";
 import {
@@ -776,7 +781,7 @@ function ArchiveCommandBar({
             title={`Selected Run: ${selectedRunId ?? "None"}`}
           />
           <ArchiveCommandStat
-            label="Validation"
+            label="Validation State"
             value={validationStatus.toUpperCase()}
             tone={getArchiveValidationTone(validationStatus)}
           />
@@ -890,12 +895,12 @@ export function RecentSuccessfulRunsPanel({
     <section
       className={`${recentRunsPanelClassName} ${className}`}
       data-testid="recent-runs-panel"
-      aria-label="Selected Run recent runs"
+      aria-label="Selected Run stored runs"
     >
       <div className="terminal-panel-header-stack shrink-0">
         <div className="flex items-center justify-between gap-2">
           <h2 className="terminal-panel-title">
-            Recent Runs
+            Stored Runs
           </h2>
           <StatusBadge
             tone="accent"
@@ -905,7 +910,7 @@ export function RecentSuccessfulRunsPanel({
           </StatusBadge>
         </div>
         <p className="terminal-panel-subtitle text-[9px]">
-          Stored run selector
+          Stored Run selector
         </p>
       </div>
       {isError ? (
@@ -914,17 +919,17 @@ export function RecentSuccessfulRunsPanel({
           message={errorMessage ?? "Stored ranking runs could not be loaded."}
         />
       ) : isLoading ? (
-        <StatePanel title="Loading archive runs..." message="Loading stored ranking runs." />
+        <StatePanel title="Loading stored runs..." message="Loading stored runs." />
       ) : snapshots.length === 0 ? (
         <StatePanel
-          title="No archived runs available."
-          message={`No successful ${timeframe} runs are available.`}
+          title="No archived snapshots available."
+          message={`No successful ${timeframe} stored runs are available.`}
         />
       ) : (
         <div
           className={recentRunsScrollContainerClassName}
           data-testid="recent-runs-scroll-container"
-          aria-label="Recent successful run selector"
+          aria-label="Stored run selector"
         >
           {snapshots.map((run) => {
             const isSelected = run.runId === selectedRunId;
@@ -1235,7 +1240,7 @@ function ArchiveValidationOverview({
             message={
               selectedReadinessRun
                 ? `Selected run ${shortRunId(selectedReadinessRun.runId)} is loading automatically.`
-                : "Choose a run from Recent Runs."
+                : "Choose a Stored Run."
             }
           />
         ) : snapshotError ? (
@@ -1245,7 +1250,7 @@ function ArchiveValidationOverview({
         ) : !selectedReadinessRun ? (
           <StatePanel
             title="No Selected Run"
-            message="Choose a run from Recent Runs."
+            message="Choose a Stored Run."
           />
         ) : summary ? (
           <ObservationSummarySection
@@ -1378,7 +1383,7 @@ function ValidationReadinessPanel({
             tone="accent"
           />
           <SummaryMetric
-            label="Review Source"
+            label="Validation Source"
             value={shortRunId(observationRun?.runId)}
             tone={observationRun ? "observation" : "missing"}
           />
@@ -1744,7 +1749,7 @@ export function ObservationRowsTable({
                   defaultDirection="desc"
                   onSortChange={updateSort}
                 >
-                  Validation Status
+                  Validation State
                 </DataTableHeaderCell>
                 <DataTableHeaderCell>Open Research</DataTableHeaderCell>
               </tr>
@@ -2270,14 +2275,14 @@ function getOutcomeSummaryStatus({
 }): { label: string; tone: StatusTone } {
   if (uiState.status === "observation_ready") {
     if (summary?.completeCount === 0 && summary.partialCount > 0) {
-      return { label: "Rows partial", tone: "partial" };
+      return { label: researchMissingStateCopy.partialWindow, tone: "partial" };
     }
 
     if (summary?.completeCount === 0 && summary.missingCount > 0) {
-      return { label: "Window pending", tone: "partial" };
+      return { label: researchMissingStateCopy.missingWindow, tone: "partial" };
     }
 
-    return { label: "Source ready", tone: "observation" };
+    return { label: "Validation ready", tone: "observation" };
   }
 
   if (
@@ -2404,9 +2409,9 @@ function ForwardObservationStatePanel({
 function ObservationDataStatusLegend() {
   return (
     <div className="terminal-panel mb-3 px-3 py-2 text-xs leading-5 text-[var(--muted)]">
-      <span className="font-semibold text-[var(--foreground)]">Validation Status:</span>{" "}
-      Complete has the selected future window, Partial has fewer completed candles,
-      Missing has no usable future window.
+      <span className="font-semibold text-[var(--foreground)]">Validation State:</span>{" "}
+      Complete window has the selected future window, Partial window has fewer
+      completed candles, Missing window has no usable future window.
     </div>
   );
 }
@@ -2661,7 +2666,7 @@ function getForwardObservationPanelTitle(uiState: ForwardObservationUiState) {
     case "observation_rows_error":
       return "Snapshot Rows unavailable";
     case "observation_ready_summary_missing":
-      return "Snapshot Rows not returned";
+      return "Snapshot Rows unavailable";
     case "observation_empty":
       return "No Snapshot Rows returned";
     case "observation_ready":
@@ -2911,8 +2916,8 @@ export function SnapshotTable({
       </div>
       <div className="border-t border-[var(--border)] px-2 py-2">
         <p className="mb-2 text-[11px] leading-4 text-[var(--muted)]">
-          Snapshot rows from the Selected Run. Open Research opens current
-          symbol research with archive context, not historical replay.
+          Archived Snapshot rows from the Selected Run. Open Research opens
+          current symbol research with Archive Context, not historical replay.
         </p>
         {!requested ? (
           <div className="terminal-state-panel">
@@ -2924,8 +2929,8 @@ export function SnapshotTable({
           </div>
         ) : isError ? (
           <StatePanel
-            title="Source snapshot rows unavailable"
-            message={errorMessage ?? "Source snapshot rows could not be loaded."}
+            title="Archive Snapshot rows unavailable"
+            message={errorMessage ?? "Archive Snapshot rows could not be loaded."}
           />
         ) : isLoading && rows.length === 0 ? (
           <StatePanel
@@ -2934,8 +2939,8 @@ export function SnapshotTable({
           />
         ) : rows.length === 0 ? (
           <StatePanel
-            title="No snapshot rows"
-            message="No snapshot rows are available for the Selected Run."
+            title="No Archive Snapshot rows"
+            message="No Archive Snapshot rows are available for the Selected Run."
           />
         ) : (
           <DataTableScroll className="max-h-72 !overflow-x-auto !overflow-y-auto">
@@ -2979,7 +2984,7 @@ export function SnapshotTable({
                 >
                   Research Label
                 </DataTableHeaderCell>
-                <DataTableHeaderCell>Action</DataTableHeaderCell>
+                <DataTableHeaderCell>Research Priority</DataTableHeaderCell>
                 <DataTableHeaderCell>Risk Context</DataTableHeaderCell>
                 <DataTableHeaderCell
                   sortKey="rank_score"
@@ -2990,7 +2995,7 @@ export function SnapshotTable({
                 >
                   Rank Score
                 </DataTableHeaderCell>
-                <DataTableHeaderCell>Outcome Status</DataTableHeaderCell>
+                <DataTableHeaderCell>Validation State</DataTableHeaderCell>
                 <DataTableHeaderCell align="right">Follow-through</DataTableHeaderCell>
                 <DataTableHeaderCell align="right">Drawdown Context</DataTableHeaderCell>
                 <DataTableHeaderCell>Window</DataTableHeaderCell>
@@ -4249,6 +4254,14 @@ function formatCompactDataStatus(
   status: ObservationDataStatus,
   missingReason: string | null | undefined,
 ) {
+  if (status === "partial") {
+    return researchMissingStateCopy.partialWindow;
+  }
+
+  if (status === "missing") {
+    return researchMissingStateCopy.missingWindow;
+  }
+
   if (!missingReason) {
     return formatDataStatus(status);
   }
@@ -4457,11 +4470,16 @@ function formatComponentScores(
   }
 
   return [
-    ["Opp", scores.opportunityScore],
-    ["Conf", scores.confirmationScore],
-    ["Risk", scores.riskScore],
-    ["Trend", scores.trendScore],
-    ["Mom", scores.momentumScore],
+    [formatResearchMetricLabel("setupQualityScore"), scores.opportunityScore],
+    [formatResearchMetricLabel("confidenceScore"), scores.confirmationScore],
+    [
+      formatResearchMetricLabel("riskPenalty"),
+      firstFiniteResearchMetric(scores.riskScore),
+    ],
+    [formatResearchMetricLabel("trendScore"), scores.trendScore],
+    [formatResearchMetricLabel("momentumScore"), scores.momentumScore],
+    [formatResearchMetricLabel("volumeScore"), scores.volumeScore],
+    [formatResearchMetricLabel("structureScore"), scores.structureScore],
   ]
     .map(([label, value]) => `${label} ${formatScore(value as number | null)}`)
     .join(" / ");

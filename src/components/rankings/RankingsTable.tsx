@@ -95,7 +95,7 @@ export function RankingsTable({
       },
       {
         accessorKey: "actionCode",
-        header: "Action",
+        header: "Research Priority",
         cell: ({ row }) => (
           <span className="font-semibold text-[var(--info)]">
             {explainCode(row.original.actionCode, language).label}
@@ -104,7 +104,7 @@ export function RankingsTable({
       },
       {
         accessorKey: "metrics.finalSignalScore",
-        header: t.scanner.columns.score,
+        header: "Risk-Adjusted Score",
         cell: ({ row }) => (
           <span
             className={`font-semibold tabular-nums ${getFinalScoreTextClass(
@@ -132,7 +132,7 @@ export function RankingsTable({
       },
       {
         accessorKey: "metrics.volumeScore",
-        header: "Volume",
+        header: "Liquidity",
         cell: ({ row }) => formatSigned(row.original.metrics.volumeScore, 0),
       },
       {
@@ -153,12 +153,12 @@ export function RankingsTable({
       {
         id: "macd",
         header: "MACD",
-        cell: () => <span className="text-[var(--muted)]">-</span>,
+        cell: () => <span className="text-[var(--muted)]">N/A</span>,
       },
       {
         id: "maStatus",
         header: t.scanner.columns.maStatus,
-        cell: () => <span className="text-[var(--muted)]">-</span>,
+        cell: () => <span className="text-[var(--muted)]">N/A</span>,
       },
       {
         id: "warnings",
@@ -172,7 +172,7 @@ export function RankingsTable({
               W{row.original.riskCodes.length || row.original.reasonCodes.length}
             </span>
           ) : (
-            <span className="text-[var(--muted)]">-</span>
+            <span className="text-[var(--muted)]">N/A</span>
           ),
       },
     ],
@@ -409,7 +409,7 @@ function StateMessage({ title, message }: { title: string; message: string }) {
 }
 
 function formatNullable(value: number | null, decimals: number) {
-  return value === null ? "n/a" : formatNumber(value, decimals);
+  return value === null ? "N/A" : formatNumber(value, decimals);
 }
 
 function formatNumber(value: number, decimals: number) {
@@ -418,7 +418,7 @@ function formatNumber(value: number, decimals: number) {
 
 function formatSigned(value: number | null, decimals: number) {
   if (value === null) {
-    return "n/a";
+    return "N/A";
   }
 
   const formatted = value.toFixed(decimals);

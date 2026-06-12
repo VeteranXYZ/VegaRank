@@ -341,7 +341,7 @@ function ResearchEvaluationPanel({
   const weakBounce = data?.summary.bySignalLabel.weak_bounce;
   const topLabel = getTopLabel(data?.summary.bySignalLabel, "best");
   const worstRiskType = getTopLabel(data?.summary.byRiskType, "worst");
-  const storageLabel = data ? formatStorageMode(data.storageMode) : "n/a";
+  const storageLabel = data ? formatStorageMode(data.storageMode) : "N/A";
 
   return (
     <section className="border border-[var(--border)] bg-[var(--panel)] px-2.5 py-1.5">
@@ -1021,7 +1021,7 @@ function formatDuration(value: number | undefined) {
 
 function formatSignedPercent(value: number | null | undefined) {
   if (value === null || value === undefined) {
-    return "n/a";
+    return "N/A";
   }
 
   const formatted = `${value.toFixed(2)}%`;
@@ -1030,7 +1030,7 @@ function formatSignedPercent(value: number | null | undefined) {
 
 function formatPercentRatio(value: number | null | undefined) {
   if (value === null || value === undefined) {
-    return "n/a";
+    return "N/A";
   }
 
   return `${(value * 100).toFixed(1)}%`;
@@ -1045,7 +1045,7 @@ function getTopLabel(
   );
 
   if (rows.length === 0) {
-    return "n/a";
+    return "N/A";
   }
 
   rows.sort((left, right) =>
@@ -1069,7 +1069,7 @@ function formatStorageMode(mode: ResearchEvaluationResponse["storageMode"]) {
 }
 
 function formatShortDateTime(value: string | null | undefined) {
-  return formatDisplayDateTime(value, { fallback: "n/a" });
+  return formatDisplayDateTime(value, { fallback: "N/A" });
 }
 
 function formatTime(value: string | undefined) {

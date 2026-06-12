@@ -8,6 +8,8 @@ Discover -> Compare -> Research -> Monitor -> Validate
 
 The goal is navigational clarity and URL-based context preservation. This phase does not change scoring, data fetching semantics, API response shape, storage schema, or product positioning.
 
+State names, source labels, missing-data rules, and cross-page terminology are defined in `docs/vegarank-research-state-model.md`.
+
 ## 2. Product boundary
 
 VegaRank is a professional crypto technical research-ranking system. It supports research workflow, review, and validation. It does not issue trading instructions and is not investment advice.

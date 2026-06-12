@@ -4,6 +4,7 @@ import {
   normalizeGroupKey,
 } from "@/components/rankings/latestRankingsUi";
 import { shortResearchDisclaimer } from "@/components/researchCopy";
+import { researchMissingStateCopy } from "@/lib/research-state/formatResearchState";
 import {
   buildSymbolResearchHref,
   type ResearchNavigationContext,
@@ -470,11 +471,11 @@ export function formatMtfGroup(
 ) {
   return snapshot
     ? explainCode(snapshot.groupCode, language).label
-    : "Not returned";
+    : "Missing Snapshot";
 }
 
 export function formatMtfRank(snapshot: MtfScreenerSnapshot | undefined) {
-  return snapshot ? formatScore(snapshot.metrics.rankScore) : "-";
+  return snapshot ? formatScore(snapshot.metrics.rankScore) : "N/A";
 }
 
 export function getMtfCombinedRank(row: MtfScreenerRow) {
@@ -561,7 +562,7 @@ export function getMtfPrimarySignal(
       .find(Boolean);
 
   if (!snapshot) {
-    return "No latest ranking result";
+    return researchMissingStateCopy.noLatestSnapshot;
   }
 
   const signalCode = snapshot.signalCodes[0] ?? snapshot.phaseCode;

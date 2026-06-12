@@ -390,7 +390,7 @@ async function fetchCandles(symbol: string, timeframe: Timeframe) {
 }
 
 function formatNullable(value: number | null, decimals: number) {
-  return value === null ? "n/a" : value.toFixed(decimals);
+  return value === null ? "N/A" : value.toFixed(decimals);
 }
 
 function formatPrice(value: number) {

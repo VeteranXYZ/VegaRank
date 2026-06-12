@@ -32,7 +32,7 @@ describe("symbol research UI helpers", () => {
     expect(formatSymbolResearchScore(82.28)).toBe("82.3");
     expect(formatSymbolResearchScore(null)).toBe("N/A");
     expect(formatSymbolResearchPrice(1234.567)).toBe("1,234.57");
-    expect(formatSymbolResearchPrice(undefined)).toBe("-");
+    expect(formatSymbolResearchPrice(undefined)).toBe("N/A");
     expect(formatSymbolResearchDateTime("not-a-date")).toBe("Not available");
   });
 
@@ -89,12 +89,15 @@ describe("symbol research UI helpers", () => {
       { label: "Rank Score", value: "81.2" },
       { label: "Risk-Adjusted Score", value: "70.0" },
       { label: "Setup Quality", value: "N/A" },
-      { label: "Confirmation", value: "62.1" },
-      { label: "Risk", value: "20.0" },
+      { label: "Confidence", value: "62.1" },
       { label: "Trend", value: "54.0" },
       { label: "Momentum", value: "49.0" },
-      { label: "Liquidity", value: "34.0" },
       { label: "Structure", value: "88.0" },
+      { label: "Volatility", value: "N/A" },
+      { label: "Liquidity", value: "34.0" },
+      { label: "Risk Penalty", value: "20.0" },
+      { label: "Quality Penalty", value: "N/A" },
+      { label: "Universe Percentile", value: "N/A" },
     ]);
   });
 
@@ -402,7 +405,7 @@ describe("symbol research UI helpers", () => {
 
     expect(content.title).toBe("Timeframe unavailable for this symbol");
     expect(content.isInsufficientHistory).toBe(true);
-    expect(content.message).toContain("No 1w ranking result for SEIUSDT");
+    expect(content.message).toContain("No 1w current research snapshot for SEIUSDT");
     expect(content.details).toEqual(
       expect.arrayContaining([
         { label: "Symbol", value: "SEIUSDT" },
@@ -413,7 +416,8 @@ describe("symbol research UI helpers", () => {
           label: "Selected Run",
           value: "1w full-universe run, success, scanned 192 / 413, skipped 221",
         },
-        { label: "Ranking Rows Created", value: "192" },
+        { label: "Snapshot Rows", value: "192" },
+        { label: "Selected Run Completed", value: "2026-05-31 21:00" },
       ]),
     );
     expect(content.suggestions).toEqual([
@@ -445,7 +449,7 @@ describe("symbol research UI helpers", () => {
     expect(content.title).toBe("Timeframe unavailable for this symbol");
     expect(content.isInsufficientHistory).toBe(false);
     expect(content.message).toBe(
-      "No ranking result is available for this symbol/timeframe from the selected latest run.",
+      "No current research snapshot is available for this symbol/timeframe from the selected latest run.",
     );
   });
 
@@ -540,9 +544,9 @@ describe("symbol research UI helpers", () => {
 
     expect(rows.map((row) => [row.timeframe, row.status, row.reason])).toEqual([
       ["4h", "selected_available", "Available"],
-      ["1d", "not_returned", "No latest ranking result was returned for this timeframe."],
-      ["1w", "not_returned", "No latest ranking result was returned for this timeframe."],
-      ["1h", "not_returned", "No latest ranking result was returned for this timeframe."],
+      ["1d", "not_returned", "No latest research snapshot was returned for this timeframe."],
+      ["1w", "not_returned", "No latest research snapshot was returned for this timeframe."],
+      ["1h", "not_returned", "No latest research snapshot was returned for this timeframe."],
     ]);
   });
 

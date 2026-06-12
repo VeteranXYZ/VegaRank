@@ -23,7 +23,7 @@ describe("SymbolBehaviorPanel", () => {
     expect(html).toContain("Behavior Readout");
     expect(html).toContain("Constructive tendency");
     expect(html).toContain("Evidence Reliability");
-    expect(html).toContain("Selected Horizon");
+    expect(html).toContain("Outcome Window");
     expect(html).toContain("Horizon Agreement");
     expect(html).toContain("Historical Bias");
     expect(html).toContain(
@@ -39,9 +39,9 @@ describe("SymbolBehaviorPanel", () => {
     expect(html).toContain("11 completed forward observations");
     expect(html).toContain("63.6% upside follow-through");
     expect(html).toContain("Sample size");
-    expect(html).toContain("Forward horizon observations");
+    expect(html).toContain("Future-window observations");
     expect(html).toContain("1 candle");
-    expect(html).toContain("Avg Change");
+    expect(html).toContain("Avg Follow-through");
     expect(html).toContain("+1.20%");
     expect(html).toContain("Current context");
     expect(html).toContain("Eligible");
@@ -83,7 +83,7 @@ describe("SymbolBehaviorPanel", () => {
       }),
     );
 
-    expect(html).toContain("No current latest ranking result");
+    expect(html).toContain("No latest research snapshot");
     expect(html).toContain("Current coverage: 146 / 200 required candles.");
   });
 

@@ -204,7 +204,7 @@ describe("multi-timeframe screener helpers", () => {
     });
 
     expect(getMtfCombinedRank(row)).toBeNull();
-    expect(formatMtfCombinedRank(row)).toBe("-");
+    expect(formatMtfCombinedRank(row)).toBe("N/A");
   });
 
   it("sorts by rank fields while keeping missing ranks last", () => {
@@ -378,8 +378,8 @@ describe("multi-timeframe screener helpers", () => {
       ]),
     });
 
-    expect(formatMtfGroup(row.snapshots["4h"])).toBe("Not returned");
-    expect(formatMtfRank(row.snapshots["4h"])).toBe("-");
+    expect(formatMtfGroup(row.snapshots["4h"])).toBe("Missing Snapshot");
+    expect(formatMtfRank(row.snapshots["4h"])).toBe("N/A");
     expect(getMtfPrimarySignal(row)).toBe("1h False Breakout Risk / Risk");
     expect(getMtfRiskNotes(row)).toBe("1h: Poor Reward-Risk");
   });

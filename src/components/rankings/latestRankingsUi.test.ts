@@ -31,10 +31,10 @@ import {
 describe("latest rankings UI helpers", () => {
   it("formats nullable scores and prices safely", () => {
     expect(formatScore(72.256)).toBe("72.3");
-    expect(formatScore(null)).toBe("-");
+    expect(formatScore(null)).toBe("N/A");
     expect(formatPrice(1234.567)).toBe("1,234.57");
     expect(formatPrice(0.000012345)).toBe("0.000012345");
-    expect(formatPrice(undefined)).toBe("-");
+    expect(formatPrice(undefined)).toBe("N/A");
   });
 
   it("formats readable labels without buy or sell language", () => {
@@ -87,13 +87,18 @@ describe("latest rankings UI helpers", () => {
         structureScore: null,
       }),
     ).toEqual([
+      { label: "Rank Score", value: "N/A" },
+      { label: "Risk-Adjusted Score", value: "N/A" },
       { label: "Setup Quality", value: "72.2" },
-      { label: "Confirmation", value: "60.0" },
-      { label: "Risk", value: "24.8" },
+      { label: "Confidence", value: "60.0" },
       { label: "Trend", value: "55.0" },
       { label: "Momentum", value: "48.0" },
+      { label: "Structure", value: "N/A" },
+      { label: "Volatility", value: "N/A" },
       { label: "Liquidity", value: "70.0" },
-      { label: "Structure", value: "-" },
+      { label: "Risk Penalty", value: "24.8" },
+      { label: "Quality Penalty", value: "N/A" },
+      { label: "Universe Percentile", value: "N/A" },
     ]);
   });
 

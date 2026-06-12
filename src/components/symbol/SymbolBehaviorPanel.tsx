@@ -186,7 +186,7 @@ function BehaviorReadoutCard({
           label="Evidence Reliability"
           value={readout.sampleConfidenceLabel}
         />
-        <BehaviorFact label="Selected Horizon" value={readout.selectedHorizonLabel} />
+        <BehaviorFact label="Outcome Window" value={readout.selectedHorizonLabel} />
         <BehaviorFact
           label="Horizon Agreement"
           value={readout.horizonAgreementLabel}
@@ -270,7 +270,7 @@ function HistoricalFollowThroughEvaluationCard({
       <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
         <BehaviorFact label="Evaluation Scope" value={evaluation.evaluationScope} />
         <BehaviorFact
-          label="Selected Horizon"
+          label="Outcome Window"
           value={evaluation.selectedHorizonLabel}
         />
         <BehaviorFact
@@ -278,15 +278,15 @@ function HistoricalFollowThroughEvaluationCard({
           value={evaluation.sampleLabel}
         />
         <BehaviorFact
-          label="Historical Match"
+          label="Historical Alignment"
           value={evaluation.directionMatchLabel}
         />
         <BehaviorFact
-          label="Median Change"
+          label="Median Follow-through"
           value={evaluation.medianReturnLabel}
         />
         <BehaviorFact
-          label="Positive Rate"
+          label="Positive Follow-through"
           value={evaluation.positiveRateLabel}
         />
       </div>
@@ -384,10 +384,10 @@ function CurrentBehaviorContext({
 function BehaviorHorizons({ horizons }: { horizons: SymbolBehaviorHorizonRow[] }) {
   return (
     <div className="mt-4">
-      <h3 className="text-sm font-semibold">Forward horizon observations</h3>
+      <h3 className="text-sm font-semibold">Future-window observations</h3>
       <p className="mt-1 text-xs text-[var(--muted)]">
-        Forward change compares the snapshot price to the close after each completed
-        horizon.
+        Follow-through compares the snapshot price to the close after each completed
+        outcome window.
       </p>
       <div className="mt-3 overflow-x-auto">
         <table className="w-full min-w-[720px] border-collapse text-left text-xs">
@@ -395,10 +395,10 @@ function BehaviorHorizons({ horizons }: { horizons: SymbolBehaviorHorizonRow[] }
             <tr>
               <th className="px-2 py-1.5">Horizon</th>
               <th className="px-2 py-1.5 text-right">Observations</th>
-              <th className="px-2 py-1.5 text-right">Avg Change</th>
-              <th className="px-2 py-1.5 text-right">Median Change</th>
+              <th className="px-2 py-1.5 text-right">Avg Follow-through</th>
+              <th className="px-2 py-1.5 text-right">Median Follow-through</th>
               <th className="px-2 py-1.5 text-right">
-                Historical Positive Rate
+                Positive Follow-through
               </th>
               <th className="px-2 py-1.5 text-right">Max Observed</th>
               <th className="px-2 py-1.5 text-right">Min Observed</th>

@@ -554,7 +554,7 @@ export function SymbolResearchPageClient({
         />
         <ResearchState
           title={normalizedSymbol}
-          message="No research data available."
+          message="No latest research snapshot available."
           apiOrigin={apiOrigin}
           scannerReturnHref={scannerReturnHref}
           scannerReturnLabel={scannerReturnLabel}
@@ -659,7 +659,7 @@ export function SymbolResearchPageClient({
         />
         <ResearchState
           title={data.symbol.symbol}
-          message="No research snapshot is available for this symbol."
+          message="No latest research snapshot available for this symbol."
           apiOrigin={apiOrigin}
           scannerReturnHref={scannerReturnHref}
           scannerReturnLabel={scannerReturnLabel}
@@ -866,7 +866,7 @@ export function SymbolResearchPageClient({
               tone: data.symbol.isLowQuality ? "warning" : "complete",
             },
             {
-              label: "Latest",
+              label: "Current Snapshot",
               value: formatSymbolResearchDateTime(data.latest?.scanRun?.finishedAt),
               tone: "neutral",
             },
@@ -1945,12 +1945,12 @@ function ResearchSnapshotPanel({
             label="Research Group"
             value={formatSymbolResearchGroupForDisplay(interpretation.group, dictionary)}
           />
-          <SnapshotFact label="Action" value={interpretation.action} />
+          <SnapshotFact label="Research Priority" value={interpretation.action} />
           <SnapshotFact label="Setup" value={interpretation.setupType} />
           <SnapshotFact label="Evidence Quality" value={qualityLabel} />
           <SnapshotFact label="Timeframe" value={selectedTimeframe.toUpperCase()} />
           <SnapshotFact
-            label="Updated"
+            label="Current Snapshot Updated"
             value={formatSymbolResearchDateTime(latestScanTime)}
           />
           {qualityTier ? (
@@ -2116,7 +2116,7 @@ function ArchiveContextPanel({
         <SnapshotFact label="Archive Snapshot" value={archiveSnapshotStatus} />
         <SnapshotFact label="Timeframe" value={selectedTimeframe.toUpperCase()} />
         <SnapshotFact
-          label="Current Updated"
+          label="Current Snapshot Updated"
           value={formatSymbolResearchDateTime(latestScanTime)}
         />
       </div>
@@ -2266,11 +2266,11 @@ function getArchiveSnapshotStatus(searchParams: QueryStateInput) {
   const runId = getQueryStateValue(searchParams, "runId");
 
   if (snapshotId) {
-    return `Snapshot ${snapshotId}`;
+    return `Archived Snapshot ${snapshotId}`;
   }
 
   if (runId) {
-    return `Run ${runId}`;
+    return `Stored Run ${runId}`;
   }
 
   return "No archive snapshot available yet.";
@@ -2391,7 +2391,7 @@ function SignalEvaluationPanel({
   className?: string;
 }) {
   return (
-    <Panel title="Validation" className={className}>
+    <Panel title="Validation State" className={className}>
       <p className="mb-3 max-w-3xl text-sm text-[var(--muted)]">
         Across the broader market, how this ranking-result type has behaved
         across completed samples. Separate from this symbol&apos;s own behavior.
@@ -2410,10 +2410,10 @@ function SignalEvaluationPanel({
             <Fact label="Sample Quality" value={readout.sampleQualityLabel} />
             <Fact label="Source Results" value={readout.sourceSignals} />
             <Fact label="Completed Results" value={readout.completedSignals} />
-            <Fact label="Selected Horizon" value={readout.selectedHorizonLabel} />
-            <Fact label="Median Change" value={readout.medianReturn} />
-            <Fact label="Match Rate" value={readout.directionMatchRate} />
-            <Fact label="Positive Rate" value={readout.positiveRate} />
+            <Fact label="Outcome Window" value={readout.selectedHorizonLabel} />
+            <Fact label="Median Follow-through" value={readout.medianReturn} />
+            <Fact label="Direction Context" value={readout.directionMatchRate} />
+            <Fact label="Positive Follow-through" value={readout.positiveRate} />
           </div>
           <div
             className={`mt-3 border border-l-4 px-3 py-2.5 text-sm ${
@@ -2779,7 +2779,7 @@ function getKnownSymbolResearchErrorMessage(errorCode: string | null) {
     case "SYMBOL_NOT_FOUND":
       return "Symbol not found in the VegaRank universe.";
     case "NO_LATEST_SIGNAL":
-      return "No ranking result is available for this symbol/timeframe from the selected latest run.";
+      return "No current research snapshot is available for this symbol/timeframe from the selected latest run.";
     case "INVALID_TIMEFRAME":
       return "Invalid timeframe. Try 1h, 4h, 1d, or 1w.";
     default:

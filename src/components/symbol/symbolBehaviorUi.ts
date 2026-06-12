@@ -444,9 +444,9 @@ export function buildBehaviorReadout(
     horizonAgreementLabel: getBehaviorHorizonAgreementLabel(horizonAgreement),
     historicalBiasLabel: `${formatBehaviorPercent(
       selected.medianReturnPct,
-    )} median, ${formatBehaviorWinRate(
+    )} median follow-through, ${formatBehaviorWinRate(
       selected.winRatePct,
-    )} positive rate in this sample`,
+    )} positive follow-through in this sample`,
     summaryText: getBehaviorReadoutSummaryText({
       label,
       selectedHorizonLabel: selected.label,
@@ -536,8 +536,8 @@ export function buildHistoricalFollowThroughEvaluation({
       directionMatchPct,
     }),
     directionMatchPct,
-    medianReturnLabel: `${formatBehaviorPercent(median)} median change`,
-    positiveRateLabel: `${formatBehaviorWinRate(positiveRate)} positive rate`,
+    medianReturnLabel: `${formatBehaviorPercent(median)} median follow-through`,
+    positiveRateLabel: `${formatBehaviorWinRate(positiveRate)} positive follow-through`,
     interpretation: getFollowThroughInterpretation({
       context,
       posture,
@@ -572,7 +572,7 @@ export function getBehaviorDiagnosticsTitle(
 ) {
   switch (diagnostics?.reason) {
     case "no_latest_signal":
-      return "No current latest ranking result";
+      return "No latest research snapshot";
     case "no_prior_signals":
       return "No prior matching ranking results";
     case "missing_forward_candles":
@@ -600,7 +600,7 @@ export function getBehaviorUnavailableMessage({
 
   switch (diagnostics?.reason) {
     case "no_latest_signal":
-      return `Behavior is unavailable because this symbol/timeframe does not currently have a latest ranking result.${suffix}`;
+      return `Behavior is unavailable because this symbol/timeframe does not currently have a latest research snapshot.${suffix}`;
     case "no_prior_signals":
       return "No prior matching ranking results were found yet for this symbol/timeframe. This can be normal for newly added 1d/1w data or newly available symbols.";
     case "missing_forward_candles":
@@ -924,7 +924,7 @@ function buildBehaviorReadoutCaveats({
   }
 
   if (overallSampleSize > 0 && overallSampleSize < selectedSampleSize) {
-    caveats.push("Overall sample metadata is smaller than the selected horizon sample.");
+    caveats.push("Overall sample metadata is smaller than the selected outcome-window sample.");
   }
 
   if (horizonAgreement === "mixed") {

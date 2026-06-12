@@ -4,6 +4,8 @@
 
 Archive is the validation and review center for stored VegaRank research snapshots. It helps users understand which stored run is selected, whether that run has enough completed future-window data, and which snapshot rows can be opened in Symbol Research.
 
+Archive source labels, validation readiness terms, outcome-window language, and missing-data rules are governed by `docs/vegarank-research-state-model.md`.
+
 ## Archive role in research workflow
 
 Archive supports the Validate step in the workflow:
@@ -53,7 +55,7 @@ It must not be described as win rate, success rate, profit, or prediction accura
 
 Snapshot Rows are a primary Archive area. They show the rows ranked in the selected run and preserve direct access to Symbol Research.
 
-Visible columns include symbol identity, research group, action, risk context, rank score, outcome status, follow-through, drawdown context, window, score components, source versions, and Open Research when the data exists.
+Visible columns include symbol identity, research group, research priority, risk context, rank score, validation state, follow-through, drawdown context, window, score components, source versions, and Open Research when the data exists.
 
 Missing outcome values render as `N/A` or a pending status.
 
@@ -71,9 +73,9 @@ Validation Details are secondary and muted. They contain maturity logic and sour
 - returned rows
 - outcome rows
 
-## Recent Runs selector
+## Stored Runs selector
 
-Recent Runs acts as a compact stored-run selector. Run items prioritize timeframe, completed time, row count, universe scope, and readiness/source badges. Raw run ids are shortened and secondary.
+Stored Runs acts as a compact stored-run selector. Run items prioritize timeframe, completed time, row count, universe scope, and readiness/source badges. Raw run ids are shortened and secondary.
 
 ## Archive to Symbol Research loop
 

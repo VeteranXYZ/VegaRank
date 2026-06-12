@@ -8,6 +8,8 @@ Persistent disclaimer: `Research-only. Not trading advice.`
 
 This document governs visible UI shell copy only. It does not rename API fields, database columns, storage keys, codebook values, scoring formulas, PM2 processes, cron jobs, or deployment runtime names.
 
+For the canonical research state glossary, score provenance rules, and page-specific source labels, see `docs/vegarank-research-state-model.md`.
+
 ## 2. Page roles
 
 - Market Rankings: latest ranked research results across the current market universe.
@@ -37,7 +39,7 @@ Preferred labels include:
 - `Evidence Quality`
 - `Rank Score`
 - `Confidence`
-- `Volume / Liquidity`
+- `Liquidity`
 - `Search Symbol`
 - `Exchange`
 - `Market`
@@ -87,7 +89,7 @@ Preferred loading states:
 
 Preferred empty states:
 
-- `No ranking results found.`
+- `No latest research snapshot available.`
 - `No symbols match the current filters.`
 - `No watchlist symbols yet.`
 - `No archived runs available.`

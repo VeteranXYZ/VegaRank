@@ -229,7 +229,9 @@ export function WatchlistPageClient({
     const presetSymbols = applyWatchlistPreset(presetId);
 
     setDraftInput(formatWatchlistInput(presetSymbols));
-    setImportStatus("Preset loaded into the editor. Save Watchlist to apply.");
+    setImportStatus(
+      "Preset loaded into the editor. Save Local Watchlist to apply.",
+    );
     setExportStatus(null);
   };
   const importSymbols = () => {
@@ -242,7 +244,7 @@ export function WatchlistPageClient({
 
     setDraftInput(formatWatchlistInput(importedSymbols));
     setImportStatus(
-      `Imported ${importedSymbols.length} normalized symbols into the editor. Save Watchlist to apply.`,
+      `Imported ${importedSymbols.length} normalized symbols into the editor. Save Local Watchlist to apply.`,
     );
     setExportStatus(null);
   };
@@ -314,8 +316,8 @@ export function WatchlistPageClient({
         onClear={clearWatchlist}
       />
       <p className="mb-1 text-[11px] leading-4 text-[var(--muted)]">
-        Monitor selected symbols against the latest research snapshot and keep
-        active candidates visible for review.
+        Local Watchlist stores selected symbols in this browser and displays
+        each row against the latest available research snapshot.
       </p>
 
       <div className="grid min-h-0 flex-1 gap-2 xl:grid-cols-[232px_minmax(0,1fr)] xl:overflow-hidden">
@@ -448,10 +450,11 @@ function WatchlistCommandBar({
     <section className="terminal-command-bar mb-2">
       <div className="terminal-command-row text-[var(--terminal-bar-muted)]">
         <div className="terminal-command-brand">
-          <h1 className="terminal-command-title">Watchlist</h1>
+          <h1 className="terminal-command-title">Local Watchlist</h1>
         </div>
         <div className="terminal-command-main">
           <StatusBadge tone={statusTone}>{statusLabel}</StatusBadge>
+          <span className="terminal-command-chip">Saved in this browser</span>
           <span className="terminal-command-chip">Latest Snapshot</span>
           <span className="terminal-command-chip">{contextLabel.toUpperCase()}</span>
           <span className="terminal-command-chip">
@@ -470,7 +473,7 @@ function WatchlistCommandBar({
         </div>
         <div className="terminal-command-actions">
           <button type="button" onClick={onSave} className={commandButtonClass}>
-            Save Watchlist
+            Save Local Watchlist
           </button>
           <button
             type="button"
@@ -518,7 +521,7 @@ export function WatchlistTable({
 }) {
   if (rows.length === 0) {
     return (
-      <WatchlistStatePanel message="No watchlist symbols yet." />
+      <WatchlistStatePanel message="No local watchlist symbols yet." />
     );
   }
 
@@ -527,7 +530,7 @@ export function WatchlistTable({
       <div className="terminal-panel-header">
         <div className="flex min-w-0 flex-wrap items-center gap-2">
           <h2 className="terminal-panel-title">
-            Watchlist Results
+            Latest Snapshot
           </h2>
           <StatusBadge tone="neutral" className="text-[10px]">
             Selected Symbols
@@ -542,7 +545,7 @@ export function WatchlistTable({
           ) : null}
         </div>
         <span className="text-[10px] font-semibold uppercase text-[var(--muted)]">
-          Research Group + Rank Score
+          Current Research State
         </span>
       </div>
       <DataTableScroll className="xl:min-h-0 xl:flex-1 xl:overflow-auto">
@@ -621,7 +624,7 @@ export function WatchlistTable({
                   <div className="mt-0.5 truncate text-[9px] uppercase text-[var(--muted)]">
                     {row.mtfRow
                       ? `${row.mtfRow.exchange} / ${row.mtfRow.market}`
-                      : "Missing"}
+                      : "Missing Snapshot"}
                   </div>
                 </DataTableCell>
                 {MTF_SCREENER_TIMEFRAMES.map((timeframe) => (
@@ -639,7 +642,11 @@ export function WatchlistTable({
                   <WatchlistPrimaryCell row={row} />
                 </DataTableCell>
                 <DataTableCell>
-                  {row.mtfRow ? <RiskNotesCell row={row} /> : "Not found"}
+                  {row.mtfRow ? (
+                    <RiskNotesCell row={row} />
+                  ) : (
+                    "No latest research snapshot available"
+                  )}
                 </DataTableCell>
                 <DataTableCell align="center">
                   <ResearchLink row={row} context={navigationContext} />
@@ -984,7 +991,7 @@ function WatchlistSourcePanel({
     <section className="terminal-panel-muted px-2 py-1.5">
       <div className="flex min-w-0 items-center gap-1.5 overflow-x-auto [scrollbar-gutter:stable]">
         <span className="shrink-0 border-r border-[var(--border)] pr-2 text-[10px] font-semibold uppercase text-[var(--muted)]">
-          Stored Runs
+          Latest Snapshot Source
         </span>
         <span className="shrink-0 text-[10px] font-semibold uppercase text-[var(--muted)]">
           {filteredRows}/{totalRows} selected
@@ -1004,8 +1011,8 @@ function WatchlistSourcePanel({
               </span>
               <span className="text-[var(--muted)]">
                 {run
-                  ? `${formatDateTime(run.finishedAt ?? run.startedAt)} / ${signalCount} ranking results / ${missingCount} missing`
-                  : "No run"}
+                  ? `Latest Snapshot ${formatDateTime(run.finishedAt ?? run.startedAt)} / ${signalCount} ranking results / ${missingCount} missing`
+                  : "No latest snapshot"}
               </span>
             </div>
           );
@@ -1099,7 +1106,7 @@ function WatchlistStatusNotice({
     return (
       <CompactNotice
         tone="missing"
-        message="Watchlist is empty. Add symbols, use a preset, or import a list to begin research."
+        message="Local Watchlist is empty. Add symbols, use a preset, or import a list to begin research."
       />
     );
   }
@@ -1112,7 +1119,7 @@ function WatchlistStatusNotice({
     return (
       <CompactNotice
         tone="missing"
-        message={`Insufficient data · latest multi-timeframe data unavailable for selected symbols · ${summary.totalSelectedSymbols} selected / 0 found / ${summary.missingSymbols} missing`}
+        message={`Insufficient data · latest research snapshot unavailable for selected symbols · ${summary.totalSelectedSymbols} selected / 0 found / ${summary.missingSymbols} missing`}
       />
     );
   }
@@ -1121,7 +1128,7 @@ function WatchlistStatusNotice({
     return (
       <CompactNotice
         tone="missing"
-        message={`${summary.missingSymbols} selected symbols are not returned by the latest multi-timeframe API and will show Not found until data is available.`}
+        message={`${summary.missingSymbols} selected symbols have no latest research snapshot available yet.`}
       />
     );
   }
@@ -1139,7 +1146,7 @@ function WatchlistApiNotice({
   return (
     <CompactNotice
       tone="risk"
-      message={`Unable to load watchlist. Latest multi-timeframe data unavailable · ${summary.totalSelectedSymbols} selected / ${summary.foundSymbols} found / ${summary.missingSymbols} missing · ${message}`}
+      message={`Unable to load watchlist. Latest research snapshot unavailable · ${summary.totalSelectedSymbols} selected / ${summary.foundSymbols} found / ${summary.missingSymbols} missing · ${message}`}
     />
   );
 }
@@ -1176,13 +1183,21 @@ function WatchlistTimeframeCell({
   timeframe: MtfScreenerTimeframe;
 }) {
   if (!row.mtfRow) {
-    return <DataTableChip tone="missing">Not found</DataTableChip>;
+    return (
+      <DataTableChip tone="missing" title="No latest research snapshot available.">
+        No Snapshot
+      </DataTableChip>
+    );
   }
 
   const snapshot = row.mtfRow.snapshots[timeframe];
 
   if (!snapshot) {
-    return <DataTableChip tone="missing">Not returned</DataTableChip>;
+    return (
+      <DataTableChip tone="missing" title="No latest research snapshot available.">
+        N/A
+      </DataTableChip>
+    );
   }
 
   const tone = getWatchlistGroupTone(snapshot.resultGroup);
@@ -1215,7 +1230,7 @@ function WatchlistPrimaryCell({ row }: { row: WatchlistRow }) {
 
 function RiskNotesCell({ row }: { row: WatchlistRow }) {
   if (!row.mtfRow) {
-    return <span>Not found</span>;
+    return <span>No latest research snapshot available</span>;
   }
 
   const summary = getMtfRiskNotesSummary(row.mtfRow, 2);
@@ -1257,8 +1272,13 @@ function ResearchLink({
       <span
         aria-disabled="true"
         className="terminal-mini-action h-5 px-1.5 opacity-70"
+        title={
+          row.mtfRow
+            ? "No latest research snapshot is available for a supported timeframe."
+            : "No latest research snapshot available."
+        }
       >
-        {row.mtfRow ? "No Timeframe" : "Missing"}
+        {row.mtfRow ? "No Timeframe" : "Missing Snapshot"}
       </span>
     );
   }
@@ -1280,9 +1300,9 @@ function getWatchlistPrimaryState(row: WatchlistRow): {
 } {
   if (!row.mtfRow) {
     return {
-      label: "Missing",
+      label: "Missing Snapshot",
       tone: "missing",
-      title: "Selected symbol was not found in the latest multi-timeframe snapshot.",
+      title: "No latest research snapshot available for this selected symbol.",
     };
   }
 
@@ -1335,7 +1355,7 @@ function formatWatchlistAttentionNote(note: string) {
 
 function formatWatchlistGroup(snapshot: MtfScreenerSnapshot | undefined) {
   if (!snapshot) {
-    return "Not returned";
+    return "N/A";
   }
 
   return snapshot.resultGroup === "overheated" ? "Hot" : formatMtfGroup(snapshot);
@@ -1443,7 +1463,7 @@ function getWatchlistStatusLabel({
   }
 
   if (summary.foundSymbols === 0) {
-    return "Missing";
+    return "Missing Snapshot";
   }
 
   return "Monitoring";
@@ -1612,7 +1632,7 @@ function getBrowserStorage() {
 }
 
 function formatSummaryRank(value: number) {
-  return Number.isFinite(value) ? value.toFixed(1) : "-";
+  return Number.isFinite(value) ? value.toFixed(1) : "N/A";
 }
 
 const controlClass =

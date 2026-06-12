@@ -294,11 +294,11 @@ export function MultiTimeframeScreenerPageClient({
 
         <main className="order-1 min-h-0 min-w-0 xl:order-2 xl:flex xl:flex-col xl:overflow-hidden">
           {latestQuery.isLoading ? (
-            <MtfStatePanel message="Loading research snapshot..." />
+          <MtfStatePanel message="Loading latest research snapshot..." />
           ) : latestQuery.isError ? (
             <MtfStatePanel message={getMtfErrorMessage(latestQuery.error)} />
           ) : rows.length === 0 ? (
-            <MtfStatePanel message="No ranking results found." />
+          <MtfStatePanel message="No latest research snapshot available." />
           ) : (
             <MtfScreenerTable
               rows={visibleRows}
@@ -505,7 +505,6 @@ export function MtfScreenerTable({
                     key={`${row.symbol}-${timeframe}`}
                     row={row}
                     timeframe={timeframe}
-                    dictionary={dictionary}
                     language={language}
                   />
                 ))}
@@ -689,7 +688,7 @@ export function MtfScreenerCommandBar({
 
         <div className="terminal-command-main">
           <MtfCommandStat
-            label="Snapshot"
+            label="Latest Snapshot"
             value={statusLabel}
             tone={statusTone}
           />
@@ -781,7 +780,7 @@ function MtfFreshnessStrip({
       title={getMtfFreshnessTitle(sourceData)}
     >
       <span className="shrink-0 text-[9px] font-semibold uppercase text-[var(--terminal-bar-muted)]">
-        Freshness
+        Latest Snapshot
       </span>
       <div className="flex min-w-0 items-center gap-1 overflow-hidden">
         {MTF_SCREENER_TIMEFRAMES.map((timeframe) => (
@@ -858,7 +857,7 @@ function getMtfFreshnessStripTone(
 
 function getMtfFreshnessTitle(sourceData?: MtfLatestScreenerResponse) {
   if (!sourceData) {
-    return "Freshness: latest runs unavailable.";
+    return "Latest Snapshot: latest runs unavailable.";
   }
 
   return MTF_SCREENER_TIMEFRAMES.map((timeframe) => {
@@ -873,7 +872,7 @@ function getMtfFreshnessTitle(sourceData?: MtfLatestScreenerResponse) {
 }
 
 function formatMtfFreshnessCompactTime(value: string | null | undefined) {
-  return formatDisplayDateTime(value, { fallback: "n/a", mode: "time" });
+  return formatDisplayDateTime(value, { fallback: "N/A", mode: "time" });
 }
 
 function getMtfQueryStatusLabel({
@@ -2009,12 +2008,10 @@ function TimeframeHeaderCells({
 function TimeframeCells({
   row,
   timeframe,
-  dictionary,
   language,
 }: {
   row: MtfScreenerRow;
   timeframe: MtfScreenerTimeframe;
-  dictionary: ScannerDisplayDictionary;
   language: Language;
 }) {
   const snapshot = row.snapshots[timeframe];
@@ -2024,7 +2021,6 @@ function TimeframeCells({
       <DataTableCell className="border-l border-[var(--table-group)]">
         <TimeframeStateValue
           snapshot={snapshot}
-          dictionary={dictionary}
           language={language}
         />
       </DataTableCell>
@@ -2041,11 +2037,9 @@ function TimeframeCells({
 
 function TimeframeStateValue({
   snapshot,
-  dictionary,
   language,
 }: {
   snapshot: MtfScreenerSnapshot | undefined;
-  dictionary: ScannerDisplayDictionary;
   language: Language;
 }) {
   const group = snapshot?.resultGroup;
@@ -2060,9 +2054,7 @@ function TimeframeStateValue({
       <span
         className={`min-w-0 truncate text-[10px] font-semibold ${getMtfGroupTextClass(group)}`}
       >
-        {snapshot
-          ? formatMtfGroup(snapshot, language)
-          : dictionary.scannerResultFallback.notReturned}
+        {formatMtfGroup(snapshot, language)}
       </span>
     </div>
   );
@@ -2326,9 +2318,9 @@ function PrimarySignalCell({
     return (
       <div
         className="text-[11px] text-[var(--muted-2)]"
-        title="No latest ranking result"
+        title="No latest research snapshot available."
       >
-        No latest ranking result
+        No latest research snapshot available.
       </div>
     );
   }

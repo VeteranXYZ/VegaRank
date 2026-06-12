@@ -122,7 +122,7 @@ describe("MultiTimeframeScreenerTable", () => {
     expect(html).toContain("SEIUSDT");
     expect(html).toContain("Eligible");
     expect(html).toContain("88.2");
-    expect(html).toContain("Not returned");
+    expect(html).toContain("Missing Snapshot");
     for (const label of [
       "Symbol",
       "Timeframe Alignment",
@@ -138,7 +138,7 @@ describe("MultiTimeframeScreenerTable", () => {
     ]) {
       expect(html).toContain(label);
     }
-    expect(html).toContain("Not returned");
+    expect(html).toContain("Missing Snapshot");
     expect(html).toContain("Limited Higher-Timeframe Data");
     expect(html).toContain("Limited Data");
     expect(html).toContain("Open Research");
@@ -241,7 +241,7 @@ describe("MultiTimeframeScreenerTable", () => {
     expect(html).toContain('aria-sort="descending"');
   });
 
-  it("renders row count, freshness, and exports in the command workspace", () => {
+  it("renders row count, latest snapshot state, and exports in the command workspace", () => {
     const rows = buildMtfScreenerRows({
       "4h": makeResponse("4h", [
         makeItem({ symbol: "AAAUSDT", timeframe: "4h", rankScore: 80 }),
@@ -288,7 +288,7 @@ describe("MultiTimeframeScreenerTable", () => {
     expect(commandHtml).toContain("Ranked Universe");
     expect(commandHtml).toContain("No filters");
     expect(commandHtml).toContain("Incoming order");
-    expect(commandHtml).toContain("Freshness");
+    expect(commandHtml).toContain("Latest Snapshot");
     expect(commandHtml).toContain("4h");
     expect(commandHtml).toContain("8/0");
     expect(commandHtml).toContain("Export Screener");
@@ -403,7 +403,7 @@ describe("MultiTimeframeScreenerTable", () => {
     expect(html).toContain("1000PEPEUSDT");
     expect(html).toContain("1000000MOGUSDT");
     expect(html).toContain("ONDOUSDT");
-    expect(html).toContain("Freshness");
+    expect(html).toContain("Latest Snapshot");
     expect(html).toContain("Joined Snapshot");
     expect(html).toContain("Showing 70 of 70 symbols");
     expect(html).toContain("Filters");

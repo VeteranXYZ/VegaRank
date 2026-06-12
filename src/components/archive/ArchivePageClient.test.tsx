@@ -262,15 +262,15 @@ describe("ArchivePageClient display formatting", () => {
     );
 
     expect(html).toContain("Snapshot Rows");
-    expect(html).toContain("Snapshot rows from the Selected Run.");
+    expect(html).toContain("Archived Snapshot rows from the Selected Run.");
     expect(html).toContain(
-      "Open Research opens current symbol research with archive context, not historical replay.",
+      "Open Research opens current symbol research with Archive Context, not historical replay.",
     );
     expect(html).toContain("2 rows");
     expect(html).toContain("Overheated caution");
     expect(html).toContain("Risk review");
-    expect(html).toContain("Action");
-    expect(html).toContain("Outcome Status");
+    expect(html).toContain("Research Priority");
+    expect(html).toContain("Validation State");
     expect(html).toContain("Follow-through");
     expect(html).toContain("Drawdown Context");
     expect(html).toContain("Validation pending");
@@ -325,13 +325,13 @@ describe("ArchivePageClient display formatting", () => {
     expect(html).toContain("Showing 4");
     expect(html).toContain("Research Group");
     expect(html).toContain("Hot");
-    expect(html).toContain("Validation Status");
+    expect(html).toContain("Validation State");
     expect(html).toContain("Symbol");
     expect(html).toContain("COMPLETEELIGIBLEUSDT");
     expect(html).toContain("COMPLETEWATCHUSDT");
     expect(html).toContain("PARTIALRISKUSDT");
     expect(html).toContain("MISSINGRISKUSDT");
-    expect(html).toContain("Partial · insufficient candles");
+    expect(html).toContain("Partial window");
     expect(html).not.toContain("mt-1 block max-w-[170px]");
     expect(html).toContain("rounded-[3px]");
   });
@@ -496,7 +496,7 @@ describe("ArchivePageClient display formatting", () => {
 
     expect(html).toContain('data-testid="recent-runs-panel"');
     expect(html).toContain('data-testid="recent-runs-scroll-container"');
-    expect(html).toContain("Recent Runs");
+    expect(html).toContain("Stored Runs");
     expect(html).toContain("Stored run selector");
     expect(html).toContain("xl:min-h-0");
     expect(html).toContain("xl:flex-col");
@@ -550,7 +550,7 @@ describe("ArchivePageClient display formatting", () => {
     expect(html).toContain("Validation Readiness");
     expect(html).toContain("Partially Ready");
     expect(html).toContain("Some rows have partial future-window data.");
-    expect(html).toContain("Source ready");
+    expect(html).toContain("Validation ready");
     expect(html).toContain("1 candle");
     expect(html).toContain("3 candles");
     expect(html).toContain("5 candles");
@@ -645,7 +645,7 @@ describe("ArchivePageClient display formatting", () => {
     expect(uiState.status).toBe("observation_ready");
     expect(html).toContain("Ready for Review");
     expect(html).toContain("Selected Run");
-    expect(html).toContain("Review Source");
+    expect(html).toContain("Validation Source");
     expect(html).toContain("selec");
     expect(html).toContain("matur");
     expect(html).toContain("Outcome Summary");
@@ -1319,7 +1319,7 @@ describe("ArchivePageClient display formatting", () => {
       missingCount: 0,
     });
     expect(html).toContain("Median Follow-through");
-    expect(html).not.toContain("Snapshot Rows not returned");
+    expect(html).not.toContain("Snapshot Rows unavailable");
   });
 
   it("renders a diagnostic when a ready observation run returns no rows and null summary", () => {
@@ -1363,7 +1363,7 @@ describe("ArchivePageClient display formatting", () => {
       returnedRows: 0,
       missingCount: 413,
     });
-    expect(html).toContain("Snapshot Rows not returned");
+    expect(html).toContain("Snapshot Rows unavailable");
     expect(html).toContain("Validation Source is available, but no Snapshot Rows were returned.");
     expect(html).toContain("Missing Windows");
     expect(html).toContain(">413<");

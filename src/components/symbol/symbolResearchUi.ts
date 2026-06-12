@@ -1,4 +1,10 @@
 import { formatDisplayDateTime } from "@/lib/utils/format";
+import {
+  firstFiniteResearchMetric,
+  formatResearchMetric,
+  formatResearchMetricLabel,
+  researchStateNotAvailableLabel,
+} from "@/lib/research-state/formatResearchState";
 import { dictionaries } from "@/lib/i18n/dictionaries";
 import {
   formatScannerReviewText,
@@ -303,16 +309,12 @@ export function formatSymbolResearchScore(
   value: number | null | undefined,
   decimals = 1,
 ) {
-  if (value === null || value === undefined || !Number.isFinite(value)) {
-    return "N/A";
-  }
-
-  return value.toFixed(decimals);
+  return formatResearchMetric(value, decimals);
 }
 
 export function formatSymbolResearchPrice(value: number | null | undefined) {
   if (value === null || value === undefined || !Number.isFinite(value)) {
-    return "-";
+    return researchStateNotAvailableLabel;
   }
 
   if (value >= 1000) {
@@ -407,6 +409,12 @@ function formatSymbolResearchRiskType(
 
 export function getSymbolResearchScoreRows(scores: {
   rankScore?: number | null;
+  riskAdjustedScore?: number | null;
+  setupQualityScore?: number | null;
+  confidenceScore?: number | null;
+  universePercentile?: number | null;
+  riskPenalty?: number | null;
+  qualityPenalty?: number | null;
   finalSignalScore?: number | null;
   opportunityScore?: number | null;
   confirmationScore?: number | null;
@@ -415,17 +423,65 @@ export function getSymbolResearchScoreRows(scores: {
   momentumScore?: number | null;
   volumeScore?: number | null;
   structureScore?: number | null;
+  volatilityScore?: number | null;
 }) {
   return [
-    { label: "Rank Score", value: formatSymbolResearchScore(scores.rankScore) },
-    { label: "Risk-Adjusted Score", value: formatSymbolResearchScore(scores.finalSignalScore) },
-    { label: "Setup Quality", value: formatSymbolResearchScore(scores.opportunityScore) },
-    { label: "Confirmation", value: formatSymbolResearchScore(scores.confirmationScore) },
-    { label: "Risk", value: formatSymbolResearchScore(scores.riskScore) },
-    { label: "Trend", value: formatSymbolResearchScore(scores.trendScore) },
-    { label: "Momentum", value: formatSymbolResearchScore(scores.momentumScore) },
-    { label: "Liquidity", value: formatSymbolResearchScore(scores.volumeScore) },
-    { label: "Structure", value: formatSymbolResearchScore(scores.structureScore) },
+    {
+      label: formatResearchMetricLabel("rankScore"),
+      value: formatSymbolResearchScore(scores.rankScore),
+    },
+    {
+      label: formatResearchMetricLabel("riskAdjustedScore"),
+      value: formatSymbolResearchScore(
+        firstFiniteResearchMetric(scores.riskAdjustedScore, scores.finalSignalScore),
+      ),
+    },
+    {
+      label: formatResearchMetricLabel("setupQualityScore"),
+      value: formatSymbolResearchScore(
+        firstFiniteResearchMetric(scores.setupQualityScore, scores.opportunityScore),
+      ),
+    },
+    {
+      label: formatResearchMetricLabel("confidenceScore"),
+      value: formatSymbolResearchScore(
+        firstFiniteResearchMetric(scores.confidenceScore, scores.confirmationScore),
+      ),
+    },
+    {
+      label: formatResearchMetricLabel("trendScore"),
+      value: formatSymbolResearchScore(scores.trendScore),
+    },
+    {
+      label: formatResearchMetricLabel("momentumScore"),
+      value: formatSymbolResearchScore(scores.momentumScore),
+    },
+    {
+      label: formatResearchMetricLabel("structureScore"),
+      value: formatSymbolResearchScore(scores.structureScore),
+    },
+    {
+      label: formatResearchMetricLabel("volatilityScore"),
+      value: formatSymbolResearchScore(scores.volatilityScore),
+    },
+    {
+      label: formatResearchMetricLabel("volumeScore"),
+      value: formatSymbolResearchScore(scores.volumeScore),
+    },
+    {
+      label: formatResearchMetricLabel("riskPenalty"),
+      value: formatSymbolResearchScore(
+        firstFiniteResearchMetric(scores.riskPenalty, scores.riskScore),
+      ),
+    },
+    {
+      label: formatResearchMetricLabel("qualityPenalty"),
+      value: formatSymbolResearchScore(scores.qualityPenalty),
+    },
+    {
+      label: formatResearchMetricLabel("universePercentile"),
+      value: formatSymbolResearchScore(scores.universePercentile),
+    },
   ];
 }
 
@@ -728,11 +784,11 @@ export function buildSymbolResearchDiagnostics({
         value: currentSelection?.isLikelyFullUniverse ? "Yes" : "No",
       },
       {
-        label: "Run Finished",
+        label: "Selected Run Completed",
         value: formatSymbolResearchDateTime(currentSelection?.selectedRunFinishedAt),
       },
       {
-        label: "Ranking Time",
+        label: "Current Snapshot Time",
         value: formatSymbolResearchDateTime(currentSelection?.selectedSignalScanTime),
       },
       {
@@ -760,13 +816,12 @@ export function buildSymbolResearchUnavailableContent(
   );
   const title = hasEnhancedUnavailableData
     ? "Timeframe unavailable for this symbol"
-    : "No ranking result available";
+    : "No current research snapshot available";
   const reason = formatSymbolResearchUnavailableReason(input.unavailableReason);
   const message =
-    input.message?.trim() ||
-    (isInsufficientHistory && candleCount !== null && requiredCandles !== null
-      ? `No ${timeframe} ranking result for ${symbol}. The selected ranking run completed, but ${symbol} has only ${candleCount} candles and VegaRank currently requires ${requiredCandles}.`
-      : "No ranking result is available for this symbol/timeframe from the selected latest run.");
+    isInsufficientHistory && candleCount !== null && requiredCandles !== null
+      ? `No ${timeframe} current research snapshot for ${symbol}. The Selected Run completed, but ${symbol} has only ${candleCount} candles and VegaRank currently requires ${requiredCandles}.`
+      : "No current research snapshot is available for this symbol/timeframe from the selected latest run.";
   const details = [
     { label: "Symbol", value: symbol },
     { label: "Timeframe", value: timeframe },
@@ -788,11 +843,11 @@ export function buildSymbolResearchUnavailableContent(
       value: formatSymbolResearchUnavailableSelectedRun(input.selectedRun),
     },
     {
-      label: "Ranking Rows Created",
+      label: "Snapshot Rows",
       value: formatNullableInteger(input.selectedRun?.signalsCreated),
     },
     {
-      label: "Run Finished",
+      label: "Selected Run Completed",
       value: formatSymbolResearchDateTime(input.selectedRun?.finishedAt),
     },
   ];
@@ -892,7 +947,7 @@ export function buildSymbolResearchTimeframeAvailability({
       timeframe,
       status: "not_returned",
       isSelected,
-      reason: "No latest ranking result was returned for this timeframe.",
+      reason: "No latest research snapshot was returned for this timeframe.",
       dictionary,
     });
   });
@@ -1057,7 +1112,7 @@ function buildTimeframeAvailabilityRow({
       : isAvailable
         ? "Covered"
         : isNotReturned
-          ? "Not returned"
+          ? "Missing Snapshot"
           : "Not available",
     selectedRun: selectedRun
       ? formatSymbolResearchUnavailableSelectedRun(selectedRun)
@@ -1068,16 +1123,16 @@ function buildTimeframeAvailabilityRow({
           : isNotReturned
             ? "Open timeframe to check"
             : "Not available",
-    group: signal ? formatSymbolResearchGroup(signal.resultGroup, dictionary) : "-",
+    group: signal ? formatSymbolResearchGroup(signal.resultGroup, dictionary) : "N/A",
     action: signal
       ? formatSymbolResearchAction(
           signal.actionBias ?? signal.statusNoteKey ?? signal.statusNote,
           dictionary,
         )
-      : "-",
-    rank: signal ? formatSymbolResearchScore(signal.rankScore) : "-",
-    scanTime: signal ? formatSymbolResearchDateTime(signal.scanTime) : "-",
-    runContext: signal ? formatSymbolResearchRunContext(signal) : "-",
+      : "N/A",
+    rank: signal ? formatSymbolResearchScore(signal.rankScore) : "N/A",
+    scanTime: signal ? formatSymbolResearchDateTime(signal.scanTime) : "N/A",
+    runContext: signal ? formatSymbolResearchRunContext(signal) : "N/A",
   };
 }
 
@@ -1092,7 +1147,7 @@ function getTimeframeAvailabilityStatusLabel(
     case "unavailable":
       return "Unavailable";
     case "not_returned":
-      return "Not returned";
+      return "Missing Snapshot";
     case "planned":
       return "Planned / Not configured";
   }
@@ -1112,7 +1167,7 @@ function getTimeframeAvailabilityBadgeLabel(
     case "unavailable":
       return "Unavailable";
     case "not_returned":
-      return "Not returned";
+      return "Missing Snapshot";
     case "planned":
       return "Planned";
   }

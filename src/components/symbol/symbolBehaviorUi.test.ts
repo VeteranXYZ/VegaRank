@@ -108,7 +108,7 @@ describe("symbol behavior UI helpers", () => {
     );
   });
 
-  it("labels behavior readout sample confidence by selected horizon sample", () => {
+  it("labels behavior readout sample confidence by selected outcome-window sample", () => {
     expect(
       buildBehaviorReadout(
         makeReadoutInput({
@@ -482,8 +482,8 @@ describe("symbol behavior UI helpers", () => {
     expect(evaluation.selectedHorizonLabel).toBe("5 candles");
     expect(evaluation.sampleLabel).toBe("16 completed forward observations");
     expect(evaluation.directionMatchLabel).toBe("75.0% downside follow-through");
-    expect(evaluation.medianReturnLabel).toBe("-1.39% median change");
-    expect(evaluation.positiveRateLabel).toBe("25.0% positive rate");
+    expect(evaluation.medianReturnLabel).toBe("-1.39% median follow-through");
+    expect(evaluation.positiveRateLabel).toBe("25.0% positive follow-through");
   });
 
   it("does not support downside follow-through when risk median is positive", () => {

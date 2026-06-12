@@ -418,7 +418,7 @@ describe("watchlist research summary", () => {
       timeframe: "4h",
     });
     expect(summary.bestResearchCandidates[0]?.reason).toContain(
-      "1w not returned",
+      "1w missing snapshot",
     );
   });
 
@@ -444,7 +444,7 @@ describe("watchlist research summary", () => {
       {
         symbol: "MISSINGUSDT",
         timeframe: null,
-        reason: "Not found in latest multi-timeframe snapshot.",
+        reason: "No latest research snapshot available.",
         rankScore: null,
       },
     ]);

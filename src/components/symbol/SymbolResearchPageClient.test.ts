@@ -157,7 +157,7 @@ describe("symbol research API URL builder", () => {
         error: "NO_LATEST_SIGNAL",
       }),
     ).toBe(
-      "No ranking result is available for this symbol/timeframe from the selected latest run.",
+      "No current research snapshot is available for this symbol/timeframe from the selected latest run.",
     );
     expect(
       formatSymbolResearchApiError(404, {
@@ -396,7 +396,7 @@ describe("SymbolResearchPageClient unavailable state", () => {
           available: false,
           reason: "no_latest_signal",
           message:
-            "Behavior is unavailable because no latest ranking result exists for this symbol/timeframe.",
+            "Behavior is unavailable because no latest research snapshot exists for this symbol/timeframe.",
         },
       },
     });
@@ -409,13 +409,13 @@ describe("SymbolResearchPageClient unavailable state", () => {
     );
 
     expect(html).toContain("Timeframe unavailable for this symbol");
-    expect(html).toContain("No 1w ranking result for SEIUSDT");
+    expect(html).toContain("No 1w current research snapshot for SEIUSDT");
     expect(html).toContain("145 / 200 required");
     expect(html).toContain("1w full-universe run, success, scanned 192 / 413, skipped 221");
     expect(html).toContain("Timeframe Availability");
     expect(html).toContain("1w (selected)");
     expect(html).toContain("Insufficient history");
-    expect(html).toContain("Not returned");
+    expect(html).toContain("Missing Snapshot");
     expect(html).toContain("Open timeframe to check");
     expect(html).toContain("Try 4h or 1d for SEIUSDT.");
     expect(html).toContain(
@@ -463,7 +463,7 @@ describe("SymbolResearchPageClient success state", () => {
     );
 
     expect(html).toContain("Research Snapshot");
-    expect(html).toContain("Action");
+    expect(html).toContain("Research Priority");
     expect(html).toContain("Risk Context");
     expect(html).toContain("Selected timeframe: 4h");
     expect(html).toContain("Rank Score");
@@ -497,7 +497,7 @@ describe("SymbolResearchPageClient success state", () => {
     expect(html.indexOf("Timeline")).toBeLessThan(
       html.indexOf("Diagnostics"),
     );
-    expect(html.indexOf("Action")).toBeLessThan(html.indexOf("Evidence Overview"));
+    expect(html.indexOf("Research Priority")).toBeLessThan(html.indexOf("Evidence Overview"));
     expect(html.indexOf("Risk Context")).toBeLessThan(
       html.indexOf("Evidence Overview"),
     );
@@ -521,7 +521,7 @@ describe("SymbolResearchPageClient success state", () => {
     expect(html).toContain("Behavior Evaluation");
     expect(html).toContain("How similar prior ranking results behaved");
     expect(html).toContain("Sample size");
-    expect(html).toContain("Forward horizon observations");
+    expect(html).toContain("Future-window observations");
     expect(html).toContain("Current context");
     expect(html).toContain("Recent Observations");
     expect(html).toContain("Most recent prior observations with available forward changes.");

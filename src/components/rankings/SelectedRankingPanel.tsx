@@ -3,6 +3,13 @@ import { useLanguage } from "@/components/providers/LanguageProvider";
 import { useAppLanguage } from "@/lib/i18n/AppLanguageProvider";
 import { buildSymbolResearchHref } from "@/lib/navigation/researchNavigation";
 import { explainCode, explainCodes } from "@/lib/vegarank-codebook/explainCode";
+import {
+  firstFiniteResearchMetric,
+  formatResearchInteger,
+  formatResearchMetric,
+  formatResearchMetricLabel,
+  researchStateNotAvailableLabel,
+} from "@/lib/research-state/formatResearchState";
 import type { ScannerCodeContractResult } from "@/lib/vegarank-codebook/serializeScanResult";
 import type { Timeframe } from "@/lib/shared/timeframes";
 import { HistoricalBehaviorPanel } from "./HistoricalBehaviorPanel";
@@ -70,10 +77,37 @@ export function SelectedRankingPanel({ result }: SelectedRankingPanelProps) {
         </div>
 
         <div className="mb-2 grid grid-cols-4 gap-1">
-          <Metric label="Rank" value={formatSigned(result.metrics.rankScore, 1)} />
-          <Metric label="O" value={formatSigned(result.metrics.opportunityScore, 0)} />
-          <Metric label="C" value={formatSigned(result.metrics.confirmationScore, 0)} />
-          <Metric label="R" value={formatSigned(result.metrics.riskScore, 0)} />
+          <Metric label="Rank Score" value={formatSigned(result.metrics.rankScore, 1)} />
+          <Metric
+            label="Setup Quality"
+            value={formatSigned(
+              firstFiniteResearchMetric(
+                result.metrics.setupQualityScore,
+                result.metrics.opportunityScore,
+              ) ?? null,
+              0,
+            )}
+          />
+          <Metric
+            label="Confidence"
+            value={formatSigned(
+              firstFiniteResearchMetric(
+                result.metrics.confidenceScore,
+                result.metrics.confirmationScore,
+              ) ?? null,
+              0,
+            )}
+          />
+          <Metric
+            label="Risk Penalty"
+            value={formatSigned(
+              firstFiniteResearchMetric(
+                result.metrics.riskPenalty,
+                result.metrics.riskScore,
+              ) ?? null,
+              0,
+            )}
+          />
         </div>
 
         <p className="mb-2 border-l-2 border-[var(--border)] bg-[var(--panel-2)] px-2 py-1 text-[11px] leading-5 text-[var(--muted)]">
@@ -83,24 +117,63 @@ export function SelectedRankingPanel({ result }: SelectedRankingPanelProps) {
         <InspectorSection title="Code Contract">
           <div className="space-y-1">
             <KeyValue label="Group" value={`${result.groupCode} · ${group.label}`} />
-            <KeyValue label="Action" value={`${result.actionCode} · ${action.label}`} />
+            <KeyValue
+              label="Research Priority"
+              value={`${result.actionCode} · ${action.label}`}
+            />
             <KeyValue label="Setup" value={`${result.setupCode} · ${setup.label}`} />
             <KeyValue label="Phase" value={`${result.phaseCode} · ${phase.label}`} />
-            <TagList label="Signals" items={signalLabels} />
-            <TagList label="Risks" items={riskLabels} />
-            <TagList label="Quality" items={qualityLabels} />
+            <TagList label="Research Codes" items={signalLabels} />
+            <TagList label="Risk Context" items={riskLabels} />
+            <TagList label="Evidence Quality" items={qualityLabels} />
           </div>
         </InspectorSection>
 
         <InspectorSection title="Score Breakdown">
           <div className="grid grid-cols-2 gap-1">
-            <Metric label="Final" value={formatSigned(result.metrics.finalSignalScore, 1)} />
-            <Metric label="Setup" value={formatSigned(result.metrics.opportunityScore, 0)} />
-            <Metric label="Confirm" value={formatSigned(result.metrics.confirmationScore, 0)} />
-            <Metric label="Risk" value={formatSigned(result.metrics.riskScore, 0)} />
+            <Metric
+              label={formatResearchMetricLabel("riskAdjustedScore")}
+              value={formatSigned(
+                firstFiniteResearchMetric(
+                  result.metrics.riskAdjustedScore,
+                  result.metrics.finalSignalScore,
+                ) ?? null,
+                1,
+              )}
+            />
+            <Metric
+              label={formatResearchMetricLabel("setupQualityScore")}
+              value={formatSigned(
+                firstFiniteResearchMetric(
+                  result.metrics.setupQualityScore,
+                  result.metrics.opportunityScore,
+                ) ?? null,
+                0,
+              )}
+            />
+            <Metric
+              label={formatResearchMetricLabel("confidenceScore")}
+              value={formatSigned(
+                firstFiniteResearchMetric(
+                  result.metrics.confidenceScore,
+                  result.metrics.confirmationScore,
+                ) ?? null,
+                0,
+              )}
+            />
+            <Metric
+              label={formatResearchMetricLabel("riskPenalty")}
+              value={formatSigned(
+                firstFiniteResearchMetric(
+                  result.metrics.riskPenalty,
+                  result.metrics.riskScore,
+                ) ?? null,
+                0,
+              )}
+            />
             <Metric label="Trend" value={formatSigned(result.metrics.trendScore, 0)} />
             <Metric label="Momentum" value={formatSigned(result.metrics.momentumScore, 0)} />
-            <Metric label="Volume" value={formatSigned(result.metrics.volumeScore, 0)} />
+            <Metric label="Liquidity" value={formatSigned(result.metrics.volumeScore, 0)} />
             <Metric label="Structure" value={formatSigned(result.metrics.structureScore, 0)} />
           </div>
         </InspectorSection>
@@ -205,7 +278,9 @@ function TagList({ label, items }: { label: string; items: string[] }) {
           ))}
         </div>
       ) : (
-        <span className="text-xs text-[var(--muted)]">n/a</span>
+        <span className="text-xs text-[var(--muted)]">
+          {researchStateNotAvailableLabel}
+        </span>
       )}
     </div>
   );
@@ -213,7 +288,11 @@ function TagList({ label, items }: { label: string; items: string[] }) {
 
 function TextList({ values }: { values: string[] }) {
   if (values.length === 0) {
-    return <span className="text-xs text-[var(--muted)]">n/a</span>;
+    return (
+      <span className="text-xs text-[var(--muted)]">
+        {researchStateNotAvailableLabel}
+      </span>
+    );
   }
 
   return (
@@ -228,12 +307,12 @@ function TextList({ values }: { values: string[] }) {
 }
 
 function formatNullable(value: number | null, decimals: number) {
-  return value === null ? "n/a" : value.toFixed(decimals);
+  return formatResearchMetric(value, decimals);
 }
 
 function formatSigned(value: number | null, decimals: number) {
   if (value === null) {
-    return "n/a";
+    return researchStateNotAvailableLabel;
   }
 
   const formatted = value.toFixed(decimals);
@@ -241,12 +320,12 @@ function formatSigned(value: number | null, decimals: number) {
 }
 
 function formatInteger(value: number | null) {
-  return value === null ? "n/a" : new Intl.NumberFormat().format(value);
+  return formatResearchInteger(value);
 }
 
 function formatPrice(value: number | null) {
   if (value === null) {
-    return "n/a";
+    return researchStateNotAvailableLabel;
   }
 
   if (value >= 100) {

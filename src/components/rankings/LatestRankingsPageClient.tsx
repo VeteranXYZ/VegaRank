@@ -28,6 +28,10 @@ import {
   type StatusTone,
 } from "@/components/ui/workspace";
 import { formatDisplayDateTime } from "@/lib/utils/format";
+import {
+  firstFiniteResearchMetric,
+  formatResearchMetricLabel,
+} from "@/lib/research-state/formatResearchState";
 import { useAppLanguage } from "@/lib/i18n/AppLanguageProvider";
 import type { Language } from "@/lib/i18n/dictionaries";
 import { buildSymbolResearchHref } from "@/lib/navigation/researchNavigation";
@@ -368,7 +372,7 @@ export function LatestRankingsPageClient({
           />
         ) : !data?.run || returnedItems === 0 ? (
           <StatePanel
-            title="No ranking results found."
+            title="No latest research snapshot available."
             message="No symbols match the current filters."
           />
         ) : (
@@ -446,7 +450,7 @@ function LatestRankingsCommandBar({
             tone={statusTone}
           />
           <LatestRankingsCommandStat
-            label="Finished"
+            label="Latest Snapshot"
             value={formatCompactDateTime(finishedAt)}
             tone={run ? "complete" : "missing"}
           />
@@ -649,7 +653,7 @@ function LatestRankingsSummaryPanel({
               <StatusBadge tone="neutral">Low Quality Excluded</StatusBadge>
             ) : null}
             <StatusBadge tone={finishedAt ? "neutral" : "missing"}>
-              Finished {formatCompactDateTime(finishedAt)}
+              Latest Snapshot {formatCompactDateTime(finishedAt)}
             </StatusBadge>
           </>
         }
@@ -1166,19 +1170,52 @@ function formatCodeExplanationLines(codes: string[], language: Language) {
 
 function formatLatestRankingsMetricLines(metrics: LatestRankingItem["metrics"]) {
   return [
-    ["Rank", formatScore(metrics.rankScore)],
-    ["Risk-Adjusted Score", formatScore(metrics.finalSignalScore)],
-    ["Setup Quality", formatScore(metrics.opportunityScore)],
-    ["Confirmation", formatScore(metrics.confirmationScore)],
-    ["Risk", formatScore(metrics.riskScore)],
-    ["Trend", formatScore(metrics.trendScore)],
-    ["Momentum", formatScore(metrics.momentumScore)],
-    ["Liquidity", formatScore(metrics.volumeScore)],
-    ["Structure", formatScore(metrics.structureScore)],
+    [formatResearchMetricLabel("rankScore"), formatScore(metrics.rankScore)],
+    [
+      formatResearchMetricLabel("riskAdjustedScore"),
+      formatScore(
+        firstFiniteResearchMetric(
+          metrics.riskAdjustedScore,
+          metrics.finalSignalScore,
+        ),
+      ),
+    ],
+    [
+      formatResearchMetricLabel("setupQualityScore"),
+      formatScore(
+        firstFiniteResearchMetric(
+          metrics.setupQualityScore,
+          metrics.opportunityScore,
+        ),
+      ),
+    ],
+    [
+      formatResearchMetricLabel("confidenceScore"),
+      formatScore(
+        firstFiniteResearchMetric(
+          metrics.confidenceScore,
+          metrics.confirmationScore,
+        ),
+      ),
+    ],
+    [formatResearchMetricLabel("trendScore"), formatScore(metrics.trendScore)],
+    [formatResearchMetricLabel("momentumScore"), formatScore(metrics.momentumScore)],
+    [formatResearchMetricLabel("structureScore"), formatScore(metrics.structureScore)],
+    [formatResearchMetricLabel("volatilityScore"), formatScore(metrics.volatilityScore)],
+    [formatResearchMetricLabel("volumeScore"), formatScore(metrics.volumeScore)],
+    [
+      formatResearchMetricLabel("riskPenalty"),
+      formatScore(firstFiniteResearchMetric(metrics.riskPenalty, metrics.riskScore)),
+    ],
+    [formatResearchMetricLabel("qualityPenalty"), formatScore(metrics.qualityPenalty)],
+    [
+      formatResearchMetricLabel("universePercentile"),
+      formatScore(metrics.universePercentile),
+    ],
     ["RSI", formatScore(metrics.rsi14)],
     ["BB %", formatScore(metrics.bbPercent)],
     ["BB Width", formatScore(metrics.bbWidthPercentile)],
-    ["Volume / Liquidity", formatScore(metrics.volumeRatio)],
+    ["Liquidity Ratio", formatScore(metrics.volumeRatio)],
   ].map(([label, value]) => `${label}: ${value}`);
 }
 
@@ -1439,7 +1476,7 @@ export function buildLatestRunSummaryText({
   return [
     `Full universe size: ${formatInteger(symbolsTotal)}`,
     `Reviewed: ${formatInteger(symbolsScanned)}`,
-    `Ranking rows created: ${formatInteger(signalsCreated)}`,
+    `Snapshot rows created: ${formatInteger(signalsCreated)}`,
     `Skipped: ${formatInteger(symbolsSkipped)}`,
     `Filtered ranking rows shown: ${formatInteger(returnedItems)} of ${formatInteger(totalSignals)}`,
     `Low-quality excluded: ${formatInteger(lowQualityExcluded)}`,

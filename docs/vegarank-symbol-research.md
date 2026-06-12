@@ -6,6 +6,8 @@ Symbol Research is the single-symbol workspace for reviewing the latest VegaRank
 
 It is research-only. It does not provide trading advice.
 
+Shared state terms such as Current Snapshot, Archive Context, Validation State, Local Watchlist, and N/A are governed by `docs/vegarank-research-state-model.md`.
+
 ## Page role in research workflow
 
 Symbol Research sits after discovery and comparison:
