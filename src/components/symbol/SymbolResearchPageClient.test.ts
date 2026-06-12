@@ -421,10 +421,10 @@ describe("SymbolResearchPageClient unavailable state", () => {
     expect(html).toContain(
       "Refresh after the next ranking run; 1w coverage updates as more weekly candles accrue.",
     );
-    expect(html).toContain("Back to Rankings");
+    expect(html).not.toContain("Back to Rankings");
     expect(html).toContain("Refresh Research");
     expect(html).toContain("Open Research");
-    expect(html).toContain('href="/rankings?timeframe=1w&amp;assetClass=crypto');
+    expect(html).not.toContain('href="/rankings?timeframe=1w&amp;assetClass=crypto');
     expect(html).toContain('href="/symbol/binance/SEIUSDT?timeframe=4h');
     expect(html).toContain('href="/symbol/binance/SEIUSDT?timeframe=1d');
     expect(html).toContain('href="/symbol/binance/SEIUSDT?timeframe=1w');
@@ -479,13 +479,13 @@ describe("SymbolResearchPageClient success state", () => {
     expect(html).toContain("Multi-Timeframe");
     expect(html).toContain("Timeline");
     expect(html).toContain("Diagnostics");
+    expect(html.indexOf("Chart")).toBeLessThan(
+      html.indexOf("Research Snapshot"),
+    );
     expect(html.indexOf("Research Snapshot")).toBeLessThan(
       html.indexOf("Multi-Timeframe"),
     );
     expect(html.indexOf("Multi-Timeframe")).toBeLessThan(
-      html.indexOf("Chart"),
-    );
-    expect(html.indexOf("Chart")).toBeLessThan(
       html.indexOf("Evidence Overview"),
     );
     expect(html.indexOf("Evidence Overview")).toBeLessThan(
@@ -532,10 +532,9 @@ describe("SymbolResearchPageClient success state", () => {
     expect(html).not.toContain("<details open");
     expect(html).toContain("In Watchlist");
     expect(html).toContain("Remove from Watchlist");
-    expect(html).toContain("Review Archive");
-    expect(html).toContain(
-      'href="/archive?timeframe=4h&amp;assetClass=crypto&amp;symbol=SEIUSDT"',
-    );
+    expect(html).not.toContain("Review Archive");
+    expect(html).not.toContain("Back to Rankings");
+    expect(html).not.toContain("Asset Quality");
     expect(html).toContain('href="/watchlist"');
   });
 
@@ -693,14 +692,14 @@ describe("SymbolResearchPageClient success state", () => {
     expect(html).toContain("Selected timeframe: 4h");
     expect(html).toContain("Fallback timeframe: 4h");
     expect(html).toContain("Requested timeframe bad is not supported.");
-    expect(html).toContain("Back to Screener");
-    expect(html).toContain(
+    expect(html).not.toContain("Back to Screener");
+    expect(html).not.toContain(
       'href="/screener?assetClass=crypto&amp;timeframe=4h"',
     );
     expect(html).toContain('href="/symbol/binance/SEIUSDT?timeframe=1d');
   });
 
-  it("renders source-aware archive return links when opened from archive", () => {
+  it("keeps source-aware archive query state without rendering return actions", () => {
     searchParamsMock.mockReturnValue(
       new URLSearchParams(
         "timeframe=4h&assetClass=crypto&from=archive&runId=run-1&snapshotId=row-2",
@@ -728,11 +727,11 @@ describe("SymbolResearchPageClient success state", () => {
       }),
     );
 
-    expect(html).toContain("Back to Archive");
-    expect(html).toContain(
+    expect(html).not.toContain("Back to Archive");
+    expect(html).not.toContain(
       'href="/archive?timeframe=4h&amp;assetClass=crypto&amp;runId=run-1&amp;snapshotId=row-2"',
     );
-    expect(html).toContain("Review Archive");
+    expect(html).not.toContain("Review Archive");
   });
 
   it("does not render direct trading command wording", () => {

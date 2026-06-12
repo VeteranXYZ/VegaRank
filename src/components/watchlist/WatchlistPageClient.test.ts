@@ -226,8 +226,9 @@ describe("WatchlistPageClient", () => {
       }),
     );
 
-    expect(html).toContain("Remove");
-    expect(html.match(/>Remove from Watchlist<\/button>/g)).toHaveLength(2);
+    expect(html).toContain("remove");
+    expect(html.match(/>remove<\/button>/g)).toHaveLength(2);
+    expect(html).not.toContain("Remove from Watchlist");
   });
 
   it("renders table-header sort controls for data columns", () => {
@@ -286,7 +287,7 @@ describe("WatchlistPageClient", () => {
 
     expect(html.match(/data-sort-key=/g)).toHaveLength(6);
     expect(html).toContain("Research");
-    expect(html).toContain("Remove");
+    expect(html).toContain("remove");
     expect(html).not.toContain('data-sort-key="research"');
     expect(html).not.toContain('data-sort-key="remove"');
   });
@@ -374,7 +375,7 @@ describe("WatchlistPageClient", () => {
     expect(html).toContain(
       'href="/symbol/binance/MISSINGUSDT?timeframe=4h&amp;assetClass=crypto&amp;from=watchlist"',
     );
-    expect(html).toContain(">Remove from Watchlist</button>");
+    expect(html).toContain(">remove</button>");
   });
 
   it("does not render portfolio, trade, alert, or cloud sync language", () => {

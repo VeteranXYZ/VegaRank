@@ -608,7 +608,7 @@ export function WatchlistTable({
                   align="center"
                   className="sticky top-0 z-20 w-[132px] bg-[var(--table-header)]"
                 >
-                  Remove from Watchlist
+                  remove
                 </DataTableHeaderCell>
               ) : null}
             </tr>
@@ -678,7 +678,7 @@ export function WatchlistTable({
                       onClick={() => onRemoveSymbol(row.symbol)}
                       className="terminal-mini-action h-5 min-w-[118px] px-1.5"
                     >
-                      Remove from Watchlist
+                      remove
                     </button>
                   </DataTableCell>
                 ) : null}

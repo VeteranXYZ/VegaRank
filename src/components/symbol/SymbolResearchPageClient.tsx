@@ -8,7 +8,6 @@ import { RefreshIconButton } from "@/components/ui/workspace";
 import { useAppLanguage } from "@/lib/i18n/AppLanguageProvider";
 import type { Language } from "@/lib/i18n/dictionaries";
 import {
-  buildArchiveHref,
   buildDefaultResearchReturnLink,
   buildRankingsHref,
   buildSourceAwareResearchReturnLink,
@@ -69,7 +68,6 @@ import {
   getTimeframeSnapshotTitle,
   getSymbolResearchCandleSummary,
   hasNewerSymbolResearchHistoryRows,
-  toTitleCase,
   type SignalEvaluationReadout,
   type SignalEvaluationResponse,
   type SymbolResearchTimeframeAvailabilityRow,
@@ -290,24 +288,6 @@ const symbolResearchMarketContextAssetClass = "crypto";
 const symbolResearchMainClass =
   "symbol-terminal flex min-h-[calc(100dvh-var(--app-header-height))] w-full max-w-none flex-col overflow-x-hidden bg-[var(--workspace-background)] px-1.5 py-1.5 text-[var(--foreground)] sm:px-2 xl:h-full xl:min-h-0 xl:overflow-hidden";
 
-type SymbolTerminalTone =
-  | "accent"
-  | "eligible"
-  | "watch"
-  | "repair"
-  | "risk"
-  | "warning"
-  | "complete"
-  | "neutral"
-  | "missing";
-
-type SymbolTerminalStat = {
-  label: string;
-  value: string;
-  tone: SymbolTerminalTone;
-  title?: string;
-};
-
 export function SymbolResearchPageClient({
   exchange,
   symbol,
@@ -345,11 +325,6 @@ export function SymbolResearchPageClient({
         });
   const scannerReturnHref = researchReturnLink.href;
   const scannerReturnLabel = researchReturnLink.label;
-  const archiveHref = buildArchiveHref({
-    timeframe,
-    assetClass,
-    symbol: normalizedSymbol,
-  });
   const queryParams = useMemo(
     () => ({
       exchange,
@@ -477,10 +452,6 @@ export function SymbolResearchPageClient({
           symbol={normalizedSymbol}
           timeframe={timeframe}
           timeframeSelection={timeframeSelection}
-          assetClass={assetClass}
-          scannerReturnHref={scannerReturnHref}
-          scannerReturnLabel={scannerReturnLabel}
-          archiveHref={archiveHref}
           searchParams={searchParams}
           isFetching={isFetching}
           onSymbolSubmit={handleSymbolSubmit}
@@ -510,10 +481,6 @@ export function SymbolResearchPageClient({
           symbol={normalizedSymbol}
           timeframe={timeframe}
           timeframeSelection={timeframeSelection}
-          assetClass={assetClass}
-          scannerReturnHref={scannerReturnHref}
-          scannerReturnLabel={scannerReturnLabel}
-          archiveHref={archiveHref}
           searchParams={searchParams}
           isFetching={isFetching}
           onSymbolSubmit={handleSymbolSubmit}
@@ -542,10 +509,6 @@ export function SymbolResearchPageClient({
           symbol={normalizedSymbol}
           timeframe={timeframe}
           timeframeSelection={timeframeSelection}
-          assetClass={assetClass}
-          scannerReturnHref={scannerReturnHref}
-          scannerReturnLabel={scannerReturnLabel}
-          archiveHref={archiveHref}
           searchParams={searchParams}
           isFetching={isFetching}
           onSymbolSubmit={handleSymbolSubmit}
@@ -596,14 +559,6 @@ export function SymbolResearchPageClient({
           symbol={unavailableSymbol}
           timeframe={selectedTimeframe}
           timeframeSelection={timeframeSelection}
-          assetClass={data.symbol?.assetClass ?? assetClass}
-          scannerReturnHref={scannerReturnHref}
-          scannerReturnLabel={scannerReturnLabel}
-          archiveHref={buildArchiveHref({
-            timeframe: selectedTimeframe,
-            assetClass: data.symbol?.assetClass ?? assetClass,
-            symbol: unavailableSymbol,
-          })}
           searchParams={searchParams}
           isFetching={isFetching}
           onSymbolSubmit={handleSymbolSubmit}
@@ -643,14 +598,6 @@ export function SymbolResearchPageClient({
           symbol={normalizedSymbol}
           timeframe={selectedTimeframe}
           timeframeSelection={timeframeSelection}
-          assetClass={data.symbol.assetClass}
-          scannerReturnHref={scannerReturnHref}
-          scannerReturnLabel={scannerReturnLabel}
-          archiveHref={buildArchiveHref({
-            timeframe: selectedTimeframe,
-            assetClass: data.symbol.assetClass,
-            symbol: data.symbol.symbol,
-          })}
           searchParams={searchParams}
           isFetching={isFetching}
           onSymbolSubmit={handleSymbolSubmit}
@@ -845,56 +792,18 @@ export function SymbolResearchPageClient({
           symbol={data.symbol.symbol}
           timeframe={selectedTimeframe}
           timeframeSelection={timeframeSelection}
-          assetClass={data.symbol.assetClass}
-          scannerReturnHref={scannerReturnHref}
-          scannerReturnLabel={scannerReturnLabel}
-          archiveHref={buildArchiveHref({
-            timeframe: selectedTimeframe,
-            assetClass: data.symbol.assetClass,
-            symbol: data.symbol.symbol,
-          })}
           searchParams={searchParams}
           isFetching={isFetching}
           onSymbolSubmit={handleSymbolSubmit}
           onExchangeChange={handleExchangeChange}
           onRefresh={handleRefresh}
           availabilityRows={timeframeAvailability}
-          extraStats={[
-            {
-              label: "Quality",
-              value: toTitleCase(data.symbol.qualityTier),
-              tone: data.symbol.isLowQuality ? "warning" : "complete",
-            },
-            {
-              label: "Current Snapshot",
-              value: formatSymbolResearchDateTime(data.latest?.scanRun?.finishedAt),
-              tone: "neutral",
-            },
-          ]}
           watchlistSymbol={data.symbol.symbol}
         />
       </div>
 
       <section className="grid min-w-0 flex-1 gap-2 xl:min-h-0 xl:grid-cols-[minmax(0,1.38fr)_minmax(330px,0.62fr)] xl:overflow-hidden">
         <div className="flex min-w-0 flex-col gap-2 xl:min-h-0 xl:overflow-hidden">
-          <ResearchSnapshotPanel
-            symbol={data.symbol.symbol}
-            selectedTimeframe={selectedTimeframe}
-            interpretation={interpretation}
-            scoreBreakdown={scoreBreakdown}
-            latestSignal={latestSignal}
-            latestScanTime={data.latest?.scanRun?.finishedAt}
-            qualityTier={data.symbol.qualityTier}
-            language={language}
-            dictionary={dictionary}
-            className="shrink-0"
-          />
-          <MtfContextStrip
-            snapshots={timeframeSnapshots}
-            selectedTimeframe={selectedTimeframe}
-            className="shrink-0"
-            language={language}
-          />
           <SymbolResearchChart
             exchange={exchange}
             symbol={data.symbol.symbol}
@@ -908,6 +817,23 @@ export function SymbolResearchPageClient({
               label: interpretation.label,
             }}
           />
+          <ResearchSnapshotPanel
+            symbol={data.symbol.symbol}
+            selectedTimeframe={selectedTimeframe}
+            interpretation={interpretation}
+            scoreBreakdown={scoreBreakdown}
+            latestSignal={latestSignal}
+            latestScanTime={data.latest?.scanRun?.finishedAt}
+            language={language}
+            dictionary={dictionary}
+            className="shrink-0"
+          />
+          <MtfContextStrip
+            snapshots={timeframeSnapshots}
+            selectedTimeframe={selectedTimeframe}
+            className="shrink-0"
+            language={language}
+          />
         </div>
 
         <aside className="grid min-w-0 content-start gap-2 xl:min-h-0 xl:overflow-y-auto xl:overscroll-contain xl:pr-1">
@@ -917,11 +843,6 @@ export function SymbolResearchPageClient({
             language={language}
           />
           <ArchiveContextPanel
-            archiveHref={buildArchiveHref({
-              timeframe: selectedTimeframe,
-              assetClass: data.symbol.assetClass,
-              symbol: data.symbol.symbol,
-            })}
             archiveSnapshotStatus={archiveSnapshotStatus}
             selectedTimeframe={selectedTimeframe}
             latestScanTime={data.latest?.scanRun?.finishedAt}
@@ -1310,34 +1231,24 @@ function SymbolResearchNavigation({
   symbol,
   timeframe,
   timeframeSelection,
-  assetClass,
-  scannerReturnHref,
-  scannerReturnLabel,
-  archiveHref,
   searchParams,
   isFetching,
   onSymbolSubmit,
   onExchangeChange,
   onRefresh,
   availabilityRows,
-  extraStats = [],
   watchlistSymbol,
 }: {
   exchange: string;
   symbol: string;
   timeframe: string;
   timeframeSelection?: SymbolResearchTimeframeSelection;
-  assetClass?: string | null;
-  scannerReturnHref: string;
-  scannerReturnLabel: string;
-  archiveHref: string;
   searchParams: QueryStateInput;
   isFetching: boolean;
   onSymbolSubmit: (value: string) => void;
   onExchangeChange: (value: string) => void;
   onRefresh: () => void;
   availabilityRows?: SymbolResearchTimeframeAvailabilityRow[];
-  extraStats?: SymbolTerminalStat[];
   watchlistSymbol?: string;
 }) {
   const [symbolInput, setSymbolInput] = useState(symbol);
@@ -1352,24 +1263,6 @@ function SymbolResearchNavigation({
     selectedTimeframe: timeframe,
     availabilityRows,
   });
-  const commandStats: SymbolTerminalStat[] = [
-    {
-      label: "Symbol",
-      value: symbol,
-      tone: "accent",
-    },
-    {
-      label: "TF",
-      value: timeframe.toUpperCase(),
-      tone: timeframeSelection?.fallbackReason === "invalid" ? "warning" : "accent",
-    },
-    {
-      label: "Asset",
-      value: assetClass ? toTitleCase(assetClass) : "Unknown",
-      tone: "neutral",
-    },
-    ...extraStats,
-  ];
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     onSymbolSubmit(symbolInput);
@@ -1460,28 +1353,7 @@ function SymbolResearchNavigation({
           })}
         </nav>
 
-        <div className="terminal-command-main">
-          {commandStats.map((stat) => (
-            <SymbolTerminalCommandStat
-              key={`${stat.label}-${stat.value}`}
-              stat={stat}
-            />
-          ))}
-        </div>
-
         <div className="terminal-command-actions">
-          <Link
-            href={scannerReturnHref}
-            className="terminal-command-action"
-          >
-            {scannerReturnLabel}
-          </Link>
-          <Link
-            href={archiveHref}
-            className="terminal-command-action"
-          >
-            Review Archive
-          </Link>
           {watchlistSymbol ? (
             <SymbolWatchlistControl
               symbol={watchlistSymbol}
@@ -1505,28 +1377,6 @@ function SymbolResearchNavigation({
         </p>
       ) : null}
     </section>
-  );
-}
-
-function SymbolTerminalCommandStat({ stat }: { stat: SymbolTerminalStat }) {
-  return (
-    <div
-      title={stat.title ?? `${stat.label}: ${stat.value}`}
-      className={`inline-flex h-6 max-w-[220px] shrink-0 items-center gap-1.5 overflow-hidden border border-l-2 border-white/10 bg-white/[0.04] px-1.5 ${getSymbolTerminalToneBorderClass(
-        stat.tone,
-      )}`}
-    >
-      <span className="shrink-0 text-[9px] font-semibold uppercase text-[var(--terminal-bar-muted)]">
-        {stat.label}
-      </span>
-      <span
-        className={`min-w-0 truncate font-mono text-[10px] font-semibold leading-4 ${getSymbolTerminalToneTextClass(
-          stat.tone,
-        )}`}
-      >
-        {stat.value}
-      </span>
-    </div>
   );
 }
 
@@ -1717,50 +1567,6 @@ function getTimeframeNavigationClass(option: SymbolResearchTimeframeNavigationOp
   return `${base} border-white/10 bg-white/[0.03] text-[var(--terminal-bar-muted)] hover:border-[var(--accent-border)] hover:text-[var(--terminal-bar-foreground)]`;
 }
 
-function getSymbolTerminalToneBorderClass(tone: SymbolTerminalTone) {
-  switch (tone) {
-    case "eligible":
-    case "complete":
-      return "border-l-[var(--eligible)]";
-    case "watch":
-      return "border-l-[var(--watch)]";
-    case "repair":
-      return "border-l-[var(--repair)]";
-    case "risk":
-      return "border-l-[var(--risk)]";
-    case "warning":
-      return "border-l-[var(--overheated)]";
-    case "accent":
-      return "border-l-[var(--accent)]";
-    case "missing":
-      return "border-l-[var(--missing)]";
-    default:
-      return "border-l-[var(--neutral)]";
-  }
-}
-
-function getSymbolTerminalToneTextClass(tone: SymbolTerminalTone) {
-  switch (tone) {
-    case "eligible":
-    case "complete":
-      return "text-[var(--eligible)]";
-    case "watch":
-      return "text-[var(--watch)]";
-    case "repair":
-      return "text-[var(--repair)]";
-    case "risk":
-      return "text-[var(--risk)]";
-    case "warning":
-      return "text-[var(--overheated)]";
-    case "accent":
-      return "text-[var(--accent)]";
-    case "missing":
-      return "text-[var(--missing)]";
-    default:
-      return "text-[var(--terminal-bar-muted)]";
-  }
-}
-
 function ResearchState({
   title,
   message,
@@ -1843,7 +1649,6 @@ function ResearchSnapshotPanel({
   scoreBreakdown,
   latestSignal,
   latestScanTime,
-  qualityTier,
   language,
   dictionary,
   className = "",
@@ -1854,7 +1659,6 @@ function ResearchSnapshotPanel({
   scoreBreakdown: ReturnType<typeof getSymbolResearchScoreBreakdown>;
   latestSignal: SymbolResearchSignal;
   latestScanTime?: string | null;
-  qualityTier?: string | null;
   language: Language;
   dictionary: SymbolResearchDisplayDictionary;
   className?: string;
@@ -1953,9 +1757,6 @@ function ResearchSnapshotPanel({
             label="Current Snapshot Updated"
             value={formatSymbolResearchDateTime(latestScanTime)}
           />
-          {qualityTier ? (
-            <SnapshotFact label="Asset Quality" value={toTitleCase(qualityTier)} />
-          ) : null}
         </div>
 
         <div className="terminal-panel-muted min-w-0 border-l-2 border-l-[var(--risk)] px-2 py-2">
@@ -2100,12 +1901,10 @@ function CodeEvidenceList({
 }
 
 function ArchiveContextPanel({
-  archiveHref,
   archiveSnapshotStatus,
   selectedTimeframe,
   latestScanTime,
 }: {
-  archiveHref: string;
   archiveSnapshotStatus: string;
   selectedTimeframe: string;
   latestScanTime?: string | null;
@@ -2120,9 +1919,6 @@ function ArchiveContextPanel({
           value={formatSymbolResearchDateTime(latestScanTime)}
         />
       </div>
-      <Link href={archiveHref} className="ui-button mt-2 h-7 px-2 text-[11px]">
-        Review Archive
-      </Link>
     </WorkspacePanel>
   );
 }
