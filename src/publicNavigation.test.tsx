@@ -85,6 +85,14 @@ describe("public navigation surface", () => {
     expect(html).toContain('href="/archive"');
     expect(html).toContain("Research Archive");
     expect(html).toContain("Research-only. Not trading advice.");
+    expect(html).toContain("No trading instructions");
+    expect(html).toContain("Rankings");
+    expect(html).toContain("Symbol Research");
+    expect(html).toContain("Watchlist");
+    expect(html).toContain("→");
+    expect(html).toContain("Copyright © 2026 VegaRank");
+    expect(html).toContain('href="https://github.com/VeteranXYZ"');
+    expect(html).toContain(">Hiei<");
     expect(html).toContain("2026-06-12 16:30 UTC");
     expect(html).toContain("Research Rows");
     expect(html).not.toContain('href="/scanner"');
@@ -92,6 +100,8 @@ describe("public navigation surface", () => {
     expect(html).not.toContain("Find the best trades");
     expect(html).not.toContain("Most profitable setups");
     expect(html).not.toContain("Open BTCUSDT Research");
+    expect(html).not.toContain("Rankings -&gt; Symbol Research");
+    expect(html).not.toContain("This view is for research and manual review only");
   });
 
   it("keeps the home workspace usable when latest snapshot status is unavailable", async () => {
@@ -108,6 +118,6 @@ describe("public navigation surface", () => {
     expect(html).toContain("Latest snapshot unavailable");
     expect(html).toContain('href="/rankings"');
     expect(html).toContain('href="/screener"');
-    expect(html).toContain("Discover -&gt; Compare -&gt; Research -&gt; Monitor -&gt; Validate");
+    expect(html).toContain("Discover → Compare → Research → Monitor → Validate");
   });
 });

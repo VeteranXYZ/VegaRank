@@ -1,8 +1,5 @@
 import Link from "next/link";
-import {
-  longResearchDisclaimer,
-  shortResearchDisclaimer,
-} from "@/components/researchCopy";
+import { shortResearchDisclaimer } from "@/components/researchCopy";
 import {
   PageHeader,
   PageSection,
@@ -111,17 +108,17 @@ const workflowItems = [
 const researchPaths = [
   {
     label: "New review",
-    path: "Rankings -> Symbol Research -> Watchlist",
+    path: ["Rankings", "Symbol Research", "Watchlist"],
     copy: "Start with Market Rankings to review the latest research queue.",
   },
   {
     label: "Cross-timeframe review",
-    path: "Screener -> Symbol Research",
+    path: ["Screener", "Symbol Research"],
     copy: "Use Screener when you need multi-timeframe comparison.",
   },
   {
     label: "Historical review",
-    path: "Archive -> Symbol Research",
+    path: ["Archive", "Symbol Research"],
     copy: "Use Archive when you want stored snapshot and later observation context.",
   },
 ] as const;
@@ -156,10 +153,18 @@ export default async function HomePage() {
           }
           tone="screener"
           description={
-            <span>
-              Rank crypto market structures by setup quality, evidence reliability,
-              and risk context. Built to decide what to research first, not what to
-              trade.
+            <span className="flex flex-col gap-2">
+              <span>
+                Rank crypto market structures by setup quality, evidence reliability,
+                and risk context. Built to decide what to research first, not what to
+                trade.
+              </span>
+              <span className="flex flex-wrap gap-1.5">
+                <StatusBadge tone="accent">Research-only</StatusBadge>
+                <StatusBadge tone="neutral">No trading instructions</StatusBadge>
+                <StatusBadge tone="info">Local watchlist</StatusBadge>
+                <StatusBadge tone="observation">Archive validation</StatusBadge>
+              </span>
             </span>
           }
           actions={
@@ -172,12 +177,6 @@ export default async function HomePage() {
               </Link>
             </div>
           }
-          metadata={[
-            { label: "Status", value: "Research-only", tone: "accent" },
-            { label: "Boundary", value: "No trading instructions", tone: "neutral" },
-            { label: "Monitoring", value: "Local watchlist", tone: "info" },
-            { label: "Validation", value: "Archive validation", tone: "observation" },
-          ]}
         />
 
         <LatestSnapshotPanel snapshot={latestSnapshot} />
@@ -190,12 +189,21 @@ export default async function HomePage() {
         <ResearchStatusPanel />
       </div>
 
-      <ResearchNotice className="max-w-5xl" tone="neutral">
+      <ResearchNotice className="max-w-5xl text-[10px] leading-4 text-[var(--muted)]" tone="neutral">
         <span className="font-semibold text-[var(--foreground)]">
           {shortResearchDisclaimer}
         </span>{" "}
-        {longResearchDisclaimer} It does not place trades or connect to user wallets
-        or exchange accounts.
+        Manual research review only; no wallet or exchange connection. Copyright ©{" "}
+        2026 VegaRank. Powered by{" "}
+        <a
+          href="https://github.com/VeteranXYZ"
+          className="font-semibold text-[var(--accent)] underline-offset-2 hover:underline"
+          rel="noreferrer"
+          target="_blank"
+        >
+          Hiei
+        </a>
+        .
       </ResearchNotice>
     </PageShell>
   );
@@ -310,7 +318,7 @@ function ResearchWorkflow() {
         ))}
       </div>
       <div className="mt-2 border border-[var(--border)] bg-[var(--panel-muted)] px-2 py-1.5 text-[11px] font-semibold text-[var(--foreground)]">
-        Discover -&gt; Compare -&gt; Research -&gt; Monitor -&gt; Validate
+        Discover → Compare → Research → Monitor → Validate
       </div>
     </PageSection>
   );
@@ -329,14 +337,31 @@ function SuggestedResearchPaths() {
             <div className="text-[11px] font-semibold text-[var(--foreground)]">
               {item.label}
             </div>
-            <div className="mt-1 font-mono text-[10px] text-[var(--muted)]">
-              {item.path}
-            </div>
+            <PathRail steps={item.path} />
           </div>
           <p className="text-[11px] leading-5 text-[var(--muted)]">{item.copy}</p>
         </div>
       ))}
     </PageSection>
+  );
+}
+
+function PathRail({ steps }: { steps: readonly string[] }) {
+  return (
+    <div className="mt-1 flex min-w-0 flex-wrap items-center gap-1">
+      {steps.map((step, index) => (
+        <span key={`${step}-${index}`} className="inline-flex items-center gap-1">
+          {index > 0 ? (
+            <span className="font-mono text-[10px] font-semibold text-[var(--muted-2)]">
+              →
+            </span>
+          ) : null}
+          <span className="inline-flex max-w-full items-center whitespace-nowrap border border-[var(--border)] bg-[var(--panel-muted)] px-1.5 py-0.5 font-mono text-[10px] font-semibold text-[var(--muted)]">
+            {step}
+          </span>
+        </span>
+      ))}
+    </div>
   );
 }
 
