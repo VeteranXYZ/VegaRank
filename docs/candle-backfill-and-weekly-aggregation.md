@@ -110,6 +110,9 @@ Coinbase `1w` direct fetch remains unsupported in the provider. The manual
 Coinbase backfill command derives `1w` candles from stored `1d` candles with
 documented coverage checks.
 
+The Phase 32G medium-batch runner reuses these same rules for controlled
+Coinbase supplemental batches. It does not add production cron behavior.
+
 Symbol Research can query manual Coinbase scanner results by exact exchange,
 market, symbol, and timeframe. Rankings latest remains on the current Binance
 full-universe selection until Coinbase production universe rollout.

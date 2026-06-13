@@ -138,6 +138,19 @@ pnpm scanner:run:pg -- --exchange=coinbase --symbols=ABC-USDC --timeframe=4h --l
 The scanner preserves the stored symbol exchange in scan run metadata and scan
 signal rows. Scoring math and codebook meanings are unchanged.
 
+## Controlled Batch Runner
+
+Phase 32G adds a manual medium-batch runner for Coinbase supplemental rows:
+
+```bash
+pnpm coinbase:supplemental:batch -- --dry-run --limit-symbols=20
+```
+
+The runner selects already-imported Coinbase `-USDC` symbols, derives `4h`
+from `1h`, derives `1w` from stored `1d`, runs manual Coinbase scanner
+timeframes, and prints a structured rollout report. See
+`docs/coinbase-supplemental-production-rollout.md`.
+
 ## Symbol Research
 
 Manual Coinbase scanner results can be queried by exact exchange, market,
