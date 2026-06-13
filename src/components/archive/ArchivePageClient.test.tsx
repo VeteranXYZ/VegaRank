@@ -9,6 +9,7 @@ import {
   buildHistoricalSnapshotObservationsUrl,
   buildHistoricalSnapshotUrl,
   buildHistoricalSnapshotsUrl,
+  buildArchiveRankingQualityEvaluation,
   classifyForwardObservationMaturity,
   deriveForwardObservationUiState,
   ArchiveDetails,
@@ -21,6 +22,7 @@ import {
   ArchivePageClient,
   isArchiveRefreshActiveForTimeframe,
   ObservationRowsTable,
+  RankingQualityDiagnosticsPanel,
   RecentSuccessfulRunsPanel,
   recentRunsPanelClassName,
   recentRunsScrollContainerClassName,
@@ -881,6 +883,230 @@ describe("ArchivePageClient display formatting", () => {
     expect(html).not.toContain("-9.00%</span></div></li>");
   });
 
+  it("renders Ranking Quality Diagnostics from loaded archive rows", () => {
+    const response = makeObservationResponse({
+      rows: makeRankingQualityRows(),
+    });
+    const evaluation = buildArchiveRankingQualityEvaluation(response.rows);
+    const html = renderRankingQualityDiagnosticsPanel({ response });
+    const text = markupText(html);
+
+    expect(evaluation.summary.completeCount).toBe(40);
+    expect(evaluation.summary.partialCount).toBe(3);
+    expect(evaluation.summary.missingCount).toBe(2);
+    expect(text).toContain("Ranking Quality Diagnostics");
+    expect(text).toContain(
+      "Research-only diagnostics based on complete archive outcome windows.",
+    );
+    expect(text).toContain("Data Maturity");
+    expect(text).toContain("Data Mature");
+    expect(text).toContain("Score Bucket Separation");
+    expect(text).toContain("Clear Separation");
+    expect(text).toContain("Research Group Comparison");
+    expect(text).toContain("High Priority");
+    expect(text).toContain("Watch");
+    expect(text).toContain("Risk Context Summary");
+    expect(text).toContain("Risk Context Present");
+    expect(text).toContain("Evidence Reliability");
+    expect(text).toContain("Confidence Bucket");
+    expect(text).toContain("Diagnostics do not change scoring automatically.");
+  });
+
+  it("shows Ranking Quality Diagnostics data maturity counts", () => {
+    const response = makeObservationResponse({
+      rows: [
+        makeObservationRow({
+          id: "complete-a",
+          symbol: "COMPLETEAUSDT",
+          dataStatus: "complete",
+          missingReason: null,
+        }),
+        makeObservationRow({
+          id: "complete-b",
+          symbol: "COMPLETEBUSDT",
+          dataStatus: "complete",
+          missingReason: null,
+        }),
+        makeObservationRow({
+          id: "partial-a",
+          symbol: "PARTIALAUSDT",
+          dataStatus: "partial",
+          missingReason: "insufficient_future_candles",
+        }),
+        makeObservationRow({
+          id: "missing-a",
+          symbol: "MISSINGAUSDT",
+          observedClose: null,
+          observedChangePct: null,
+          maxDrawdownPct: null,
+          dataStatus: "missing",
+          missingReason: "no_future_candles",
+        }),
+      ],
+    });
+    const text = markupText(renderRankingQualityDiagnosticsPanel({ response }));
+
+    expect(text).toMatch(/Complete Windows\s+2/);
+    expect(text).toMatch(/Partial Windows\s+1/);
+    expect(text).toMatch(/Missing Windows\s+1/);
+    expect(text).toContain("Data Not Mature");
+  });
+
+  it("labels limited and not mature ranking quality samples conservatively", () => {
+    const limitedResponse = makeObservationResponse({
+      rows: Array.from({ length: 12 }, (_, index) =>
+        makeObservationRow({
+          id: `limited-${index}`,
+          symbol: `LIMITED${index}USDT`,
+          group: "eligible",
+          rankScore: 82,
+          dataStatus: "complete",
+          missingReason: null,
+        }),
+      ),
+    });
+    const notMatureResponse = makeObservationResponse({
+      rows: [
+        ...Array.from({ length: 12 }, (_, index) =>
+          makeObservationRow({
+            id: `not-mature-complete-${index}`,
+            symbol: `MATUREC${index}USDT`,
+            group: "eligible",
+            rankScore: 82,
+            dataStatus: "complete",
+            missingReason: null,
+          }),
+        ),
+        ...Array.from({ length: 12 }, (_, index) =>
+          makeObservationRow({
+            id: `not-mature-partial-${index}`,
+            symbol: `MATUREP${index}USDT`,
+            group: "watch",
+            rankScore: 64,
+            dataStatus: "partial",
+            missingReason: "insufficient_future_candles",
+          }),
+        ),
+      ],
+    });
+
+    expect(
+      markupText(renderRankingQualityDiagnosticsPanel({ response: limitedResponse })),
+    ).toContain("Limited Sample");
+    expect(
+      markupText(renderRankingQualityDiagnosticsPanel({ response: notMatureResponse })),
+    ).toContain("Data Not Mature");
+  });
+
+  it("keeps missing windows separate from negative outcomes in ranking quality copy", () => {
+    const response = makeObservationResponse({
+      rows: [
+        makeObservationRow({
+          id: "complete-row",
+          symbol: "COMPLETEUSDT",
+          dataStatus: "complete",
+          missingReason: null,
+        }),
+        makeObservationRow({
+          id: "missing-row",
+          symbol: "MISSINGUSDT",
+          observedClose: null,
+          observedChangePct: null,
+          maxDrawdownPct: null,
+          dataStatus: "missing",
+          missingReason: "no_future_candles",
+        }),
+      ],
+    });
+    const text = markupText(renderRankingQualityDiagnosticsPanel({ response }));
+
+    expect(text).toContain(
+      "Missing windows are tracked separately and are not treated as negative outcomes.",
+    );
+    expect(text).not.toContain("Missing windows are negative outcomes");
+  });
+
+  it("uses evidence reliability language instead of probability language", () => {
+    const text = markupText(
+      renderRankingQualityDiagnosticsPanel({
+        response: makeObservationResponse({ rows: makeRankingQualityRows() }),
+      }),
+    );
+
+    expect(text).toContain("Evidence Reliability");
+    expect(text).toContain("Data Support");
+    expect(text).toContain("Confidence Bucket");
+    expect(text).not.toMatch(/\bprobability\b/i);
+    expect(text).not.toMatch(/\bchance\b/i);
+    expect(text).not.toMatch(/\bprediction accuracy\b/i);
+  });
+
+  it("does not introduce trading or performance language in ranking quality diagnostics", () => {
+    const text = markupText(
+      renderRankingQualityDiagnosticsPanel({
+        response: makeObservationResponse({ rows: makeRankingQualityRows() }),
+      }),
+    );
+    const forbiddenTerms = [
+      "win rate",
+      "success rate",
+      "profit",
+      "return",
+      "P/L",
+      "trading performance",
+      "prediction accuracy",
+      "buy",
+      "sell",
+      "long",
+      "short",
+      "entry",
+      "exit",
+    ];
+
+    for (const term of forbiddenTerms) {
+      expect(text).not.toMatch(new RegExp(`\\b${escapeRegExp(term)}\\b`, "i"));
+    }
+  });
+
+  it("does not crash on empty ranking quality rows or missing outcome fields", () => {
+    const emptyText = markupText(
+      renderRankingQualityDiagnosticsPanel({
+        response: makeObservationResponse({
+          rows: [],
+          summary: null,
+          metadata: {
+            rowCount: 0,
+            completeCount: 0,
+            partialCount: 0,
+            missingCount: 0,
+          },
+        }),
+      }),
+    );
+    const missingOutcomeText = markupText(
+      renderRankingQualityDiagnosticsPanel({
+        response: makeObservationResponse({
+          rows: [
+            makeObservationRow({
+              id: "missing-fields",
+              symbol: "NULLUSDT",
+              observedClose: null,
+              observedChangePct: null,
+              maxDrawdownPct: null,
+              dataStatus: "complete",
+              missingReason: null,
+            }),
+          ],
+        }),
+      }),
+    );
+
+    expect(emptyText).toContain("Diagnostics unavailable from current archive data");
+    expect(emptyText).toContain("Data Not Mature");
+    expect(missingOutcomeText).toContain("Ranking Quality Diagnostics");
+    expect(missingOutcomeText).toContain("N/A");
+  });
+
   it("renders stale market coverage as a compact unavailable state", () => {
     const selectedRun = makeObservationRun({
       runId: "11111111-1111-4111-8111-111111111111",
@@ -1496,6 +1722,33 @@ function renderObservationRowsTable(
   );
 }
 
+function renderRankingQualityDiagnosticsPanel({
+  response,
+  summary,
+}: {
+  response: ReturnType<typeof makeObservationResponse> | null;
+  summary?: ReturnType<typeof makeUiState>["summary"] | null;
+}) {
+  const readiness = response
+    ? makeReadinessResponse({
+        selectedRun: makeReadinessRun({ run: response.run }),
+        observationRun: makeReadinessRun({ run: response.run }),
+      })
+    : null;
+  const uiState = makeUiState({
+    selectedRunId: response?.run.runId ?? null,
+    readiness,
+    response,
+  });
+
+  return renderToStaticMarkup(
+    createElement(RankingQualityDiagnosticsPanel, {
+      response,
+      summary: summary === undefined ? uiState.summary : summary,
+    }),
+  );
+}
+
 function renderArchiveDetails({
   response,
   readiness,
@@ -1538,6 +1791,14 @@ function expectMarkupOrder(html: string, labels: string[]) {
   }
 }
 
+function markupText(html: string) {
+  return html.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
+}
+
+function escapeRegExp(value: string) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
 function makeObservationRowsForFilters() {
   return [
     makeObservationRow({
@@ -1571,6 +1832,58 @@ function makeObservationRowsForFilters() {
       dataStatus: "missing",
       missingReason: "no_future_candles",
     }),
+  ];
+}
+
+function makeRankingQualityRows() {
+  return [
+    ...Array.from({ length: 20 }, (_, index) =>
+      makeObservationRow({
+        id: `high-score-${index}`,
+        symbol: `HIGH${index}USDT`,
+        group: "eligible",
+        rankScore: 88,
+        observedChangePct: 5,
+        maxDrawdownPct: -2,
+        dataStatus: "complete",
+        missingReason: null,
+      }),
+    ),
+    ...Array.from({ length: 20 }, (_, index) =>
+      makeObservationRow({
+        id: `low-score-${index}`,
+        symbol: `LOW${index}USDT`,
+        group: "watch",
+        rankScore: 12,
+        observedChangePct: 1,
+        maxDrawdownPct: -2,
+        dataStatus: "complete",
+        missingReason: null,
+      }),
+    ),
+    ...Array.from({ length: 3 }, (_, index) =>
+      makeObservationRow({
+        id: `partial-risk-${index}`,
+        symbol: `PARTIALRISK${index}USDT`,
+        group: "risk",
+        rankScore: 35,
+        dataStatus: "partial",
+        missingReason: "insufficient_future_candles",
+      }),
+    ),
+    ...Array.from({ length: 2 }, (_, index) =>
+      makeObservationRow({
+        id: `missing-risk-${index}`,
+        symbol: `MISSINGRISK${index}USDT`,
+        group: "risk",
+        rankScore: 35,
+        observedClose: null,
+        observedChangePct: null,
+        maxDrawdownPct: null,
+        dataStatus: "missing",
+        missingReason: "no_future_candles",
+      }),
+    ),
   ];
 }
 
@@ -1915,6 +2228,7 @@ function makeObservationRow(overrides: {
   id: string;
   symbol: string;
   group?: string | null;
+  rankScore?: number | null;
   observedClose?: number | null;
   observedChangePct?: number | null;
   maxDrawdownPct?: number | null;
@@ -1931,7 +2245,7 @@ function makeObservationRow(overrides: {
     group: overrides.group ?? "risk",
     label: "breakdown_risk",
     primarySignal: "Risk review",
-    rankScore: 12,
+    rankScore: overrides.rankScore ?? 12,
     anchorTime: "2026-06-02T00:00:00.000Z",
     anchorClose: 100,
     anchorSource: "stored_signal" as const,
