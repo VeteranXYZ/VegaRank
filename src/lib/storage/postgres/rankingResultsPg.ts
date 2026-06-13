@@ -200,6 +200,8 @@ export function isLikelyFullUniverseRun({
 
 export type CreateScanRunInput = {
   id: string;
+  exchange?: string;
+  market?: string;
   timeframe: string;
   universe: string;
   status: string;
@@ -222,6 +224,8 @@ export type InsertScanSignalInput = {
   id: string;
   scanRunId: string;
   symbolId: number;
+  exchange?: string;
+  market?: string;
   symbol: string;
   timeframe: string;
   candleOpenTimeMs: number | null;
@@ -362,17 +366,21 @@ export class PgRankingResultsStore {
   }
 
   async createScanRun(input: CreateScanRunInput) {
+    const exchange = normalizeExchange(input.exchange);
+    const market = normalizeMarket(input.market);
     const result = await this.pool.query<ScanRunRow>(
       `
         INSERT INTO scan_runs (
           id, exchange, market, mode, timeframe, universe, status,
           symbols_total, params, started_at
         )
-        VALUES ($1, 'binance', 'spot', 'single', $2, $3, $4, $5, $6::jsonb, now())
+        VALUES ($1, $2, $3, 'single', $4, $5, $6, $7, $8::jsonb, now())
         RETURNING *
       `,
       [
         input.id,
+        exchange,
+        market,
         input.timeframe,
         input.universe,
         input.status,
@@ -418,6 +426,8 @@ export class PgRankingResultsStore {
   async insertScanSignals(signals: InsertScanSignalInput[]) {
     for (const signal of signals) {
       const result = signal.result;
+      const exchange = normalizeExchange(signal.exchange ?? result.exchange);
+      const market = normalizeMarket(signal.market);
       const codeContract = serializeScanResultToCodeContract(result);
       const nextConfirmationCodes = scannerReferenceCodes(
         result.nextConfirmationObservations,
@@ -447,17 +457,19 @@ export class PgRankingResultsStore {
             raw_metrics, scoring_version, scanner_version, created_at
           )
           VALUES (
-            $1, $2, $3, 'binance', 'spot', $4, $5, now(),
-            CASE WHEN $6::bigint IS NULL THEN NULL ELSE to_timestamp($6::double precision / 1000) END,
-            $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18,
-            $19, $20::jsonb, $21::jsonb, $22::jsonb, $23::jsonb, $24::jsonb,
-            $25::jsonb, $26, $27, now()
+            $1, $2, $3, $4, $5, $6, $7, now(),
+            CASE WHEN $8::bigint IS NULL THEN NULL ELSE to_timestamp($8::double precision / 1000) END,
+            $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20,
+            $21, $22::jsonb, $23::jsonb, $24::jsonb, $25::jsonb, $26::jsonb,
+            $27::jsonb, $28, $29, now()
           )
         `,
         [
           signal.id,
           signal.scanRunId,
           signal.symbolId,
+          exchange,
+          market,
           signal.symbol,
           signal.timeframe,
           signal.candleOpenTimeMs,
@@ -1458,6 +1470,14 @@ function toFiniteNumber(value: unknown) {
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+
+function normalizeExchange(value: string | undefined) {
+  return value?.trim().toLowerCase() || "binance";
+}
+
+function normalizeMarket(value: string | undefined) {
+  return value?.trim().toLowerCase() || "spot";
 }
 
 function sqlLiteral(value: string) {

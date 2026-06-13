@@ -76,6 +76,9 @@ Phase 32D adds provider-neutral helpers in
 
 Those helpers are not wired into production jobs in Phase 32D.
 
+Phase 32E adds a manual Coinbase supplemental import and backfill path. See
+`docs/coinbase-supplemental-backfill-activation.md`.
+
 ## Deferred Work
 
 The adapter intentionally does not implement:

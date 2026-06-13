@@ -715,14 +715,14 @@ describe("PgRankingResultsStore latest ranking queries", () => {
     ]);
 
     const params = paramsList[0];
-    const signalLabel = params[16];
-    const actionBias = params[17];
-    const primaryStructure = params[18];
-    const detectedRiskTypes = JSON.parse(params[20] as string);
-    const factors = JSON.parse(params[21] as string);
-    const nextConfirmation = JSON.parse(params[22] as string);
-    const invalidation = JSON.parse(params[23] as string);
-    const rawMetrics = JSON.parse(params[24] as string);
+    const signalLabel = params[18];
+    const actionBias = params[19];
+    const primaryStructure = params[20];
+    const detectedRiskTypes = JSON.parse(params[22] as string);
+    const factors = JSON.parse(params[23] as string);
+    const nextConfirmation = JSON.parse(params[24] as string);
+    const invalidation = JSON.parse(params[25] as string);
+    const rawMetrics = JSON.parse(params[26] as string);
 
     expect(signalLabel).toBe("TR_601");
     expect(actionBias).toBe("AC_601");
@@ -750,6 +750,53 @@ describe("PgRankingResultsStore latest ranking queries", () => {
       ...factors.signalCodes,
       ...factors.reasonCodes,
     ]).toEqual(expect.not.arrayContaining([undefined]));
+  });
+
+  it("preserves Coinbase exchange and market when inserting manual scan signals", async () => {
+    const paramsList: unknown[][] = [];
+    const store = new PgRankingResultsStore(
+      makePool((_sql, params) => {
+        paramsList.push(params);
+        return { rows: [] };
+      }),
+    );
+    const result = makeInsertResult();
+
+    result.exchange = "coinbase";
+    result.symbol = "ABC-USDC";
+    result.codeContract = {
+      ...result.codeContract!,
+      exchange: "coinbase",
+      symbol: "ABC-USDC",
+    };
+
+    await store.insertScanSignals([
+      {
+        id: "signal-coinbase",
+        scanRunId: "run-coinbase",
+        symbolId: 42,
+        exchange: "coinbase",
+        market: "spot",
+        symbol: "ABC-USDC",
+        timeframe: "4h",
+        candleOpenTimeMs: null,
+        result,
+      },
+    ]);
+
+    expect(paramsList[0]!.slice(0, 7)).toEqual([
+      "signal-coinbase",
+      "run-coinbase",
+      42,
+      "coinbase",
+      "spot",
+      "ABC-USDC",
+      "4h",
+    ]);
+    expect(JSON.parse(paramsList[0]![26] as string).codeContract).toMatchObject({
+      exchange: "coinbase",
+      symbol: "ABC-USDC",
+    });
   });
 });
 

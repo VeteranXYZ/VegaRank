@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import pLimit from "p-limit";
-import type { Timeframe } from "@/lib/exchanges/types";
+import type { Exchange, Timeframe } from "@/lib/exchanges/types";
 import { acquireRedisLock } from "@/lib/cache/redisLock";
 import {
   isSymbolAssetClassFilter,
@@ -17,6 +17,8 @@ import { calculateUniversePercentiles } from "@/lib/ranking-engine/scoring";
 
 type ScannerRunOptions = {
   symbols: string[];
+  exchange: Exchange | "all";
+  market: string;
   timeframe: PgScannerTimeframe;
   candleLimit: number;
   marketLimit: number;
@@ -46,7 +48,7 @@ type PgScannerTimeframe = (typeof SUPPORTED_PG_SCANNER_TIMEFRAMES)[number];
 
 async function main() {
   const options = parseOptions(process.argv.slice(2));
-  const lockKey = `lock:scanner:binance:spot:${options.timeframe}`;
+  const lockKey = `lock:scanner:${options.exchange}:${options.market}:${options.timeframe}`;
   const lock = await acquireRedisLock({ key: lockKey, ttlMs: LOCK_TTL_MS });
 
   if (!lock) {
@@ -106,11 +108,13 @@ async function main() {
         requestedSymbols: options.symbols,
         source: "postgres",
         scannerMode: "single",
-        exchange: "binance",
-        market: "spot",
+        exchange: options.exchange,
+        market: options.market,
         concurrency: options.concurrency,
         lockKey,
       },
+      exchange: options.exchange,
+      market: options.market,
     });
     runCreated = true;
 
@@ -126,6 +130,8 @@ async function main() {
         gate(async () => {
           try {
             const candles = await marketData.listCandlesForScan({
+              exchange: symbol.exchange,
+              market: symbol.market,
               symbol: symbol.symbol,
               timeframe: options.timeframe,
               limit: options.candleLimit,
@@ -144,6 +150,7 @@ async function main() {
               symbol.symbol,
               options.timeframe as Timeframe,
               candles,
+              { exchange: parseStoredExchange(symbol.exchange) },
             );
 
             if (!result || !result.dataQuality.sufficientHistory) {
@@ -166,6 +173,8 @@ async function main() {
               id: randomUUID(),
               scanRunId,
               symbolId: symbol.id,
+              exchange: symbol.exchange,
+              market: symbol.market,
               symbol: symbol.symbol,
               timeframe: options.timeframe,
               candleOpenTimeMs,
@@ -259,10 +268,15 @@ async function resolveSymbols({
   options: ScannerRunOptions;
 }) {
   if (options.symbols.length > 0) {
-    return store.listSymbolsByNames(options.symbols);
+    return store.listSymbolsByNames(options.symbols, {
+      exchange: options.exchange,
+      market: options.market,
+    });
   }
 
   return store.listSymbols({
+    exchange: options.exchange,
+    market: options.market,
     limit: options.allSymbols ? null : options.marketLimit,
     assetClass: options.assetClass,
     includeNonScanner: options.includeNonScanner,
@@ -272,6 +286,7 @@ async function resolveSymbols({
 function parseOptions(args: string[]): ScannerRunOptions {
   const flags = parseFlags(args);
   const symbols = parseSymbols(flags.symbols ?? flags.symbol);
+  const exchange = parseExchange(flags.exchange);
   const marketLimit = parseInteger({
     value: flags.marketLimit,
     fallback: DEFAULT_MARKET_LIMIT,
@@ -288,6 +303,8 @@ function parseOptions(args: string[]): ScannerRunOptions {
 
   return {
     symbols,
+    exchange,
+    market: parseMarket(flags.market),
     timeframe: parseTimeframe(flags.timeframe),
     candleLimit: parseInteger({
       value: flags.limit,
@@ -354,6 +371,36 @@ function parseSymbols(value: string | undefined) {
         .filter(Boolean),
     ),
   );
+}
+
+function parseExchange(value: string | undefined): Exchange | "all" {
+  const exchange = value?.trim().toLowerCase() || "binance";
+
+  if (exchange === "binance" || exchange === "coinbase" || exchange === "all") {
+    return exchange;
+  }
+
+  throw new Error("exchange must be binance, coinbase, or all.");
+}
+
+function parseStoredExchange(value: string): Exchange {
+  const exchange = value.trim().toLowerCase();
+
+  if (exchange === "binance" || exchange === "coinbase") {
+    return exchange;
+  }
+
+  throw new Error(`Unsupported stored exchange: ${value}`);
+}
+
+function parseMarket(value: string | undefined) {
+  const market = value?.trim().toLowerCase() || "spot";
+
+  if (!/^[a-z0-9_-]{1,30}$/.test(market)) {
+    throw new Error("market must be a valid market identifier.");
+  }
+
+  return market;
 }
 
 function parseTimeframe(value: string | undefined): PgScannerTimeframe {

@@ -44,4 +44,30 @@ describe("candles API timeframe validation", () => {
       expect(getCandlesMock).toHaveBeenCalledWith("BTCUSDT", timeframe, 1);
     },
   );
+
+  it("accepts dashed Coinbase symbols at validation and rejects remote Coinbase fetches calmly", async () => {
+    const response = await GET(
+      new Request(
+        "http://localhost/api/candles?source=remote&exchange=coinbase&symbol=BTC-USDC&timeframe=4h&limit=1",
+      ),
+    );
+    const body = await response.json();
+
+    expect(response.status).toBe(400);
+    expect(body.error).toContain("remote source");
+    expect(getCandlesMock).not.toHaveBeenCalled();
+  });
+
+  it("rejects invalid symbol punctuation", async () => {
+    const response = await GET(
+      new Request(
+        "http://localhost/api/candles?source=remote&symbol=BTC_USDC&timeframe=4h&limit=1",
+      ),
+    );
+    const body = await response.json();
+
+    expect(response.status).toBe(400);
+    expect(body.error).toContain("symbol must be");
+    expect(getCandlesMock).not.toHaveBeenCalled();
+  });
 });

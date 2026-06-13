@@ -4,6 +4,39 @@ import { scanCandles } from "@/lib/ranking-engine/scanCandles";
 import { selectSignalCandleOpenTimeMs } from "../../scripts/scanner-run-pg";
 
 describe("scanner-run-pg signal anchors", () => {
+  it("preserves a manually supplied Coinbase exchange in scan output", () => {
+    const candles = Array.from({ length: 220 }, (_, index) =>
+      makeCandle({
+        openTime: index * 1000,
+        closeTime: index * 1000 + 999,
+        close: 100 + index * 0.1,
+      }),
+    );
+
+    const result = scanCandles("ABC-USDC", "4h", candles, {
+      exchange: "coinbase",
+    });
+
+    expect(result.exchange).toBe("coinbase");
+    expect(result.codeContract?.exchange).toBe("coinbase");
+    expect(result.symbol).toBe("ABC-USDC");
+  });
+
+  it("keeps Binance as the default scan output exchange", () => {
+    const candles = Array.from({ length: 220 }, (_, index) =>
+      makeCandle({
+        openTime: index * 1000,
+        closeTime: index * 1000 + 999,
+        close: 100 + index * 0.1,
+      }),
+    );
+
+    const result = scanCandles("BTCUSDT", "4h", candles);
+
+    expect(result.exchange).toBe("binance");
+    expect(result.codeContract?.exchange).toBe("binance");
+  });
+
   it("uses the actual last closed candle open time when the latest candle is still open", () => {
     vi.useFakeTimers();
     vi.setSystemTime(200_000);

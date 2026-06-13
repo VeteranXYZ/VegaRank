@@ -1,4 +1,4 @@
-import type { Timeframe } from "./timeframes";
+import type { Exchange, Timeframe } from "./timeframes";
 
 export type MarketPhase =
   | "BASE_BUILDING"
@@ -298,7 +298,7 @@ export type ScannerCodeContractMetrics = {
 };
 
 export type ScannerCodeContractShape = {
-  exchange: "binance";
+  exchange: Exchange;
   symbol: string;
   timeframe: string;
   assetClass?: string;
@@ -318,7 +318,7 @@ export type ScannerCodeContractShape = {
 };
 
 export type ScanResult = {
-  exchange: "binance";
+  exchange: Exchange;
   symbol: string;
   timeframe: Timeframe;
   price: number;

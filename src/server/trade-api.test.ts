@@ -1695,6 +1695,47 @@ describe("trade-api symbol research", () => {
     expect(pgSymbolResearchStoreMock).not.toHaveBeenCalled();
   });
 
+  it("accepts Coinbase dashed symbols and returns unavailable metadata calmly", async () => {
+    getSymbolResearchLatestSignalPgMock.mockResolvedValue({
+      symbol: {
+        ...makeResearchSymbol("BTC-USDC"),
+        exchange: "coinbase",
+        baseAsset: "BTC",
+        quoteAsset: "USDC",
+      },
+      scanRun: null,
+      signal: null,
+    });
+
+    const response = await requestTradeApi(
+      "/api/symbol/research?exchange=coinbase&market=spot&symbol=btc-usdc&timeframe=4h",
+    );
+    const body = JSON.parse(response.body);
+
+    expect(response.status).toBe(404);
+    expect(body.errorCode).toBe("NO_LATEST_SIGNAL");
+    expect(body.symbol).toMatchObject({
+      exchange: "coinbase",
+      market: "spot",
+      symbol: "BTC-USDC",
+    });
+    expect(getSymbolResearchLatestSignalPgMock).toHaveBeenCalledWith({
+      exchange: "coinbase",
+      market: "spot",
+      symbol: "BTC-USDC",
+      timeframe: "4h",
+      assetClass: "crypto",
+      includeNonScanner: false,
+      includeMarketContext: false,
+    });
+    expect(getSymbolCandleCoveragePgMock).toHaveBeenCalledWith({
+      exchange: "coinbase",
+      market: "spot",
+      symbol: "BTC-USDC",
+      timeframe: "4h",
+    });
+  });
+
   it("returns a stable research response shape", async () => {
     getSymbolResearchLatestSignalPgMock.mockResolvedValue({
       symbol: makeResearchSymbol("SEIUSDT"),

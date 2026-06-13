@@ -35,6 +35,7 @@ export type PgSymbol = {
 export type PgSymbolUpsertInput = Market &
   SymbolClassification & {
     isEnabled: boolean;
+    market?: string;
     metadata?: Record<string, unknown>;
   };
 
@@ -52,6 +53,8 @@ export type CandleUpsertStats = {
 
 export type MarketDataSyncJobInput = {
   id: string;
+  exchange?: string;
+  market?: string;
   timeframe: string;
   status: string;
   symbolsTotal: number;
@@ -249,6 +252,8 @@ export class PgMarketDataStore {
     const rows: PgSymbol[] = [];
 
     for (const market of markets) {
+      const exchange = normalizeExchange(market.exchange);
+      const marketType = "spot";
       const classification = classifyUsdtSymbol({
         symbol: market.symbol,
         baseAsset: market.baseAsset,
@@ -262,7 +267,7 @@ export class PgMarketDataStore {
             metadata, updated_at
           )
           VALUES (
-            $1, 'spot', $2, $3, $4, $5, $6, $7, true, $8, $9, $10, $11,
+            $1, $2, $3, $4, $5, $6, $7, $8, true, $9, $10, $11, $12,
             '{}'::jsonb, now()
           )
           ON CONFLICT(exchange, market, symbol) DO UPDATE SET
@@ -276,8 +281,9 @@ export class PgMarketDataStore {
           RETURNING *
         `,
         [
-          market.exchange,
-          market.symbol.toUpperCase(),
+          exchange,
+          marketType,
+          normalizeStoredSymbol(market.symbol),
           market.baseAsset,
           market.quoteAsset,
           market.status,
@@ -300,6 +306,8 @@ export class PgMarketDataStore {
     const rows: PgSymbol[] = [];
 
     for (const symbol of symbols) {
+      const exchange = normalizeExchange(symbol.exchange);
+      const market = normalizeMarket(symbol.market);
       const result = await this.pool.query<SymbolRow>(
         `
           INSERT INTO symbols (
@@ -309,8 +317,8 @@ export class PgMarketDataStore {
             metadata, updated_at
           )
           VALUES (
-            $1, 'spot', $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12,
-            $13::jsonb, now()
+            $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13,
+            $14::jsonb, now()
           )
           ON CONFLICT(exchange, market, symbol) DO UPDATE SET
             base_asset = excluded.base_asset,
@@ -328,8 +336,9 @@ export class PgMarketDataStore {
           RETURNING *
         `,
         [
-          symbol.exchange,
-          symbol.symbol.toUpperCase(),
+          exchange,
+          market,
+          normalizeStoredSymbol(symbol.symbol),
           symbol.baseAsset,
           symbol.quoteAsset,
           symbol.status,
@@ -351,20 +360,21 @@ export class PgMarketDataStore {
   }
 
   async listSymbols({
+    exchange = "binance",
+    market = "spot",
     limit = 500,
     assetClass = "all",
     includeNonScanner = true,
   }: {
+    exchange?: string;
+    market?: string;
     limit?: number | null;
     assetClass?: SymbolAssetClassFilter;
     includeNonScanner?: boolean;
   } = {}) {
     const params: unknown[] = [];
-    const filters = [
-      "exchange = 'binance'",
-      "market = 'spot'",
-      "is_enabled = true",
-    ];
+    const filters = ["is_enabled = true"];
+    addIdentityFilters({ filters, params, exchange, market });
 
     if (assetClass !== "all") {
       params.push(assetClass);
@@ -397,49 +407,72 @@ export class PgMarketDataStore {
     return result.rows.map(toPgSymbol);
   }
 
-  async listSymbolsByNames(symbols: string[]) {
+  async listSymbolsByNames(
+    symbols: string[],
+    {
+      exchange = "binance",
+      market = "spot",
+    }: {
+      exchange?: string;
+      market?: string;
+    } = {},
+  ) {
     if (symbols.length === 0) {
       return [];
     }
 
-    const normalizedSymbols = symbols.map((symbol) => symbol.toUpperCase());
+    const normalizedSymbols = symbols.map(normalizeStoredSymbol);
+    const params: unknown[] = [normalizedSymbols];
+    const filters = ["is_enabled = true", "symbol = ANY($1::text[])"];
+    addIdentityFilters({ filters, params, exchange, market });
     const result = await this.pool.query<SymbolRow>(
       `
         SELECT *
         FROM symbols
-        WHERE exchange = 'binance'
-          AND market = 'spot'
-          AND is_enabled = true
-          AND symbol = ANY($1::text[])
+        WHERE ${filters.join("\n          AND ")}
         ORDER BY COALESCE(quote_volume, 0) DESC, symbol ASC
       `,
-      [normalizedSymbols],
+      params,
     );
 
     return result.rows.map(toPgSymbol);
   }
 
-  async getSymbol(symbol: string) {
+  async getSymbol(
+    symbol: string,
+    {
+      exchange = "binance",
+      market = "spot",
+    }: {
+      exchange?: string;
+      market?: string;
+    } = {},
+  ) {
+    const params: unknown[] = [normalizeStoredSymbol(symbol)];
+    const filters = ["symbol = $1"];
+    addIdentityFilters({ filters, params, exchange, market });
     const result = await this.pool.query<SymbolRow>(
       `
         SELECT *
         FROM symbols
-        WHERE exchange = 'binance'
-          AND market = 'spot'
-          AND symbol = $1
+        WHERE ${filters.join("\n          AND ")}
         LIMIT 1
       `,
-      [symbol.toUpperCase()],
+      params,
     );
 
     return result.rows[0] ? toPgSymbol(result.rows[0]) : null;
   }
 
   async upsertCandles({
+    exchange = "binance",
+    market = "spot",
     symbol,
     timeframe,
     candles,
   }: {
+    exchange?: string;
+    market?: string;
     symbol: string;
     timeframe: MarketDataTimeframe;
     candles: Candle[];
@@ -448,10 +481,16 @@ export class PgMarketDataStore {
 
     try {
       await client.query("BEGIN");
-      const dbSymbol = await this.getSymbolForUpdate(client, symbol);
+      const dbSymbol = await this.getSymbolForUpdate(client, {
+        exchange,
+        market,
+        symbol,
+      });
 
       if (!dbSymbol) {
-        throw new Error(`Symbol ${symbol.toUpperCase()} is not available in symbols.`);
+        throw new Error(
+          `Symbol ${normalizeStoredSymbol(symbol)} is not available for ${normalizeExchange(exchange)} ${normalizeMarket(market)}.`,
+        );
       }
 
       const stats: CandleUpsertStats = { inserted: 0, updated: 0 };
@@ -521,10 +560,14 @@ export class PgMarketDataStore {
   }
 
   async listCandles({
+    exchange = "binance",
+    market = "spot",
     symbol,
     timeframe,
     limit,
   }: {
+    exchange?: string;
+    market?: string;
     symbol: string;
     timeframe: string;
     limit: number;
@@ -547,37 +590,51 @@ export class PgMarketDataStore {
         FROM (
           SELECT *
           FROM market_candles
-          WHERE exchange = 'binance'
-            AND market = 'spot'
-            AND symbol = $1
-            AND timeframe = $2
+          WHERE exchange = $1
+            AND market = $2
+            AND symbol = $3
+            AND timeframe = $4
           ORDER BY open_time DESC
-          LIMIT $3
+          LIMIT $5
         ) recent
         ORDER BY open_time_ms ASC
       `,
-      [symbol.toUpperCase(), timeframe, limit],
+      [
+        normalizeExchange(exchange),
+        normalizeMarket(market),
+        normalizeStoredSymbol(symbol),
+        timeframe,
+        limit,
+      ],
     );
 
     return result.rows.map(toPgCandle);
   }
 
   async listCandlesForScan({
+    exchange = "binance",
+    market = "spot",
     symbol,
     timeframe,
     limit,
   }: {
+    exchange?: string;
+    market?: string;
     symbol: string;
     timeframe: string;
     limit: number;
   }) {
-    return this.listCandles({ symbol, timeframe, limit });
+    return this.listCandles({ exchange, market, symbol, timeframe, limit });
   }
 
   async getLatestCandleOpenTime({
+    exchange = "binance",
+    market = "spot",
     symbol,
     timeframe,
   }: {
+    exchange?: string;
+    market?: string;
     symbol: string;
     timeframe: string;
   }) {
@@ -585,12 +642,17 @@ export class PgMarketDataStore {
       `
         SELECT MAX(open_time_ms) AS latest_open_time_ms
         FROM market_candles
-        WHERE exchange = 'binance'
-          AND market = 'spot'
-          AND symbol = $1
-          AND timeframe = $2
+        WHERE exchange = $1
+          AND market = $2
+          AND symbol = $3
+          AND timeframe = $4
       `,
-      [symbol.toUpperCase(), timeframe],
+      [
+        normalizeExchange(exchange),
+        normalizeMarket(market),
+        normalizeStoredSymbol(symbol),
+        timeframe,
+      ],
     );
 
     const latest = result.rows[0]?.latest_open_time_ms;
@@ -598,9 +660,13 @@ export class PgMarketDataStore {
   }
 
   async getCandleCoverageForSymbol({
+    exchange = "binance",
+    market = "spot",
     symbol,
     timeframe,
   }: {
+    exchange?: string;
+    market?: string;
     symbol: string;
     timeframe: string;
   }): Promise<SymbolCandleCoverage> {
@@ -612,12 +678,17 @@ export class PgMarketDataStore {
           MAX(open_time_ms) AS latest_open_time_ms,
           MAX(close_time_ms) AS latest_close_time_ms
         FROM market_candles
-        WHERE exchange = 'binance'
-          AND market = 'spot'
-          AND symbol = $1
-          AND timeframe = $2
+        WHERE exchange = $1
+          AND market = $2
+          AND symbol = $3
+          AND timeframe = $4
       `,
-      [symbol.toUpperCase(), timeframe],
+      [
+        normalizeExchange(exchange),
+        normalizeMarket(market),
+        normalizeStoredSymbol(symbol),
+        timeframe,
+      ],
     );
     const row = result.rows[0];
 
@@ -644,10 +715,12 @@ export class PgMarketDataStore {
         INSERT INTO market_data_sync_jobs (
           id, exchange, market, timeframe, status, symbols_total, params, started_at
         )
-        VALUES ($1, 'binance', 'spot', $2, $3, $4, $5::jsonb, now())
+        VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, now())
       `,
       [
         input.id,
+        normalizeExchange(input.exchange),
+        normalizeMarket(input.market),
         input.timeframe,
         input.status,
         input.symbolsTotal,
@@ -708,12 +781,16 @@ export class PgMarketDataStore {
   }
 
   async listMarketDataCoverage({
+    exchange = "binance",
+    market = "spot",
     timeframe,
     limit = 100,
     minCandles = 200,
     assetClass = "all",
     includeNonScanner = true,
   }: {
+    exchange?: string;
+    market?: string;
     timeframe: string;
     limit?: number;
     minCandles?: number;
@@ -722,11 +799,8 @@ export class PgMarketDataStore {
   }) {
     const staleBeforeMs = Date.now() - getStaleThresholdMs(timeframe);
     const params: unknown[] = [timeframe];
-    const filters = [
-      "s.exchange = 'binance'",
-      "s.market = 'spot'",
-      "s.is_enabled = true",
-    ];
+    const filters = ["s.is_enabled = true"];
+    addIdentityFilters({ filters, params, exchange, market, alias: "s" });
 
     if (assetClass !== "all") {
       params.push(assetClass);
@@ -782,7 +856,23 @@ export class PgMarketDataStore {
     return { rows, summary };
   }
 
-  async getSymbolsSummary({ topLimit = 20 }: { topLimit?: number } = {}) {
+  async getSymbolsSummary({
+    exchange = "binance",
+    market = "spot",
+    topLimit = 20,
+  }: {
+    exchange?: string;
+    market?: string;
+    topLimit?: number;
+  } = {}) {
+    const countParams: unknown[] = [];
+    const topParams: unknown[] = [];
+    const countFilters: string[] = [];
+    const topFilters = ["is_enabled = true"];
+    addIdentityFilters({ filters: countFilters, params: countParams, exchange, market });
+    addIdentityFilters({ filters: topFilters, params: topParams, exchange, market });
+    topParams.push(topLimit);
+
     const [countResult, topResult] = await Promise.all([
       this.pool.query<SymbolsSummaryCountRow>(
         `
@@ -794,10 +884,10 @@ export class PgMarketDataStore {
             COUNT(*) FILTER (WHERE is_backtest_eligible = true) AS backtest_eligible,
             COUNT(*) FILTER (WHERE is_market_context = true) AS market_context
           FROM symbols
-          WHERE exchange = 'binance'
-            AND market = 'spot'
+          ${countFilters.length > 0 ? `WHERE ${countFilters.join("\n            AND ")}` : ""}
           GROUP BY asset_class
         `,
+        countParams,
       ),
       this.pool.query<TopQuoteVolumeSymbolRow>(
         `
@@ -807,13 +897,11 @@ export class PgMarketDataStore {
             quote_volume,
             is_scanner_eligible
           FROM symbols
-          WHERE exchange = 'binance'
-            AND market = 'spot'
-            AND is_enabled = true
+          WHERE ${topFilters.join("\n            AND ")}
           ORDER BY COALESCE(quote_volume, 0) DESC, symbol ASC
-          LIMIT $1
+          LIMIT $${topParams.length}
         `,
-        [topLimit],
+        topParams,
       ),
     ]);
     const byAssetClass = emptyAssetClassCounts();
@@ -854,17 +942,28 @@ export class PgMarketDataStore {
     } satisfies SymbolsSummary;
   }
 
-  private async getSymbolForUpdate(client: PoolClient, symbol: string) {
+  private async getSymbolForUpdate(
+    client: PoolClient,
+    {
+      exchange = "binance",
+      market = "spot",
+      symbol,
+    }: {
+      exchange?: string;
+      market?: string;
+      symbol: string;
+    },
+  ) {
     const result = await client.query<SymbolRow>(
       `
         SELECT *
         FROM symbols
-        WHERE exchange = 'binance'
-          AND market = 'spot'
-          AND symbol = $1
+        WHERE exchange = $1
+          AND market = $2
+          AND symbol = $3
         LIMIT 1
       `,
-      [symbol.toUpperCase()],
+      [normalizeExchange(exchange), normalizeMarket(market), normalizeStoredSymbol(symbol)],
     );
 
     return result.rows[0] ? toPgSymbol(result.rows[0]) : null;
@@ -1021,4 +1120,44 @@ function getStaleThresholdMs(timeframe: string) {
 
 function toNullableNumber(value: number | string | null) {
   return value === null ? null : Number(value);
+}
+
+function addIdentityFilters({
+  filters,
+  params,
+  exchange,
+  market,
+  alias,
+}: {
+  filters: string[];
+  params: unknown[];
+  exchange?: string;
+  market?: string;
+  alias?: string;
+}) {
+  const normalizedExchange = normalizeExchange(exchange);
+  const normalizedMarket = normalizeMarket(market);
+  const prefix = alias ? `${alias}.` : "";
+
+  if (normalizedExchange !== "all") {
+    params.push(normalizedExchange);
+    filters.push(`${prefix}exchange = $${params.length}`);
+  }
+
+  if (normalizedMarket !== "all") {
+    params.push(normalizedMarket);
+    filters.push(`${prefix}market = $${params.length}`);
+  }
+}
+
+function normalizeExchange(value: string | undefined) {
+  return value?.trim().toLowerCase() || "binance";
+}
+
+function normalizeMarket(value: string | undefined) {
+  return value?.trim().toLowerCase() || "spot";
+}
+
+function normalizeStoredSymbol(value: string) {
+  return value.trim().toUpperCase();
 }

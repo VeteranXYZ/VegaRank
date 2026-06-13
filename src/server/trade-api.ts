@@ -9,6 +9,10 @@ import {
   type SymbolAssetClassFilter,
 } from "@/lib/market-data/symbolClassification";
 import {
+  isValidMarketSymbol,
+  normalizeMarketSymbolParam,
+} from "@/lib/market-data/symbolValidation";
+import {
   MARKET_CONTEXT_SYMBOLS,
   MARKET_CONTEXT_TIMEFRAMES,
   buildMarketContextResponse,
@@ -434,7 +438,12 @@ async function handleSymbolsSummary(response: http.ServerResponse) {
 }
 
 async function handleCandles(response: http.ServerResponse, url: URL) {
-  const symbol = url.searchParams.get("symbol")?.trim().toUpperCase() ?? "";
+  const exchange = normalizeIdentityParam(
+    url.searchParams.get("exchange"),
+    "binance",
+  );
+  const market = normalizeIdentityParam(url.searchParams.get("market"), "spot");
+  const symbol = normalizeMarketSymbolParam(url.searchParams.get("symbol"));
   const timeframe = url.searchParams.get("timeframe")?.trim() ?? "";
   const limit = parseBoundedInteger({
     value: url.searchParams.get("limit"),
@@ -444,11 +453,25 @@ async function handleCandles(response: http.ServerResponse, url: URL) {
     name: "limit",
   });
 
-  if (!/^[A-Z0-9]{5,30}$/.test(symbol)) {
+  if (!isValidMarketSymbol(symbol)) {
     sendJson(response, 400, {
       ok: false,
       service: serviceName,
       error: "INVALID_SYMBOL",
+    });
+    return;
+  }
+
+  if (
+    !exchange ||
+    !market ||
+    !/^[a-z0-9_-]{1,30}$/.test(exchange) ||
+    !/^[a-z0-9_-]{1,30}$/.test(market)
+  ) {
+    sendJson(response, 400, {
+      ok: false,
+      service: serviceName,
+      error: "INVALID_MARKET",
     });
     return;
   }
@@ -471,6 +494,8 @@ async function handleCandles(response: http.ServerResponse, url: URL) {
 
   try {
     const candles = await store.listCandles({
+      exchange,
+      market,
       symbol,
       timeframe,
       limit: limit.value,
@@ -480,6 +505,8 @@ async function handleCandles(response: http.ServerResponse, url: URL) {
       ok: true,
       service: serviceName,
       source: "postgres",
+      exchange,
+      market,
       symbol,
       timeframe,
       candles,
@@ -503,8 +530,7 @@ async function handleSymbolResearch(response: http.ServerResponse, url: URL) {
     "binance",
   );
   const market = normalizeIdentityParam(url.searchParams.get("market"), "spot");
-  const symbolInput = url.searchParams.get("symbol")?.trim() ?? "";
-  const symbol = symbolInput.toUpperCase();
+  const symbol = normalizeMarketSymbolParam(url.searchParams.get("symbol"));
   const timeframe = url.searchParams.get("timeframe")?.trim() ?? "4h";
   const assetClass = parseAssetClassParam(url.searchParams.get("assetClass"));
   const includeNonScanner = parseBooleanParam(url.searchParams.get("includeNonScanner"));
@@ -530,7 +556,7 @@ async function handleSymbolResearch(response: http.ServerResponse, url: URL) {
     name: "limit",
   });
 
-  if (!symbol || !/^[A-Z0-9]{2,30}$/.test(symbol)) {
+  if (!isValidMarketSymbol(symbol)) {
     sendJson(response, 400, {
       ok: false,
       service: serviceName,

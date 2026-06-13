@@ -108,6 +108,9 @@ See `docs/candle-backfill-and-weekly-aggregation.md` for the Phase 32D helper
 design. These helpers are foundation code only and do not change production
 scanner behavior.
 
+Phase 32E adds manual Coinbase supplemental symbol import and candle backfill.
+Production schedules remain Binance-first until a later activation phase.
+
 ## Storage And API Impact
 
 The existing Postgres schema already has `exchange`, `market`, and raw `symbol`

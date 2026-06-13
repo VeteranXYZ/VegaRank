@@ -1,4 +1,4 @@
-import type { Candle, Timeframe } from "@/lib/exchanges/types";
+import type { Candle, Exchange, Timeframe } from "@/lib/exchanges/types";
 import { calculateIndicatorSnapshot } from "@/lib/indicators";
 import { getReasons, getInvalidation, getNextConfirmation } from "./explanations";
 import { determineMarketPhase } from "./marketPhase";
@@ -12,6 +12,7 @@ export function scanCandles(
   symbol: string,
   timeframe: Timeframe,
   candles: Candle[],
+  { exchange = "binance" }: { exchange?: Exchange } = {},
 ): ScanResult {
   const closedCandles = getClosedCandles(candles);
   const snapshot = calculateIndicatorSnapshot(closedCandles);
@@ -32,7 +33,7 @@ export function scanCandles(
   );
   const lastClosedCandle = closedCandles.at(-1);
   const codeContract = {
-    exchange: "binance" as const,
+    exchange,
     symbol,
     timeframe,
     groupCode: scores.attribution.groupCode,
@@ -49,7 +50,7 @@ export function scanCandles(
   };
 
   return {
-    exchange: "binance",
+    exchange,
     symbol,
     timeframe,
     price: snapshot.close,

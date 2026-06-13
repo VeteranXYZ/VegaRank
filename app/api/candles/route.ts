@@ -2,7 +2,12 @@ import { NextResponse } from "next/server";
 import { cacheKeys } from "@/lib/cache/keys";
 import { getCached } from "@/lib/cache/memory";
 import { getCandles } from "@/lib/exchanges/binance";
-import { TIMEFRAMES, type Candle, type Timeframe } from "@/lib/exchanges/types";
+import {
+  TIMEFRAMES,
+  type Candle,
+  type Exchange,
+  type Timeframe,
+} from "@/lib/exchanges/types";
 import { calculateIndicatorSnapshot } from "@/lib/indicators";
 import { publicErrorMessage } from "@/lib/runtime/publicErrors";
 import {
@@ -10,6 +15,10 @@ import {
   localPersistenceUnavailableMessage,
 } from "@/lib/runtime/localPersistence";
 import { scanCandles } from "@/lib/ranking-engine/scanCandles";
+import {
+  isValidMarketSymbol,
+  normalizeMarketSymbolParam,
+} from "@/lib/market-data/symbolValidation";
 
 const DEFAULT_CANDLE_LIMIT = 300;
 const MAX_CANDLE_LIMIT = 1000;
@@ -20,7 +29,8 @@ type CandleSource = "remote" | "local";
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
-  const symbol = (searchParams.get("symbol") ?? "BTCUSDT").toUpperCase();
+  const exchange = parseExchange(searchParams.get("exchange"));
+  const symbol = normalizeMarketSymbolParam(searchParams.get("symbol") ?? "BTCUSDT");
   const timeframe = searchParams.get("timeframe") ?? "4h";
   const source = parseSource(searchParams.get("source"));
   const limit = parseLimit(
@@ -29,11 +39,15 @@ export async function GET(request: Request) {
     MAX_CANDLE_LIMIT,
   );
 
-  if (!/^[A-Z0-9]{5,30}$/.test(symbol)) {
+  if (!isValidMarketSymbol(symbol)) {
     return NextResponse.json(
-      { error: "symbol must be a Binance symbol such as BTCUSDT." },
+      { error: "symbol must be a market symbol such as BTCUSDT or BTC-USDC." },
       { status: 400 },
     );
+  }
+
+  if (!exchange) {
+    return NextResponse.json({ error: "exchange is invalid." }, { status: 400 });
   }
 
   if (!isTimeframe(timeframe)) {
@@ -58,23 +72,31 @@ export async function GET(request: Request) {
     return localPersistenceUnavailableResponse();
   }
 
+  if (source.value === "remote" && exchange !== "binance") {
+    return NextResponse.json(
+      { error: "remote source is only available for Binance symbols." },
+      { status: 400 },
+    );
+  }
+
   try {
     if (source.value === "local") {
       const store = await createMarketDataStore();
 
       try {
         const candles = await store.getCandles({
+          exchange,
           symbol,
           timeframe,
           limit: limit.value,
         });
 
         return NextResponse.json({
-          exchange: "binance",
+          exchange,
           symbol,
           timeframe,
           source: "local",
-          ...buildCandleAnalysis(symbol, timeframe, candles),
+          ...buildCandleAnalysis(symbol, timeframe, candles, exchange),
           cached: false,
           updatedAt: new Date().toISOString(),
         });
@@ -88,11 +110,11 @@ export async function GET(request: Request) {
 
     if (cachedEntry) {
       return NextResponse.json({
-        exchange: "binance",
+        exchange,
         symbol,
         timeframe,
         source: "remote",
-        ...buildCandleAnalysis(symbol, timeframe, cachedEntry.value),
+        ...buildCandleAnalysis(symbol, timeframe, cachedEntry.value, exchange),
         cached: true,
         updatedAt: cachedEntry.updatedAt,
       });
@@ -102,11 +124,11 @@ export async function GET(request: Request) {
     const storedEntry = getCached<Candle[]>(cacheKey);
 
     return NextResponse.json({
-      exchange: "binance",
+      exchange,
       symbol,
       timeframe,
       source: "remote",
-      ...buildCandleAnalysis(symbol, timeframe, candles),
+      ...buildCandleAnalysis(symbol, timeframe, candles, exchange),
       cached: false,
       updatedAt: storedEntry?.updatedAt ?? new Date().toISOString(),
     });
@@ -122,7 +144,12 @@ export async function GET(request: Request) {
   }
 }
 
-function buildCandleAnalysis(symbol: string, timeframe: Timeframe, candles: Candle[]) {
+function buildCandleAnalysis(
+  symbol: string,
+  timeframe: Timeframe,
+  candles: Candle[],
+  exchange: Exchange,
+) {
   if (candles.length === 0) {
     return {
       candles,
@@ -135,7 +162,7 @@ function buildCandleAnalysis(symbol: string, timeframe: Timeframe, candles: Cand
   return {
     candles,
     snapshot: calculateIndicatorSnapshot(candles),
-    scanResult: scanCandles(symbol, timeframe, candles),
+    scanResult: scanCandles(symbol, timeframe, candles, { exchange }),
     itemCount: candles.length,
   };
 }
@@ -167,6 +194,16 @@ function parseSource(value: string | null) {
 
 function isTimeframe(value: string): value is Timeframe {
   return SUPPORTED_TIMEFRAMES.has(value as Timeframe);
+}
+
+function parseExchange(value: string | null): Exchange | null {
+  const exchange = (value?.trim() || "binance").toLowerCase();
+
+  if (exchange === "binance" || exchange === "coinbase") {
+    return exchange;
+  }
+
+  return null;
 }
 
 function parseLimit(value: string | null, fallback: number, max: number) {
