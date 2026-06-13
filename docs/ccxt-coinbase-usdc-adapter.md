@@ -3,6 +3,8 @@
 VegaRank uses CCXT in this phase only as a provider-layer dependency. The
 Coinbase adapter lives under the market-data layer and does not change scoring,
 database schema, Archive behavior, UI behavior, or production schedules.
+CCXT is an adapter layer, not a historical data warehouse; VegaRank owns
+deterministic backfill planning, gap diagnostics, and derived candle policy.
 
 Persistent disclaimer: Research-only. Not trading advice.
 
@@ -62,12 +64,24 @@ to VegaRank `Candle` rows:
 
 Rows are sorted ascending by `openTime` before returning.
 
+## Backfill And Weekly Foundation
+
+Phase 32D adds provider-neutral helpers in
+`docs/candle-backfill-and-weekly-aggregation.md` for:
+
+- request window planning
+- candle sorting and deduplication
+- gap diagnostics and sufficiency checks
+- daily-to-weekly aggregation using Monday 00:00:00 UTC week starts
+
+Those helpers are not wired into production jobs in Phase 32D.
+
 ## Deferred Work
 
 The adapter intentionally does not implement:
 
-- Coinbase `1w` aggregation; this is deferred to Phase 32D
-- production-depth pagination and backfill
+- direct Coinbase `1w` fetching
+- production-depth pagination and backfill activation
 - production cron integration
 - automatic Postgres import or backfill activation
 - watchlist Coinbase support
@@ -75,7 +89,7 @@ The adapter intentionally does not implement:
 
 For `1w`, the adapter returns a controlled unsupported error that states weekly
 aggregation is deferred. It does not fetch daily candles and aggregate them in
-Phase 32C.
+the direct provider fetch path.
 
 ## Testing Boundary
 

@@ -74,8 +74,8 @@ Alias policy should be a separate product decision with explicit data ownership.
 
 ## Provider Direction
 
-CCXT is the planned long-term CEX adapter layer for exchange-specific OHLCV beyond
-the current native Binance adapter. Phase 32B does not add CCXT as a dependency.
+CCXT is the planned CEX adapter layer for exchange-specific OHLCV beyond the
+current native Binance adapter. Phase 32B does not add CCXT as a dependency.
 
 CoinGecko is better suited for asset discovery, metadata, enrichment, and cross-listing
 context. It should not replace a Coinbase exchange-specific candle source.
@@ -85,13 +85,28 @@ context. It should not replace a Coinbase exchange-specific candle source.
 Coinbase runtime integration is deferred:
 
 - no live Coinbase candle fetching in this phase
-- no Coinbase `1w` aggregation in this phase
 - no production schedule changes in this phase
 - no watchlist Coinbase support in this phase
 
-Coinbase public candles directly cover `1h`, `4h`, and `1d`. VegaRank `1w` needs a
-future aggregation layer, likely from daily candles using a documented UTC week
-boundary.
+Coinbase public candles directly cover `1h`, `4h`, and `1d`. VegaRank `1w` uses
+a provider-neutral daily-to-weekly aggregation foundation added after Phase 32B,
+with Monday 00:00:00 UTC as the documented week boundary. Production activation
+of that path remains deferred.
+
+## Historical Coverage Foundation
+
+Provider adapters do not define historical coverage policy. VegaRank owns:
+
+- target candle counts
+- request window planning
+- candle sorting and deduplication
+- gap diagnostics
+- candle sufficiency checks
+- daily-to-weekly aggregation policy
+
+See `docs/candle-backfill-and-weekly-aggregation.md` for the Phase 32D helper
+design. These helpers are foundation code only and do not change production
+scanner behavior.
 
 ## Storage And API Impact
 
