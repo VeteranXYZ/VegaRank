@@ -59,6 +59,7 @@ import {
   type ObservationGroupSummary,
   type ObservationNotableExample,
   type ObservationSummary,
+  type ObservationSummaryRow,
 } from "./archiveObservationSummary";
 
 const HISTORY_TIMEFRAMES = ["1h", "4h", "1d", "1w"] as const;
@@ -1551,7 +1552,12 @@ function ArchiveValidationOverview({
           />
         ) : summary ? (
           <ObservationSummarySection
-            summary={observationSummary ?? buildObservationSummary({ rows })}
+            summary={
+              observationSummary ??
+              buildObservationSummary({
+                rows: toArchiveObservationSummaryRows(rows),
+              })
+            }
             window={summary.window}
           />
         ) : (
@@ -1581,7 +1587,7 @@ function ArchiveValidationOverview({
   );
 }
 
-function buildArchiveObservationSummary({
+export function buildArchiveObservationSummary({
   response,
   uiState,
 }: {
@@ -1596,7 +1602,7 @@ function buildArchiveObservationSummary({
   }
 
   return buildObservationSummary({
-    rows,
+    rows: toArchiveObservationSummaryRows(rows),
     counts: summary
       ? {
           totalRows: summary.totalRows,
@@ -1605,6 +1611,23 @@ function buildArchiveObservationSummary({
           missingCount: summary.missingCount,
         }
       : null,
+  });
+}
+
+function toArchiveObservationSummaryRows(
+  rows: HistoricalSnapshotObservationRow[],
+): ObservationSummaryRow[] {
+  return rows.map((row) => {
+    const metadata = getArchiveRowMetadata(row);
+    const hasCodeContractGroup = normalizeCodeString(row.groupCode) !== null;
+
+    return {
+      ...row,
+      groupKey: hasCodeContractGroup ? null : metadata.groupKey,
+      groupLabel: metadata.hasGroupMetadata
+        ? metadata.groupLabel
+        : "Metadata Unavailable",
+    };
   });
 }
 
@@ -1757,10 +1780,10 @@ export function ArchiveDetails({
     : "N/A";
 
   return (
-    <details className="shrink-0 border border-[var(--border)] bg-[var(--panel-muted)]">
-      <summary className="cursor-pointer bg-[var(--table-header)] px-2 py-1 text-[11px] font-semibold uppercase tracking-normal text-[var(--foreground)]">
+    <section className="shrink-0 border border-[var(--border)] bg-[var(--panel-muted)]">
+      <div className="bg-[var(--table-header)] px-2 py-1 text-[11px] font-semibold uppercase tracking-normal text-[var(--foreground)]">
         Validation Details
-      </summary>
+      </div>
       <div className="space-y-1.5 border-t border-[var(--border)] px-2 py-1.5">
         <ObservationDataStatusLegend />
         <DetailLine
@@ -1840,7 +1863,7 @@ export function ArchiveDetails({
         ) : null}
         <RawDetails readiness={readiness} response={response} />
       </div>
-    </details>
+    </section>
   );
 }
 

@@ -148,6 +148,81 @@ describe("archiveObservationSummary", () => {
     ]);
   });
 
+  it("groups distribution and notable examples by normalized archive metadata", () => {
+    const summary = buildObservationSummary({
+      rows: [
+        makeRow({
+          symbol: "ORCAUSDT",
+          group: null,
+          groupLabel: "Eligible",
+          dataStatus: "complete",
+          observedChangePct: 8,
+          maxDrawdownPct: -2,
+        }),
+        makeRow({
+          symbol: "ETHUSDT",
+          group: null,
+          groupLabel: "Constructive Watch",
+          dataStatus: "complete",
+          observedChangePct: 4,
+          maxDrawdownPct: -3,
+        }),
+        makeRow({
+          symbol: "HMSTRUSDT",
+          group: null,
+          groupLabel: "Overheated",
+          dataStatus: "complete",
+          observedChangePct: -5,
+          maxDrawdownPct: -6,
+        }),
+        makeRow({
+          symbol: "BTCUSDT",
+          group: null,
+          groupLabel: "Risk",
+          dataStatus: "complete",
+          observedChangePct: -2,
+          maxDrawdownPct: -9,
+        }),
+      ],
+    });
+
+    expect(summary.groups.map((group) => group.groupLabel)).toEqual([
+      "Eligible",
+      "Constructive Watch",
+      "Overheated",
+      "Risk",
+    ]);
+    expect(summary.groups).not.toContainEqual(
+      expect.objectContaining({ groupLabel: "Unknown", rows: 4 }),
+    );
+    expect(summary.notable.largestPositiveObservedChanges).toEqual([
+      expect.objectContaining({
+        symbol: "ORCAUSDT",
+        groupLabel: "Eligible",
+      }),
+      expect.objectContaining({
+        symbol: "ETHUSDT",
+        groupLabel: "Constructive Watch",
+      }),
+    ]);
+    expect(summary.notable.largestNegativeObservedChanges).toEqual([
+      expect.objectContaining({
+        symbol: "HMSTRUSDT",
+        groupLabel: "Overheated",
+      }),
+      expect.objectContaining({
+        symbol: "BTCUSDT",
+        groupLabel: "Risk",
+      }),
+    ]);
+    expect(summary.notable.largestObservedDrawdowns[0]).toEqual(
+      expect.objectContaining({
+        symbol: "BTCUSDT",
+        groupLabel: "Risk",
+      }),
+    );
+  });
+
   it("builds notable examples from complete rows only", () => {
     const summary = buildObservationSummary({
       rows: [
@@ -243,6 +318,8 @@ function makeRow(
   return {
     symbol: overrides.symbol,
     group: "group" in overrides ? overrides.group : "neutral",
+    groupKey: overrides.groupKey,
+    groupLabel: overrides.groupLabel,
     observedChangePct: overrides.observedChangePct ?? 0,
     maxDrawdownPct: overrides.maxDrawdownPct ?? 0,
     dataStatus: overrides.dataStatus,

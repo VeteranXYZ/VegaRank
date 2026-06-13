@@ -9,6 +9,7 @@ import {
   buildHistoricalSnapshotObservationsUrl,
   buildHistoricalSnapshotUrl,
   buildHistoricalSnapshotsUrl,
+  buildArchiveObservationSummary,
   buildArchiveRankingQualityEvaluation,
   classifyForwardObservationMaturity,
   deriveForwardObservationUiState,
@@ -30,8 +31,6 @@ import {
   selectForwardObservationResult,
   SnapshotTable,
 } from "./ArchivePageClient";
-import { buildObservationSummary } from "./archiveObservationSummary";
-
 describe("ArchivePageClient API URLs", () => {
   it("uses the public trade API historical snapshot endpoints", () => {
     const runId = "fcc05284-c7a0-4990-9bcb-5dd165d83c37";
@@ -432,6 +431,81 @@ describe("ArchivePageClient display formatting", () => {
     expect(html).toContain("91.0");
     expect(html).not.toContain("Unknown");
     expect(html).not.toContain("Metadata Unavailable");
+  });
+
+  it("renders Validation Details summaries from stored code-contract metadata", () => {
+    const response = makeObservationResponse({
+      rows: [
+        makeCodeContractObservationRow({
+          id: "orca-code-contract",
+          symbol: "ORCAUSDT",
+          groupCode: "GR_501",
+          actionCode: "AC_501",
+          rankScore: 82,
+          observedChangePct: 8,
+          maxDrawdownPct: -2,
+          dataStatus: "complete",
+          missingReason: null,
+        }),
+        makeCodeContractObservationRow({
+          id: "hmstr-code-contract",
+          symbol: "HMSTRUSDT",
+          groupCode: "GR_302",
+          actionCode: "AC_301",
+          rankScore: 34,
+          observedChangePct: -5,
+          maxDrawdownPct: -6,
+          dataStatus: "complete",
+          missingReason: null,
+        }),
+        makeCodeContractObservationRow({
+          id: "btc-code-contract",
+          symbol: "BTCUSDT",
+          groupCode: "GR_301",
+          actionCode: "AC_302",
+          riskCode: "RK_302",
+          riskCodes: ["RK_302"],
+          rankScore: 28,
+          observedChangePct: -2,
+          maxDrawdownPct: -9,
+          dataStatus: "complete",
+          missingReason: null,
+        }),
+        makeCodeContractObservationRow({
+          id: "eth-code-contract",
+          symbol: "ETHUSDT",
+          groupCode: "GR_201",
+          actionCode: "AC_101",
+          rankScore: 74,
+          observedChangePct: 4,
+          maxDrawdownPct: -3,
+          dataStatus: "complete",
+          missingReason: null,
+        }),
+      ],
+    });
+    const readiness = makeReadinessResponse({
+      selectedRun: makeReadinessRun({ run: response.run }),
+      observationRun: makeReadinessRun({ run: response.run }),
+    });
+    const uiState = makeUiState({
+      selectedRunId: response.run.runId,
+      readiness,
+      response,
+    });
+    const text = markupText(renderArchiveDetails({ response, readiness, uiState }));
+
+    expect(text).toContain("Group Distribution");
+    expect(text).toContain("Eligible");
+    expect(text).toContain("Overheated");
+    expect(text).toContain("Risk");
+    expect(text).toContain("Constructive Watch");
+    expect(text).toContain("Notable Symbols");
+    expect(text).toContain("ORCAUSDT Eligible");
+    expect(text).toContain("HMSTRUSDT Overheated");
+    expect(text).toContain("BTCUSDT Risk");
+    expect(text).toContain("ETHUSDT Constructive Watch");
+    expect(text).not.toContain("Unknown 4");
   });
 
   it("sorts Observation Rows locally without changing filter counts or hiding rows", () => {
@@ -889,6 +963,10 @@ describe("ArchivePageClient display formatting", () => {
     const html = renderArchiveDetails({ response, readiness, uiState });
 
     expect(html).toContain("Validation Details");
+    expect(html).toMatch(/<div[^>]*>Validation Details<\/div>/);
+    expect(html).not.toMatch(
+      /<summary[^>]*>Validation Details<\/summary>/,
+    );
     expect(html).toContain("Outcome Rows");
     expect(html).toContain(">5<");
     expect(html).toContain("Positive Follow-through");
@@ -1986,16 +2064,9 @@ function renderArchiveDetails({
       response,
       uiState,
       readyContextNote: null,
-      summary: buildObservationSummary({
-        rows: response.rows,
-        counts: uiState.summary
-          ? {
-              totalRows: uiState.summary.totalRows,
-              completeCount: uiState.summary.completeCount,
-              partialCount: uiState.summary.partialCount,
-              missingCount: uiState.summary.missingCount,
-            }
-          : null,
+      summary: buildArchiveObservationSummary({
+        response,
+        uiState,
       }),
     }),
   );

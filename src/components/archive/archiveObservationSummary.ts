@@ -3,6 +3,8 @@ export type ObservationSummaryDataStatus = "complete" | "partial" | "missing";
 export type ObservationSummaryRow = {
   symbol: string;
   group?: string | null;
+  groupKey?: string | null;
+  groupLabel?: string | null;
   observedChangePct?: number | null;
   maxDrawdownPct?: number | null;
   dataStatus: ObservationSummaryDataStatus;
@@ -58,31 +60,40 @@ export type ObservationSummary = ObservationSummaryStats & {
 };
 
 type ObservationGroupKey =
+  | "high_priority"
   | "eligible"
+  | "constructive_watch"
   | "watch"
   | "overheated"
   | "risk"
   | "neutral"
   | "insufficient_history"
+  | "metadata_unavailable"
   | "unknown";
 
 const observationGroupOrder: ObservationGroupKey[] = [
+  "high_priority",
   "eligible",
+  "constructive_watch",
   "watch",
   "overheated",
   "risk",
   "neutral",
   "insufficient_history",
+  "metadata_unavailable",
   "unknown",
 ];
 
 const observationGroupLabels = {
+  high_priority: "High Priority",
   eligible: "Eligible",
+  constructive_watch: "Constructive Watch",
   watch: "Watch",
   overheated: "Overheated",
   risk: "Risk",
   neutral: "Neutral",
   insufficient_history: "Insufficient History",
+  metadata_unavailable: "Metadata Unavailable",
   unknown: "Unknown",
 } satisfies Record<ObservationGroupKey, string>;
 
@@ -145,20 +156,28 @@ export function classifyObservationCoverage({
 }
 
 function buildGroupSummaries(rows: ObservationSummaryRow[]) {
-  const byGroup = new Map<ObservationGroupKey, ObservationSummaryRow[]>();
+  const byGroup = new Map<
+    ObservationGroupKey,
+    { groupLabel: string; rows: ObservationSummaryRow[] }
+  >();
 
   for (const row of rows) {
-    const groupKey = normalizeObservationGroup(row.group);
-    byGroup.set(groupKey, [...(byGroup.get(groupKey) ?? []), row]);
+    const group = getObservationGroup(row);
+    const current = byGroup.get(group.groupKey);
+    byGroup.set(group.groupKey, {
+      groupLabel: current?.groupLabel ?? group.groupLabel,
+      rows: [...(current?.rows ?? []), row],
+    });
   }
 
   return Array.from(byGroup.entries())
-    .map(([groupKey, groupRows]) => {
+    .map(([groupKey, group]) => {
+      const groupRows = group.rows;
       const counts = countRows(groupRows);
 
       return {
         groupKey,
-        groupLabel: observationGroupLabels[groupKey],
+        groupLabel: group.groupLabel,
         rows: groupRows.length,
         complete: counts.complete,
         partial: counts.partial,
@@ -184,7 +203,7 @@ function buildNotableExamples(completeRows: ObservationSummaryRow[]) {
     return [
       {
         symbol: row.symbol,
-        groupLabel: observationGroupLabels[normalizeObservationGroup(row.group)],
+        groupLabel: getObservationGroup(row).groupLabel,
         observedChangePct,
         maxDrawdownPct: toFiniteNumber(row.maxDrawdownPct),
       },
@@ -270,6 +289,55 @@ function normalizeObservationGroup(
   }
 
   return "unknown";
+}
+
+function getObservationGroup(row: ObservationSummaryRow): {
+  groupKey: ObservationGroupKey;
+  groupLabel: string;
+} {
+  const normalizedGroupKey = normalizeObservationGroup(row.groupKey);
+  const normalizedGroupLabel = normalizeObservationGroupLabel(row.groupLabel);
+
+  if (normalizedGroupLabel !== null) {
+    return {
+      groupKey:
+        normalizedGroupKey !== "unknown"
+          ? normalizedGroupKey
+          : groupKeyFromLabel(normalizedGroupLabel),
+      groupLabel: normalizedGroupLabel,
+    };
+  }
+
+  const legacyGroupKey = normalizeObservationGroup(row.group);
+
+  return {
+    groupKey: legacyGroupKey,
+    groupLabel: observationGroupLabels[legacyGroupKey],
+  };
+}
+
+function normalizeObservationGroupLabel(value: string | null | undefined) {
+  const normalized = value?.trim();
+
+  return normalized && normalized.length > 0 ? normalized : null;
+}
+
+function groupKeyFromLabel(label: string): ObservationGroupKey {
+  const normalized = label.toLowerCase().replace(/[^a-z0-9]+/g, "_");
+
+  if (normalized === "high_priority") {
+    return "high_priority";
+  }
+
+  if (normalized === "constructive_watch") {
+    return "constructive_watch";
+  }
+
+  if (normalized === "metadata_unavailable") {
+    return "metadata_unavailable";
+  }
+
+  return normalizeObservationGroup(normalized);
 }
 
 function median(values: number[]) {

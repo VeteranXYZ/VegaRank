@@ -55,6 +55,8 @@ It must not be described with performance-result or prediction-style language.
 
 Archive Snapshot Rows display stored code-contract metadata from the selected archived run. The frontend reads the selected run's stored metadata and does not recompute current ranking state.
 
+Validation Details summaries use the same stored metadata. Group Distribution and Notable Symbols read normalized archive metadata from the selected run, so code-contract rows are grouped by their stored Research Group instead of legacy-only fallback fields.
+
 Stored metadata includes:
 
 - Research Group from `groupCode`
