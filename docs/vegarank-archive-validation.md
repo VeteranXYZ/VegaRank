@@ -12,7 +12,7 @@ Archive supports the Validate step in the workflow:
 
 Discover -> Compare -> Research -> Monitor -> Validate
 
-It is a research review surface. It does not measure trading performance, provide investment advice, or imply buy/sell outcomes.
+It is a research review surface. It does not measure execution results, provide investment advice, or imply directional outcomes.
 
 ## Selected Run Summary
 
@@ -49,7 +49,24 @@ Outcome Summary uses research-review language:
 - Positive Follow-through
 - Drawdown Context
 
-It must not be described as win rate, success rate, profit, or prediction accuracy.
+It must not be described with performance-result or prediction-style language.
+
+## Stored Code-Contract Metadata
+
+Archive Snapshot Rows display stored code-contract metadata from the selected archived run. The frontend reads the selected run's stored metadata and does not recompute current ranking state.
+
+Stored metadata includes:
+
+- Research Group from `groupCode`
+- action or review classification from `actionCode` when available
+- Risk Context from `riskCode` / `riskCodes`
+- Rank Score from `metrics.rankScore`
+- Setup Quality from `metrics.setupQualityScore`
+- Evidence Reliability from `metrics.confidenceScore`
+- Risk-adjusted score from `metrics.riskAdjustedScore`
+- supporting stored metrics such as `metrics.absoluteSetupScore` and `metrics.universePercentile`
+
+Legacy archive rows that truly lack code-contract metadata render conservatively as `Metadata Unavailable` or `N/A`. Archive must not fill missing stored metadata with current ranking state.
 
 ## Ranking Quality Diagnostics
 
@@ -69,6 +86,8 @@ Window coverage maturity is separate from diagnostic availability. A selected ru
 
 Research group, risk context, and evidence reliability diagnostics require stored archive fields with enough variation. Unknown-only research groups, only one research-group bucket, only No Risk Context rows, or missing confidence/evidence fields are reported conservatively instead of shown as full comparison tables.
 
+Diagnostic availability depends on stored `rankScore`, `groupCode`, `riskCodes`, and confidence metrics. If these fields exist in the archive code-contract row, diagnostics read those stored values. If they are missing, diagnostics remain unavailable, not stored, or no-variation.
+
 If Archive has window counts but no loaded outcome rows, the panel may show Data Not Mature or unavailable copy, but it must not fake score buckets, group summaries, risk-context summaries, or evidence reliability details.
 
 Ranking Quality Diagnostics does not modify scoring, automatically calibrate weights, change codebook meanings, change API response shape, change storage format, or require database schema changes.
@@ -77,9 +96,9 @@ Ranking Quality Diagnostics does not modify scoring, automatically calibrate wei
 
 Snapshot Rows are a primary Archive area. They show the rows ranked in the selected run and preserve direct access to Symbol Research.
 
-Visible columns include symbol identity, research group, research priority, risk context, rank score, validation state, follow-through, drawdown context, window, score components, source versions, and Open Research when the data exists.
+Visible columns include symbol identity, stored Research Group, stored Rank Score, validation state, follow-through, drawdown context, window, and Open Research when the data exists.
 
-Missing outcome values render as `N/A` or a pending status.
+Missing outcome values render as `N/A` or a pending status. Missing stored ranking metadata renders as `Metadata Unavailable` or `N/A`.
 
 ## Validation Details
 
@@ -92,7 +111,7 @@ Validation Details are secondary and muted. They contain maturity logic and sour
 - window unit
 - latest coverage
 - coverage lag
-- returned rows
+- loaded rows
 - outcome rows
 
 ## Stored Runs selector
@@ -103,7 +122,7 @@ Stored Runs acts as a compact stored-run selector. Run items prioritize timefram
 
 Snapshot row links use the shared research navigation helper. Links include `from=archive` and preserve run, snapshot, timeframe, asset class, and symbol context where available.
 
-Symbol Research source-aware return links remain compatible with `/archive` query params.
+Symbol Research source-aware navigation remains compatible with `/archive` query params.
 
 ## Pending and missing data states
 
@@ -118,33 +137,13 @@ Archive uses calm missing-state language:
 
 Empty tables should not render without an explanation.
 
-## Forbidden language
+## Language boundary
 
-Archive primary UI must avoid:
-
-- buy
-- sell
-- long
-- short
-- entry
-- exit
-- take profit
-- stop loss
-- profit
-- profit target
-- guaranteed
-- alpha call
-- trade signal
-- trading signal
-- win rate
-- success rate
-- successful trade
-- failed trade
-- prediction accuracy
+Archive primary UI must avoid execution-directed, performance-result, and prediction-style language. Use research-only labels such as Research Group, Rank Score, Risk Context, Evidence Reliability, Stored Metadata, Code-Contract Metadata, Metadata Unavailable, Archived Snapshot, Selected Run, Window Coverage, and Diagnostic Availability.
 
 ## What this phase does not change
 
-Phase 25C does not change:
+This Archive metadata adapter does not change:
 
 - quant scoring formulas
 - scoring behavior
@@ -155,7 +154,7 @@ Phase 25C does not change:
 - database schema
 - storage filters
 - production scripts
-- backtest engine behavior
+- historical evaluation behavior
 - chart libraries or candle behavior
 
 ## Future follow-ups

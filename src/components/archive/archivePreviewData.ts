@@ -1,4 +1,11 @@
 import type { ArchiveVisualCheckData } from "./ArchivePageClient";
+import {
+  actionCodeByBias,
+  groupCodeByResultGroup,
+  riskCodeByType,
+  setupCodeByAliasOrStructure,
+  signalCodeByLabel,
+} from "@/lib/vegarank-codebook/codeRegistry";
 
 type VisualRun = ArchiveVisualCheckData["snapshots"][number];
 type VisualSnapshotRow =
@@ -190,15 +197,15 @@ function makeRun({
 
 function makeOriginalScanRows(runId: string): VisualSnapshotRow[] {
   return [
-    makeOriginalRow({ runId, index: 1, symbol: "BTCUSDT", group: "eligible", label: "trend_continuation", rankScore: 92, primarySignal: "Continuation setup" }),
-    makeOriginalRow({ runId, index: 2, symbol: "SEIUSDT", group: "eligible", label: "breakout_confirmed", rankScore: 89, primarySignal: "Breakout confirmed" }),
-    makeOriginalRow({ runId, index: 3, symbol: "ETHUSDT", group: "watch", label: "pullback_watch", rankScore: 81, primarySignal: "Watch confirmation" }),
-    makeOriginalRow({ runId, index: 4, symbol: "AAVEUSDT", group: "watch", label: "range_repair", rankScore: 74, primarySignal: "Range repair" }),
-    makeOriginalRow({ runId, index: 5, symbol: "DOGEUSDT", group: "risk", label: "breakdown_risk", rankScore: 38, primarySignal: "Risk review" }),
-    makeOriginalRow({ runId, index: 6, symbol: "XRPUSDT", group: "risk", label: "distribution_risk", rankScore: 35, primarySignal: "Risk review" }),
-    makeOriginalRow({ runId, index: 7, symbol: "AVAXUSDT", group: "neutral", label: "range_neutral", rankScore: 58, primarySignal: "Neutral range" }),
-    makeOriginalRow({ runId, index: 8, symbol: "SUIUSDT", group: "neutral", label: "no_edge", rankScore: 51, primarySignal: "No clear edge" }),
-    makeOriginalRow({ runId, index: 9, symbol: "LINKUSDT", group: "eligible", label: "volume_expansion", rankScore: 84, primarySignal: "Volume expansion" }),
+    makeOriginalRow({ runId, index: 1, symbol: "BTCUSDT", groupCode: groupCodeByResultGroup.high_priority, actionCode: "AC_601", signalCode: signalCodeByLabel.confirmed, setupCode: setupCodeByAliasOrStructure.strong_trend, rankScore: 92, confidenceScore: 88 }),
+    makeOriginalRow({ runId, index: 2, symbol: "SEIUSDT", groupCode: groupCodeByResultGroup.eligible, actionCode: actionCodeByBias.eligible, signalCode: signalCodeByLabel.confirmed, setupCode: setupCodeByAliasOrStructure.breakout_confirmed, rankScore: 89, confidenceScore: 84 }),
+    makeOriginalRow({ runId, index: 3, symbol: "ETHUSDT", groupCode: "GR_201", actionCode: actionCodeByBias.watch_only, signalCode: signalCodeByLabel.watch, setupCode: setupCodeByAliasOrStructure.healthy_pullback, rankScore: 81, confidenceScore: 72 }),
+    makeOriginalRow({ runId, index: 4, symbol: "AAVEUSDT", groupCode: groupCodeByResultGroup.watch, actionCode: actionCodeByBias.watch_only, signalCode: signalCodeByLabel.watch, setupCode: setupCodeByAliasOrStructure.trend_repair, rankScore: 74, confidenceScore: 68 }),
+    makeOriginalRow({ runId, index: 5, symbol: "DOGEUSDT", groupCode: groupCodeByResultGroup.risk, actionCode: actionCodeByBias.avoid, signalCode: signalCodeByLabel.breakdown_risk, setupCode: setupCodeByAliasOrStructure.trend_breakdown, riskCodes: [riskCodeByType.trend_breakdown_risk], rankScore: 38, confidenceScore: 54 }),
+    makeOriginalRow({ runId, index: 6, symbol: "XRPUSDT", groupCode: groupCodeByResultGroup.overheated, actionCode: actionCodeByBias.do_not_chase, signalCode: signalCodeByLabel.overheated, setupCode: setupCodeByAliasOrStructure.overextended, riskCodes: [riskCodeByType.overheat_risk], rankScore: 35, confidenceScore: 50 }),
+    makeOriginalRow({ runId, index: 7, symbol: "AVAXUSDT", groupCode: groupCodeByResultGroup.neutral, actionCode: actionCodeByBias.ignore, signalCode: signalCodeByLabel.neutral, setupCode: setupCodeByAliasOrStructure.neutral, rankScore: 58, confidenceScore: 60 }),
+    makeOriginalRow({ runId, index: 8, symbol: "SUIUSDT", groupCode: groupCodeByResultGroup.insufficient_history, actionCode: actionCodeByBias.ignore, signalCode: signalCodeByLabel.neutral, setupCode: setupCodeByAliasOrStructure.neutral, qualityCodes: ["QH_201"], rankScore: 51, confidenceScore: 42 }),
+    makeOriginalRow({ runId, index: 9, symbol: "LINKUSDT", groupCode: groupCodeByResultGroup.eligible, actionCode: actionCodeByBias.eligible, signalCode: signalCodeByLabel.trend, setupCode: setupCodeByAliasOrStructure.trend_repair, rankScore: 84, confidenceScore: 78 }),
   ];
 }
 
@@ -206,19 +213,30 @@ function makeOriginalRow({
   runId,
   index,
   symbol,
-  group,
-  label,
+  groupCode,
+  actionCode,
+  signalCode,
+  setupCode,
+  riskCodes = [],
+  qualityCodes = [],
   rankScore,
-  primarySignal,
+  confidenceScore,
 }: {
   runId: string;
   index: number;
   symbol: string;
-  group: string;
-  label: string;
+  groupCode: string;
+  actionCode: string;
+  signalCode: string;
+  setupCode: string;
+  riskCodes?: string[];
+  qualityCodes?: string[];
   rankScore: number;
-  primarySignal: string;
+  confidenceScore: number;
 }): VisualSnapshotRow {
+  const setupQualityScore = Math.max(0, rankScore - 6);
+  const riskAdjustedScore = Math.max(0, rankScore - riskCodes.length * 8);
+
   return {
     id: `${runId}-${symbol}`,
     scanRunId: runId,
@@ -229,25 +247,30 @@ function makeOriginalRow({
     scanTime: "2026-06-03T20:00:00.000Z",
     candleOpenTime: "2026-06-03T16:00:00.000Z",
     priceAtSignal: 100 + index * 3.25,
-    group,
-    label,
-    primarySignal,
-    reviewTier: group === "eligible" ? "primary" : "review",
-    riskNotes: group === "risk" ? "Weak structure; high drawdown risk." : null,
-    riskTypes: group === "risk" ? ["structure", "momentum"] : [],
-    rankScore,
-    componentScores: {
-      finalSignalScore: rankScore,
-      opportunityScore: rankScore - 6,
-      confirmationScore: rankScore - 4,
-      riskScore: group === "risk" ? 78 : 28,
-      trendScore: rankScore - 8,
-      momentumScore: rankScore - 10,
-      volumeScore: rankScore - 12,
-      structureScore: rankScore - 7,
+    groupCode,
+    actionCode,
+    riskCode: riskCodes[0] ?? null,
+    riskCodes,
+    signalCodes: [signalCode],
+    setupCode,
+    qualityCodes,
+    metrics: {
+      rankScore,
+      riskAdjustedScore,
+      setupQualityScore,
+      confidenceScore,
+      absoluteSetupScore: setupQualityScore,
+      universePercentile: Math.max(1, Math.min(99, rankScore)),
+      score: rankScore,
+      finalSignalScore: riskAdjustedScore,
+      opportunityScore: setupQualityScore,
+      confirmationScore: confidenceScore,
+      riskScore: riskCodes.length > 0 ? 78 : 28,
+      trendScore: Math.max(0, rankScore - 8),
+      momentumScore: Math.max(0, rankScore - 10),
+      volumeScore: Math.max(0, rankScore - 12),
+      structureScore: Math.max(0, rankScore - 7),
     },
-    actionBias: group === "risk" ? "risk_review" : "research",
-    primaryStructure: label,
     scannerVersion: "visual-check",
     scoringVersion: "visual-check",
   };
@@ -255,26 +278,162 @@ function makeOriginalRow({
 
 function makeObservationRows(window: 1 | 3 | 5 | 10): VisualObservationRow[] {
   const rows = [
-    makeObservationRow({ window, symbol: "BTCUSDT", group: "eligible", label: "trend_continuation", rankScore: 92, anchorClose: 67120, observedChangePct: 3.8, maxDrawdownPct: -1.2, dataStatus: "complete" }),
-    makeObservationRow({ window, symbol: "SEIUSDT", group: "eligible", label: "breakout_confirmed", rankScore: 89, anchorClose: 0.421, observedChangePct: 8.4, maxDrawdownPct: -2.1, dataStatus: "complete" }),
-    makeObservationRow({ window, symbol: "ETHUSDT", group: "watch", label: "pullback_watch", rankScore: 81, anchorClose: 3580, observedChangePct: -1.7, maxDrawdownPct: -3.6, dataStatus: "complete" }),
-    makeObservationRow({ window, symbol: "AAVEUSDT", group: "watch", label: "range_repair", rankScore: 74, anchorClose: 104.2, observedChangePct: 1.2, maxDrawdownPct: -1.5, dataStatus: window <= 3 ? "partial" : "missing", missingReason: window <= 3 ? "insufficient_future_candles" : "no_future_candles" }),
-    makeObservationRow({ window, symbol: "DOGEUSDT", group: "risk", label: "breakdown_risk", rankScore: 38, anchorClose: 0.148, observedChangePct: -6.5, maxDrawdownPct: -9.8, dataStatus: "complete" }),
-    makeObservationRow({ window, symbol: "XRPUSDT", group: "risk", label: "distribution_risk", rankScore: 35, anchorClose: 0.52, observedChangePct: -2.3, maxDrawdownPct: -5.1, dataStatus: window === 1 ? "complete" : "partial", missingReason: window === 1 ? null : "insufficient_future_candles" }),
-    makeObservationRow({ window, symbol: "AVAXUSDT", group: "neutral", label: "range_neutral", rankScore: 58, anchorClose: 36.4, observedChangePct: 0.4, maxDrawdownPct: -2.4, dataStatus: "complete" }),
-    makeObservationRow({ window, symbol: "SUIUSDT", group: "neutral", label: "no_edge", rankScore: 51, anchorClose: 1.08, observedChangePct: null, maxDrawdownPct: null, dataStatus: "missing", missingReason: "no_future_candles" }),
-    makeObservationRow({ window, symbol: "LINKUSDT", group: "eligible", label: "volume_expansion", rankScore: 84, anchorClose: 17.9, observedChangePct: 5.6, maxDrawdownPct: -2.8, dataStatus: window <= 5 ? "complete" : "partial", missingReason: window <= 5 ? null : "insufficient_future_candles" }),
+    makeObservationRow({ window, symbol: "BTCUSDT", groupCode: groupCodeByResultGroup.high_priority, actionCode: "AC_601", signalCode: signalCodeByLabel.confirmed, setupCode: setupCodeByAliasOrStructure.strong_trend, rankScore: 92, confidenceScore: 88, anchorClose: 67120, observedChangePct: 3.8, maxDrawdownPct: -1.2, dataStatus: "complete" }),
+    makeObservationRow({ window, symbol: "SEIUSDT", groupCode: groupCodeByResultGroup.eligible, actionCode: actionCodeByBias.eligible, signalCode: signalCodeByLabel.confirmed, setupCode: setupCodeByAliasOrStructure.breakout_confirmed, rankScore: 89, confidenceScore: 84, anchorClose: 0.421, observedChangePct: 8.4, maxDrawdownPct: -2.1, dataStatus: "complete" }),
+    makeObservationRow({ window, symbol: "ETHUSDT", groupCode: "GR_201", actionCode: actionCodeByBias.watch_only, signalCode: signalCodeByLabel.watch, setupCode: setupCodeByAliasOrStructure.healthy_pullback, rankScore: 81, confidenceScore: 72, anchorClose: 3580, observedChangePct: -1.7, maxDrawdownPct: -3.6, dataStatus: "complete" }),
+    makeObservationRow({ window, symbol: "AAVEUSDT", groupCode: groupCodeByResultGroup.watch, actionCode: actionCodeByBias.watch_only, signalCode: signalCodeByLabel.watch, setupCode: setupCodeByAliasOrStructure.trend_repair, rankScore: 74, confidenceScore: 68, anchorClose: 104.2, observedChangePct: 1.2, maxDrawdownPct: -1.5, dataStatus: window <= 3 ? "partial" : "missing", missingReason: window <= 3 ? "insufficient_future_candles" : "no_future_candles" }),
+    makeObservationRow({ window, symbol: "DOGEUSDT", groupCode: groupCodeByResultGroup.risk, actionCode: actionCodeByBias.avoid, signalCode: signalCodeByLabel.breakdown_risk, setupCode: setupCodeByAliasOrStructure.trend_breakdown, riskCodes: [riskCodeByType.trend_breakdown_risk], rankScore: 38, confidenceScore: 54, anchorClose: 0.148, observedChangePct: -6.5, maxDrawdownPct: -9.8, dataStatus: "complete" }),
+    makeObservationRow({ window, symbol: "XRPUSDT", groupCode: groupCodeByResultGroup.overheated, actionCode: actionCodeByBias.do_not_chase, signalCode: signalCodeByLabel.overheated, setupCode: setupCodeByAliasOrStructure.overextended, riskCodes: [riskCodeByType.overheat_risk], rankScore: 35, confidenceScore: 50, anchorClose: 0.52, observedChangePct: -2.3, maxDrawdownPct: -5.1, dataStatus: window === 1 ? "complete" : "partial", missingReason: window === 1 ? null : "insufficient_future_candles" }),
+    makeObservationRow({ window, symbol: "AVAXUSDT", groupCode: groupCodeByResultGroup.neutral, actionCode: actionCodeByBias.ignore, signalCode: signalCodeByLabel.neutral, setupCode: setupCodeByAliasOrStructure.neutral, rankScore: 58, confidenceScore: 60, anchorClose: 36.4, observedChangePct: 0.4, maxDrawdownPct: -2.4, dataStatus: "complete" }),
+    makeObservationRow({ window, symbol: "SUIUSDT", groupCode: groupCodeByResultGroup.insufficient_history, actionCode: actionCodeByBias.ignore, signalCode: signalCodeByLabel.neutral, setupCode: setupCodeByAliasOrStructure.neutral, qualityCodes: ["QH_201"], rankScore: 51, confidenceScore: 42, anchorClose: 1.08, observedChangePct: null, maxDrawdownPct: null, dataStatus: "missing", missingReason: "no_future_candles" }),
+    makeObservationRow({ window, symbol: "LINKUSDT", groupCode: groupCodeByResultGroup.eligible, actionCode: actionCodeByBias.eligible, signalCode: signalCodeByLabel.trend, setupCode: setupCodeByAliasOrStructure.trend_repair, rankScore: 84, confidenceScore: 78, anchorClose: 17.9, observedChangePct: 5.6, maxDrawdownPct: -2.8, dataStatus: window <= 5 ? "complete" : "partial", missingReason: window <= 5 ? null : "insufficient_future_candles" }),
   ];
 
-  return rows;
+  return [...rows, ...makeDiagnosticObservationRows(window)];
+}
+
+function makeDiagnosticObservationRows(
+  window: 1 | 3 | 5 | 10,
+): VisualObservationRow[] {
+  const highPrioritySymbols = [
+    "SOLUSDT",
+    "BNBUSDT",
+    "ADAUSDT",
+    "DOTUSDT",
+    "NEARUSDT",
+    "INJUSDT",
+    "FETUSDT",
+    "RUNEUSDT",
+    "OPUSDT",
+    "ARBUSDT",
+    "TIAUSDT",
+    "TAOUSDT",
+    "WIFUSDT",
+    "PEPEUSDT",
+    "LTCUSDT",
+    "BCHUSDT",
+    "ETCUSDT",
+    "ATOMUSDT",
+    "FILUSDT",
+    "JUPUSDT",
+  ];
+  const watchSymbols = [
+    "KASUSDT",
+    "GRTUSDT",
+    "STXUSDT",
+    "ALGOUSDT",
+    "XLMUSDT",
+    "VETUSDT",
+    "ICPUSDT",
+    "IMXUSDT",
+    "APTUSDT",
+    "HBARUSDT",
+    "QNTUSDT",
+    "SANDUSDT",
+    "MANAUSDT",
+    "ENAUSDT",
+    "BONKUSDT",
+    "FLOKIUSDT",
+    "ORDIUSDT",
+    "WLDUSDT",
+    "PYTHUSDT",
+    "RENDERUSDT",
+  ];
+  const riskSymbols = [
+    "CRVUSDT",
+    "COMPUSDT",
+    "UNIUSDT",
+    "MKRUSDT",
+    "DYDXUSDT",
+    "LDOUSDT",
+    "ENSUSDT",
+    "PENDLEUSDT",
+    "BLURUSDT",
+    "STRKUSDT",
+    "ZROUSDT",
+    "JTOUSDT",
+    "AEVOUSDT",
+    "MEMEUSDT",
+    "NOTUSDT",
+    "GMTUSDT",
+    "APEUSDT",
+    "CHZUSDT",
+    "GALAUSDT",
+    "LUNCUSDT",
+  ];
+
+  return [
+    ...highPrioritySymbols.map((symbol, index) =>
+      makeObservationRow({
+        window,
+        symbol,
+        groupCode: groupCodeByResultGroup.high_priority,
+        actionCode: "AC_601",
+        signalCode: signalCodeByLabel.confirmed,
+        setupCode: setupCodeByAliasOrStructure.strong_trend,
+        rankScore: 91 - (index % 4),
+        confidenceScore: 88 - (index % 3),
+        anchorClose: 120 + index * 1.7,
+        observedChangePct: 2.6 + (index % 5) * 0.25,
+        maxDrawdownPct: -1 - (index % 4) * 0.2,
+        dataStatus: "complete",
+      }),
+    ),
+    ...watchSymbols.map((symbol, index) =>
+      makeObservationRow({
+        window,
+        symbol,
+        groupCode:
+          index % 2 === 0
+            ? groupCodeByResultGroup.watch
+            : groupCodeByResultGroup.neutral,
+        actionCode:
+          index % 2 === 0 ? actionCodeByBias.watch_only : actionCodeByBias.ignore,
+        signalCode:
+          index % 2 === 0 ? signalCodeByLabel.watch : signalCodeByLabel.neutral,
+        setupCode:
+          index % 2 === 0
+            ? setupCodeByAliasOrStructure.trend_repair
+            : setupCodeByAliasOrStructure.neutral,
+        rankScore: 55 + (index % 5),
+        confidenceScore: 36 + (index % 4),
+        anchorClose: 40 + index * 0.9,
+        observedChangePct: 0.1 + (index % 5) * 0.12,
+        maxDrawdownPct: -2.1 - (index % 4) * 0.25,
+        dataStatus: "complete",
+      }),
+    ),
+    ...riskSymbols.map((symbol, index) =>
+      makeObservationRow({
+        window,
+        symbol,
+        groupCode: groupCodeByResultGroup.risk,
+        actionCode: actionCodeByBias.avoid,
+        signalCode: signalCodeByLabel.breakdown_risk,
+        setupCode: setupCodeByAliasOrStructure.trend_breakdown,
+        riskCodes: [riskCodeByType.trend_breakdown_risk],
+        rankScore: 30 + (index % 5),
+        confidenceScore: 34 + (index % 4),
+        anchorClose: 18 + index * 0.55,
+        observedChangePct: -2.4 - (index % 5) * 0.25,
+        maxDrawdownPct: -5.4 - (index % 4) * 0.45,
+        dataStatus: "complete",
+      }),
+    ),
+  ];
 }
 
 function makeObservationRow({
   window,
   symbol,
-  group,
-  label,
+  groupCode,
+  actionCode,
+  signalCode,
+  setupCode,
+  riskCodes = [],
+  qualityCodes = [],
   rankScore,
+  confidenceScore,
   anchorClose,
   observedChangePct,
   maxDrawdownPct,
@@ -283,9 +442,14 @@ function makeObservationRow({
 }: {
   window: 1 | 3 | 5 | 10;
   symbol: string;
-  group: string;
-  label: string;
+  groupCode: string;
+  actionCode: string;
+  signalCode: string;
+  setupCode: string;
+  riskCodes?: string[];
+  qualityCodes?: string[];
   rankScore: number;
+  confidenceScore: number;
   anchorClose: number;
   observedChangePct: number | null;
   maxDrawdownPct: number | null;
@@ -296,6 +460,8 @@ function makeObservationRow({
     typeof observedChangePct === "number"
       ? anchorClose * (1 + observedChangePct / 100)
       : null;
+  const setupQualityScore = Math.max(0, rankScore - 6);
+  const riskAdjustedScore = Math.max(0, rankScore - riskCodes.length * 8);
 
   return {
     id: `${validationRunId}-${window}-${symbol}`,
@@ -304,10 +470,30 @@ function makeObservationRow({
     exchange: "binance",
     market: "spot",
     timeframe: "4h",
-    group,
-    label,
-    primarySignal: label,
-    rankScore,
+    groupCode,
+    actionCode,
+    riskCode: riskCodes[0] ?? null,
+    riskCodes,
+    signalCodes: [signalCode],
+    setupCode,
+    qualityCodes,
+    metrics: {
+      rankScore,
+      riskAdjustedScore,
+      setupQualityScore,
+      confidenceScore,
+      absoluteSetupScore: setupQualityScore,
+      universePercentile: Math.max(1, Math.min(99, rankScore)),
+      score: rankScore,
+      finalSignalScore: riskAdjustedScore,
+      opportunityScore: setupQualityScore,
+      confirmationScore: confidenceScore,
+      riskScore: riskCodes.length > 0 ? 78 : 28,
+      trendScore: Math.max(0, rankScore - 8),
+      momentumScore: Math.max(0, rankScore - 10),
+      volumeScore: Math.max(0, rankScore - 12),
+      structureScore: Math.max(0, rankScore - 7),
+    },
     anchorTime: "2026-06-03T04:00:00.000Z",
     anchorClose,
     anchorSource: "stored_signal",

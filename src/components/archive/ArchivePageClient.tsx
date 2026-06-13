@@ -9,11 +9,14 @@ import {
   formatScore,
   formatSignalLabel,
   normalizeGroupKey,
+  type LatestRankingsGroupKey,
   type ScannerDisplayDictionary,
 } from "@/components/rankings/latestRankingsUi";
 import { researchMissingStateCopy } from "@/lib/research-state/formatResearchState";
 import { dictionaries } from "@/lib/i18n/dictionaries";
+import type { AppLanguage } from "@/lib/i18n/language";
 import { formatScannerReviewValue } from "@/lib/i18n/formatScannerObservation";
+import { explainCode } from "@/lib/vegarank-codebook/explainCode";
 import {
   DataTable,
   DataTableCell,
@@ -213,6 +216,35 @@ type HistoricalSnapshotRun = {
   scoringVersion?: string | null;
 };
 
+type ArchiveCodeContractMetrics = {
+  rankScore?: number | null;
+  riskAdjustedScore?: number | null;
+  setupQualityScore?: number | null;
+  confidenceScore?: number | null;
+  absoluteSetupScore?: number | null;
+  universePercentile?: number | null;
+  score?: number | null;
+  finalSignalScore?: number | null;
+  opportunityScore?: number | null;
+  confirmationScore?: number | null;
+  riskScore?: number | null;
+  trendScore?: number | null;
+  momentumScore?: number | null;
+  volumeScore?: number | null;
+  structureScore?: number | null;
+};
+
+type ArchiveCodeContractRowFields = {
+  groupCode?: string | null;
+  actionCode?: string | null;
+  riskCode?: string | null;
+  riskCodes?: string[] | null;
+  signalCodes?: string[] | null;
+  setupCode?: string | null;
+  qualityCodes?: string[] | null;
+  metrics?: ArchiveCodeContractMetrics | null;
+};
+
 type HistoricalSnapshotRow = {
   id: string;
   scanRunId: string;
@@ -244,7 +276,7 @@ type HistoricalSnapshotRow = {
   primaryStructure?: string | null;
   scannerVersion?: string | null;
   scoringVersion?: string | null;
-};
+} & ArchiveCodeContractRowFields;
 
 type HistoricalSnapshotsResponse = {
   ok: boolean;
@@ -292,7 +324,7 @@ type HistoricalSnapshotObservationRow = {
   maxDrawdownPct?: number | null;
   dataStatus: ObservationDataStatus;
   missingReason?: string | null;
-};
+} & ArchiveCodeContractRowFields;
 
 type HistoricalSnapshotObservationsResponse = {
   ok: boolean;
@@ -433,6 +465,243 @@ const observationRowsGroupFilters = [
   value: ObservationRowsGroupFilter;
   label: string;
 }>;
+
+const archiveGroupKeyByGroupCode: Partial<Record<string, LatestRankingsGroupKey>> = {
+  GR_001: "neutral",
+  GR_101: "watch",
+  GR_201: "watch",
+  GR_301: "risk",
+  GR_302: "overheated",
+  GR_401: "insufficient_history",
+  GR_402: "insufficient_history",
+  GR_501: "eligible",
+  GR_601: "eligible",
+};
+
+const archiveDiagnosticGroupByGroupCode: Partial<Record<string, string>> = {
+  GR_001: "neutral",
+  GR_101: "watch",
+  GR_201: "watch",
+  GR_301: "risk",
+  GR_302: "overheated",
+  GR_401: "insufficient_history",
+  GR_402: "insufficient_history",
+  GR_501: "eligible",
+  GR_601: "high_priority",
+};
+
+type ArchiveRowMetadataSource = ArchiveCodeContractRowFields & {
+  group?: string | null;
+  label?: string | null;
+  rankScore?: number | null;
+  componentScores?: {
+    finalSignalScore?: number | null;
+    opportunityScore?: number | null;
+    confirmationScore?: number | null;
+    riskScore?: number | null;
+    trendScore?: number | null;
+    momentumScore?: number | null;
+    volumeScore?: number | null;
+    structureScore?: number | null;
+  };
+  riskTypes?: string[] | null;
+};
+
+type ArchiveRowMetadata = {
+  groupKey: LatestRankingsGroupKey | null;
+  diagnosticGroup: string | null;
+  groupLabel: string;
+  groupTitle: string;
+  hasGroupMetadata: boolean;
+  reviewLabel: string | null;
+  rankScore: number | null;
+  riskAdjustedScore: number | null;
+  setupQualityScore: number | null;
+  confidenceScore: number | null;
+  absoluteSetupScore: number | null;
+  universePercentile: number | null;
+  riskCodes: string[] | null;
+  hasRiskContext: boolean | null;
+};
+
+export function getArchiveRowMetadata(
+  row: ArchiveRowMetadataSource,
+  {
+    dictionary = dictionaries.en,
+    language = "en",
+  }: {
+    dictionary?: ScannerDisplayDictionary;
+    language?: AppLanguage;
+  } = {},
+): ArchiveRowMetadata {
+  const groupCode = normalizeCodeString(row.groupCode);
+  const legacyGroup = normalizeLegacyGroup(row.group);
+  const groupKey = getArchiveGroupKey({ groupCode, legacyGroup });
+  const diagnosticGroup = getArchiveDiagnosticGroup({ groupCode, legacyGroup });
+  const groupLabel =
+    groupCode !== null
+      ? explainCode(groupCode, language).label
+      : groupKey
+        ? formatGroupLabel(groupKey, dictionary)
+        : "Metadata Unavailable";
+  const groupTitle =
+    groupCode !== null
+      ? `${groupLabel} · ${groupCode}`
+      : groupKey
+        ? groupLabel
+        : "Metadata Unavailable";
+  const reviewLabel = getArchiveReviewLabel(row, { dictionary, language });
+  const metrics = row.metrics ?? null;
+  const riskCodes = normalizeArchiveRiskCodes(row);
+  const hasStoredRiskCodes =
+    Array.isArray(row.riskCodes) || normalizeCodeString(row.riskCode) !== null;
+  const legacyRiskTypes = Array.isArray(row.riskTypes)
+    ? row.riskTypes.filter((value) => typeof value === "string" && value.length > 0)
+    : [];
+
+  return {
+    groupKey,
+    diagnosticGroup,
+    groupLabel,
+    groupTitle,
+    hasGroupMetadata: groupCode !== null || groupKey !== null,
+    reviewLabel,
+    rankScore: firstFiniteNumber(metrics?.rankScore, row.rankScore),
+    riskAdjustedScore: firstFiniteNumber(
+      metrics?.riskAdjustedScore,
+      metrics?.finalSignalScore,
+      row.componentScores?.finalSignalScore,
+    ),
+    setupQualityScore: firstFiniteNumber(
+      metrics?.setupQualityScore,
+      metrics?.opportunityScore,
+      row.componentScores?.opportunityScore,
+    ),
+    confidenceScore: firstFiniteNumber(
+      metrics?.confidenceScore,
+      metrics?.confirmationScore,
+      row.componentScores?.confirmationScore,
+    ),
+    absoluteSetupScore: firstFiniteNumber(metrics?.absoluteSetupScore),
+    universePercentile: firstFiniteNumber(metrics?.universePercentile),
+    riskCodes:
+      hasStoredRiskCodes || riskCodes.length > 0
+        ? riskCodes
+        : legacyRiskTypes.length > 0
+          ? legacyRiskTypes
+          : null,
+    hasRiskContext: hasStoredRiskCodes
+      ? riskCodes.length > 0
+      : legacyRiskTypes.length > 0
+        ? true
+        : null,
+  };
+}
+
+function getArchiveGroupKey({
+  groupCode,
+  legacyGroup,
+}: {
+  groupCode: string | null;
+  legacyGroup: LatestRankingsGroupKey | null;
+}) {
+  if (groupCode !== null) {
+    return archiveGroupKeyByGroupCode[groupCode] ?? null;
+  }
+
+  return legacyGroup;
+}
+
+function getArchiveDiagnosticGroup({
+  groupCode,
+  legacyGroup,
+}: {
+  groupCode: string | null;
+  legacyGroup: LatestRankingsGroupKey | null;
+}) {
+  if (groupCode !== null) {
+    return archiveDiagnosticGroupByGroupCode[groupCode] ?? null;
+  }
+
+  return legacyGroup;
+}
+
+function getArchiveReviewLabel(
+  row: ArchiveRowMetadataSource,
+  {
+    dictionary,
+    language,
+  }: {
+    dictionary: ScannerDisplayDictionary;
+    language: AppLanguage;
+  },
+) {
+  const reviewCode =
+    normalizeCodeString(row.actionCode) ??
+    normalizeFirstCode(row.signalCodes) ??
+    normalizeCodeString(row.setupCode);
+
+  if (reviewCode !== null) {
+    return explainCode(reviewCode, language).label;
+  }
+
+  if (row.label) {
+    return formatSignalLabel(row.label, dictionary);
+  }
+
+  return null;
+}
+
+function normalizeArchiveRiskCodes(row: ArchiveRowMetadataSource) {
+  const codes = [
+    ...(Array.isArray(row.riskCodes) ? row.riskCodes : []),
+    normalizeCodeString(row.riskCode),
+  ]
+    .map(normalizeCodeString)
+    .filter((value): value is string => value !== null);
+
+  return [...new Set(codes)];
+}
+
+function normalizeFirstCode(values: string[] | null | undefined) {
+  if (!Array.isArray(values)) {
+    return null;
+  }
+
+  for (const value of values) {
+    const code = normalizeCodeString(value);
+
+    if (code !== null) {
+      return code;
+    }
+  }
+
+  return null;
+}
+
+function normalizeCodeString(value: string | null | undefined) {
+  const normalized = value?.trim();
+
+  return normalized && /^[A-Z]{2}_\d{3}$/.test(normalized) ? normalized : null;
+}
+
+function normalizeLegacyGroup(group: string | null | undefined) {
+  if (!group) {
+    return null;
+  }
+
+  return normalizeGroupKey(group);
+}
+
+function firstFiniteNumber(...values: Array<number | null | undefined>) {
+  for (const value of values) {
+    if (typeof value === "number" && Number.isFinite(value)) {
+      return value;
+    }
+  }
+
+  return null;
+}
 
 export function ArchivePageClient({
   visualCheckData,
@@ -1531,7 +1800,7 @@ export function ArchiveDetails({
               ["Readiness", readiness ? "Loaded" : "Unavailable"],
               ["Outcome Rows", response ? formatCount(response.rows.length) : "N/A"],
               [
-                "Returned Rows",
+                "Loaded Rows",
                 response ? formatCount(response.metadata.rowCount) : "N/A",
               ],
               [
@@ -1672,16 +1941,18 @@ export function buildArchiveRankingQualityEvaluation(
 function toRankingQualityInputRow(
   row: HistoricalSnapshotObservationRow,
 ): RankingQualityInputRow {
+  const metadata = getArchiveRowMetadata(row);
+
   return {
     symbol: row.symbol,
     timeframe: row.timeframe,
-    group: row.group,
-    rankScore: row.rankScore,
-    riskAdjustedScore: null,
-    confidenceScore: null,
-    riskCodes: null,
+    group: metadata.diagnosticGroup,
+    rankScore: metadata.rankScore,
+    riskAdjustedScore: metadata.riskAdjustedScore,
+    confidenceScore: metadata.confidenceScore,
+    riskCodes: metadata.riskCodes,
     riskTypes: null,
-    hasRiskContext: null,
+    hasRiskContext: metadata.hasRiskContext,
     observedChangePct: row.observedChangePct,
     maxDrawdownPct: row.maxDrawdownPct,
     dataStatus: row.dataStatus,
@@ -2178,7 +2449,7 @@ export function ObservationRowsTable({
   initialSymbolSearch?: string;
   initialSortState?: DataSortState<ObservationRowsSortKey> | null;
 }) {
-  const { dictionary } = useAppLanguage();
+  const { dictionary, language } = useAppLanguage();
   const [dataStatusFilter, setDataStatusFilter] =
     useState<ObservationRowsDataStatusFilter>(initialDataStatusFilter);
   const [groupFilter, setGroupFilter] =
@@ -2339,36 +2610,38 @@ export function ObservationRowsTable({
               </tr>
             </thead>
             <tbody>
-              {visibleRows.map((row) => (
-                <tr
-                  key={row.id}
-                  className="group border-t border-[var(--table-grid)] odd:bg-[var(--panel-data)] even:bg-[var(--panel-muted)] hover:bg-[var(--row-hover)] hover:shadow-[inset_3px_0_0_var(--accent)]"
-                >
-                  <DataTableCell className="font-semibold text-[var(--foreground)]">
-                    {row.symbol}
-                  </DataTableCell>
-                  <DataTableCell>
-                    <div
-                      className="flex min-w-0 items-center gap-1.5"
-                      title={`${formatGroupLabel(
-                        normalizeGroupKey(row.group),
-                      )} · ${formatSignalLabel(row.label, dictionary)}`}
-                    >
-                      <GroupChip
-                        group={normalizeGroupKey(row.group)}
-                        dictionary={dictionary}
-                      />
-                      <span
-                        className="min-w-0 truncate text-[10px] text-[var(--muted)]"
-                        title={formatSignalLabel(row.label, dictionary)}
+              {visibleRows.map((row) => {
+                const metadata = getArchiveRowMetadata(row, {
+                  dictionary,
+                  language,
+                });
+                const reviewLabel = metadata.reviewLabel ?? "Stored Metadata";
+
+                return (
+                  <tr
+                    key={row.id}
+                    className="group border-t border-[var(--table-grid)] odd:bg-[var(--panel-data)] even:bg-[var(--panel-muted)] hover:bg-[var(--row-hover)] hover:shadow-[inset_3px_0_0_var(--accent)]"
+                  >
+                    <DataTableCell className="font-semibold text-[var(--foreground)]">
+                      {row.symbol}
+                    </DataTableCell>
+                    <DataTableCell>
+                      <div
+                        className="flex min-w-0 items-center gap-1.5"
+                        title={`${metadata.groupTitle} · ${reviewLabel}`}
                       >
-                        {formatSignalLabel(row.label, dictionary)}
-                      </span>
-                    </div>
-                  </DataTableCell>
-                  <DataTableCell align="right" className="font-mono tabular-nums">
-                    {formatScore(row.rankScore)}
-                  </DataTableCell>
+                        <ArchiveGroupChip metadata={metadata} />
+                        <span
+                          className="min-w-0 truncate text-[10px] text-[var(--muted)]"
+                          title={reviewLabel}
+                        >
+                          {reviewLabel}
+                        </span>
+                      </div>
+                    </DataTableCell>
+                    <DataTableCell align="right" className="font-mono tabular-nums">
+                      {formatScore(metadata.rankScore)}
+                    </DataTableCell>
                   <DataTableCell align="right" className="font-mono tabular-nums">
                     {formatObservationNumber(row.anchorClose)}
                   </DataTableCell>
@@ -2414,7 +2687,8 @@ export function ObservationRowsTable({
                     </Link>
                   </DataTableCell>
                 </tr>
-              ))}
+                );
+              })}
             </tbody>
           </DataTable>
         </DataTableScroll>
@@ -2483,16 +2757,20 @@ function ObservationDataStatusBadge({
   );
 }
 
-function GroupChip({
-  group,
-  dictionary,
-}: {
-  group: ReturnType<typeof normalizeGroupKey>;
-  dictionary: ScannerDisplayDictionary;
-}) {
+function ArchiveGroupChip({ metadata }: { metadata: ArchiveRowMetadata }) {
+  if (!metadata.hasGroupMetadata) {
+    return (
+      <DataTableChip tone="missing">
+        Metadata Unavailable
+      </DataTableChip>
+    );
+  }
+
   return (
-    <DataTableChip tone={getArchiveGroupChipTone(group)}>
-      {formatGroupLabel(group, dictionary)}
+    <DataTableChip
+      tone={getArchiveGroupChipTone(metadata.groupKey ?? "neutral")}
+    >
+      {metadata.groupLabel}
     </DataTableChip>
   );
 }
@@ -2501,15 +2779,17 @@ export function getObservationRowsSortValue(
   row: HistoricalSnapshotObservationRow,
   key: ObservationRowsSortKey,
 ): DataSortValue {
+  const metadata = getArchiveRowMetadata(row);
+
   switch (key) {
     case "symbol":
       return row.symbol;
     case "group":
-      return getArchiveGroupSortRank(normalizeGroupKey(row.group));
+      return getArchiveMetadataGroupSortRank(metadata);
     case "label":
-      return formatSignalLabel(row.label);
+      return metadata.reviewLabel ?? "";
     case "rank_score":
-      return row.rankScore;
+      return metadata.rankScore;
     case "anchor_close":
       return row.anchorClose;
     case "observed_close":
@@ -2537,10 +2817,11 @@ function filterObservationRows({
   const normalizedSymbolSearch = symbolSearch.trim().toUpperCase();
 
   return rows.filter((row) => {
+    const metadata = getArchiveRowMetadata(row);
     const matchesDataStatus =
       dataStatusFilter === "all" || row.dataStatus === dataStatusFilter;
     const matchesGroup =
-      groupFilter === "all" || normalizeGroupKey(row.group) === groupFilter;
+      groupFilter === "all" || metadata.groupKey === groupFilter;
     const matchesSymbol =
       !normalizedSymbolSearch ||
       row.symbol.toUpperCase().includes(normalizedSymbolSearch);
@@ -2590,6 +2871,10 @@ function getArchiveGroupSortRank(group: ReturnType<typeof normalizeGroupKey>) {
     case "insufficient_history":
       return 0;
   }
+}
+
+function getArchiveMetadataGroupSortRank(metadata: ArchiveRowMetadata) {
+  return metadata.groupKey ? getArchiveGroupSortRank(metadata.groupKey) : -1;
 }
 
 function getArchiveGroupChipTone(
@@ -3252,7 +3537,7 @@ function getForwardObservationPanelTitle(uiState: ForwardObservationUiState) {
     case "observation_ready_summary_missing":
       return "Snapshot Rows unavailable";
     case "observation_empty":
-      return "No Snapshot Rows returned";
+      return "No Snapshot Rows loaded";
     case "observation_ready":
       return "Validation ready";
   }
@@ -3295,7 +3580,7 @@ function getForwardObservationPanelMessage({
     case "observation_rows_error":
       return uiState.observationRowsError ?? "Snapshot Rows could not be loaded.";
     case "observation_ready_summary_missing":
-      return "Validation Source is available, but no Snapshot Rows were returned.";
+      return "Validation Source is available, but no Snapshot Rows were provided.";
     case "observation_empty":
       return "Validation Source is available, but it has no Snapshot Rows for this forward window.";
     case "observation_ready":
@@ -3436,7 +3721,7 @@ export function SnapshotTable({
   errorMessage?: string | null;
   initialSortState?: DataSortState<SnapshotRowsSortKey> | null;
 }) {
-  const { dictionary } = useAppLanguage();
+  const { dictionary, language } = useAppLanguage();
   const requested = isRequested ?? true;
   const [sortState, setSortState] =
     useState<DataSortState<SnapshotRowsSortKey> | null>(initialSortState);
@@ -3585,6 +3870,10 @@ export function SnapshotTable({
             <tbody>
               {visibleRows.map(({ row, sourceIndex }) => {
                 const observationRow = observationRowBySymbol.get(row.symbol) ?? null;
+                const metadata = getArchiveRowMetadata(row, {
+                  dictionary,
+                  language,
+                });
 
                 return (
                   <tr
@@ -3601,13 +3890,10 @@ export function SnapshotTable({
                       {formatMarket(row)}
                     </DataTableCell>
                     <DataTableCell>
-                      <GroupChip
-                        group={normalizeGroupKey(row.group)}
-                        dictionary={dictionary}
-                      />
+                      <ArchiveGroupChip metadata={metadata} />
                     </DataTableCell>
                     <DataTableCell align="right" className="font-mono tabular-nums">
-                      {formatScore(row.rankScore)}
+                      {formatScore(metadata.rankScore)}
                     </DataTableCell>
                     <DataTableCell>
                       {observationRow ? (
@@ -3702,6 +3988,8 @@ function getSnapshotRowsSortValue(
   item: SnapshotIndexedRow,
   key: SnapshotRowsSortKey,
 ): DataSortValue {
+  const metadata = getArchiveRowMetadata(item.row);
+
   switch (key) {
     case "index":
       return item.sourceIndex + 1;
@@ -3710,11 +3998,11 @@ function getSnapshotRowsSortValue(
     case "market":
       return formatMarket(item.row);
     case "group":
-      return getArchiveGroupSortRank(normalizeGroupKey(item.row.group));
+      return getArchiveMetadataGroupSortRank(metadata);
     case "label":
-      return formatSignalLabel(item.row.label);
+      return metadata.reviewLabel ?? "";
     case "rank_score":
-      return item.row.rankScore;
+      return metadata.rankScore;
   }
 }
 

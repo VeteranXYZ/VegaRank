@@ -16,6 +16,7 @@ import {
   ForwardObservationSection,
   formatArchiveDateTime,
   formatArchivePrimarySignal,
+  getArchiveRowMetadata,
   getNextRefreshingTimeframeAfterCompletion,
   getForwardObservationRowsRunId,
   getObservationProbeRuns,
@@ -244,6 +245,27 @@ describe("ArchivePageClient display formatting", () => {
     );
   });
 
+  it("normalizes code-contract metadata before legacy fallback fields", () => {
+    const metadata = getArchiveRowMetadata({
+      group: "neutral",
+      rankScore: 1,
+      groupCode: "GR_201",
+      actionCode: "AC_101",
+      metrics: {
+        rankScore: 74,
+        riskAdjustedScore: 70,
+        setupQualityScore: 68,
+        confidenceScore: 72,
+      },
+    });
+
+    expect(metadata.groupLabel).toBe("Constructive Watch");
+    expect(metadata.groupKey).toBe("watch");
+    expect(metadata.reviewLabel).toBe("Watch");
+    expect(metadata.rankScore).toBe(74);
+    expect(metadata.confidenceScore).toBe(72);
+  });
+
   it("renders safer archive table labels and preserves full row count copy", () => {
     const html = renderToStaticMarkup(
       createElement(SnapshotTable, {
@@ -285,6 +307,57 @@ describe("ArchivePageClient display formatting", () => {
     expect(html).not.toContain("Score Components");
     expect(html).not.toContain("Show More");
     expect(html).not.toContain("Pagination");
+  });
+
+  it("renders Snapshot Rows from stored code-contract metadata", () => {
+    const html = renderToStaticMarkup(
+      createElement(SnapshotTable, {
+        isLoading: false,
+        rows: [
+          makeCodeContractArchiveRow({
+            id: "code-contract-eligible",
+            symbol: "CODEUSDT",
+            groupCode: "GR_501",
+            rankScore: 82,
+          }),
+          makeCodeContractArchiveRow({
+            id: "code-contract-watch",
+            symbol: "WATCHUSDT",
+            groupCode: "GR_201",
+            actionCode: "AC_101",
+            rankScore: 74,
+          }),
+        ],
+      }),
+    );
+
+    expect(html).toContain("Eligible");
+    expect(html).toContain("Constructive Watch");
+    expect(html).toContain("82.0");
+    expect(html).toContain("74.0");
+    expect(html).not.toContain("Metadata Unavailable");
+  });
+
+  it("shows conservative metadata copy when Snapshot Rows lack stored metadata", () => {
+    const html = renderToStaticMarkup(
+      createElement(SnapshotTable, {
+        isLoading: false,
+        rows: [
+          {
+            id: "missing-metadata",
+            scanRunId: "fcc05284-c7a0-4990-9bcb-5dd165d83c37",
+            symbol: "MISSUSDT",
+            exchange: "binance",
+            market: "spot",
+            timeframe: "4h" as const,
+          },
+        ],
+      }),
+    );
+
+    expect(html).toContain("Metadata Unavailable");
+    expect(html).toContain("N/A");
+    expect(html).not.toContain(">Neutral<");
   });
 
   it("sorts Snapshot Rows independently with an accessible sort indicator", () => {
@@ -336,6 +409,29 @@ describe("ArchivePageClient display formatting", () => {
     expect(html).toContain("Partial window");
     expect(html).not.toContain("mt-1 block max-w-[170px]");
     expect(html).toContain("rounded-[3px]");
+  });
+
+  it("renders Observation Rows from stored code-contract metadata", () => {
+    const html = renderObservationRowsTable({
+      rows: [
+        makeCodeContractObservationRow({
+          id: "code-contract-observation",
+          symbol: "OBSUSDT",
+          groupCode: "GR_601",
+          actionCode: "AC_601",
+          rankScore: 91,
+          confidenceScore: 87,
+          dataStatus: "complete",
+          missingReason: null,
+        }),
+      ],
+    });
+
+    expect(html).toContain("High Priority");
+    expect(html).toContain("High-Priority Review");
+    expect(html).toContain("91.0");
+    expect(html).not.toContain("Unknown");
+    expect(html).not.toContain("Metadata Unavailable");
   });
 
   it("sorts Observation Rows locally without changing filter counts or hiding rows", () => {
@@ -1065,6 +1161,60 @@ describe("ArchivePageClient display formatting", () => {
     expect(text).not.toContain("Evidence Reliability Details");
   });
 
+  it("reads ranking quality diagnostics from stored code-contract metrics", () => {
+    const response = makeObservationResponse({
+      rows: [
+        ...Array.from({ length: 20 }, (_, index) =>
+          makeCodeContractObservationRow({
+            id: `code-high-${index}`,
+            symbol: `CODEHIGH${index}USDT`,
+            groupCode: "GR_601",
+            actionCode: "AC_601",
+            rankScore: 91,
+            confidenceScore: 86,
+            riskCodes: [],
+            observedChangePct: 5,
+            maxDrawdownPct: -1,
+            dataStatus: "complete",
+            missingReason: null,
+          }),
+        ),
+        ...Array.from({ length: 20 }, (_, index) =>
+          makeCodeContractObservationRow({
+            id: `code-risk-${index}`,
+            symbol: `CODERISK${index}USDT`,
+            groupCode: "GR_301",
+            actionCode: "AC_302",
+            rankScore: 18,
+            confidenceScore: 42,
+            riskCode: "RK_302",
+            riskCodes: ["RK_302"],
+            observedChangePct: -2,
+            maxDrawdownPct: -6,
+            dataStatus: "complete",
+            missingReason: null,
+          }),
+        ),
+      ],
+    });
+    const evaluation = buildArchiveRankingQualityEvaluation(response.rows);
+    const text = markupText(renderRankingQualityDiagnosticsPanel({ response }));
+
+    expect(evaluation.scoreBuckets.map((bucket) => bucket.code)).toEqual(
+      expect.arrayContaining(["score_0_20", "score_80_100"]),
+    );
+    expect(evaluation.confidenceBuckets.map((bucket) => bucket.code)).toEqual(
+      expect.arrayContaining(["confidence_low", "confidence_high"]),
+    );
+    expect(evaluation.riskContextSummaries.map((summary) => summary.code)).toEqual(
+      expect.arrayContaining(["risk_context", "no_risk_context"]),
+    );
+    expect(text).toContain("Score buckets are available.");
+    expect(text).toContain("Risk context comparison is available.");
+    expect(text).toContain("Evidence reliability comparison is available.");
+    expect(text).not.toContain("Not Stored");
+  });
+
   it("keeps missing windows separate from negative outcomes in ranking quality copy", () => {
     const response = makeObservationResponse({
       rows: [
@@ -1120,7 +1270,9 @@ describe("ArchivePageClient display formatting", () => {
       "profit",
       "return",
       "P/L",
+      "alpha",
       "trading performance",
+      "strategy performance",
       "prediction accuracy",
       "buy",
       "sell",
@@ -1128,6 +1280,9 @@ describe("ArchivePageClient display formatting", () => {
       "short",
       "entry",
       "exit",
+      "best trades",
+      "likely to go up",
+      "likely to go down",
     ];
 
     for (const term of forbiddenTerms) {
@@ -1657,11 +1812,11 @@ describe("ArchivePageClient display formatting", () => {
       missingCount: 413,
     });
     expect(html).toContain("Snapshot Rows unavailable");
-    expect(html).toContain("Validation Source is available, but no Snapshot Rows were returned.");
+    expect(html).toContain("Validation Source is available, but no Snapshot Rows were provided.");
     expect(html).toContain("Missing Windows");
     expect(html).toContain(">413<");
     const detailsHtml = renderArchiveDetails({ response, readiness, uiState });
-    expect(detailsHtml).toContain("Returned Rows");
+    expect(detailsHtml).toContain("Loaded Rows");
     expect(detailsHtml).toContain("Outcome Rows");
     expect(detailsHtml).toContain(">0<");
     expect(html).not.toContain(
@@ -2030,6 +2185,86 @@ function makeArchiveRow(overrides: {
   };
 }
 
+function makeCodeContractArchiveRow(
+  overrides: Partial<{
+    id: string;
+    symbol: string;
+    groupCode: string | null;
+    actionCode: string | null;
+    riskCode: string | null;
+    riskCodes: string[] | null;
+    setupCode: string | null;
+    signalCodes: string[] | null;
+    qualityCodes: string[] | null;
+    rankScore: number | null;
+    riskAdjustedScore: number | null;
+    setupQualityScore: number | null;
+    confidenceScore: number | null;
+  }> = {},
+) {
+  const rankScore = overrides.rankScore ?? 82;
+  const setupQualityScore = overrides.setupQualityScore ?? 76;
+  const confidenceScore = overrides.confidenceScore ?? 84;
+
+  return {
+    id: overrides.id ?? "code-contract-row",
+    scanRunId: "fcc05284-c7a0-4990-9bcb-5dd165d83c37",
+    symbol: overrides.symbol ?? "CODEUSDT",
+    exchange: "binance",
+    market: "spot",
+    timeframe: "4h" as const,
+    groupCode: overrides.groupCode === undefined ? "GR_501" : overrides.groupCode,
+    actionCode:
+      overrides.actionCode === undefined ? "AC_501" : overrides.actionCode,
+    riskCode: overrides.riskCode === undefined ? null : overrides.riskCode,
+    riskCodes: overrides.riskCodes === undefined ? [] : overrides.riskCodes,
+    setupCode: overrides.setupCode === undefined ? "TR_601" : overrides.setupCode,
+    signalCodes:
+      overrides.signalCodes === undefined ? ["PX_501"] : overrides.signalCodes,
+    qualityCodes:
+      overrides.qualityCodes === undefined ? ["QH_001"] : overrides.qualityCodes,
+    metrics:
+      rankScore === null
+        ? null
+        : {
+            rankScore,
+            riskAdjustedScore: overrides.riskAdjustedScore ?? rankScore,
+            setupQualityScore,
+            confidenceScore,
+            absoluteSetupScore: setupQualityScore,
+            universePercentile: rankScore,
+          },
+    scannerVersion: "test",
+    scoringVersion: "test",
+  };
+}
+
+function makeCodeContractObservationRow(
+  overrides: Partial<
+    Parameters<typeof makeCodeContractArchiveRow>[0] & {
+      observedClose: number | null;
+      observedChangePct: number | null;
+      maxDrawdownPct: number | null;
+      dataStatus: "complete" | "partial" | "missing";
+      missingReason: string | null;
+    }
+  > = {},
+) {
+  return {
+    ...makeCodeContractArchiveRow(overrides),
+    anchorTime: "2026-06-02T00:00:00.000Z",
+    anchorClose: 100,
+    anchorSource: "stored_signal" as const,
+    latestMarketOpenTime: "2026-06-02T12:00:00.000Z",
+    window: 3 as const,
+    observedClose: overrides.observedClose ?? 102,
+    observedChangePct: overrides.observedChangePct ?? 2,
+    maxDrawdownPct: overrides.maxDrawdownPct ?? -3,
+    dataStatus: overrides.dataStatus ?? "complete",
+    missingReason: overrides.missingReason ?? null,
+  };
+}
+
 function makeObservationResponse(
   overrides: Partial<{
     run: ReturnType<typeof makeObservationRun>;
@@ -2052,7 +2287,9 @@ function makeObservationResponse(
       missingCount: number;
       timeframe: "1h" | "4h" | "1d" | "1w";
     }>;
-    rows: ReturnType<typeof makeObservationRow>[];
+    rows: Array<
+      ReturnType<typeof makeObservationRow> | ReturnType<typeof makeCodeContractObservationRow>
+    >;
   }> = {},
 ) {
   const rows = overrides.rows ?? [
