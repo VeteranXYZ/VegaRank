@@ -818,6 +818,9 @@ async function buildInitialSymbolReports({
   for (const symbol of symbols) {
     const coverage = await loadQualityCoverage(store, symbol);
     const quality = getSymbolQuality(symbol.symbol, {
+      exchange: symbol.exchange,
+      baseAsset: symbol.baseAsset,
+      quoteAsset: symbol.quoteAsset,
       assetClass: symbol.assetClass,
       candleCount: coverage?.candleCount,
       firstOpenTime: coverage?.earliestOpenTimeMs

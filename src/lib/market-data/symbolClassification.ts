@@ -34,7 +34,26 @@ export type SymbolQuality = {
   qualityFlags: string[];
 };
 
+export type SymbolQualityMetadata = {
+  exchange?: string | null;
+  baseAsset?: string | null;
+  quoteAsset?: string | null;
+  assetClass?: SymbolAssetClass | null;
+  candleCount?: number | null;
+  firstOpenTime?: string | Date | null;
+  now?: Date;
+};
+
+export type SymbolQualityIdentity = {
+  symbol: string;
+  baseAsset: string;
+  quoteAsset: string | null;
+  isDashedPair: boolean;
+  isMalformedPair: boolean;
+};
+
 const STABLE_BASE_ASSETS = new Set([
+  "USDT",
   "USDC",
   "FDUSD",
   "USDP",
@@ -48,6 +67,7 @@ const STABLE_BASE_ASSETS = new Set([
   "USDE",
   "SUSDE",
   "USDS",
+  "EURC",
   "FRAX",
   "BFUSD",
 ]);
@@ -232,17 +252,10 @@ export function emptyAssetClassCounts() {
 
 export function getSymbolQuality(
   symbol: string,
-  metadata: {
-    assetClass?: SymbolAssetClass | null;
-    candleCount?: number | null;
-    firstOpenTime?: string | Date | null;
-    now?: Date;
-  } = {},
+  metadata: SymbolQualityMetadata = {},
 ): SymbolQuality {
-  const normalizedSymbol = symbol.trim().toUpperCase();
-  const baseAsset = normalizedSymbol.endsWith("USDT")
-    ? normalizedSymbol.slice(0, -"USDT".length)
-    : normalizedSymbol;
+  const identity = parseSymbolQualityIdentity(symbol, metadata);
+  const baseAsset = identity.baseAsset;
   const flags = new Set<string>();
   const now = metadata.now ?? new Date();
 
@@ -279,8 +292,10 @@ export function getSymbolQuality(
     metadata.assetClass === "special" ||
     SUSPICIOUS_BASE_ASSETS.has(baseAsset) ||
     baseAsset.length === 1 ||
+    isAllNumericBaseAsset(baseAsset) ||
     !/^[A-Z0-9]+$/.test(baseAsset) ||
-    isSpecialSymbol(normalizedSymbol, baseAsset)
+    identity.isMalformedPair ||
+    isSpecialQualityBaseAsset(baseAsset)
   ) {
     flags.add("special_or_suspicious");
   }
@@ -315,6 +330,62 @@ export function getSymbolQuality(
   };
 }
 
+export function parseSymbolQualityIdentity(
+  symbol: string,
+  metadata: Pick<SymbolQualityMetadata, "baseAsset" | "quoteAsset"> = {},
+): SymbolQualityIdentity {
+  const normalizedSymbol = normalizeAssetToken(symbol);
+  const metadataBase = normalizeOptionalAssetToken(metadata.baseAsset);
+  const metadataQuote = normalizeOptionalAssetToken(metadata.quoteAsset);
+
+  if (metadataBase && metadataQuote) {
+    return {
+      symbol: normalizedSymbol,
+      baseAsset: metadataBase,
+      quoteAsset: metadataQuote,
+      isDashedPair: normalizedSymbol.includes("-"),
+      isMalformedPair: false,
+    };
+  }
+
+  if (normalizedSymbol.includes("-")) {
+    const parts = normalizedSymbol.split("-");
+    const [baseAsset, quoteAsset] = parts;
+    const isWellFormed =
+      parts.length === 2 &&
+      isAlphanumericAsset(baseAsset) &&
+      isAlphanumericAsset(quoteAsset);
+
+    return {
+      symbol: normalizedSymbol,
+      baseAsset: isWellFormed ? baseAsset : normalizedSymbol,
+      quoteAsset: isWellFormed ? quoteAsset : null,
+      isDashedPair: true,
+      isMalformedPair: !isWellFormed,
+    };
+  }
+
+  const suffixQuote = inferSuffixQuoteAsset(normalizedSymbol);
+
+  if (suffixQuote) {
+    return {
+      symbol: normalizedSymbol,
+      baseAsset: normalizedSymbol.slice(0, -suffixQuote.length),
+      quoteAsset: suffixQuote,
+      isDashedPair: false,
+      isMalformedPair: false,
+    };
+  }
+
+  return {
+    symbol: normalizedSymbol,
+    baseAsset: normalizedSymbol,
+    quoteAsset: null,
+    isDashedPair: false,
+    isMalformedPair: !isAlphanumericAsset(normalizedSymbol),
+  };
+}
+
 function resolveQualityTier(
   baseAsset: string,
   qualityFlags: string[],
@@ -342,6 +413,41 @@ function resolveQualityTier(
   }
 
   return "normal";
+}
+
+function inferSuffixQuoteAsset(symbol: string) {
+  for (const quoteAsset of ["USDT", "USDC", "USD", "BTC", "ETH", "EUR", "GBP"]) {
+    if (symbol.length > quoteAsset.length && symbol.endsWith(quoteAsset)) {
+      return quoteAsset;
+    }
+  }
+
+  return null;
+}
+
+function isAllNumericBaseAsset(baseAsset: string) {
+  return /^[0-9]+$/.test(baseAsset);
+}
+
+function isSpecialQualityBaseAsset(baseAsset: string) {
+  if (baseAsset.endsWith("UP") && !LEVERAGED_UP_EXCEPTIONS.has(baseAsset)) {
+    return true;
+  }
+
+  return LEVERAGED_SUFFIXES.some((suffix) => baseAsset.endsWith(suffix));
+}
+
+function normalizeAssetToken(value: string) {
+  return value.trim().toUpperCase();
+}
+
+function normalizeOptionalAssetToken(value: string | null | undefined) {
+  const normalized = value?.trim().toUpperCase();
+  return normalized ? normalized : null;
+}
+
+function isAlphanumericAsset(value: string | undefined) {
+  return typeof value === "string" && /^[A-Z0-9]+$/.test(value);
 }
 
 function isSpecialSymbol(symbol: string, baseAsset: string) {

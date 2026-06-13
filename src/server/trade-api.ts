@@ -740,6 +740,9 @@ async function handleSymbolResearch(response: http.ServerResponse, url: URL) {
     });
     const latestSignal = toPublicSymbolResearchSignal(latestSignalInternal);
     const quality = getSymbolQuality(latest.symbol.symbol, {
+      exchange: latest.symbol.exchange,
+      baseAsset: latest.symbol.baseAsset,
+      quoteAsset: latest.symbol.quoteAsset,
       assetClass: latest.symbol.assetClass,
       candleCount: latest.signal.candleCount,
       firstOpenTime: latest.signal.firstOpenTime,

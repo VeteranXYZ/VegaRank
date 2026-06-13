@@ -167,6 +167,17 @@ requested identity. If one exists, `latest.scanRun.exchange` remains
 `/api/rankings/latest` remains anchored to the existing Binance full-universe
 selection until a later Coinbase production universe rollout.
 
+## Quality Classification
+
+Coinbase dashed symbols are parsed as `BASE-QUOTE` before quality flags are
+assigned. For example, `AERO-USDC` uses base `AERO` and quote `USDC`.
+
+Quote `USDC` does not make the base asset stable-like. Stable-like quality is
+based on the base asset identity, such as `DAI-USDC` or `PYUSD-USDC`.
+
+Low-history and new-listing flags remain based on candle count and listing-age
+context.
+
 ## Still Deferred
 
 - production cron enablement

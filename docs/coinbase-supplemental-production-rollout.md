@@ -16,9 +16,10 @@ The one-symbol Coinbase dry run succeeded on `AERO-USDC`:
 - exact Symbol Research lookup returned the Coinbase scan run.
 - Binance production API remained healthy.
 
-`AERO-USDC` also showed quality flags such as `stable_like`,
-`special_or_suspicious`, and `low_history`. Phase 32G records quality
-distribution only; exchange-aware quality classifier refinement remains deferred.
+The first medium batch showed that Coinbase `BASE-USDC` rows were being
+classified from the raw dashed pair string. Phase 32H refines quality
+classification so Coinbase pairs are parsed as base and quote assets before
+quality flags are assigned.
 
 ## Phase 32G Purpose
 
@@ -136,6 +137,22 @@ The command prints structured JSON with:
 scanner counts, failures, duration, quality tier distribution, and quality flag
 distribution.
 
+## Quality Classification
+
+Coinbase `BASE-USDC` symbols are parsed as base/quote pairs for quality
+classification:
+
+- `AERO-USDC` uses base `AERO`, quote `USDC`.
+- `AIOZ-USDC` uses base `AIOZ`, quote `USDC`.
+- `BADGER-USDC` uses base `BADGER`, quote `USDC`.
+
+The quote asset `USDC` does not make the base asset stable-like. Stable-like
+quality applies to stable-like base assets such as `DAI`, `PYUSD`, `EURC`,
+`USDT`, `USDC`, `FDUSD`, and similar base identities.
+
+Low-history and new-listing flags remain data-quality context and can still
+appear when candle count or listing age justifies them.
+
 ## Verification
 
 Sampled Symbol Research check:
@@ -191,6 +208,5 @@ requested timeframe or a scanner data-quality guard.
 - full 179-symbol automated production rollout
 - watchlist Coinbase support
 - CoinGecko metadata layer
-- quality-classifier exchange refinement
 - combined Binance/Coinbase latest rankings design
 - production-depth retry strategy

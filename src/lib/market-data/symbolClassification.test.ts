@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { classifyUsdtSymbol, getSymbolQuality } from "./symbolClassification";
+import {
+  classifyUsdtSymbol,
+  getSymbolQuality,
+  parseSymbolQualityIdentity,
+} from "./symbolClassification";
 
 describe("symbol universe classification", () => {
   it("marks default crypto symbols as scanner and backtest eligible", () => {
@@ -64,6 +68,113 @@ describe("symbol universe classification", () => {
     expect(getSymbolQuality("WBTCUSDT")).toMatchObject({
       qualityTier: "wrapped_or_staked",
       isLowQuality: true,
+    });
+  });
+
+  it("does not mark normal Coinbase USDC pairs stable-like or suspicious due to quote or dash", () => {
+    for (const symbol of [
+      "AERO-USDC",
+      "AIOZ-USDC",
+      "AKT-USDC",
+      "ABT-USDC",
+      "BADGER-USDC",
+    ]) {
+      const quality = getSymbolQuality(symbol, {
+        exchange: "coinbase",
+        baseAsset: symbol.split("-")[0],
+        quoteAsset: "USDC",
+        assetClass: "crypto",
+      });
+
+      expect(quality.qualityTier).not.toBe("stable_like");
+      expect(quality.qualityFlags).not.toContain("stable_like");
+      expect(quality.qualityFlags).not.toContain("special_or_suspicious");
+    }
+  });
+
+  it("keeps Coinbase stable-like base assets stable-like", () => {
+    for (const symbol of ["DAI-USDC", "PYUSD-USDC", "EURC-USDC", "USDT-USDC"]) {
+      expect(
+        getSymbolQuality(symbol, {
+          exchange: "coinbase",
+          baseAsset: symbol.split("-")[0],
+          quoteAsset: "USDC",
+          assetClass: "crypto",
+        }),
+      ).toMatchObject({
+        qualityTier: "stable_like",
+        qualityFlags: ["stable_like"],
+      });
+    }
+  });
+
+  it("preserves Binance quality behavior for core and stable-like USDT pairs", () => {
+    expect(getSymbolQuality("BTCUSDT")).toMatchObject({
+      qualityTier: "core",
+      isLowQuality: false,
+      qualityFlags: [],
+    });
+    expect(getSymbolQuality("ETHUSDT")).toMatchObject({
+      qualityTier: "core",
+      isLowQuality: false,
+      qualityFlags: [],
+    });
+    expect(getSymbolQuality("USDCUSDT")).toMatchObject({
+      qualityTier: "stable_like",
+      qualityFlags: ["stable_like"],
+    });
+    expect(getSymbolQuality("FDUSDUSDT")).toMatchObject({
+      qualityTier: "stable_like",
+      qualityFlags: ["stable_like"],
+    });
+  });
+
+  it("parses dashed Coinbase symbols into base and quote assets", () => {
+    expect(parseSymbolQualityIdentity("AERO-USDC")).toMatchObject({
+      baseAsset: "AERO",
+      quoteAsset: "USDC",
+      isDashedPair: true,
+      isMalformedPair: false,
+    });
+    expect(parseSymbolQualityIdentity("BADGER-USDC")).toMatchObject({
+      baseAsset: "BADGER",
+      quoteAsset: "USDC",
+      isDashedPair: true,
+      isMalformedPair: false,
+    });
+    expect(parseSymbolQualityIdentity("AERO--USDC")).toMatchObject({
+      baseAsset: "AERO--USDC",
+      quoteAsset: null,
+      isDashedPair: true,
+      isMalformedPair: true,
+    });
+  });
+
+  it("does not mark mixed letter-number Coinbase bases suspicious solely because they contain digits", () => {
+    expect(
+      getSymbolQuality("A8-USDC", {
+        exchange: "coinbase",
+        baseAsset: "A8",
+        quoteAsset: "USDC",
+        assetClass: "crypto",
+      }),
+    ).toMatchObject({
+      qualityTier: "normal",
+      qualityFlags: [],
+    });
+  });
+
+  it("keeps all-numeric Coinbase bases explicit as special or suspicious", () => {
+    expect(
+      getSymbolQuality("00-USDC", {
+        exchange: "coinbase",
+        baseAsset: "00",
+        quoteAsset: "USDC",
+        assetClass: "crypto",
+      }),
+    ).toMatchObject({
+      qualityTier: "special_or_suspicious",
+      qualityFlags: ["special_or_suspicious"],
     });
   });
 
