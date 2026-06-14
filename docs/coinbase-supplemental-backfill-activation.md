@@ -140,16 +140,25 @@ signal rows. Scoring math and codebook meanings are unchanged.
 
 ## Controlled Batch Runner
 
-Phase 32G adds a manual medium-batch runner for Coinbase supplemental rows:
+Phase 32R keeps the capped manual batch runner for samples and adds an explicit
+full-universe production supplemental command:
 
 ```bash
 pnpm coinbase:supplemental:batch -- --dry-run --limit-symbols=20
+pnpm coinbase:supplemental:production -- --dry-run
 ```
 
-The runner selects already-imported Coinbase `-USDC` symbols, derives `4h`
-from `1h`, derives `1w` from stored `1d`, runs manual Coinbase scanner
-timeframes, and prints a structured rollout report. See
-`docs/coinbase-supplemental-production-rollout.md`.
+The production command selects all configured enabled Coinbase spot `-USDC`
+supplemental symbols from Postgres and does not require `--allow-large-run`.
+
+The runner selects already-imported Coinbase `-USDC` symbols, fetches CCXT native
+`1h` and `1d`, derives `4h` from complete `1h` buckets, derives `1w` from
+complete `1d` UTC weeks, runs manual Coinbase scanner timeframes, and prints a
+structured rollout report. See `docs/coinbase-supplemental-production-rollout.md`.
+
+Coinbase Advanced Direct, CryptoCompare, CoinGecko OHLC, and
+CryptoDataDownload are deprecated/not selected for Coinbase production primary
+or supplemental ingestion.
 
 ## Symbol Research
 
@@ -165,7 +174,7 @@ requested identity. If one exists, `latest.scanRun.exchange` remains
 `coinbase` and the dashed symbol is preserved.
 
 `/api/rankings/latest` remains anchored to the existing Binance full-universe
-selection until a later Coinbase production universe rollout.
+selection unless `exchange=coinbase` is requested explicitly.
 
 ## Quality Classification
 
@@ -181,9 +190,19 @@ context.
 ## Still Deferred
 
 - production cron enablement
-- large-scale production backfill
 - storage/backfill production job activation
 - watchlist Coinbase support
 - cross-source comparison workflows
 - CoinGecko metadata layer
 - UI redesign
+
+## Cleanup Plan After Verification
+
+Remove only after the CCXT full-universe supplemental run is verified:
+
+- old notes that describe `--allow-large-run` as required for the intended full
+  Coinbase supplemental run
+- old docs that present Coinbase Advanced, CryptoCompare, CoinGecko OHLC, or
+  CryptoDataDownload as production Coinbase OHLCV candidates
+- stale wrong-route sample artifacts that mix aggregated coin-level candles with
+  exchange-specific Coinbase symbols

@@ -10,9 +10,9 @@ Persistent disclaimer: Research-only. Not trading advice.
 
 ## Purpose
 
-The Phase 32C adapter prepares VegaRank to read Coinbase spot USDC market data
-through a provider-neutral interface. Coinbase remains supplemental to the
-Binance-first research universe; production selection is still deferred.
+The Phase 32R Coinbase supplemental production path uses CCXT only. Coinbase
+remains supplemental to the Binance-first research universe; Binance ingestion,
+scoring, cron, Archive, Watchlist, homepage, and UI behavior are unchanged.
 
 This adapter is not for cross-venue comparison, price-discrepancy workflows, or
 venue-routing decisions.
@@ -43,18 +43,18 @@ quote markets.
 
 ## Candle Support
 
-Supported VegaRank timeframes:
+Selected Coinbase supplemental VegaRank timeframes:
 
 - `1h`
-- `4h`
 - `1d`
+- `4h` derived from complete CCXT native `1h` buckets
+- `1w` derived from complete CCXT native `1d` UTC weeks
 
 The provider validates client-supported CCXT timeframes when the client exposes
-them. In production dry-run testing, Coinbase did not expose direct `4h` through
-the real CCXT client. The manual Coinbase backfill command therefore derives
-VegaRank `4h` candles from fetched `1h` candles in the market-data backfill
-layer. The direct provider fetch path still fails clearly if a requested
-timeframe is not supported by the client.
+them. The production supplemental batch fetches CCXT native `1h` and `1d` only.
+It does not fetch native Coinbase `4h` or `1w` candles. Higher intervals are
+generated in the market-data backfill layer with strict completeness checks and
+diagnostics.
 
 CCXT OHLCV rows are mapped from:
 
@@ -86,23 +86,56 @@ Those helpers are not wired into production jobs in Phase 32D.
 Phase 32E adds a manual Coinbase supplemental import and backfill path. See
 `docs/coinbase-supplemental-backfill-activation.md`.
 
-Phase 32F-B/C adds the manual Coinbase `4h` derivation path from normalized `1h`
-candles and keeps `1w` derived from stored `1d` candles.
+Phase 32R formalizes the supplemental production path: CCXT native `1h` and
+`1d`, derived `4h` from complete `1h` buckets, and derived `1w` from complete
+`1d` UTC weeks.
+
+## Production Command
+
+The intended full configured Coinbase supplemental universe command is:
+
+```bash
+pnpm coinbase:supplemental:production
+```
+
+It expands to the supplemental batch runner with `--full-universe`, selecting
+all configured enabled Coinbase spot `-USDC` symbols from Postgres. The capped
+sample command remains:
+
+```bash
+pnpm coinbase:supplemental:batch -- --limit-symbols=20
+```
+
+## Deprecated / Not Selected Providers
+
+Coinbase Advanced Direct, CryptoCompare, CoinGecko OHLC, and CryptoDataDownload
+are not selected for Coinbase production primary or supplemental ingestion.
+CoinGecko may remain metadata/context only; the others may remain read-only audit
+or manual benchmark references.
 
 ## Deferred Work
 
 The adapter intentionally does not implement:
 
 - direct Coinbase `1w` fetching
-- production-depth pagination and backfill activation
 - production cron integration
 - automatic Postgres import or backfill activation
 - watchlist Coinbase support
 - UI or Archive changes
 
-For `1w`, the adapter returns a controlled unsupported error that states weekly
-aggregation is deferred. It does not fetch daily candles and aggregate them in
-the direct provider fetch path.
+For `1w`, the direct provider fetch path still returns a controlled unsupported
+error. Weekly derivation belongs to the supplemental batch backfill layer.
+
+## Cleanup Plan After Verification
+
+Remove only after the full-universe CCXT supplemental run is verified:
+
+- stale docs that describe Coinbase supplemental production source selection as
+  deferred
+- old operator notes that require `--allow-large-run` for the intended full
+  Coinbase supplemental run
+- obsolete audit snapshots that imply Coinbase Advanced, CryptoCompare,
+  CoinGecko OHLC, or CryptoDataDownload is an active Coinbase ingestion route
 
 ## Testing Boundary
 

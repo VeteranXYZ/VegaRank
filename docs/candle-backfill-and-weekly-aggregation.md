@@ -106,16 +106,16 @@ Coinbase direct `4h` may not be exposed by the real CCXT client. The manual
 Coinbase backfill command derives `4h` candles from fetched `1h` candles using
 the intraday aggregation helper.
 
-Coinbase `1w` direct fetch remains unsupported in the provider. The manual
-Coinbase backfill command derives `1w` candles from stored `1d` candles with
-documented coverage checks.
+Coinbase `1w` direct fetch remains unsupported in the provider. The selected
+Coinbase supplemental batch derives `1w` candles from CCXT native `1d` source
+candles using complete UTC week checks.
 
-The Phase 32G medium-batch runner reuses these same rules for controlled
+The Phase 32R full-universe supplemental runner reuses these same rules for
 Coinbase supplemental batches. It does not add production cron behavior.
 
-Symbol Research can query manual Coinbase scanner results by exact exchange,
-market, symbol, and timeframe. Rankings latest remains on the current Binance
-full-universe selection until Coinbase production universe rollout.
+Symbol Research can query Coinbase scanner results by exact exchange, market,
+symbol, and timeframe. Rankings latest remains on the current Binance
+full-universe selection unless `exchange=coinbase` is requested explicitly.
 
 ## Deferred Work
 

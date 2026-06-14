@@ -104,6 +104,28 @@ describe("market data provider evaluation", () => {
       });
   });
 
+  it("keeps deprecated Coinbase supplemental alternatives out of production roles", () => {
+    expect(providerCapabilityProfilesById.coinbase_ccxt).toMatchObject({
+      fitForVegaRank: "supplemental_only",
+      recommendedRoles: expect.arrayContaining(["production_fallback"]),
+    });
+
+    for (const providerId of [
+      "coinbase_advanced_direct",
+      "coinbase_exchange_public",
+      "coinbase_exchange_direct",
+      "coingecko",
+      "cryptocompare",
+      "cryptodatadownload",
+    ] as const) {
+      const profile = providerCapabilityProfilesById[providerId];
+
+      expect(profile.recommendedRoles).not.toContain("production_primary");
+      expect(profile.recommendedRoles).not.toContain("production_fallback");
+      expect(profile.notes).toMatch(/not selected.*production/i);
+    }
+  });
+
   it("does not falsely satisfy future equities with crypto-only providers", () => {
     const result = evaluateMarketDataProviders("future_equities_ohlcv");
     const selectedIds = result.bestCandidates.map((candidate) => candidate.providerId);

@@ -22,23 +22,12 @@ Manual scanner coverage remained incomplete:
 - `4h`: 179 total symbols, 89 scanned, 90 skipped.
 - `1d`: 179 total symbols, 139 scanned, 40 skipped.
 
-These coverage questions are not accepted as production-ready behavior. Before
-expanding production cron, VegaRank needs a provider strategy and capability audit
-for exchange-specific OHLCV coverage.
-
-Phase 32L added a live read-only provider audit for Coinbase Advanced Direct,
-CryptoCompare, CryptoDataDownload, and CoinGecko. Phase 32M extends that audit
-with Coinbase Advanced bearer-token support, Coinbase Exchange public comparison,
-CryptoCompare provenance labeling, CoinGecko aggregated-only classification,
-CryptoDataDownload manual mapping notes, and paid/key-required provider
-checklists. It can test Coinbase direct `1h`, `4h`, and `1d` availability
-without writing candles, running scanners, changing cron, or changing scoring.
-See `docs/live-crypto-ohlcv-provider-audit.md`.
-
-The unauthenticated live audit currently treats Coinbase Advanced HTTP 401
-responses as an authentication requirement, not as proof that products or
-timeframes are unavailable. Coinbase Advanced direct `1w` remains unavailable in
-this audit path.
+Phase 32R formalizes the Coinbase supplemental production source decision:
+Coinbase supplemental ingestion uses CCXT only. Coinbase Advanced Direct,
+CryptoCompare, CoinGecko OHLC, and CryptoDataDownload are deprecated/not
+selected for Coinbase production primary or supplemental ingestion. They may
+remain as read-only audit, metadata, or manual benchmark references, but they are
+not part of the Coinbase supplemental batch path.
 
 The first medium batch showed that Coinbase `BASE-USDC` rows were being
 classified from the raw dashed pair string. Phase 32H refines quality
@@ -61,15 +50,31 @@ batch. It validates:
 This is not full Coinbase production cron activation and not the full
 179-symbol rollout.
 
-## Batch Command
+## Production Command
 
-The batch runner is:
+The intended full Coinbase supplemental production command is:
+
+```bash
+pnpm coinbase:supplemental:production
+```
+
+This command runs the Coinbase supplemental batch with `--full-universe`. It
+selects all configured, enabled Coinbase spot `-USDC` supplemental symbols from
+Postgres. It does not require `--allow-large-run`.
+
+Production command dry run:
+
+```bash
+pnpm coinbase:supplemental:production -- --dry-run
+```
+
+The older capped sample runner remains available for small rollout checks:
 
 ```bash
 pnpm coinbase:supplemental:batch
 ```
 
-Default behavior:
+Sample runner default behavior:
 
 - selects Coinbase `-USDC` symbols already imported into Postgres
 - defaults to `--limit-symbols=20`
@@ -86,7 +91,7 @@ Safe dry run:
 pnpm coinbase:supplemental:batch -- --dry-run --limit-symbols=20 --timeframes=4h,1d,1w --scanner-timeframes=4h,1d
 ```
 
-Real 20-symbol medium batch, only after dry-run review:
+Real 20-symbol sample batch, only after dry-run review:
 
 ```bash
 pnpm coinbase:supplemental:batch -- --limit-symbols=20 --timeframes=4h,1d,1w --scanner-timeframes=4h,1d
@@ -108,36 +113,34 @@ If `--symbols` is provided, each symbol must:
 - end with `-USDC`
 - be enabled and not stored with a disabled status
 
-If `--symbols` is not provided, the runner reads Coinbase symbols from Postgres,
-filters to enabled `-USDC` spot rows, sorts by symbol, and applies
-`--limit-symbols`.
+If `--full-universe` is provided, the runner reads Coinbase symbols from
+Postgres, filters to enabled `-USDC` spot rows, sorts by symbol, and selects the
+entire configured supplemental universe.
+
+If neither `--symbols` nor `--full-universe` is provided, the sample runner reads
+Coinbase symbols from Postgres, filters to enabled `-USDC` spot rows, sorts by
+symbol, and applies `--limit-symbols`.
 
 The runner never uses `exchange=all` and never selects Binance rows.
 
 ## Candle Backfill
 
-For each selected symbol:
+Coinbase supplemental production candles come from CCXT only. For each selected
+symbol:
 
-- `4h` fetches Coinbase `1h` candles, aggregates complete UTC 4h buckets, drops
+- `1h` fetches Coinbase CCXT native `1h` candles directly.
+- `1d` fetches Coinbase CCXT native `1d` candles directly.
+- `4h` fetches Coinbase CCXT native `1h` candles, aggregates complete UTC 4h buckets, drops
   partial buckets, and writes generated `4h` candles.
-- `1d` fetches Coinbase `1d` candles directly through the provider adapter,
-  normalizes, gap-checks, and writes daily candles.
-- `1w` reads stored Coinbase `1d` candles, aggregates Monday UTC weeks, drops
+- `1w` fetches Coinbase CCXT native `1d` candles, aggregates Monday UTC weeks, drops
   partial weeks, and writes weekly candles.
 
 The report includes fetched source counts, generated candle counts, gaps,
 inserted/updated rows, dropped partial buckets, and dropped partial weeks.
 
-This aggregation path is a controlled fallback, not the preferred long-term data
-strategy. Native provider intervals should be preferred when they provide enough
-history, stable access, acceptable licensing, and clear exchange/pair provenance.
-Coin-level aggregated candles must not be silently mixed with Coinbase
-exchange-specific candles.
-
-No Phase 32M change promotes the current derived `4h` or `1w` paths into the
-long-term primary source. They remain validation and fallback paths while
-authenticated Coinbase Advanced and third-party exchange-specific providers are
-evaluated.
+No Coinbase Advanced, Coinbase Exchange public, CryptoCompare, CoinGecko OHLC,
+or CryptoDataDownload candle client is used by this batch. Coin-level aggregated
+candles must not be mixed with Coinbase exchange-specific candles.
 
 ## Scanner Run
 
@@ -230,13 +233,14 @@ requested timeframe or a scanner data-quality guard.
 
 ## Suggested Progression
 
-1. 20-symbol dry run.
-2. 20-symbol real manual batch.
-3. 50-symbol dry run.
-4. 50-symbol real manual batch.
-5. Full 179-symbol manual backfill and scanner validation.
-6. Provider strategy and capability audit before production cron expansion.
-7. Production cron design only after manual batches and provider audit are reviewed.
+1. Optional 20-symbol sample dry run.
+2. Optional 20-symbol sample real batch.
+3. Full-universe production dry run:
+   `pnpm coinbase:supplemental:production -- --dry-run`
+4. Full-universe production batch:
+   `pnpm coinbase:supplemental:production`
+5. API validation for explicit Coinbase latest rankings and Symbol Research.
+6. Production cron design only after manual full-universe runs are reviewed.
 
 Useful live audit command:
 
@@ -255,15 +259,26 @@ primary source even when its OHLC endpoint succeeds. Production cron remains
 disabled until the provider audit decision summary supports a separate
 production-source change.
 
+## Cleanup Plan After Verification
+
+Remove only after this phase has been verified in production:
+
+- outdated docs that describe Coinbase Advanced, CryptoCompare, CoinGecko OHLC,
+  or CryptoDataDownload as candidate production Coinbase OHLCV sources
+- stale sample-output JSON or markdown from old provider audits that imply a
+  non-CCXT Coinbase supplemental route
+- old operator notes that require `--allow-large-run` for the intended full
+  Coinbase supplemental run
+- any archived wrong-route data exports that mix aggregated coin-level candles
+  with exchange-specific Coinbase symbols
+
 ## Deferred
 
 - production cron enablement
-- full 179-symbol automated production rollout
 - watchlist Coinbase support
 - CoinGecko metadata layer
 - combined Binance/Coinbase latest rankings design
 - production-depth retry strategy
-- provider capability audit and data source selection
 
 See `docs/market-data-source-strategy.md` for the Phase 32K market data source
 evaluation framework.

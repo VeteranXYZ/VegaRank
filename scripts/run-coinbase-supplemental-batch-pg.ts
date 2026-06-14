@@ -39,14 +39,19 @@ const supportedScannerTimeframes = ["4h", "1d"] as const;
 
 export type BatchBackfillTimeframe = (typeof supportedBackfillTimeframes)[number];
 export type BatchScannerTimeframe = (typeof supportedScannerTimeframes)[number];
+export type CoinbaseSupplementalSelectionMode =
+  | "sample"
+  | "full-universe"
+  | "explicit-symbols";
 
 export type CoinbaseSupplementalBatchOptions = {
   dryRun: boolean;
   skipImport: boolean;
   skipBackfill: boolean;
   skipScanner: boolean;
+  selectionMode: CoinbaseSupplementalSelectionMode;
   symbols: string[];
-  limitSymbols: number;
+  limitSymbols: number | null;
   allowLargeRun: boolean;
   timeframes: BatchBackfillTimeframe[];
   scannerTimeframes: BatchScannerTimeframe[];
@@ -150,6 +155,7 @@ export type CoinbaseSupplementalBatchReport = {
   ok: boolean;
   dryRun: boolean;
   skipImport: boolean;
+  selectionMode: CoinbaseSupplementalSelectionMode;
   symbolsSelected: number;
   symbols: string[];
   timeframesBackfilled: BatchBackfillTimeframe[];
@@ -227,17 +233,41 @@ export function parseCoinbaseSupplementalBatchOptions(
 ): CoinbaseSupplementalBatchOptions {
   const flags = parseFlags(args);
   const symbols = parseSymbols(flags.symbols ?? flags.symbol);
-  const allowLargeRun = parseBooleanFlag(flags.allowLargeRun, false, "allow-large-run");
-  const limitSymbols = parseInteger({
-    value: flags.limitSymbols,
-    fallback: DEFAULT_LIMIT_SYMBOLS,
-    min: 1,
-    max: MAX_ALLOWED_SYMBOLS,
-    name: "limit-symbols",
-  });
-  const requestedSymbolCount = symbols.length > 0 ? symbols.length : limitSymbols;
+  const fullUniverse = parseBooleanFlag(flags.fullUniverse, false, "full-universe");
 
-  if (requestedSymbolCount > HARD_CAP_SYMBOLS && !allowLargeRun) {
+  if (fullUniverse && symbols.length > 0) {
+    throw new Error("--full-universe cannot be combined with --symbols.");
+  }
+
+  if (fullUniverse && flags.limitSymbols !== undefined) {
+    throw new Error("--full-universe cannot be combined with --limit-symbols.");
+  }
+
+  const allowLargeRun = parseBooleanFlag(flags.allowLargeRun, false, "allow-large-run");
+  const selectionMode: CoinbaseSupplementalSelectionMode =
+    symbols.length > 0 ? "explicit-symbols" : fullUniverse ? "full-universe" : "sample";
+  const limitSymbols =
+    selectionMode === "sample"
+      ? parseInteger({
+          value: flags.limitSymbols,
+          fallback: DEFAULT_LIMIT_SYMBOLS,
+          min: 1,
+          max: MAX_ALLOWED_SYMBOLS,
+          name: "limit-symbols",
+        })
+      : null;
+  const requestedSymbolCount =
+    selectionMode === "explicit-symbols"
+      ? symbols.length
+      : selectionMode === "sample"
+        ? (limitSymbols ?? DEFAULT_LIMIT_SYMBOLS)
+        : 0;
+
+  if (
+    selectionMode !== "full-universe" &&
+    requestedSymbolCount > HARD_CAP_SYMBOLS &&
+    !allowLargeRun
+  ) {
     throw new Error(
       `Coinbase batch is capped at ${HARD_CAP_SYMBOLS} symbols unless --allow-large-run is set.`,
     );
@@ -256,6 +286,7 @@ export function parseCoinbaseSupplementalBatchOptions(
     skipImport,
     skipBackfill: parseBooleanFlag(flags.skipBackfill, false, "skip-backfill"),
     skipScanner: parseBooleanFlag(flags.skipScanner, false, "skip-scanner"),
+    selectionMode,
     symbols,
     limitSymbols,
     allowLargeRun,
@@ -403,7 +434,7 @@ export async function selectCoinbaseBatchSymbols({
   store: CoinbaseBatchMarketDataStore;
   options: Pick<
     CoinbaseSupplementalBatchOptions,
-    "symbols" | "limitSymbols"
+    "selectionMode" | "symbols" | "limitSymbols"
   >;
 }): Promise<PgSymbol[]> {
   if (options.symbols.length > 0) {
@@ -440,7 +471,12 @@ export async function selectCoinbaseBatchSymbols({
   return rows
     .filter(isSelectableCoinbaseUsdcSymbol)
     .sort((left, right) => left.symbol.localeCompare(right.symbol))
-    .slice(0, options.limitSymbols);
+    .slice(
+      0,
+      options.selectionMode === "full-universe"
+        ? undefined
+        : (options.limitSymbols ?? DEFAULT_LIMIT_SYMBOLS),
+    );
 }
 
 async function runBackfillStage({
@@ -478,9 +514,10 @@ async function runBackfillStage({
       symbolsTotal: symbols.length,
       params: {
         mode: "manual-coinbase-supplemental-batch",
+        selectionMode: options.selectionMode,
         timeframes: options.timeframes,
         requestedSymbols: options.symbols,
-        limitSymbols: options.symbols.length === 0 ? options.limitSymbols : null,
+        limitSymbols: options.selectionMode === "sample" ? options.limitSymbols : null,
         targetCandles: options.targetCandles[timeframe],
         providerMaxCandlesPerRequest: options.providerMaxCandlesPerRequest,
         concurrency: options.concurrency,
@@ -594,6 +631,7 @@ async function runScannerStage({
       symbolsTotal: symbols.length,
       params: {
         mode: "manual-coinbase-supplemental-batch",
+        selectionMode: options.selectionMode,
         candleLimit: options.scannerCandleLimit,
         requestedSymbols: symbols.map((symbol) => symbol.symbol),
         source: "postgres",
@@ -943,6 +981,7 @@ function createInitialReport({
     ok: true,
     dryRun: options.dryRun,
     skipImport: options.skipImport,
+    selectionMode: options.selectionMode,
     symbolsSelected: perSymbol.length,
     symbols: perSymbol.map((symbol) => symbol.symbol),
     timeframesBackfilled: options.skipBackfill ? [] : options.timeframes,
@@ -1087,14 +1126,21 @@ function buildNextRecommendedCommand(
   completedRun: boolean,
 ) {
   if (options.dryRun) {
-    return `pnpm coinbase:supplemental:batch -- --limit-symbols=${options.limitSymbols} --timeframes=${options.timeframes.join(",")} --scanner-timeframes=${options.scannerTimeframes.join(",")}`;
+    if (options.selectionMode === "full-universe") {
+      return `pnpm coinbase:supplemental:production -- --timeframes=${options.timeframes.join(",")} --scanner-timeframes=${options.scannerTimeframes.join(",")}`;
+    }
+
+    return `pnpm coinbase:supplemental:batch -- --limit-symbols=${options.limitSymbols ?? DEFAULT_LIMIT_SYMBOLS} --timeframes=${options.timeframes.join(",")} --scanner-timeframes=${options.scannerTimeframes.join(",")}`;
   }
 
   if (!completedRun) {
     return null;
   }
 
-  if (options.limitSymbols < HARD_CAP_SYMBOLS) {
+  if (
+    options.selectionMode === "sample" &&
+    (options.limitSymbols ?? DEFAULT_LIMIT_SYMBOLS) < HARD_CAP_SYMBOLS
+  ) {
     return `pnpm coinbase:supplemental:batch -- --limit-symbols=${HARD_CAP_SYMBOLS} --timeframes=${options.timeframes.join(",")} --scanner-timeframes=${options.scannerTimeframes.join(",")}`;
   }
 

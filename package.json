@@ -23,6 +23,7 @@
     "market:backfill:pg": "node scripts/run-ts.mjs scripts/market-backfill-pg.ts",
     "backfill:coinbase-usdc": "node scripts/run-ts.mjs scripts/backfill-coinbase-usdc-candles-pg.ts",
     "coinbase:supplemental:batch": "node scripts/run-ts.mjs scripts/run-coinbase-supplemental-batch-pg.ts",
+    "coinbase:supplemental:production": "node scripts/run-ts.mjs scripts/run-coinbase-supplemental-batch-pg.ts --full-universe",
     "market:coverage:pg": "node scripts/run-ts.mjs scripts/market-coverage-pg.ts",
     "market:stats": "node scripts/run-ts.mjs scripts/market.ts stats",
     "market:inspect": "node scripts/run-ts.mjs scripts/market.ts inspect",

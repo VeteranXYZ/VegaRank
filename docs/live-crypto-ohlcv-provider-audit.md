@@ -7,9 +7,11 @@ alerting software, or a trading performance dashboard.
 ## Purpose
 
 Phase 32L added a live, read-only audit tool for crypto OHLCV providers. Phase
-32M extends that tool so it can honestly test authenticated Coinbase Advanced
-requests and compare third-party options before any production data source is
-changed.
+32M extended that tool so it could honestly test authenticated Coinbase Advanced
+requests and compare third-party options before any production data source was
+changed. Phase 32R keeps the audit read-only and marks Coinbase Advanced Direct,
+CryptoCompare, CoinGecko OHLC, and CryptoDataDownload as deprecated/not selected
+for Coinbase production primary or supplemental ingestion.
 
 The audit does not:
 
@@ -30,10 +32,9 @@ remain:
 - Coinbase `4h` manual scan: 179 total symbols, 89 scanned, 90 skipped.
 - Coinbase `1d` manual scan: 179 total symbols, 139 scanned, 40 skipped.
 
-Those gaps should be explained before Coinbase is promoted into automated
-production schedules. Hand-aggregated candles can remain a temporary fallback
-and diagnostic path, but they should not become VegaRank's long-term primary
-market data strategy.
+Phase 32R selected the current Coinbase supplemental production source: CCXT
+only. Binance remains unchanged as the production primary source, and Coinbase
+cron is still not enabled in this phase.
 
 ## Exchange-Specific Versus Aggregated OHLCV
 
@@ -71,18 +72,22 @@ Phase 32M includes live probes for:
   Without credentials, the probe reports `auth_required` without making a
   network request. If credentials are rejected, the response is sanitized and
   reported as an auth failure. `1w` is reported unsupported rather than derived.
+  Deprecated/not selected for Coinbase production ingestion.
 - Coinbase Exchange public: read-only comparator for old public product candles.
   It probes native public `1h` and `1d` where product ids exist. `4h` and `1w`
   are reported unsupported rather than guessed or derived.
 - CryptoCompare: crypto historical OHLCV probe using inferred base/quote and
   exchange parameters where possible. Results are labeled as exchange-specific,
   aggregated, or uncertain based on source provenance. API-key or plan blocks
-  are reported without throwing.
+  are reported without throwing. Deprecated/not selected for production
+  ingestion.
 - CoinGecko: aggregated coin-level OHLC probe. Results are labeled
   aggregated-only and are not eligible as exchange-specific primary data.
+  CoinGecko OHLC is metadata/context only and deprecated/not selected for
+  production ingestion.
 - CryptoDataDownload: safe placeholder probe. It reports
   `needs_manual_url_mapping` rather than scraping pages or guessing brittle CSV
-  URLs.
+  URLs. Deprecated/not selected for production ingestion.
 
 Paid or key-gated providers such as CoinAPI, Kaiko, Polygon, and Tiingo can be
 included in the report as `paid_or_key_required`. The audit does not add secrets
@@ -164,10 +169,16 @@ Native support is reported separately from provider-aggregated or unsupported
 availability. If future phases compare derived candles, the report must label
 them as derived and preserve source provenance.
 
-Current Coinbase production backfill still relies on CCXT direct `1d`, derived
-`1w` from `1d`, and derived `4h` from `1h`. That remains a validation/fallback
-path only. Phase 32M does not enable production cron and does not change
-production ingestion.
+Current Coinbase supplemental production backfill is CCXT-only:
+
+- native CCXT `1h` for VegaRank `1h`
+- native CCXT `1d` for VegaRank `1d`
+- complete-bucket derivation from CCXT `1h` for VegaRank `4h`
+- complete UTC-week derivation from CCXT `1d` for VegaRank `1w`
+
+The live audit remains useful for read-only diagnostics, but its Coinbase
+Advanced, CryptoCompare, CoinGecko OHLC, and CryptoDataDownload probes are not
+production ingestion routes.
 
 ## References
 

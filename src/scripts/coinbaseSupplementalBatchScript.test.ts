@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import type { Candle } from "@/lib/shared/timeframes";
 import type {
   CandleProviderResult,
@@ -17,8 +18,20 @@ import {
 const hourMs = 60 * 60 * 1000;
 const dayMs = 24 * hourMs;
 const monday = Date.UTC(2026, 0, 5);
+const packageJson = JSON.parse(readFileSync("package.json", "utf8")) as {
+  scripts?: Record<string, string>;
+};
 
 describe("Coinbase supplemental batch script", () => {
+  it("exposes an explicit full-universe production command", () => {
+    expect(packageJson.scripts?.["coinbase:supplemental:production"]).toContain(
+      "--full-universe",
+    );
+    expect(packageJson.scripts?.["coinbase:supplemental:production"]).not.toContain(
+      "--limit-symbols",
+    );
+  });
+
   it("parses safe defaults and refuses more than 50 symbols without approval", () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-01-01T00:00:00.000Z"));
@@ -27,6 +40,7 @@ describe("Coinbase supplemental batch script", () => {
       expect(parseCoinbaseSupplementalBatchOptions([])).toMatchObject({
         dryRun: false,
         skipImport: true,
+        selectionMode: "sample",
         symbols: [],
         limitSymbols: 20,
         timeframes: ["4h", "1d", "1w"],
@@ -54,6 +68,31 @@ describe("Coinbase supplemental batch script", () => {
     ).toBe(51);
   });
 
+  it("parses an explicit full-universe production mode without allow-large-run", () => {
+    const options = parseCoinbaseSupplementalBatchOptions(["--full-universe"]);
+
+    expect(options).toMatchObject({
+      selectionMode: "full-universe",
+      symbols: [],
+      limitSymbols: null,
+      allowLargeRun: false,
+      timeframes: ["4h", "1d", "1w"],
+      scannerTimeframes: ["4h", "1d"],
+    });
+    expect(() =>
+      parseCoinbaseSupplementalBatchOptions([
+        "--full-universe",
+        "--limit-symbols=20",
+      ]),
+    ).toThrow("--full-universe cannot be combined with --limit-symbols");
+    expect(() =>
+      parseCoinbaseSupplementalBatchOptions([
+        "--full-universe",
+        "--symbols=AERO-USDC",
+      ]),
+    ).toThrow("--full-universe cannot be combined with --symbols");
+  });
+
   it("selects only enabled Coinbase -USDC symbols in deterministic symbol order", async () => {
     const store = makeMarketDataStore({
       listSymbols: vi.fn(async () => [
@@ -72,6 +111,37 @@ describe("Coinbase supplemental batch script", () => {
       "AERO-USDC",
       "B3-USDC",
     ]);
+    expect(store.listSymbols).toHaveBeenCalledWith({
+      exchange: "coinbase",
+      market: "spot",
+      limit: null,
+      assetClass: "all",
+      includeNonScanner: true,
+    });
+  });
+
+  it("selects the full configured Coinbase supplemental universe without slicing to 20", async () => {
+    const configuredSymbols = Array.from({ length: 25 }, (_, index) =>
+      makeSymbol(`C${String(index + 1).padStart(3, "0")}-USDC`),
+    ).reverse();
+    const store = makeMarketDataStore({
+      listSymbols: vi.fn(async () => [
+        ...configuredSymbols,
+        makeSymbol("BTCUSDT", { exchange: "binance", quoteAsset: "USDT" }),
+        makeSymbol("OLD-USDC", { status: "disabled" }),
+      ]),
+    });
+    const options = parseCoinbaseSupplementalBatchOptions(["--full-universe"]);
+
+    const symbols = await selectCoinbaseBatchSymbols({ store, options });
+
+    expect(symbols).toHaveLength(25);
+    expect(symbols.map((symbol) => symbol.symbol)).toEqual(
+      Array.from(
+        { length: 25 },
+        (_, index) => `C${String(index + 1).padStart(3, "0")}-USDC`,
+      ),
+    );
     expect(store.listSymbols).toHaveBeenCalledWith({
       exchange: "coinbase",
       market: "spot",
@@ -132,6 +202,7 @@ describe("Coinbase supplemental batch script", () => {
     expect(report).toMatchObject({
       ok: true,
       dryRun: true,
+      selectionMode: "sample",
       symbolsSelected: 1,
       symbols: ["AERO-USDC"],
     });
