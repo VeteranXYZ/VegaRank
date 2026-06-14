@@ -28,6 +28,7 @@
     "market:inspect": "node scripts/run-ts.mjs scripts/market.ts inspect",
     "market-data:providers:audit": "node scripts/run-ts.mjs scripts/audit-market-data-providers.ts",
     "market-data:providers:live-audit": "node scripts/run-ts.mjs scripts/audit-live-crypto-ohlcv-providers.ts",
+    "market-data:ccxt:audit": "node scripts/run-ts.mjs scripts/audit-ccxt-ohlcv.ts",
     "symbols:import:pg": "node scripts/run-ts.mjs scripts/import-binance-symbols-pg.ts",
     "import:coinbase-usdc": "node scripts/run-ts.mjs scripts/import-coinbase-usdc-symbols-pg.ts",
     "symbols:summary:pg": "node scripts/run-ts.mjs scripts/symbols-summary-pg.ts",
