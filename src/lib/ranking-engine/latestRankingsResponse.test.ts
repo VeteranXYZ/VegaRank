@@ -27,10 +27,60 @@ describe("latest rankings response", () => {
 
     expect(response.summary.totalSignals).toBe(1);
     expect(response.summary.lowQualityExcluded).toBe(1);
+    expect(response.summary.lowQualityIncluded).toBe(0);
     expect(response.items.map((item) => item.symbol)).toEqual(["BTCUSDT"]);
+    expect(response.items[0]).toMatchObject({
+      qualityTier: "core",
+      isLowQuality: false,
+      qualityFlags: [],
+    });
     expect(new Set(response.items.map((item) => item.scanRunId))).toEqual(
       new Set(["run-1"]),
     );
+  });
+
+  it("can include only configured low-quality flags for explicit supplemental universes", () => {
+    const response = buildLatestRankingsResponse({
+      run: makeRun("run-supplemental"),
+      signals: [
+        makeSignal({
+          id: "normal",
+          scanRunId: "run-supplemental",
+          symbol: "BTCUSDT",
+          rankScore: 70,
+        }),
+        makeSignal({
+          id: "low-history",
+          scanRunId: "run-supplemental",
+          symbol: "AERO-USDC",
+          rankScore: 90,
+          candleCount: 120,
+        }),
+        makeSignal({
+          id: "special",
+          scanRunId: "run-supplemental",
+          symbol: "UUSDT",
+          rankScore: 120,
+        }),
+      ],
+      limit: 100,
+      includeLowQuality: false,
+      includedLowQualityFlags: ["low_history", "new_listing"],
+    });
+
+    expect(response.summary.totalSignals).toBe(2);
+    expect(response.summary.lowQualityExcluded).toBe(1);
+    expect(response.summary.lowQualityIncluded).toBe(1);
+    expect(response.items.map((item) => item.symbol)).toEqual([
+      "AERO-USDC",
+      "BTCUSDT",
+    ]);
+    expect(response.items[0]).toMatchObject({
+      symbol: "AERO-USDC",
+      qualityTier: "low_history",
+      isLowQuality: true,
+      qualityFlags: ["low_history"],
+    });
   });
 
   it("groups results by trading semantics before rank score", () => {
@@ -166,6 +216,9 @@ describe("latest rankings response", () => {
       setupCode: "TR_601",
       signalCodes: ["PX_501"],
       qualityCodes: ["QH_601"],
+      qualityTier: "core",
+      isLowQuality: false,
+      qualityFlags: [],
       scannerVersion: scannerCodeVersions.scannerVersion,
       codeSchemaVersion: scannerCodeVersions.codeSchemaVersion,
       dictionaryVersion: scannerCodeVersions.dictionaryVersion,

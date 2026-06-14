@@ -79,6 +79,10 @@ type StatusResponse = {
 const serviceName = "trade-api" as const;
 const defaultHost = "127.0.0.1";
 const defaultPort = "3000";
+const COINBASE_SUPPLEMENTAL_INCLUDED_LOW_QUALITY_FLAGS = [
+  "low_history",
+  "new_listing",
+] as const;
 const SYMBOL_RESEARCH_REQUIRED_CANDLES = 200;
 const MTF_LATEST_TIMEFRAMES = ["1h", "4h", "1d", "1w"] as const;
 const SIGNAL_EVALUATION_TIMEFRAMES = ["1h", "4h", "1d", "1w"] as const;
@@ -1226,6 +1230,7 @@ async function handleLatestRankings(response: http.ServerResponse, url: URL) {
   const market = explicitExchange
     ? normalizeIdentityParam(url.searchParams.get("market"), "spot")
     : null;
+  const explicitExchangeSupplemental = explicitExchange && exchange === "coinbase";
   const assetClass = parseAssetClassParam(url.searchParams.get("assetClass"));
   const includeLowQuality = parseBooleanParam(url.searchParams.get("includeLowQuality"));
   const includeNonScanner = parseBooleanParam(url.searchParams.get("includeNonScanner"));
@@ -1328,6 +1333,9 @@ async function handleLatestRankings(response: http.ServerResponse, url: URL) {
       signals,
       limit: limit.value,
       includeLowQuality,
+      includedLowQualityFlags: explicitExchangeSupplemental
+        ? [...COINBASE_SUPPLEMENTAL_INCLUDED_LOW_QUALITY_FLAGS]
+        : undefined,
     });
     const latestRunSelection = buildLatestRunSelectionMetadata({
       run,
@@ -1339,6 +1347,7 @@ async function handleLatestRankings(response: http.ServerResponse, url: URL) {
       ...latestRankings,
       summary: {
         ...latestRankings.summary,
+        explicitExchangeSupplemental,
         latestRunSelection,
       },
       service: serviceName,

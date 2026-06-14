@@ -1,4 +1,8 @@
-import { getSymbolQuality, type SymbolQuality } from "@/lib/market-data/symbolClassification";
+import {
+  getSymbolQuality,
+  type SymbolQuality,
+  type SymbolQualityTier,
+} from "@/lib/market-data/symbolClassification";
 import type {
   LatestRankingSignalRecord,
   ScanRunRecord,
@@ -23,7 +27,7 @@ type EnrichedLatestRankingItem = LatestRankingSignalRecord &
     resultGroup: RankingResultGroup;
   } & RankingResultReview;
 
-export type LatestRankingItem = PublicStoredScannerSignal;
+export type LatestRankingItem = PublicStoredScannerSignal & SymbolQuality;
 
 const BALANCED_ALLOCATION_STRATEGY = "balanced_group_quota_v1" as const;
 
@@ -42,6 +46,7 @@ export type LatestRankingsResponse = {
   summary: ReturnType<typeof summarizeRankingResultGroups> & {
     returnedItems: number;
     lowQualityExcluded: number;
+    lowQualityIncluded: number;
     visibleByGroup: Record<RankingResultGroup, number>;
     totalByGroup: Record<RankingResultGroup, number>;
     limitedGroups: RankingResultGroup[];
@@ -56,20 +61,30 @@ export function buildLatestRankingsResponse({
   signals,
   limit,
   includeLowQuality,
+  includedLowQualityFlags = [],
 }: {
   run: ScanRunRecord;
   signals: LatestRankingSignalRecord[];
   limit: number;
   includeLowQuality: boolean;
+  includedLowQualityFlags?: SymbolQualityTier[];
 }): LatestRankingsResponse {
   const enriched = signals.map(enrichLatestRankingItem);
+  const includedLowQualityFlagSet = new Set(includedLowQualityFlags);
   const qualityFiltered = includeLowQuality
     ? enriched
-    : enriched.filter((signal) => !signal.isLowQuality);
+    : enriched.filter(
+        (signal) =>
+          !signal.isLowQuality ||
+          hasIncludedLowQualityFlag(signal, includedLowQualityFlagSet),
+      );
   const sorted = [...qualityFiltered].sort(compareRankingResultGroupItems);
   const allocation = allocateLatestRankingItems(sorted, limit);
   const items = allocation.items.map(toPublicLatestRankingItem);
   const baseSummary = summarizeRankingResultGroups(qualityFiltered);
+  const lowQualityIncluded = qualityFiltered.filter(
+    (signal) => signal.isLowQuality,
+  ).length;
 
   return {
     ok: true,
@@ -78,6 +93,7 @@ export function buildLatestRankingsResponse({
       ...baseSummary,
       returnedItems: items.length,
       lowQualityExcluded: enriched.length - qualityFiltered.length,
+      lowQualityIncluded,
       visibleByGroup: allocation.visibleByGroup,
       totalByGroup: allocation.totalByGroup,
       limitedGroups: allocation.limitedGroups,
@@ -225,5 +241,26 @@ function buildLatestRankingsPublicGroups(items: EnrichedLatestRankingItem[]) {
 }
 
 function toPublicLatestRankingItem(item: EnrichedLatestRankingItem): LatestRankingItem {
-  return serializeStoredSignalToCodeContract(item);
+  return {
+    ...serializeStoredSignalToCodeContract(item),
+    qualityTier: item.qualityTier,
+    isLowQuality: item.isLowQuality,
+    qualityFlags: item.qualityFlags,
+  };
+}
+
+function hasIncludedLowQualityFlag(
+  signal: EnrichedLatestRankingItem,
+  includedLowQualityFlags: Set<SymbolQualityTier>,
+) {
+  if (includedLowQualityFlags.size === 0) {
+    return false;
+  }
+
+  return (
+    includedLowQualityFlags.has(signal.qualityTier) ||
+    signal.qualityFlags.some((flag) =>
+      includedLowQualityFlags.has(flag as SymbolQualityTier),
+    )
+  );
 }

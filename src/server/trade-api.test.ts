@@ -413,6 +413,21 @@ describe("trade-api latest rankings run selection", () => {
         params: { assetClass: "crypto", allSymbols: true },
       }),
     );
+    listLatestRankingSignalsForRunMock.mockResolvedValue([
+      makeResearchSignal({
+        id: "binance-btc",
+        scanRunId: "full-run",
+        symbol: "BTCUSDT",
+        rankScore: 80,
+      }),
+      makeResearchSignal({
+        id: "binance-low-history",
+        scanRunId: "full-run",
+        symbol: "NEWUSDT",
+        rankScore: 120,
+        candleCount: 120,
+      }),
+    ]);
 
     const response = await requestTradeApi(
       "/api/rankings/latest?timeframe=4h&assetClass=crypto&limit=100",
@@ -441,6 +456,12 @@ describe("trade-api latest rankings run selection", () => {
       minExpectedSymbols: 300,
       fallbackUsed: false,
     });
+    expect(body.summary.lowQualityExcluded).toBe(1);
+    expect(body.summary.lowQualityIncluded).toBe(0);
+    expect(body.summary.explicitExchangeSupplemental).toBe(false);
+    expect(body.items.map((item: { symbol: string }) => item.symbol)).toEqual([
+      "BTCUSDT",
+    ]);
   });
 
   it("passes hourly, daily, and weekly timeframes through latest rankings metadata", async () => {
@@ -598,6 +619,7 @@ describe("trade-api latest rankings run selection", () => {
         exchange: "coinbase",
         market: "spot",
         symbol: "AERO-USDC",
+        candleCount: 120,
         scanRunSymbolsTotal: 3,
         scanRunSymbolsScanned: 3,
         scanRunSignalsCreated: 2,
@@ -624,6 +646,11 @@ describe("trade-api latest rankings run selection", () => {
       minExpectedSymbols: 300,
       fallbackUsed: false,
     });
+    expect(body.summary).toMatchObject({
+      lowQualityExcluded: 0,
+      lowQualityIncluded: 1,
+      explicitExchangeSupplemental: true,
+    });
     expect(body.items).toHaveLength(1);
     expect(body.items[0]).toMatchObject({
       id: "coinbase-aero",
@@ -631,6 +658,9 @@ describe("trade-api latest rankings run selection", () => {
       exchange: "coinbase",
       market: "spot",
       symbol: "AERO-USDC",
+      qualityTier: "low_history",
+      isLowQuality: true,
+      qualityFlags: ["low_history"],
     });
     expect(getLatestRankingRunMock).toHaveBeenCalledWith({
       timeframe: "4h",
@@ -671,6 +701,15 @@ describe("trade-api latest rankings run selection", () => {
         market: "spot",
         symbol: "BTCUSDT",
       }),
+      makeResearchSignal({
+        id: "binance-low-history",
+        scanRunId: "binance-run",
+        exchange: "binance",
+        market: "spot",
+        symbol: "NEWUSDT",
+        rankScore: 120,
+        candleCount: 120,
+      }),
     ]);
 
     const response = await requestTradeApi(
@@ -685,6 +724,12 @@ describe("trade-api latest rankings run selection", () => {
       scanRunId: "binance-run",
       exchange: "binance",
       symbol: "BTCUSDT",
+    });
+    expect(body.items).toHaveLength(1);
+    expect(body.summary).toMatchObject({
+      lowQualityExcluded: 1,
+      lowQualityIncluded: 0,
+      explicitExchangeSupplemental: false,
     });
     expect(getLatestRankingRunMock).toHaveBeenCalledWith({
       timeframe: "4h",
@@ -736,6 +781,65 @@ describe("trade-api latest rankings run selection", () => {
       market: "spot",
     });
     expect(listLatestRankingSignalsForRunMock).not.toHaveBeenCalled();
+  });
+
+  it("keeps an explicit Coinbase run selected when it has zero returned signals", async () => {
+    getLatestRankingRunMock.mockResolvedValue(
+      makeRun("coinbase-empty-run", {
+        exchange: "coinbase",
+        market: "spot",
+        mode: "single",
+        universe: "explicit-symbols",
+        symbolsTotal: 3,
+        symbolsScanned: 3,
+        signalsCreated: 0,
+      }),
+    );
+    listLatestRankingSignalsForRunMock.mockResolvedValue([]);
+
+    const response = await requestTradeApi(
+      "/api/rankings/latest?exchange=coinbase&timeframe=4h&assetClass=crypto&limit=100",
+    );
+    const body = JSON.parse(response.body);
+
+    expect(response.status).toBe(200);
+    expect(body.run).toMatchObject({
+      id: "coinbase-empty-run",
+      exchange: "coinbase",
+      universe: "explicit-symbols",
+    });
+    expect(body.items).toEqual([]);
+    expect(body.count).toBe(0);
+    expect(body.summary).toMatchObject({
+      totalSignals: 0,
+      returnedItems: 0,
+      lowQualityExcluded: 0,
+      lowQualityIncluded: 0,
+      explicitExchangeSupplemental: true,
+      latestRunSelection: {
+        preferredFullUniverse: false,
+        isLikelyFullUniverse: false,
+        fallbackUsed: false,
+      },
+    });
+    expect(getLatestRankingRunMock).toHaveBeenCalledWith({
+      timeframe: "4h",
+      assetClass: "crypto",
+      preferFullUniverse: false,
+      minExpectedSymbols: 300,
+      exchange: "coinbase",
+      market: "spot",
+    });
+    expect(listLatestRankingSignalsForRunMock).toHaveBeenCalledWith({
+      scanRunId: "coinbase-empty-run",
+      timeframe: "4h",
+      assetClass: "crypto",
+      includeNonScanner: false,
+      includeMarketContext: false,
+      includeCoverage: false,
+      exchange: "coinbase",
+      market: "spot",
+    });
   });
 
   it("keeps latest rankings responses limited for rankings UI visibility", async () => {
@@ -2671,6 +2775,8 @@ function makeResearchSignal(
     scanRunSignalsCreated: number | null;
     exchange: string;
     market: string;
+    candleCount: number | null;
+    firstOpenTime: string | null;
   }> = {},
 ) {
   const readableSignalLabel = overrides.signalLabel ?? "confirmed";
@@ -2769,8 +2875,8 @@ function makeResearchSignal(
     isScannerEligible: true,
     isBacktestEligible: true,
     isMarketContext: false,
-    candleCount: 1000,
-    firstOpenTime: "2024-01-01T00:00:00.000Z",
+    candleCount: overrides.candleCount ?? 1000,
+    firstOpenTime: overrides.firstOpenTime ?? "2024-01-01T00:00:00.000Z",
   };
 }
 
