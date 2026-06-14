@@ -2,6 +2,7 @@ export type MarketDataProviderId =
   | "binance_native"
   | "coinbase_ccxt"
   | "coinbase_advanced_direct"
+  | "coinbase_exchange_public"
   | "coinbase_exchange_direct"
   | "coingecko"
   | "cryptocompare"
@@ -251,6 +252,38 @@ export const providerCapabilityProfiles: ProviderCapabilityProfile[] = [
     fitForVegaRank: "candidate",
     recommendedRoles: ["research_audit_candidate"],
     notes: "Best near-term direct Coinbase candidate if coverage improves over the CCXT path.",
+  },
+  {
+    id: "coinbase_exchange_public",
+    provider: "Coinbase Exchange public candles",
+    providerType: "exchange_native_api",
+    freeTier: "yes",
+    exchangeSpecific: "yes",
+    aggregatedOnly: "no",
+    intervals: intervalCapabilities(
+      { "1h": "yes", "4h": "no", "1d": "yes", "1w": "no" },
+      {
+        "4h": "Coinbase Exchange public candles do not expose native 4h granularity; nearest documented public granularity is 6h.",
+        "1w": "Coinbase Exchange public candles do not expose native weekly granularity.",
+      },
+    ),
+    intervalsSupported: "Public product candles support fixed granularities such as 1h, 6h, and 1d.",
+    historicalDepth: "Needs live verification per product and request window; public endpoint is typically limited to small candle windows.",
+    coinbaseUsdcLikely: "yes",
+    binanceLikely: "no",
+    usdcPairSupport: "partial",
+    equitiesPossible: "no",
+    apiKeyRequired: "no",
+    rateLimits: "Public Exchange API limits apply.",
+    paginationModel: "Start/end time windows with granularity and limited candle count.",
+    licensingRisk: "medium",
+    reliability: "needs_verification",
+    gapBehavior: "Unknown until sampled against Coinbase supplemental symbols.",
+    productMetadataQuality: "partial",
+    implementationComplexity: "low",
+    fitForVegaRank: "audit_only",
+    recommendedRoles: ["research_audit_candidate"],
+    notes: "Read-only feasibility comparison path only; do not wire into production without a separate adapter phase.",
   },
   {
     id: "coinbase_exchange_direct",

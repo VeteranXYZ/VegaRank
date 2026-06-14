@@ -26,10 +26,19 @@ These coverage questions are not accepted as production-ready behavior. Before
 expanding production cron, VegaRank needs a provider strategy and capability audit
 for exchange-specific OHLCV coverage.
 
-Phase 32L adds a live read-only provider audit for Coinbase Advanced Direct,
-CryptoCompare, CryptoDataDownload, and CoinGecko. It can test Coinbase direct
-`4h` and `1d` availability without writing candles, running scanners, changing
-cron, or changing scoring. See `docs/live-crypto-ohlcv-provider-audit.md`.
+Phase 32L added a live read-only provider audit for Coinbase Advanced Direct,
+CryptoCompare, CryptoDataDownload, and CoinGecko. Phase 32M extends that audit
+with Coinbase Advanced bearer-token support, Coinbase Exchange public comparison,
+CryptoCompare provenance labeling, CoinGecko aggregated-only classification,
+CryptoDataDownload manual mapping notes, and paid/key-required provider
+checklists. It can test Coinbase direct `1h`, `4h`, and `1d` availability
+without writing candles, running scanners, changing cron, or changing scoring.
+See `docs/live-crypto-ohlcv-provider-audit.md`.
+
+The unauthenticated live audit currently treats Coinbase Advanced HTTP 401
+responses as an authentication requirement, not as proof that products or
+timeframes are unavailable. Coinbase Advanced direct `1w` remains unavailable in
+this audit path.
 
 The first medium batch showed that Coinbase `BASE-USDC` rows were being
 classified from the raw dashed pair string. Phase 32H refines quality
@@ -124,6 +133,11 @@ strategy. Native provider intervals should be preferred when they provide enough
 history, stable access, acceptable licensing, and clear exchange/pair provenance.
 Coin-level aggregated candles must not be silently mixed with Coinbase
 exchange-specific candles.
+
+No Phase 32M change promotes the current derived `4h` or `1w` paths into the
+long-term primary source. They remain validation and fallback paths while
+authenticated Coinbase Advanced and third-party exchange-specific providers are
+evaluated.
 
 ## Scanner Run
 
@@ -227,8 +241,19 @@ requested timeframe or a scanner data-quality guard.
 Useful live audit command:
 
 ```bash
-pnpm market-data:providers:live-audit -- --providers=coinbase_advanced_direct,coingecko --symbols=AERO-USDC,CLANKER-USDC,BNKR-USDC,BTCUSDT,ETHUSDT --timeframes=1h,4h,1d,1w --lookback-days=365 --json
+pnpm market-data:providers:live-audit -- --providers=coinbase_advanced_direct,coinbase_exchange_public,cryptocompare,cryptodatadownload,coingecko --symbols=AERO-USDC,CLANKER-USDC,BNKR-USDC,BTCUSDT,ETHUSDT --timeframes=1h,4h,1d,1w --lookback-days=365 --json
 ```
+
+Authenticated Coinbase Advanced audit, if credentials are available:
+
+```bash
+COINBASE_ADVANCED_BEARER_TOKEN=... pnpm market-data:providers:live-audit -- --providers=coinbase_advanced_direct --symbols=AERO-USDC,CLANKER-USDC,BNKR-USDC --timeframes=1h,4h,1d,1w --lookback-days=365 --json
+```
+
+CoinGecko remains aggregated-only and must not be used as an exchange-specific
+primary source even when its OHLC endpoint succeeds. Production cron remains
+disabled until the provider audit decision summary supports a separate
+production-source change.
 
 ## Deferred
 

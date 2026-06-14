@@ -26,6 +26,9 @@ export function createAuthRequiredProbe(providerId: LiveAuditProviderId): LivePr
           "This provider is intentionally not probed without an API key or paid-plan decision.",
         dataUseWarning:
           "Do not add secrets to the audit script; run a controlled follow-up if this provider is selected.",
+        failureCategory: "paid_or_key_required",
+        requestUrlKind: `${providerId}_not_probed_paid_or_key_required`,
+        marketDataProvenance: "uncertain",
       }),
   };
 }

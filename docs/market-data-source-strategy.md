@@ -141,11 +141,25 @@ The audit should measure:
 - rate-limit behavior
 - licensing and plan fit
 
-Phase 32L adds this live read-only audit as
-`pnpm market-data:providers:live-audit`. It probes Coinbase Advanced Direct,
-CryptoCompare, CryptoDataDownload, and CoinGecko without DB writes, scanner runs,
-cron changes, scoring changes, or UI changes. See
+Phase 32L added this live read-only audit as
+`pnpm market-data:providers:live-audit`. Phase 32M extends it with Coinbase
+Advanced bearer-token auth support, Coinbase Exchange public-candle comparison,
+CryptoCompare provenance labeling, safer CoinGecko aggregated-only
+classification, CryptoDataDownload manual mapping notes, and a paid/key-required
+provider checklist. It still performs no DB writes, scanner runs, cron changes,
+scoring changes, UI changes, Archive changes, or Watchlist changes. See
 `docs/live-crypto-ohlcv-provider-audit.md`.
 
-Recommended next phase: Phase 32L - Coinbase Advanced Direct vs third-party
-OHLCV comparison.
+Current Coinbase production backfill still relies on CCXT direct `1d`, derived
+`1w` from `1d`, and derived `4h` from `1h`. That path validated the pipeline, but
+it is a temporary fallback and diagnostic path, not the preferred long-term
+primary market data strategy.
+
+CoinGecko remains aggregated coin-level data only. Even if its OHLC endpoint
+works for BTC, ETH, or AERO, it is metadata or broad market context, not an
+exchange-specific Coinbase primary source.
+
+Recommended next phase is now selected by the live audit decision summary:
+authenticated Coinbase Advanced adapter work only if native `4h` and `1d` return
+at least 200 candles, otherwise third-party primary evaluation or a pause on
+Coinbase supplemental production rollout.

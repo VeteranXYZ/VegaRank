@@ -22,9 +22,34 @@ export function createCryptoDataDownloadProbe(): LiveProviderProbe {
         authRequired: false,
         errorCode: "needs_manual_url_mapping",
         errorMessage:
-          "CryptoDataDownload uses downloadable CSV files; safe automated endpoint mapping is not configured in this phase.",
+          buildCryptoDataDownloadMessage(symbol, timeframe),
         dataUseWarning:
-          "No aggressive HTML scraping is performed. Add explicit CSV URL mappings before automated use.",
+          "No brittle HTML scraping is performed. Historical CSV feasibility depends on explicit exchange/symbol/timeframe URL mappings and licensing review.",
+        requestUrlKind: "cryptodatadownload_manual_csv_mapping",
+        failureCategory: "manual_mapping_required",
+        providerGranularity: getConceptualCryptoDataDownloadTimeframe(timeframe),
+        marketDataProvenance: "uncertain",
       }),
   };
+}
+
+function buildCryptoDataDownloadMessage(symbol: string, timeframe: string) {
+  return [
+    `CryptoDataDownload may support historical CSV for ${symbol} on specific exchanges, but this audit has no verified URL mapping table.`,
+    `${timeframe} file availability is conceptual only until a manual exchange/symbol URL is registered.`,
+    "Licensing, redistribution, and display limitations remain unknown.",
+  ].join(" ");
+}
+
+function getConceptualCryptoDataDownloadTimeframe(timeframe: string) {
+  if (timeframe === "1h") {
+    return "conceptual hourly CSV if exchange/symbol file exists";
+  }
+  if (timeframe === "1d") {
+    return "conceptual daily CSV if exchange/symbol file exists";
+  }
+  if (timeframe === "4h") {
+    return "manual verification required; likely derived from hourly CSV if licensed";
+  }
+  return "manual verification required; likely derived from daily CSV if licensed";
 }

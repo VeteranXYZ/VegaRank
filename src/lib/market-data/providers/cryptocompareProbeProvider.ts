@@ -84,6 +84,8 @@ async function auditCryptoCompare({
       authRequired: false,
       errorCode: "symbol_mapping_missing",
       errorMessage: "Could not infer base and quote assets for CryptoCompare.",
+      failureCategory: "symbol_mapping_missing",
+      marketDataProvenance: "uncertain",
     });
   }
 
@@ -127,8 +129,23 @@ async function auditCryptoCompare({
       rateLimitObserved: response.rateLimitObserved,
       authRequired,
       errorCode: authRequired ? "auth_required" : "provider_error",
-      errorMessage: body?.Message ?? `CryptoCompare request failed with ${response.status}.`,
+      errorMessage:
+        body?.Message ??
+        (authRequired
+          ? "CryptoCompare requires or rejected an API key for this request."
+          : `CryptoCompare request failed with ${response.status}.`),
       dataUseWarning: buildCryptoCompareWarning(timeframe, parsed),
+      httpStatus: response.status,
+      requestUrlKind: `cryptocompare_${endpoint}`,
+      failureCategory: authRequired ? "auth_problem" : "provider_error",
+      providerGranularity:
+        timeframe === "4h"
+          ? "histohour aggregate=4"
+          : timeframe === "1w"
+            ? "histoday aggregate=7"
+            : endpoint,
+      sanitizedProviderResponse: sanitizeCryptoCompareResponse(body?.Message ?? response.text, apiKey),
+      marketDataProvenance: getCryptoCompareProvenance(parsed),
     });
   }
 
@@ -148,6 +165,8 @@ async function auditCryptoCompare({
     fetchedCandles: diagnostics.fetchedCandles,
     firstOpenTime: diagnostics.firstOpenTime,
     lastOpenTime: diagnostics.lastOpenTime,
+    oldestCandleTime: diagnostics.firstOpenTime,
+    newestCandleTime: diagnostics.lastOpenTime,
     enoughForVegaRank200: diagnostics.enoughForVegaRank200,
     gapCount: diagnostics.gapCount,
     requestCount: 1,
@@ -158,6 +177,21 @@ async function auditCryptoCompare({
       ? undefined
       : `Only ${diagnostics.fetchedCandles} usable CryptoCompare candles were returned.`,
     dataUseWarning: buildCryptoCompareWarning(timeframe, parsed),
+    httpStatus: response.status,
+    requestUrlKind: `cryptocompare_${endpoint}`,
+    failureCategory:
+      diagnostics.enoughForVegaRank200
+        ? undefined
+        : diagnostics.fetchedCandles === 0
+          ? "empty_candle_history"
+          : "fewer_than_200",
+    providerGranularity:
+      timeframe === "4h"
+        ? "histohour aggregate=4"
+        : timeframe === "1w"
+          ? "histoday aggregate=7"
+          : endpoint,
+    marketDataProvenance: getCryptoCompareProvenance(parsed),
   });
 }
 
@@ -238,4 +272,22 @@ function buildCryptoCompareWarning(
   }
 
   return warnings.join(" ");
+}
+
+function getCryptoCompareProvenance(parsed: ParsedCryptoSymbol) {
+  if (parsed.exchange === "CCCAGG") {
+    return "aggregated" as const;
+  }
+  if (parsed.mappingConfidence === "exact") {
+    return "exchange_specific" as const;
+  }
+  return "uncertain" as const;
+}
+
+function sanitizeCryptoCompareResponse(text: string, apiKey: string | undefined) {
+  let sanitized = text.slice(0, 1_000);
+  if (apiKey) {
+    sanitized = sanitized.split(apiKey).join("[REDACTED]");
+  }
+  return sanitized;
 }

@@ -8,12 +8,14 @@ import {
 } from "@/lib/market-data/liveProviderAudit";
 import { createAuthRequiredProbe } from "@/lib/market-data/providers/authRequiredProbeProvider";
 import { createCoinbaseAdvancedDirectProbe } from "@/lib/market-data/providers/coinbaseAdvancedDirectProvider";
+import { createCoinbaseExchangePublicProbe } from "@/lib/market-data/providers/coinbaseExchangePublicProbeProvider";
 import { createCoinGeckoProbe } from "@/lib/market-data/providers/coingeckoProbeProvider";
 import { createCryptoCompareProbe } from "@/lib/market-data/providers/cryptocompareProbeProvider";
 import { createCryptoDataDownloadProbe } from "@/lib/market-data/providers/cryptoDataDownloadProbeProvider";
 
 const defaultProviders: LiveAuditProviderId[] = [
   "coinbase_advanced_direct",
+  "coinbase_exchange_public",
   "cryptocompare",
   "cryptodatadownload",
   "coingecko",
@@ -35,6 +37,7 @@ const defaultSymbols = [
 const defaultTimeframes: LiveAuditTimeframe[] = ["1h", "4h", "1d", "1w"];
 const validProviders: LiveAuditProviderId[] = [
   "coinbase_advanced_direct",
+  "coinbase_exchange_public",
   "cryptocompare",
   "cryptodatadownload",
   "coingecko",
@@ -86,6 +89,7 @@ function createLiveAuditProbes(): Record<LiveAuditProviderId, LiveProviderProbe>
     coinbase_advanced_direct: createCoinbaseAdvancedDirectProbe({
       bearerToken: process.env.COINBASE_ADVANCED_BEARER_TOKEN,
     }),
+    coinbase_exchange_public: createCoinbaseExchangePublicProbe(),
     cryptocompare: createCryptoCompareProbe({
       apiKey: process.env.CRYPTOCOMPARE_API_KEY,
     }),
@@ -165,8 +169,11 @@ function formatLiveAuditMarkdown(report: LiveProviderAuditReport) {
     String(result.exchangeSpecific),
     String(result.aggregatedOnly),
     String(result.nativeIntervalSupported),
+    result.providerGranularity ?? "",
     String(result.fetchedCandles),
     String(result.enoughForVegaRank200),
+    result.httpStatus === undefined ? "" : String(result.httpStatus),
+    result.failureCategory ?? "",
     result.errorCode ?? "",
   ]);
 
@@ -179,8 +186,8 @@ function formatLiveAuditMarkdown(report: LiveProviderAuditReport) {
     "",
     "## Provider Matrix",
     "",
-    "| providerId | symbol | providerSymbol | timeframe | exchangeSpecific | aggregatedOnly | nativeIntervalSupported | fetchedCandles | enoughForVegaRank200 | errorCode |",
-    "| --- | --- | --- | --- | --- | --- | --- | ---: | --- | --- |",
+    "| providerId | symbol | providerSymbol | timeframe | exchangeSpecific | aggregatedOnly | nativeIntervalSupported | providerGranularity | fetchedCandles | enoughForVegaRank200 | httpStatus | failureCategory | errorCode |",
+    "| --- | --- | --- | --- | --- | --- | --- | --- | ---: | --- | ---: | --- | --- |",
     ...rows.map((row) => `| ${row.join(" | ")} |`),
     "",
     "## Summary",
@@ -189,9 +196,35 @@ function formatLiveAuditMarkdown(report: LiveProviderAuditReport) {
     `- Symbols audited: ${report.summary.symbolsAudited.join(", ") || "none"}`,
     `- Exchange-specific candidates: ${report.summary.exchangeSpecificCandidates.join(", ") || "none"}`,
     `- Aggregated-only candidates: ${report.summary.aggregatedOnlyCandidates.join(", ") || "none"}`,
+    `- Production-ready primary candidates: ${report.summary.productionReadyPrimaryCandidates.join(", ") || "none"}`,
+    `- Requires-auth candidates: ${report.summary.requiresAuthCandidates.join(", ") || "none"}`,
+    `- Paid/key-required candidates: ${report.summary.paidOrKeyRequiredCandidates.join(", ") || "none"}`,
+    `- Metadata-only candidates: ${report.summary.metadataOnlyCandidates.join(", ") || "none"}`,
+    `- Blocked candidates: ${report.summary.blockedCandidates.join(", ") || "none"}`,
     `- Native 4h candidates: ${report.summary.native4hCandidates.join(", ") || "none"}`,
     `- Native 1w candidates: ${report.summary.native1wCandidates.join(", ") || "none"}`,
     `- Auth or paid blocked providers: ${report.summary.authOrPaidBlockedProviders.join(", ") || "none"}`,
+    `- Recommended next phase: ${report.summary.recommendedNextPhase}`,
+    "",
+    "## Provider Checklist",
+    "",
+    "| providerId | exchangeSpecificOHLCV | 1h | 4h | 1d | 1w | Coinbase attribution | freeTier | keyRequired | redistributionUnknown | candidateRole |",
+    "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |",
+    ...report.summary.providerChecklists.map((item) =>
+      [
+        item.providerId,
+        String(item.supportsExchangeSpecificOhlcv),
+        String(item.supports1h),
+        String(item.supports4h),
+        String(item.supports1d),
+        String(item.supports1w),
+        String(item.supportsCoinbaseVenueOrPairAttribution),
+        String(item.freeTierAvailable),
+        String(item.keyRequired),
+        String(item.redistributionDisplayLimitationUnknown),
+        item.candidateRole,
+      ].join(" | "),
+    ).map((row) => `| ${row} |`),
     "",
     "## Decision Notes",
     "",

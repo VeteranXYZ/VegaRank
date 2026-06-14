@@ -68,6 +68,8 @@ async function auditCoinGecko({
       errorCode: "symbol_mapping_missing",
       errorMessage: `No CoinGecko coin id mapping is configured for base asset ${baseAsset}.`,
       dataUseWarning: "CoinGecko is aggregated coin-level data, not exchange-specific OHLCV.",
+      failureCategory: "symbol_mapping_missing",
+      marketDataProvenance: "aggregated",
     });
   }
 
@@ -88,10 +90,13 @@ async function auditCoinGecko({
       errorCode: "unsupported",
       errorMessage: "CoinGecko OHLC does not provide native VegaRank 1w exchange-specific candles.",
       dataUseWarning: "Aggregated coin-level data must not be used as exchange-specific primary.",
+      requestUrlKind: "coingecko_coin_ohlc",
+      failureCategory: "timeframe_unsupported",
+      marketDataProvenance: "aggregated",
     });
   }
 
-  const url = new URL(`/coins/${encodeURIComponent(coinId)}/ohlc`, apiBaseUrl);
+  const url = new URL(`coins/${encodeURIComponent(coinId)}/ohlc`, ensureTrailingSlash(apiBaseUrl));
   url.searchParams.set("vs_currency", "usd");
   url.searchParams.set("days", chooseCoinGeckoDays(timeframe));
   const headers: Record<string, string> = apiKey ? { "x-cg-demo-api-key": apiKey } : {};
@@ -114,10 +119,18 @@ async function auditCoinGecko({
       rateLimitObserved: response.rateLimitObserved,
       authRequired,
       errorCode: authRequired ? "auth_required" : "provider_error",
-      errorMessage: `CoinGecko request failed with ${response.status}: ${
-        response.text || response.statusText
-      }`,
+      errorMessage: `CoinGecko coin-level OHLC request failed with HTTP ${response.status}.`,
       dataUseWarning: "CoinGecko is aggregated coin-level data, not exchange-specific OHLCV.",
+      httpStatus: response.status,
+      requestUrlKind: "coingecko_coin_ohlc",
+      failureCategory: authRequired
+        ? "auth_problem"
+        : response.status === 404
+          ? "product_not_found"
+          : "provider_error",
+      providerGranularity: getCoinGeckoProviderGranularity(timeframe),
+      sanitizedProviderResponse: sanitizeCoinGeckoResponse(response.text, apiKey),
+      marketDataProvenance: "aggregated",
     });
   }
 
@@ -137,6 +150,8 @@ async function auditCoinGecko({
     fetchedCandles: diagnostics.fetchedCandles,
     firstOpenTime: diagnostics.firstOpenTime,
     lastOpenTime: diagnostics.lastOpenTime,
+    oldestCandleTime: diagnostics.firstOpenTime,
+    newestCandleTime: diagnostics.lastOpenTime,
     enoughForVegaRank200: diagnostics.enoughForVegaRank200,
     gapCount: diagnostics.gapCount,
     requestCount: 1,
@@ -148,6 +163,16 @@ async function auditCoinGecko({
       : `Only ${diagnostics.fetchedCandles} usable CoinGecko OHLC rows were returned.`,
     dataUseWarning:
       "CoinGecko OHLC is aggregated coin-level data with automatic or plan-limited granularity; do not use as exchange-specific primary.",
+    httpStatus: response.status,
+    requestUrlKind: "coingecko_coin_ohlc",
+    failureCategory:
+      diagnostics.enoughForVegaRank200
+        ? undefined
+        : diagnostics.fetchedCandles === 0
+          ? "empty_candle_history"
+          : "fewer_than_200",
+    providerGranularity: getCoinGeckoProviderGranularity(timeframe),
+    marketDataProvenance: "aggregated",
   });
 }
 
@@ -197,4 +222,29 @@ function getCoinGeckoNativeIntervalSupport(timeframe: LiveAuditTimeframe) {
     return "unknown" as const;
   }
   return false;
+}
+
+function getCoinGeckoProviderGranularity(timeframe: LiveAuditTimeframe) {
+  if (timeframe === "1h") {
+    return "CoinGecko automatic OHLC interval for days=1";
+  }
+  if (timeframe === "4h") {
+    return "CoinGecko automatic OHLC interval for days=30; not native VegaRank 4h";
+  }
+  if (timeframe === "1d") {
+    return "CoinGecko automatic OHLC interval for days=365";
+  }
+  return "unsupported";
+}
+
+function ensureTrailingSlash(value: string) {
+  return value.endsWith("/") ? value : `${value}/`;
+}
+
+function sanitizeCoinGeckoResponse(text: string, apiKey: string | undefined) {
+  let sanitized = text.slice(0, 1_000);
+  if (apiKey) {
+    sanitized = sanitized.split(apiKey).join("[REDACTED]");
+  }
+  return sanitized;
 }
