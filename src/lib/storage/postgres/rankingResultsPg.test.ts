@@ -26,6 +26,39 @@ describe("PgRankingResultsStore latest ranking queries", () => {
     expect(queries[0]).not.toMatch(/max\(scan_time\)/i);
   });
 
+  it("can filter latest run selection by exchange and market", async () => {
+    const queries: string[] = [];
+    const paramsList: unknown[][] = [];
+    const store = new PgRankingResultsStore(
+      makePool((sql, params) => {
+        queries.push(sql);
+        paramsList.push(params);
+        return {
+          rows: [
+            makeRunRow("coinbase-run", {
+              exchange: "coinbase",
+              market: "spot",
+              universe: "explicit-symbols",
+            }),
+          ],
+        };
+      }),
+    );
+
+    const run = await store.getLatestRankingRun({
+      timeframe: "4h",
+      exchange: "coinbase",
+      market: "spot",
+    });
+
+    expect(run?.id).toBe("coinbase-run");
+    expect(run?.exchange).toBe("coinbase");
+    expect(paramsList[0]).toEqual(["4h", "coinbase", "spot"]);
+    expect(queries[0]).toContain("WHERE timeframe = $1");
+    expect(queries[0]).toContain("exchange = $2");
+    expect(queries[0]).toContain("market = $3");
+  });
+
   it("prefers a full crypto universe run over a newer limited run", async () => {
     const queries: string[] = [];
     const store = new PgRankingResultsStore(
@@ -261,6 +294,57 @@ describe("PgRankingResultsStore latest ranking queries", () => {
     expect(queries[0]).not.toContain("symbol_id IN");
     expect(queries[0]).not.toMatch(/scan_time\s*=\s*\(/i);
     expect(queries[0]).not.toMatch(/max\(scan_time\)/i);
+  });
+
+  it("can filter latest ranking signals by exchange and market", async () => {
+    const queries: string[] = [];
+    const paramsList: unknown[][] = [];
+    const store = new PgRankingResultsStore(
+      makePool((sql, params) => {
+        queries.push(sql);
+        paramsList.push(params);
+        return {
+          rows: [
+            makeSignalRow({
+              id: "coinbase-signal",
+              scan_run_id: "coinbase-run",
+              exchange: "coinbase",
+              market: "spot",
+              symbol: "AERO-USDC",
+              scan_time: "2026-05-31T00:00:01.000Z",
+            }),
+          ],
+        };
+      }),
+    );
+
+    const signals = await store.listLatestRankingSignalsForRun({
+      scanRunId: "coinbase-run",
+      timeframe: "4h",
+      assetClass: "crypto",
+      exchange: "coinbase",
+      market: "spot",
+    });
+
+    expect(signals).toHaveLength(1);
+    expect(signals[0]).toMatchObject({
+      scanRunId: "coinbase-run",
+      exchange: "coinbase",
+      market: "spot",
+      symbol: "AERO-USDC",
+    });
+    expect(paramsList[0]).toEqual([
+      "coinbase-run",
+      "4h",
+      "crypto",
+      "coinbase",
+      "spot",
+    ]);
+    expect(queries[0]).toContain("ss.scan_run_id = $1");
+    expect(queries[0]).toContain("ss.timeframe = $2");
+    expect(queries[0]).toContain("s.asset_class = $3");
+    expect(queries[0]).toContain("ss.exchange = $4");
+    expect(queries[0]).toContain("ss.market = $5");
   });
 
   it("computes latest ranking candle coverage from filtered ranking rows only", async () => {
@@ -952,11 +1036,11 @@ function makeInsertResult(): ScanResult {
 function makeRunRow(id: string, overrides: Partial<Record<string, unknown>> = {}) {
   return {
     id,
-    exchange: "binance",
-    market: "spot",
+    exchange: overrides.exchange ?? "binance",
+    market: overrides.market ?? "spot",
     mode: "single",
     timeframe: overrides.timeframe ?? "4h",
-    universe: "all-symbols",
+    universe: overrides.universe ?? "all-symbols",
     status: "success",
     symbols_total: overrides.symbols_total ?? 2,
     symbols_scanned: overrides.symbols_scanned ?? 2,
@@ -1012,10 +1096,10 @@ function makeSignalRow(
     id: overrides.id,
     scan_run_id: overrides.scan_run_id,
     symbol_id: "1",
-    exchange: "binance",
-    market: "spot",
+    exchange: overrides.exchange ?? "binance",
+    market: overrides.market ?? "spot",
     symbol: overrides.symbol,
-    timeframe: "4h",
+    timeframe: overrides.timeframe ?? "4h",
     scan_time: overrides.scan_time,
     candle_open_time: "2026-05-30T20:00:00.000Z",
     price_at_signal: 1,

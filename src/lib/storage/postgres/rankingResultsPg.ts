@@ -517,19 +517,38 @@ export class PgRankingResultsStore {
     preferFullUniverse = false,
     assetClass = "all",
     minExpectedSymbols = LATEST_SCAN_FULL_UNIVERSE_MIN_SYMBOLS,
+    exchange,
+    market,
   }: {
     timeframe: string;
     preferFullUniverse?: boolean;
     assetClass?: SymbolAssetClassFilter;
     minExpectedSymbols?: number;
+    exchange?: string;
+    market?: string;
   }) {
+    const runFilters = ["timeframe = $1", "status = 'success'"];
+    const runParams: unknown[] = [timeframe];
+
+    if (exchange) {
+      runParams.push(exchange);
+      runFilters.push(`exchange = $${runParams.length}`);
+    }
+
+    if (market) {
+      runParams.push(market);
+      runFilters.push(`market = $${runParams.length}`);
+    }
+
     if (preferFullUniverse && assetClass === "crypto") {
+      const fullUniverseParams = [...runParams, minExpectedSymbols, assetClass];
+      const minExpectedSymbolsParam = fullUniverseParams.length - 1;
+      const assetClassParam = fullUniverseParams.length;
       const fullUniverseResult = await this.pool.query<ScanRunRow>(
         `
           SELECT *
           FROM scan_runs
-          WHERE timeframe = $1
-            AND status = 'success'
+          WHERE ${runFilters.join("\n            AND ")}
             AND EXISTS (
               SELECT 1
               FROM scan_signals ss
@@ -538,16 +557,16 @@ export class PgRankingResultsStore {
               WHERE ss.scan_run_id = scan_runs.id
                 AND ss.timeframe = scan_runs.timeframe
                 AND ${currentScanSignalCodeContractCondition("ss")}
-                AND s.asset_class = $3
+                AND s.asset_class = $${assetClassParam}
             )
             AND (
-              symbols_total >= $2
-              OR symbols_scanned >= $2
-              OR symbols_scanned + symbols_skipped >= $2
+              symbols_total >= $${minExpectedSymbolsParam}
+              OR symbols_scanned >= $${minExpectedSymbolsParam}
+              OR symbols_scanned + symbols_skipped >= $${minExpectedSymbolsParam}
             )
             AND (
               NOT (params ? 'assetClass')
-              OR lower(params->>'assetClass') = $3
+              OR lower(params->>'assetClass') = $${assetClassParam}
             )
             AND (
               universe = 'all-symbols'
@@ -556,7 +575,7 @@ export class PgRankingResultsStore {
           ORDER BY finished_at DESC NULLS LAST, started_at DESC
           LIMIT 1
         `,
-        [timeframe, minExpectedSymbols, assetClass],
+        fullUniverseParams,
       );
 
       if (fullUniverseResult.rows[0]) {
@@ -564,7 +583,7 @@ export class PgRankingResultsStore {
       }
     }
 
-    const fallbackParams: unknown[] = [timeframe];
+    const fallbackParams: unknown[] = [...runParams];
     const fallbackSignalFilters = [
       "ss.scan_run_id = scan_runs.id",
       "ss.timeframe = scan_runs.timeframe",
@@ -580,8 +599,7 @@ export class PgRankingResultsStore {
       `
         SELECT *
         FROM scan_runs
-        WHERE timeframe = $1
-          AND status = 'success'
+        WHERE ${runFilters.join("\n          AND ")}
           AND EXISTS (
             SELECT 1
             FROM scan_signals ss
@@ -605,6 +623,8 @@ export class PgRankingResultsStore {
     includeNonScanner = false,
     includeMarketContext = false,
     includeCoverage = true,
+    exchange,
+    market,
   }: {
     scanRunId: string;
     timeframe: string;
@@ -612,6 +632,8 @@ export class PgRankingResultsStore {
     includeNonScanner?: boolean;
     includeMarketContext?: boolean;
     includeCoverage?: boolean;
+    exchange?: string;
+    market?: string;
   }): Promise<LatestRankingSignalRecord[]> {
     const params: unknown[] = [scanRunId, timeframe];
     const filters = [
@@ -623,6 +645,16 @@ export class PgRankingResultsStore {
     if (assetClass !== "all") {
       params.push(assetClass);
       filters.push(`s.asset_class = $${params.length}`);
+    }
+
+    if (exchange) {
+      params.push(exchange);
+      filters.push(`ss.exchange = $${params.length}`);
+    }
+
+    if (market) {
+      params.push(market);
+      filters.push(`ss.market = $${params.length}`);
     }
 
     if (!includeNonScanner) {

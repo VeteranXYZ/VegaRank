@@ -1219,6 +1219,13 @@ async function handleMarketContext(response: http.ServerResponse, url: URL) {
 
 async function handleLatestRankings(response: http.ServerResponse, url: URL) {
   const timeframe = url.searchParams.get("timeframe")?.trim() ?? "4h";
+  const explicitExchange = url.searchParams.has("exchange");
+  const exchange = explicitExchange
+    ? normalizeIdentityParam(url.searchParams.get("exchange"), "binance")
+    : null;
+  const market = explicitExchange
+    ? normalizeIdentityParam(url.searchParams.get("market"), "spot")
+    : null;
   const assetClass = parseAssetClassParam(url.searchParams.get("assetClass"));
   const includeLowQuality = parseBooleanParam(url.searchParams.get("includeLowQuality"));
   const includeNonScanner = parseBooleanParam(url.searchParams.get("includeNonScanner"));
@@ -1242,6 +1249,21 @@ async function handleLatestRankings(response: http.ServerResponse, url: URL) {
     return;
   }
 
+  if (
+    explicitExchange &&
+    (!exchange ||
+      !market ||
+      !/^[a-z0-9_-]{1,30}$/.test(exchange) ||
+      !/^[a-z0-9_-]{1,30}$/.test(market))
+  ) {
+    sendJson(response, 400, {
+      ok: false,
+      service: serviceName,
+      error: "INVALID_MARKET",
+    });
+    return;
+  }
+
   if (!assetClass.valid) {
     sendJson(response, 400, {
       ok: false,
@@ -1260,6 +1282,7 @@ async function handleLatestRankings(response: http.ServerResponse, url: URL) {
   const preferFullUniverse = shouldPreferFullUniverseLatestRun({
     assetClass: assetClass.value,
     includeNonScanner,
+    exchange: exchange ?? undefined,
   });
 
   try {
@@ -1268,6 +1291,8 @@ async function handleLatestRankings(response: http.ServerResponse, url: URL) {
       assetClass: assetClass.value,
       preferFullUniverse,
       minExpectedSymbols: LATEST_SCAN_FULL_UNIVERSE_MIN_SYMBOLS,
+      exchange: exchange ?? undefined,
+      market: market ?? undefined,
     });
 
     if (!run) {
@@ -1275,6 +1300,7 @@ async function handleLatestRankings(response: http.ServerResponse, url: URL) {
         ok: true,
         run: null,
         timeframe,
+        ...(explicitExchange ? { exchange, market } : {}),
         assetClass: assetClass.value,
         includeLowQuality,
         includeNonScanner,
@@ -1294,6 +1320,8 @@ async function handleLatestRankings(response: http.ServerResponse, url: URL) {
       includeNonScanner,
       includeMarketContext,
       includeCoverage: false,
+      exchange: exchange ?? undefined,
+      market: market ?? undefined,
     });
     const latestRankings = buildLatestRankingsResponse({
       run,
@@ -1316,6 +1344,7 @@ async function handleLatestRankings(response: http.ServerResponse, url: URL) {
       service: serviceName,
       source: "postgres",
       timeframe,
+      ...(explicitExchange ? { exchange, market } : {}),
       assetClass: assetClass.value,
       includeLowQuality,
       includeNonScanner,
@@ -1471,10 +1500,16 @@ async function handleMtfLatestRankings(response: http.ServerResponse, url: URL) 
 function shouldPreferFullUniverseLatestRun({
   assetClass,
   includeNonScanner,
+  exchange,
 }: {
   assetClass: SymbolAssetClassFilter;
   includeNonScanner: boolean;
+  exchange?: string;
 }) {
+  if (exchange && exchange !== "binance") {
+    return false;
+  }
+
   return assetClass === "crypto" && !includeNonScanner;
 }
 
