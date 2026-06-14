@@ -19,7 +19,7 @@ Market Listing is a concrete venue listing for an asset:
 Data Provider is the technical source used to retrieve listing metadata or OHLCV:
 
 - `native-binance` for the current Binance adapter
-- `ccxt` for future CEX adapters such as Coinbase
+- `ccxt` for the current Coinbase supplemental production adapter
 - `coingecko` for future asset discovery, metadata, and enrichment
 
 Research Universe Row is the final listing selected for VegaRank research ranking.
@@ -57,7 +57,8 @@ Deduplication uses exact canonical base asset only:
 
 If Binance already selected a canonical base asset, the Coinbase listing for that
 same exact base is skipped. If Coinbase has an exact base asset not present in the
-Binance selected universe, it can be included by a future runtime integration.
+Binance selected universe, it can be included by the Coinbase supplemental
+production run.
 
 ## No Aliasing
 
@@ -74,11 +75,13 @@ Alias policy should be a separate product decision with explicit data ownership.
 
 ## Provider Direction
 
-CCXT is the planned CEX adapter layer for exchange-specific OHLCV beyond the
-current native Binance adapter. Phase 32B does not add CCXT as a dependency.
+CCXT is the selected adapter layer for Coinbase supplemental exchange-specific
+OHLCV. Binance remains on the existing native Binance production path and is not
+migrated to CCXT by the Coinbase supplemental work.
 
 CoinGecko is better suited for asset discovery, metadata, enrichment, and cross-listing
-context. It should not replace a Coinbase exchange-specific candle source.
+context. CoinGecko OHLC is aggregated-only and is not a Coinbase
+exchange-specific candle source.
 
 ## Phase 32K Provider Strategy Gate
 
@@ -89,43 +92,49 @@ manual rollout left coverage questions:
 - Coinbase `4h` manual scan: 179 total symbols, 89 scanned, 90 skipped.
 - Coinbase `1d` manual scan: 179 total symbols, 139 scanned, 40 skipped.
 
-Those skip counts should not be treated as acceptable production behavior without
-a provider capability audit. VegaRank should evaluate exchange-native APIs,
-third-party crypto data providers, and future multi-asset providers before
-deepening Coinbase production integration.
+Those skip counts led to the provider capability audit work. Phase 32R selected
+the CCXT-only Coinbase supplemental path instead of Coinbase Advanced direct,
+Coinbase Exchange public probes, CryptoCompare, CoinGecko OHLC, or
+CryptoDataDownload.
 
-Hand-aggregated `4h` candles from lower intervals are a fallback, not the ideal
-primary strategy. If VegaRank derives candles, provenance should eventually mark
-them as derived and include the source interval. Coin-level aggregated data must
-not be silently mixed into exchange-specific rankings.
+Coinbase supplemental production now uses native CCXT `1h` and `1d`. It derives
+Coinbase `4h` only from complete CCXT `1h` buckets and derives Coinbase `1w`
+only from complete CCXT `1d` UTC weeks. Coin-level aggregated data must not be
+silently mixed into exchange-specific rankings.
 
 See `docs/market-data-source-strategy.md` for the provider matrix, evaluation
 criteria, and recommended Phase 32L audit direction.
 
-Phase 32L implements the first live read-only provider audit tool:
+Phase 32L implemented the first live read-only provider audit tool. This command
+is retained as historical/deprecated audit evidence only; it is not the Coinbase
+supplemental production source:
 
 ```bash
 pnpm market-data:providers:live-audit -- --providers=coinbase_advanced_direct,cryptocompare,cryptodatadownload,coingecko --limit-symbols=10 --timeframes=1h,4h,1d,1w --lookback-days=365 --markdown
 ```
 
 The audit probes actual candle availability but still does not write candles,
-run scanners, alter cron, or change ranking behavior. It keeps exchange-specific
-OHLCV separate from aggregated coin-level OHLCV and reports unsupported,
-auth-required, symbol-mapping, and insufficient-history cases explicitly. See
+run scanners, alter cron, or change ranking behavior. The deprecated probe
+routes should be cleaned up only after references are audited. See
 `docs/live-crypto-ohlcv-provider-audit.md`.
 
 ## Deferred Work
 
-Coinbase runtime integration is deferred:
+Coinbase supplemental production integration is active through the explicit
+manual command:
 
-- no live Coinbase candle fetching in this phase
+```bash
+pnpm coinbase:supplemental:production
+```
+
+Deferred work:
+
 - no production schedule changes in this phase
 - no watchlist Coinbase support in this phase
 
-Coinbase public candles directly cover `1h`, `4h`, and `1d`. VegaRank `1w` uses
-a provider-neutral daily-to-weekly aggregation foundation added after Phase 32B,
-with Monday 00:00:00 UTC as the documented week boundary. Production activation
-of that path remains deferred.
+Coinbase `1h` and `1d` use native CCXT candles. Coinbase `4h` is derived only
+from complete CCXT `1h` buckets. Coinbase `1w` is derived only from complete
+CCXT `1d` weeks with Monday 00:00:00 UTC as the documented week boundary.
 
 ## Historical Coverage Foundation
 
