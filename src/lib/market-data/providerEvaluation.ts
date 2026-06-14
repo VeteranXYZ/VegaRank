@@ -309,16 +309,16 @@ function getRecommendedNextAudit(
   unknowns: ProviderEvaluationResult["unknownsToVerify"],
 ): string {
   if (useCase === "crypto_coinbase_usdc_supplemental") {
-    return "Phase 32L - Coinbase Advanced Direct vs third-party OHLCV comparison";
+    return "Coinbase supplemental production is CCXT-only; use production batch diagnostics before considering a new provider audit.";
   }
 
   if (useCase === "crypto_broad_aggregated_ohlcv") {
-    return "Phase 32L - CryptoDataDownload/CryptoCompare/CoinGecko feasibility test";
+    return "No active aggregated OHLCV provider audit route; keep aggregated data out of exchange-specific rankings.";
   }
 
   if (candidates.length > 0 || unknowns.length > 0) {
-    return "Phase 32L - Live Provider Capability Audit for top candidates";
+    return "Static provider review only; add a new scoped audit before introducing any new production data route.";
   }
 
-  return "Phase 32L - Live Provider Capability Audit for top candidates";
+  return "Static provider review only; add a new scoped audit before introducing any new production data route.";
 }

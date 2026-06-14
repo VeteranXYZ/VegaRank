@@ -1,5 +1,5 @@
 export type Exchange = "binance" | "coinbase";
-export type DataProvider = "native-binance" | "ccxt" | "coingecko";
+export type DataProvider = "native-binance" | "ccxt";
 
 export const TIMEFRAMES = ["4h", "1h", "1d", "1w", "1M"] as const;
 

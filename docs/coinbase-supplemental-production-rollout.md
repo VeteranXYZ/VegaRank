@@ -23,11 +23,9 @@ Manual scanner coverage remained incomplete:
 - `1d`: 179 total symbols, 139 scanned, 40 skipped.
 
 Phase 32R formalizes the Coinbase supplemental production source decision:
-Coinbase supplemental ingestion uses CCXT only. Coinbase Advanced Direct,
-CryptoCompare, CoinGecko OHLC, and CryptoDataDownload are deprecated/not
-selected for Coinbase production primary or supplemental ingestion. They may
-remain as read-only audit, metadata, or manual benchmark references, but they are
-not part of the Coinbase supplemental batch path.
+Coinbase supplemental ingestion uses CCXT only. Phase 32T removes the previous
+non-CCXT provider-audit route from active code, tests, package scripts, and
+candidate provider listings.
 
 The first medium batch showed that Coinbase `BASE-USDC` rows were being
 classified from the raw dashed pair string. Phase 32H refines quality
@@ -138,9 +136,8 @@ symbol:
 The report includes fetched source counts, generated candle counts, gaps,
 inserted/updated rows, dropped partial buckets, and dropped partial weeks.
 
-No Coinbase Advanced, Coinbase Exchange public, CryptoCompare, CoinGecko OHLC,
-or CryptoDataDownload candle client is used by this batch. Coin-level aggregated
-candles must not be mixed with Coinbase exchange-specific candles.
+No non-CCXT candle client is used by this batch. Coin-level aggregated candles
+must not be mixed with Coinbase exchange-specific candles.
 
 ## Scanner Run
 
@@ -242,62 +239,15 @@ requested timeframe or a scanner data-quality guard.
 5. API validation for explicit Coinbase latest rankings and Symbol Research.
 6. Production cron design only after manual full-universe runs are reviewed.
 
-Historical/deprecated live audit command retained for reference only:
-
-```bash
-pnpm market-data:providers:live-audit -- --providers=coinbase_advanced_direct,coinbase_exchange_public,cryptocompare,cryptodatadownload,coingecko --symbols=AERO-USDC,CLANKER-USDC,BNKR-USDC,BTCUSDT,ETHUSDT --timeframes=1h,4h,1d,1w --lookback-days=365 --json
-```
-
-Deprecated Coinbase Advanced audit, if credentials are available:
-
-```bash
-COINBASE_ADVANCED_BEARER_TOKEN=... pnpm market-data:providers:live-audit -- --providers=coinbase_advanced_direct --symbols=AERO-USDC,CLANKER-USDC,BNKR-USDC --timeframes=1h,4h,1d,1w --lookback-days=365 --json
-```
-
-CoinGecko remains aggregated-only and must not be used as an exchange-specific
-primary source even when its OHLC endpoint succeeds. Production cron remains
-disabled. These provider-audit routes are not selected for Coinbase supplemental
-production ingestion.
-
-## Cleanup Plan After Verification
-
-Remove only after this phase has been verified in production:
-
-- outdated docs that describe Coinbase Advanced, CryptoCompare, CoinGecko OHLC,
-  or CryptoDataDownload as candidate production Coinbase OHLCV sources
-- stale sample-output JSON or markdown from old provider audits that imply a
-  non-CCXT Coinbase supplemental route
-- old operator notes that require `--allow-large-run` for the intended full
-  Coinbase supplemental run
-- any archived wrong-route data exports that mix aggregated coin-level candles
-  with exchange-specific Coinbase symbols
-
-## Phase 32T Deprecated Route Reference Audit
-
-These references are intentionally left in place in Phase 32S. Use this
-inventory before deleting old provider-audit code in Phase 32T.
-
-| Area | Current references | Phase 32T action |
-| --- | --- | --- |
-| package script | `package.json` has `market-data:providers:live-audit` | Remove this script before or with the live provider audit CLI deletion. |
-| live audit CLI | `scripts/audit-live-crypto-ohlcv-providers.ts` imports Coinbase Advanced direct, Coinbase Exchange public, CryptoCompare, CoinGecko, and CryptoDataDownload probe providers | Delete only after the package script and live audit tests are removed or rewritten. |
-| audit orchestration | `src/lib/market-data/liveProviderAudit.ts` defines the deprecated provider IDs and decision summary logic | Delete or narrow this module only after no CLI, tests, or docs depend on old probe IDs. |
-| probe providers | `src/lib/market-data/providers/coinbaseAdvancedDirectProvider.ts`, `coinbaseExchangePublicProbeProvider.ts`, `cryptocompareProbeProvider.ts`, `coingeckoProbeProvider.ts`, `cryptoDataDownloadProbeProvider.ts` | Safe Phase 32T deletion candidates after import references are removed. |
-| tests | `src/lib/market-data/liveProviderAudit.test.ts` covers the deprecated probes; `src/lib/market-data/providerEvaluation.test.ts` still asserts deprecated providers are not production roles | Remove live audit tests with the old route; keep or update provider evaluation assertions until static capability entries are deleted. |
-| static capabilities | `src/lib/market-data/providerCapabilities.ts` still lists deprecated providers as audit-only/metadata-only/not-selected | Keep until the static provider matrix no longer documents rejected alternatives. |
-| docs | `docs/live-crypto-ohlcv-provider-audit.md`, `docs/market-data-source-strategy.md`, `docs/provider-neutral-market-data-foundation.md`, and this rollout doc still reference old audit routes | Update or archive these docs in the same cleanup phase so no doc implies these are future production candidates. |
-| shared provider type | `src/lib/shared/timeframes.ts` includes `coingecko` in `DataProvider` | Review downstream type usage before deleting; do not remove blindly. |
-
-Phase 32T should remove references in this order: package script, CLI imports,
-live audit tests, probe providers, audit orchestration, static capability
-entries, then docs. The Coinbase supplemental production path should remain
-`pnpm coinbase:supplemental:production` and CCXT-only throughout the cleanup.
+Historical note: the earlier non-CCXT live provider audit route was removed from
+active code in Phase 32T. The Coinbase supplemental production path remains
+`pnpm coinbase:supplemental:production` and CCXT-only.
 
 ## Deferred
 
 - production cron enablement
 - watchlist Coinbase support
-- CoinGecko metadata layer
+- optional coin-level metadata layer
 - combined Binance/Coinbase latest rankings design
 - production-depth retry strategy
 

@@ -20,9 +20,9 @@ Current Coinbase manual pipeline status:
   `symbolsSkipped=40`.
 - Binance production latest rankings remain unaffected.
 - Phase 32R selects CCXT as the only Coinbase supplemental production ingestion
-  source. Coinbase Advanced Direct, CryptoCompare, CoinGecko OHLC, and
-  CryptoDataDownload are not selected for production primary or supplemental
-  ingestion.
+  source.
+- Phase 32T removes the previous live provider-audit route from active code,
+  tests, package scripts, and candidate provider listings.
 
 The skipped Coinbase rows are not accepted as normal production behavior. They
 are a decision gate: VegaRank should evaluate provider coverage before continuing
@@ -62,8 +62,9 @@ Evaluate each provider on:
 - product metadata quality
 - future equities support
 
-Unverified capabilities should remain `needs_verification` until a live capability
-audit proves them against representative VegaRank symbols.
+Unverified capabilities should remain `needs_verification` until a future scoped
+provider proof is explicitly designed. No generic live provider-audit route is
+active after Phase 32T.
 
 ## Provider Matrix
 
@@ -71,11 +72,6 @@ audit proves them against representative VegaRank symbols.
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | Binance native klines | exchange_native_api | yes | yes | no | Native `1h`, `4h`, `1d`, `1w` | Good for listed Binance spot pairs; varies by listing age | no | yes | no | no | medium | low | strong_candidate | Keep current production behavior unchanged. |
 | Coinbase through CCXT | exchange_abstraction | yes | yes | no | Production supplemental path uses native `1h` and `1d`; VegaRank derives `4h` from `1h` and `1w` from `1d` | Product-specific; validated by batch diagnostics | yes | no | no | no | medium | medium | supplemental_only | Selected as the only Coinbase supplemental production ingestion source; Binance remains primary. |
-| Coinbase Advanced Trade direct candles | exchange_native_api | yes | yes | no | `1h` and `1d` likely; `4h` needs auth/live audit; `1w` unavailable | Needs verification for limits and windows | yes | no | no | partial | medium | medium | audit_only | Deprecated/not selected for Coinbase production primary or supplemental ingestion. |
-| Coinbase Exchange direct candles | exchange_native_api | yes | yes | no | Direct granularity support needs audit, especially `4h` | Needs verification for 200-candle readiness | yes | no | no | no | medium | medium | audit_only | Deprecated/not selected for Coinbase production ingestion; read-only audit comparison only. |
-| CoinGecko | aggregated_coin_ohlcv | partial | partial | partial | Coin-level market chart/OHLC endpoints only for this project | Depends on endpoint and plan | needs_verification | needs_verification | no | partial | medium | medium | metadata_only | CoinGecko OHLC is deprecated/not selected for production primary or supplemental ingestion. Metadata only. |
-| CryptoCompare | mixed_market_data | partial | partial | partial | Hour/day likely; native `4h` and `1w` need verification | Free and paid limits need verification | needs_verification | yes | no | partial | needs_verification | medium | audit_only | Deprecated/not selected for production primary or Coinbase supplemental ingestion. |
-| CryptoDataDownload | csv_download | yes | yes | no | CSV hourly/daily likely; `4h`/`1w` need verification | Often deep historical CSV, but freshness and pair coverage need audit | needs_verification | yes | no | no | needs_verification | medium | audit_only | Deprecated/not selected for production primary or Coinbase supplemental ingestion; manual benchmark only. |
 | CoinLore | metadata | yes | no | yes | OHLCV suitability needs verification | Needs verification | no | no | no | no | needs_verification | low | metadata_only | Do not treat as exchange-specific OHLCV. |
 | TokenDatabase | metadata | needs_verification | no | yes | Needs verification | Needs verification | needs_verification | needs_verification | no | needs_verification | needs_verification | high | audit_only | Keep explicitly unknown until documentation is verified. |
 | Twelve Data | mixed_market_data | partial | needs_verification | needs_verification | Broad intervals likely; crypto venue semantics need verification | Plan-limited; needs 200-candle audit | needs_verification | needs_verification | yes | yes | needs_verification | medium | candidate | Interesting for future equities, but crypto exchange specificity is unproven. |
@@ -124,35 +120,9 @@ VegaRank should avoid hand-aggregating as the default strategy. Manual `4h`
 aggregation from `1h` is acceptable as a controlled fallback, not as evidence that
 Coinbase production coverage is solved.
 
-## Recommended Near-Term Path
+## Current Near-Term Path
 
-Do not immediately replace Binance. Do not immediately cron Coinbase.
-
-First run a provider capability audit against a representative sample:
-
-- current Binance production symbols
-- the Coinbase-only USDC symbols that scanned successfully
-- the Coinbase-only USDC symbols that skipped on `4h`
-- the Coinbase-only USDC symbols that skipped on `1d`
-- high-volume, medium-volume, and low-history pairs
-
-The audit should measure:
-
-- whether each provider returns at least 200 candles for each required interval
-- whether `4h` and `1w` are native or derived
-- source gaps and duplicate timestamps
-- pair identity and quote preservation
-- rate-limit behavior
-- licensing and plan fit
-
-Phase 32L added this live read-only audit as
-`pnpm market-data:providers:live-audit`. Phase 32M extends it with Coinbase
-Advanced bearer-token auth support, Coinbase Exchange public-candle comparison,
-CryptoCompare provenance labeling, safer CoinGecko aggregated-only
-classification, CryptoDataDownload manual mapping notes, and a paid/key-required
-provider checklist. It still performs no DB writes, scanner runs, cron changes,
-scoring changes, UI changes, Archive changes, or Watchlist changes. See
-`docs/live-crypto-ohlcv-provider-audit.md`.
+Do not replace Binance and do not cron Coinbase in this phase.
 
 Current Coinbase supplemental production backfill is now CCXT-only:
 
@@ -164,23 +134,6 @@ Current Coinbase supplemental production backfill is now CCXT-only:
 This is the selected supplemental path for Coinbase. It does not replace Binance
 as the production primary source.
 
-CoinGecko remains aggregated coin-level data only. Even if its OHLC endpoint
-works for BTC, ETH, or AERO, it is metadata or broad market context, not an
-exchange-specific Coinbase primary source.
-
-Coinbase Advanced Direct, CryptoCompare, CoinGecko OHLC, and CryptoDataDownload
-remain excluded from production primary/supplemental ingestion unless a future
-phase explicitly reopens provider selection with licensing, provenance, and
-coverage evidence.
-
-## Cleanup Plan After Phase 32R Verification
-
-Remove only after the CCXT full-universe Coinbase supplemental run is verified:
-
-- docs or notes that present Coinbase Advanced, CryptoCompare, CoinGecko OHLC, or
-  CryptoDataDownload as active Coinbase production ingestion candidates
-- stale live-audit artifacts that imply a non-CCXT Coinbase supplemental source
-- operator snippets that tell maintainers to use `--allow-large-run` for the
-  intended full Coinbase supplemental run
-- any exported wrong-route sample data that combines aggregated coin OHLC with
-  exchange-specific Coinbase pairs
+The removed provider-audit route should not be revived by default. Any future
+third-party market-data provider work should start as a new scoped phase with
+explicit licensing, provenance, coverage, and production-role criteria.

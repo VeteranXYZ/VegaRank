@@ -106,12 +106,11 @@ sample command remains:
 pnpm coinbase:supplemental:batch -- --limit-symbols=20
 ```
 
-## Deprecated / Not Selected Providers
+## Removed Non-CCXT Route
 
-Coinbase Advanced Direct, CryptoCompare, CoinGecko OHLC, and CryptoDataDownload
-are not selected for Coinbase production primary or supplemental ingestion.
-CoinGecko may remain metadata/context only; the others may remain read-only audit
-or manual benchmark references.
+Phase 32T removes the previous non-CCXT provider-audit route from active code,
+package scripts, tests, and candidate provider listings. Coinbase supplemental
+production remains CCXT-only.
 
 ## Deferred Work
 
@@ -134,8 +133,7 @@ Remove only after the full-universe CCXT supplemental run is verified:
   deferred
 - old operator notes that require `--allow-large-run` for the intended full
   Coinbase supplemental run
-- obsolete audit snapshots that imply Coinbase Advanced, CryptoCompare,
-  CoinGecko OHLC, or CryptoDataDownload is an active Coinbase ingestion route
+- obsolete audit snapshots that imply a non-CCXT Coinbase ingestion route
 
 ## Testing Boundary
 

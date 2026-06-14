@@ -156,9 +156,8 @@ The runner selects already-imported Coinbase `-USDC` symbols, fetches CCXT nativ
 complete `1d` UTC weeks, runs manual Coinbase scanner timeframes, and prints a
 structured rollout report. See `docs/coinbase-supplemental-production-rollout.md`.
 
-Coinbase Advanced Direct, CryptoCompare, CoinGecko OHLC, and
-CryptoDataDownload are deprecated/not selected for Coinbase production primary
-or supplemental ingestion.
+Phase 32T removes the previous non-CCXT provider-audit route from active code,
+package scripts, tests, and candidate provider listings.
 
 ## Symbol Research
 
@@ -193,7 +192,7 @@ context.
 - storage/backfill production job activation
 - watchlist Coinbase support
 - cross-source comparison workflows
-- CoinGecko metadata layer
+- optional coin-level metadata layer
 - UI redesign
 
 ## Cleanup Plan After Verification
@@ -202,7 +201,6 @@ Remove only after the CCXT full-universe supplemental run is verified:
 
 - old notes that describe `--allow-large-run` as required for the intended full
   Coinbase supplemental run
-- old docs that present Coinbase Advanced, CryptoCompare, CoinGecko OHLC, or
-  CryptoDataDownload as production Coinbase OHLCV candidates
+- old docs that present non-CCXT routes as production Coinbase OHLCV candidates
 - stale wrong-route sample artifacts that mix aggregated coin-level candles with
   exchange-specific Coinbase symbols

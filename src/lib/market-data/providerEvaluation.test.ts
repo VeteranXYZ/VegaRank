@@ -9,11 +9,6 @@ import { evaluateMarketDataProviders } from "./providerEvaluation";
 const requiredProviderIds = [
   "binance_native",
   "coinbase_ccxt",
-  "coinbase_advanced_direct",
-  "coinbase_exchange_direct",
-  "coingecko",
-  "cryptocompare",
-  "cryptodatadownload",
   "coinlore",
   "tokendatabase",
   "twelvedata",
@@ -79,16 +74,19 @@ describe("market data provider evaluation", () => {
     ).toBe(true);
   });
 
-  it("ranks Coinbase exchange-specific candidates above aggregated coin-level providers", () => {
+  it("selects CCXT as the Coinbase supplemental candidate", () => {
     const result = evaluateMarketDataProviders("crypto_coinbase_usdc_supplemental");
-    const advancedDirect = result.bestCandidates.find(
-      (candidate) => candidate.providerId === "coinbase_advanced_direct",
+    const selectedIds = result.bestCandidates.map((candidate) => candidate.providerId);
+    const coinbaseCcxt = result.bestCandidates.find(
+      (candidate) => candidate.providerId === "coinbase_ccxt",
     );
-    const coinGecko = result.bestCandidates.find((candidate) => candidate.providerId === "coingecko");
 
-    expect(advancedDirect).toBeDefined();
-    expect(coinGecko).toBeDefined();
-    expect(advancedDirect!.score).toBeGreaterThan(coinGecko!.score);
+    expect(coinbaseCcxt).toMatchObject({
+      recommendedRole: "production_fallback",
+    });
+    expect(selectedIds.filter((providerId) => providerId.startsWith("coinbase_"))).toEqual([
+      "coinbase_ccxt",
+    ]);
   });
 
   it("keeps metadata providers out of OHLCV provider selection", () => {
@@ -104,26 +102,24 @@ describe("market data provider evaluation", () => {
       });
   });
 
-  it("keeps deprecated Coinbase supplemental alternatives out of production roles", () => {
+  it("keeps only the selected Coinbase provider in the static matrix", () => {
     expect(providerCapabilityProfilesById.coinbase_ccxt).toMatchObject({
       fitForVegaRank: "supplemental_only",
       recommendedRoles: expect.arrayContaining(["production_fallback"]),
     });
 
-    for (const providerId of [
-      "coinbase_advanced_direct",
-      "coinbase_exchange_public",
-      "coinbase_exchange_direct",
-      "coingecko",
-      "cryptocompare",
-      "cryptodatadownload",
-    ] as const) {
-      const profile = providerCapabilityProfilesById[providerId];
-
-      expect(profile.recommendedRoles).not.toContain("production_primary");
-      expect(profile.recommendedRoles).not.toContain("production_fallback");
-      expect(profile.notes).toMatch(/not selected.*production/i);
-    }
+    const selectedIds = providerCapabilityProfiles.map((profile) => profile.id);
+    expect(selectedIds.filter((providerId) => providerId.startsWith("coinbase_"))).toEqual([
+      "coinbase_ccxt",
+    ]);
+    expect(
+      providerCapabilityProfiles.filter(
+        (profile) =>
+          profile.providerType === "exchange_native_api" &&
+          profile.coinbaseUsdcLikely === "yes" &&
+          profile.id !== "binance_native",
+      ),
+    ).toEqual([]);
   });
 
   it("does not falsely satisfy future equities with crypto-only providers", () => {
@@ -131,7 +127,7 @@ describe("market data provider evaluation", () => {
     const selectedIds = result.bestCandidates.map((candidate) => candidate.providerId);
 
     expect(selectedIds).not.toContain("binance_native");
-    expect(selectedIds).not.toContain("coinbase_advanced_direct");
+    expect(selectedIds).not.toContain("coinbase_ccxt");
     expect(selectedIds).toEqual(
       expect.arrayContaining(["twelvedata", "polygon_crypto", "tiingo_crypto"]),
     );

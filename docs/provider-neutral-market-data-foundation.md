@@ -20,7 +20,6 @@ Data Provider is the technical source used to retrieve listing metadata or OHLCV
 
 - `native-binance` for the current Binance adapter
 - `ccxt` for the current Coinbase supplemental production adapter
-- `coingecko` for future asset discovery, metadata, and enrichment
 
 Research Universe Row is the final listing selected for VegaRank research ranking.
 Only one listing should represent a canonical asset key in the selected universe.
@@ -79,9 +78,9 @@ CCXT is the selected adapter layer for Coinbase supplemental exchange-specific
 OHLCV. Binance remains on the existing native Binance production path and is not
 migrated to CCXT by the Coinbase supplemental work.
 
-CoinGecko is better suited for asset discovery, metadata, enrichment, and cross-listing
-context. CoinGecko OHLC is aggregated-only and is not a Coinbase
-exchange-specific candle source.
+Coin-level metadata can still be useful for discovery, enrichment, and
+cross-listing context, but aggregated OHLC must not be treated as Coinbase
+exchange-specific candle data.
 
 ## Phase 32K Provider Strategy Gate
 
@@ -92,31 +91,18 @@ manual rollout left coverage questions:
 - Coinbase `4h` manual scan: 179 total symbols, 89 scanned, 90 skipped.
 - Coinbase `1d` manual scan: 179 total symbols, 139 scanned, 40 skipped.
 
-Those skip counts led to the provider capability audit work. Phase 32R selected
-the CCXT-only Coinbase supplemental path instead of Coinbase Advanced direct,
-Coinbase Exchange public probes, CryptoCompare, CoinGecko OHLC, or
-CryptoDataDownload.
+Those skip counts led to the provider capability work. Phase 32R selected the
+CCXT-only Coinbase supplemental path. Phase 32T removes the previous live
+provider-audit route from active code, tests, package scripts, and candidate
+provider listings.
 
 Coinbase supplemental production now uses native CCXT `1h` and `1d`. It derives
 Coinbase `4h` only from complete CCXT `1h` buckets and derives Coinbase `1w`
 only from complete CCXT `1d` UTC weeks. Coin-level aggregated data must not be
 silently mixed into exchange-specific rankings.
 
-See `docs/market-data-source-strategy.md` for the provider matrix, evaluation
-criteria, and recommended Phase 32L audit direction.
-
-Phase 32L implemented the first live read-only provider audit tool. This command
-is retained as historical/deprecated audit evidence only; it is not the Coinbase
-supplemental production source:
-
-```bash
-pnpm market-data:providers:live-audit -- --providers=coinbase_advanced_direct,cryptocompare,cryptodatadownload,coingecko --limit-symbols=10 --timeframes=1h,4h,1d,1w --lookback-days=365 --markdown
-```
-
-The audit probes actual candle availability but still does not write candles,
-run scanners, alter cron, or change ranking behavior. The deprecated probe
-routes should be cleaned up only after references are audited. See
-`docs/live-crypto-ohlcv-provider-audit.md`.
+See `docs/market-data-source-strategy.md` for the current provider matrix and
+evaluation criteria.
 
 ## Deferred Work
 
